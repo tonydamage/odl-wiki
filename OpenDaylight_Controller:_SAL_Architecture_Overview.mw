@@ -1,0 +1,76 @@
+{| align="right" border="1"
+|align="center"|'''SAL Guide Contents'''
+|-
+|[[OpenDaylight Controller:Model-Driven Controller Service Abstraction Layer|Model-Driven Controller SAL]]<br>[[OpenDaylight Controller:SAL Infrastructure|SAL:Infrastructure and Interfaces]]<br>[[OpenDaylight Controller: SAL Architecture Overview|SAL:Architecture Overview]]<br>[[OpenDaylight Controller:YANG Schema and Model|SAL:YANG Schema]]<br>[[OpenDaylight Controller:Binding-Independent Data Format|SAL:BI Data Format]]<br>[[OpenDaylight Controller:Binding-Independent Components|SAL:BI Components]]<br>[[OpenDaylight Controller:Binding-Aware SAL|SAL:Binding-Aware SAL]]<br>[[OpenDaylight Controller:Binding Model|SAL:Binding Model]]<br>[[OpenDaylight Controller:Binding Aware Components|SAL:BA Components]]<br>[[OpenDaylight Controller:Example Workflows|SAL:Example Workflows and Diagrams]]<br>[[OpenDaylight Controller:Programmer Guide|Programmer Guide Top Level]]<br>[[OpenDaylight Controller:Main|Top Level Contents]]
+|}
+
+==SAL Architecture==
+The architecture of the system is shown in the following figure.
+
+[[File:SAL System Architecture.jpg|border|520px]]
+
+The subsystems in the above figure are as follows:
+
+*'''Provider''' – a component that exposes functionality to applications and other providers (plugins) through its northbound API. A provider can be a Consumer of other Providers. There are two types of Providers:
+**'''Binding Independent Providers''':  their functionality is exposed in the binding-independent Data DOM format
+**'''Binding Aware Providers''': their functionality is exposed in a format  compiled against one or more generated binding interfaces
+*'''Consumer''' – a component that consumes functionality provided by one or more Providers. There are two types of Consumers:
+**'''Binding Independent Consumers ''' – the functionality is consumed in the binding-independent Data DOM format
+**'''Binding Aware Consumers''' – the functionality is consumed via one or more generated binding interfaces
+*'''Binding-Independent Broker''' - the core component of the model-driven SAL. It routes RPCs, notifications and data changes between various Providers and Consumers.
+*'''Binding-Aware Broker''' – provides programmatic APIs and Java language support to both Consumers (such as controller applications or plugins) and Providers. It is a façade / proxy built on top of the Binding Independent Broker that simplifies access to data and services provided by Binding-Independent Providers and Binding-Aware providers.
+*'''BI Data Repository''' – is a binding-independent infrastructure component of SAL that is responsible for storage of configuration and transient data
+*'''Binding Schema Repository''' – is infrastructure component, responsible for storing specifications of YANG–Java relationships and mapping between language-binding APIs to binding-independent API calls.
+*'''Binding Generator''' – a SAL infrastructure component, which generates implementations of binding interfaces and data mappers to the binding-independent format.
+
+==Subsystem Types==
+In context of the Controller architecture, two subsystem categories are defined:
+
+*Top-Level Subsystems – subsystems such as a data store, or a validator; there is typically only a single instance of a top-level subsystem per API revision
+
+*Nested Subsystems – a subsystem which could be local or remote. it can expose a set of functionality at multiple places or in multiple instances. A Network Element, such as a router or switch, is an example of a nested subsystem.
+
+YANG supports modeling of top-level subsystems via YANG schemas and modules, but it does not allow for reuse of existing models as subsystems nested in context of a top-level subsystem. To support nesting, YANG extensions are introduced, which will extend the schema to allow model nesting of subsystems in a single data tree.
+
+===Top-Level Subsystems===
+Top-level subsystems can be controller components or applications (Providers or Consumers) deployed in the Controller that use the Controller SAL to communicate with other controller components, applications, and plugins.
+
+Top-Level Subsystems subsystems usually have either a single instance per system/API, or multiple versioned instances, where each instance is unique to a revision of the contract defined by YANG models;  in the latter case, each instance represents a single closed system.
+
+Prime examples for top-level subsystem are brokers and data repositories.
+
+===Nested Subsystems===
+Nested subsystems represent entities (e.g. components, virtual systems, network elements) which are not top-level and which could have multiple instances attached to the overall system data tree at different levels and in different branches of the tree. [2]
+
+An instance of a nested subsystem does not map directly to a provider instance: a single provider could export multiple instances of a nested subsystem. One such example is to expose data modeled in the IETF Interfaces YANG module, which exports interfaces for multiple network elements.
+
+Nested subsystems can use different models and schemas than the top-level subsystems.
+
+====Nested Datastore====
+Data of a nested subsystem is “attached” (or "mounted") under a node (attachment point) in the controller’s datastore. 
+
+The data in a nested subsystem may represent data present in another (remote) system or in a local Controller component, such as a plugin. It may also be dynamically generated by a Controller component, or translated from other protocols.
+
+The attached (mounted) data and their structures have the following properties:
+
+* Could be referenced by any YANG schema that understands subsystem nesting
+
+* Could be using a different YANG schemas than their container
+
+* These schemas use the attachment point as the data root node.
+
+* The attachment point is used as the identifier of a nested subsystem.
+
+A component that exposes a nested subsystem is responsible for:
+
+* Provisioning of nested data to state data repositories
+
+* Voting on configuration changes to nested data
+
+* Voting on configuration commits that change nested data
+
+====RPCs====
+Consumers may need to invoke the functionality provided by nested subsystems. An RPC Broker must provide functionality that will enable nested RPC functionality in Providers. Furthermore, a Broker must be able to route RPCs to the Providers of nested subsystems for further processing.
+
+
+[[Category:OpenDaylight Controller]]
