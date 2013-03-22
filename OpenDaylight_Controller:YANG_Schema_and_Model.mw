@@ -1,0 +1,73 @@
+{| align="right" border="1"
+|align="center"|'''SAL Guide Contents'''
+|-
+|[[OpenDaylight Controller:Model-Driven Controller Service Abstraction Layer|Model-Driven Controller SAL]]<br>[[OpenDaylight Controller:SAL Infrastructure|SAL:Infrastructure and Interfaces]]<br>[[OpenDaylight Controller: SAL Architecture Overview|SAL:Architecture Overview]]<br>[[OpenDaylight Controller:YANG Schema and Model|SAL:YANG Schema]]<br>[[OpenDaylight Controller:Binding-Independent Data Format|SAL:BI Data Format]]<br>[[OpenDaylight Controller:Binding-Independent Components|SAL:BI Components]]<br>[[OpenDaylight Controller:Binding-Aware SAL|SAL:Binding-Aware SAL]]<br>[[OpenDaylight Controller:Binding Model|SAL:Binding Model]]<br>[[OpenDaylight Controller:Binding Aware Components|SAL:BA Components]]<br>[[OpenDaylight Controller:Example Workflows|SAL:Example Workflows and Diagrams]]<br>[[OpenDaylight Controller:Programmer Guide|Programmer Guide Top Level]]<br>[[OpenDaylight Controller:Main|Top Level Contents]]
+|}
+
+==Schema Definitions==
+The Binding Independent Data Schema describes the structure of data, procedures and notifications provided by a module.
+
+The schema is based on YANG, but some terms and definitions were adapted to better fit the Java class system and to support Controller use cases.
+
+The schemas are used to define:
+
+*Modules – grouping of exposed functionality, features, types, RPCs and data structures.
+*Features – a mechanism by which portions of the schema are marked as conditional.
+*Types – data types that may be used locally in the module, in modules or submodules that include it, and by other modules
+*Data Structures – definition of data nodes in the data tree
+*RPCs – module operations
+*Notifications
+*Relationships between data
+*Validation constraints
+*Extensions of other modules and their functionality (augmentation)
+*YANG Extensions
+
+==YANG Modifications & Extensions to Support the Controller==
+===Handling of Multiple Module Revisions===
+This document introduces a layer of separation that isolates data, RPCs and notifications, based on the revision of modules, to support multiple versions of the clients at the same time without the risk of accidentally changing data, which semantics changed between revisions.
+
+Because multiple revisions of the same module can co-exist in the system, the architecture must support components (plugins) responsible for translating data between different module revisions [3].
+
+===QNames===
+A regular XML QName consists of a local element name and an XML namespace. To support versioning, module revision was added.
+
+In context of YANG, a QName is a full name of a defined node, type, procedure or a notification.[4] A QName consists of an XML namespace, a YANG model revision and a local name of defined type. It is used to prevent name clashes between nodes with the same local name, but from different schemas.
+
+QName = (XMLNamespace,Revision,LocalName)
+
+Where:
+
+* XMLNamespace – namespace assigned to the YANG module with defined element, type, procedure or notification.
+* Revision – revision of the YANG module that describes the element
+* LocalName – YANG schema identifier that was defined for this node in the YANG module
+
+===RPCs===
+In regular Netconf/YANG use cases, RPCs are used to model functionality and APIs provided by a Netconf server to a Netconf client. In context of the Controller SAL, RPCs are used to model functionality provided by Providers and consumed by Consumers.
+
+==The Java Model of the YANG Schema==
+The following figure shows the binding-independent representation of the YANG schema. 
+
+[[File:YANG Schema.jpg|border|800px]]
+
+A YANG parser in the Binding Generator component generates Java Model objects.
+
+==Unknown Schema Nodes & Extension Handling==
+
+The YANG specification allows for presence of schema nodes that were not defined in the original YANG specification. Typically, these nodes are defined in modules with one or more extension statements, but no further semantic of this node is defined in a computer-understandable form (e.g. valid use of the node, where it could be used).
+
+To model this we added the notion of 'Unknown Schema Nodes'. An Unknown Schema Node could be a child of any schema node. It is used to store the extension information and to provide it to components that understand its semantics.
+
+[[File:Extension Node Class Hierarchy.jpg|border|800px]]
+
+===Extension Node Class Hierarchy===
+
+* ExtensionDefinition - Schema Node that defines the YANG extension. The QName of ExtensionDefinition is the base for the YANG statement and is used as the identifier of the extension.
+* ExtensionSchemaNode – representation of the statement defined by the extension. Note that this schema node has two QNames:
+** name – the name of the schema node in the YANG module. It is based on the argument of the extension and the prefix of the YANG module.
+** nodeTypeQName – Qname of the Extension Definition that defined this extension schema node.
+
+===Handling of Nodes Defined by Extensions===
+The implementation and handling of extension-defined schema nodes is out of the scope of the YANG schema and model, which are used to represent schema in structured and usable form, which is to be consumed by other components.
+
+
+[[Category:OpenDaylight Controller]]
