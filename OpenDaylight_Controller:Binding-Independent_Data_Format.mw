@@ -1,0 +1,67 @@
+{| align="right" border="1"
+|align="center"|'''SAL Guide Contents'''
+|-
+|[[OpenDaylight Controller:Model-Driven Controller Service Abstraction Layer|Model-Driven Controller SAL]]<br>[[OpenDaylight Controller:SAL Infrastructure|SAL:Infrastructure and Interfaces]]<br>[[OpenDaylight Controller: SAL Architecture Overview|SAL:Architecture Overview]]<br>[[OpenDaylight Controller:YANG Schema and Model|SAL:YANG Schema]]<br>[[OpenDaylight Controller:Binding-Independent Data Format|SAL:BI Data Format]]<br>[[OpenDaylight Controller:Binding-Independent Components|SAL:BI Components]]<br>[[OpenDaylight Controller:Binding-Aware SAL|SAL:Binding-Aware SAL]]<br>[[OpenDaylight Controller:Binding Model|SAL:Binding Model]]<br>[[OpenDaylight Controller:Binding Aware Components|SAL:BA Components]]<br>[[OpenDaylight Controller:Example Workflows|SAL:Example Workflows and Diagrams]]<br>[[OpenDaylight Controller:Programmer Guide|Programmer Guide Top Level]]<br>[[OpenDaylight Controller:Main|Top Level Contents]]
+|}
+
+==Overview==
+In the context of the Controller SAL, data are modeled in a tree form similar to XML, but with some modifications to support multiple versions of data models and controller components.
+The main difference is replacement of XML QName with a new QName defined in Section 6, which allows tree branching based on data schema revisions.
+
+[[File:Binding Independent Data Format.jpg|border|530px]] 
+
+* QName – an identifier of a node type, similar to the XML QName
+* DOMNode – Base representation of a node in the data tree; it defines basic node parameters, such as the QName. There are two DOMNode types:
+** SimpleNode – Represents a node that contains only one simple value (such as integer, string, etc…)
+** CompositeNode – Represents a node that contains other nodes; it does not contain a simple value.
+* NodeModification – Base representation of a modification to be applied to a node. There are two NodeModification types:
+** CompositeNodeModification – Represents changes to the composite node, such as replacement of the contents of a composite node.
+** SimpleNodeModification – Represents changes to a simple node, such as replacement of a value or removal of a node.
+
+We did not modeled the binding-independent data form directly using the YANG terms, because of  the existence of the YANG anyxml statement  (which would require different approach than the rest of Data DOM tree) and the analysis of the current usage of this statement prevented us from using direct YANG to data node types mapping.
+
+==Nodes==
+Each node must have a QName. Multiple nodes with the same QName could exist in the same container node.
+===Simple Node===
+The Simple Node represents a leaf in the data tree that does not contain any nested nodes, but the value of node. In terms of XML The Simple Node is an element that contains only text data (CDATA or PCDATA).
+
+The Simple Node is a manifestation of the following YANG data schema constructs:
+* leaf – simple node could represent YANG leafs of all types, except for the empty type, which in XML form is similar to an empty container.
+* item in a leaf-list
+
+===Composite Node===
+The Composite Node represents a branch in the data tree. It can contain nested composite nodes or leaf nodes.
+In terms of XML, the Composite Node is an element which does not contain text data directly (CDATA or PCDATA), only other nodes.
+The Composite Node is the manifestation of the following YANG data schema constructs:
+* container – the Composite Node represents the YANG container and could contain all children schema nodes of that container
+* item in the list – the composite node represents one item in the YANG list and could contain all children schema nodes of that list item.
+* anyxml
+* leaf with empty type
+
+==Node Modifications==
+In use cases swhere tate data changes, node modifications are modeled as a part of additional metadata in the data tree. Modification types are based on Netconf edit-config RPCs.
+In order to modify the configuration or state data tree a user must create a tree representing the modification of the data and apply the modification to the target tree. 
+
+===Simple Node Modifications===
+The simple node supports the following modifications:
+* replace - data identified by the node containing this modification replaces any related data in the target data tree; if no such data exists in the target data tree, it is created.
+* create - data identified by the node containing this modification is added to the target data tree if and only if the data does not already exist in target data store.  If the data exists, an error is returned with an error value of "data-exists".
+* delete –data identified by the node containing this modification is deleted from the target data tree if and only if the data currently exists in the target data tree.  If the data does not exist, an error is returned with an error value of "data-missing".
+* remove - The data identified by the node containing this attribute is deleted from the target data tree if the data currently exists in the target data tree.  If the data does not exist, the modification is silently ignored.
+
+===Composite Node Modifications===
+The composite node supports the following modifications:
+* merge - data identified by the node containing this modification is merged with the data at the corresponding level in the data tree
+* replace - data identified by the node containing this modification replaces any related data in the target data tree; if no such data exists in the target data tree, it is created.
+* create - data identified by the node containing this modification is added to the target data tree if and only if the data does not already exist in target data store.  If the data exists, an error is returned with an error value of "data-exists".
+* delete –data identified by the node containing this modification is deleted from the target data tree if and only if the data currently exists in the target data tree.  If the data does not exist, an error is returned with an error value of "data-missing".
+* remove - data identified by the node containing this attribute is deleted from the target data tree if the data currently exists in the target data tree.  If the data does not exist, the modification is silently ignored.
+
+==Functional Requirements==
+The data model:
+* MUST support data described in multiple revisions of the same schema. This is achieved by introducing Revision into QName
+
+
+
+ 
+[[Category:OpenDaylight Controller]]
