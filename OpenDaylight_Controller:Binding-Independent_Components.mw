@@ -1,0 +1,492 @@
+{| align="right" border="1"
+|align="center"|'''SAL Guide Contents'''
+|-
+|[[OpenDaylight Controller:Model-Driven Controller Service Abstraction Layer|Model-Driven Controller SAL]]<br>[[OpenDaylight Controller:SAL Infrastructure|SAL:Infrastructure and Interfaces]]<br>[[OpenDaylight Controller: SAL Architecture Overview|SAL:Architecture Overview]]<br>[[OpenDaylight Controller:YANG Schema and Model|SAL:YANG Schema]]<br>[[OpenDaylight Controller:Binding-Independent Data Format|SAL:BI Data Format]]<br>[[OpenDaylight Controller:Binding-Independent Components|SAL:BI Components]]<br>[[OpenDaylight Controller:Binding-Aware SAL|SAL:Binding-Aware SAL]]<br>[[OpenDaylight Controller:Binding Model|SAL:Binding Model]]<br>[[OpenDaylight Controller:Binding Aware Components|SAL:BA Components]]<br>[[OpenDaylight Controller:Example Workflows|SAL:Example Workflows and Diagrams]]<br>[[OpenDaylight Controller:Programmer Guide|Programmer Guide Top Level]]<br>[[OpenDaylight Controller:Main|Top Level Contents]]
+|}
+
+==Binding-Independent Broker==
+The Binding Independent Broker is the communication hub between Providers and Consumers. It exposes the following functionality:
+
+*Provider and Consumer registration 
+* Notification Hub
+* RPC Routing
+* System state access & modification
+
+Communication between the Broker, Providers and Consumers is session-based, so that the Broker can uniquely identify registered Consumers and Providers and their respective functionalities / metadata. There are two session types:
+
+*ConsumerSession – uniquely identifies a Consumer's registration
+*ProviderSession – auniquely identifies a Provider's registration
+
+===Provider and Consumer Registration===
+
+Providers and Consumers need to register with the Binding-Independent SAL layer before they can use it. Only registered Providers can expose their functionality to Consumers via the SAL layer.
+
+====Registration Contract====
+=====Registration of a Consumer=====
+ Session = registerConsumer(Consumer)
+
+Where:
+* Session: ConsumerSession between the Broker and a Consumer, uniquely identifies the Consumer’s registration
+* Consumer: A consumer component, an object implementing the Consumer contract.
+
+During registration the Broker gets the functionality from the Consumer. It uses the getFunctionality() method from the Consumer contract, to register that functionality into the system.
+
+The Consumer is required to use the returned session for all communication with the Broker or any Broker service. The session is injected into the Consumer by invoking the method injectConsumerSession() of the Consumer contract.
+
+=====Provider Registration=====
+ Session = registerProvider(Provider)
+
+Where:
+* Session: ProviderSession between the Broker and a Provider, uniquely identifies the provider registration
+* Provider: A consumer component, an object implementing the Provider contract.
+
+At registration time the Broker uses the getFunctionality() method from the Provider's contract to register the Provider's functionality with the system.
+
+The Provider is required to use the returned session to communicate with the Broker and/or to use the Broker's services. The session is injected into the Provider by invoking the method injectProviderSession of the Provider contract.
+
+===Notification Hub===
+[[File:Notification Hub.jpg|530px]]
+
+The Binding Independent Broker exposes the implementation of the  NotificationService contract to Providers and Consumers.
+
+====NotificationService Contract====
+=====Publishing a Notification=====
+A Provider publishes a notification by invoking the following method on the implementation of the NotificationService contract:
+
+Synopsis:
+
+ Success = notify(Session, DataNode Notification)     
+
+Where:
+
+* Success: set to OK bythe Binding-Independent Broker if the notification has been successfully created
+* Session: ProviderSession between BI Broker and a Provider
+* Notification: a data node in the BI structure representing contents of the notification.
+
+=====Notification Listener Registration=====
+The Broker provides functionality to register and unregister Notification Listeners by exposing and implementing the following methods:
+
+Synopsis:
+
+ Success = addNotificationListener(Session, NotificationType, NotificationListener listener)
+
+Where:
+* Success: set to OK by binding-independent Broker if the Notification listener has been successfully registered
+* Session: ConsumerSession between the BI Broker and a Consumer
+* NotificationType: a model independent identifier of the notification type.
+* NotificationListener: an object implementing the NotificationListener contract, which is called if the notification occurred.
+
+ Success = removeNotificationListener(Session, NotificationType, NotificationListener listener)
+
+Where:
+* Success: set to OK by binding-independent Broker if the notification listener has been successfully registered
+* Session: ConsumerSession between BI Broker and consumer
+* NotificationType: an QName identifying the notification type.
+* NotificationListener: an object implementing NotificationListener contract, which is to be unregistered.
+
+===RPC Routing===
+[[File:RPC Routing.jpg|530px]]
+
+The Binding Independent Broker exposes the RpcService contract to Consumers (applications and other providers) and to Providers.
+
+====RpcService Contract====
+=====RPC Calls=====
+Synopsis:
+ Result = rpc(Session, RpcIdentifier, Input) 
+
+Where:
+* Result: An Object containing BI structure if the RPC was successful, otherwise reason of the error
+* Session: ConsumerSession between the BI Broker and a Consumer 
+* RpcIdentifier: QName identifying the RPC type
+* Input: Composite Node in BI structure representing contents of the input to the RPC.
+
+RPC Call functionality enables the invocation of functionality exposed by Providers.
+
+=====Registration of RPC Implementation=====
+Exposes an API to register for RPC processing and returning results.
+
+ Status = addRpcImplementation(Session, RpcIdentifier, RpcImplementation)
+
+Where: 
+* Status: OK if the RPC implementation was registered successfully.
+* Session: ProviderSession between the Broker and a Provider
+* RpcIdentifier: QName identifying the RPC type
+* RpcImplementation: An object implementing RPCImplementation contract, which is called if the RPC occurred.
+
+ Status = removeRpcImplementation(Session, RpcIdentifier, RpcImplementation)
+
+Where: 
+* Status: OK if the rpc implementation was unregistered registered successfully.
+* Session: ProviderSession between broker and provider
+* RpcIdentifier: QName identifying the RPC type
+* RpcImplementation: An object implementing RPCImplementation contract, which is to be unregistered.
+
+=====RPC Validation Functionality=====
+Exposes an API to register for RPC processing and returning results.
+
+ Status = addRpcValidator(Session, RpcIdentifier, RpcValidator)
+
+Where: 
+*  Status: OK if the RPC was registered successfully.
+* Session: ProviderSession between the BI Broker and a Consumer
+* RpcIdentifier: Binding-independent type identifier of RPC
+* RpcValidator: An object implementing RpcValidator contract, which is called if the RPC occurred.
+
+ Status = removeRpcValidator(Session, RpcIdentifier, RpcValidator)
+
+Where: 
+* Status: OK if the RPC was registered successfully.
+* Session: ProviderSession between the BI Broker and a Consumer
+* RpcIdentifier: Binding-independent type identifier of RPC
+* RpcValidator: An object implementing RpcValidator contract, which is to be removed.
+
+===System State Access & Modification===
+The Binding Independent Broker provides uniform access to the system's state data. The BI Broker does not implement state functionality directly, but uses BI Data Repositories as operators on operational and configuration state.
+
+Consumers and Providers are responsible for pushing their state into the state repository.
+
+The system state access & state modification is provided by implementing the DataBroker contract.
+
+See Section BI Data Repository for more information.
+
+====Two Phase Commit of Data Change====
+Commit of state is blocking operation, which commits the changes described in candidate state to current state.
+
+In order to perform a successful commit and apply its changes to the current state data, all affected providers must successfully validate the commit.
+
+The commit operation of state data follows the two-phase commit protocol:
+* Initiator: Any Consumer or Provider, which invoked commit method from the DataBroker contract.
+* Coordinator: Data Repository instance implementing the DataStore contract in cooperation with Brokers
+* Cohorts: All affected Providers that registered their respective implementations of the DataCommitHandler contract.
+
+The basic commit algorithm is as follows:
+
+# Commit Request Phase is invoked by a Consumer by issuing the commit operation.
+## The coordinator sends a commit-request request to all cohorts and waits for their replies.
+## The cohorts execute the transaction to the point where they will be asked to commit. Each one of the cohorts prepare an rollback scenario.
+## Each cohort replies with success reply or error message if the cohort experiences a failure that will prevent commit.
+#Commit phase
+#*Success - If the coordinator received a success reply from all cohorts:
+## The coordinator sends a finish-commit RPC to all cohorts.
+##Each cohort completes the operation
+##Each cohort sends a success reply to the coordinator.
+##The coordinator completes the transaction when all success replies were retrieved from cohorts and returns a success reply to the initiator.
+#*Failure – If any cohort returned error during the commit request phase (or the transaction timed-out):
+##The coordinator sends a commit-rollback RPC to all cohorts.
+##Each cohort rolls back the transaction using its own pre-defined rollback strategy.
+##Each cohort sends an acknowledgement reply to the coordinator.
+##The coordinator rollbacks the transaction and returns an error to the initiator.
+
+The error reported to the invoker contains list of all validation errors issued during the Commit Request phase.
+
+The successful commit of configuration data DOES NOT imply that the configuration change is applied. It is the responsibility of each Provider to apply its respective configuration.
+
+=====Broker as a Coordinator=====
+The Broker participates in two-phase commits as an aggregate commit handler. It implements the DataCommitHandler contract with the following functionality:
+
+* Each invocation of a method from the DataCommitHandler contract is replicated to all other DataCommitHandler implementations that were registered as cohorts.
+**The operation is successful if and only if all invocations were successful
+**The lists of reported errors are merged into one, which is returned to the Data Repository
+
+The Broker’s implementation of the DataCommitHandler contract is visible only to Data Repositories.
+
+====DataBroker Contract====
+=====Retrieving Data=====
+Synopsis:
+
+ Result = getData(Session)
+
+Where:
+* Session: ConsumerSession between a Consumer and the Broker
+* Result: an RpcResult triplet in form (Success,Output,Error) where:
+** Success: Boolean indicating successful operation.
+** Output: CompositeNode representing the state data of the system (runtime or configuration).
+** Error: A list of errors which occurred during invocation.
+
+An implementation of the DataBroker contract should use the provided session to learn the subtree of data that is visible to registered Consumers. It should use this information to request the relevant subset of data from the Data Repository.
+
+Synopsis:
+
+ Result = getData(Session,Filter)
+
+Where:
+* Session: ConsumerSession between a Consumer and the Broker
+* Filter: CompositeNode representing a subtree of the requested data
+* Result:
+** Success: Boolean indicating successful operation.
+** Data: CompositeNode representing the state data of the system (runtime or configuration).
+** Error: A list of errors which occurred during invocation.
+
+=====Editing Data=====
+Synopsis:
+
+ Result = editData(Session,NodeModification)
+
+Where:
+* Session: ConsumerSession between a Consumer and the Broker
+* NodeModification: The extended version of DOMNode, which represents the changes to be applied to data.
+* Result: an RpcResult triplet in form (Success,Output,Error) where:
+** Success: Boolean indicating successful application of NodeModification to the data tree.
+** Output: CompositeNode representing the modified data tree.
+** Error: A list of errors or warnings which occurred during the application of node modification.
+
+=====Commiting Change=====
+Synopsis:
+
+ Result = commit(Session)
+
+Where: 
+*  Session: ConsumerSession between a Consumer and the Broker
+* Result: an RpcResult triplet in form (Success,Output,Error) where:
+** Success: Boolean indicating successful run of two-phase commit
+** Output: CompositeNode representing the modified data tree.
+** Error: A list of errors or warnings which prevented the commit to be successful.
+
+The invocation of this operation initiates the two-phase commit.
+
+The Broker invokes the Data Repository's commit operation, which starts the two-phase commit by issuing the requestCommit on the Broker’s implementation of the DataCommitHandler contract.
+
+=====Registration of Data Commit Handlers=====
+The following methods are used to register the Providers' implementations of the DataCommitHandler contract, which will be used as an cohorts during two-phase commit.
+
+Synopsis:
+
+ Status = addDataCommitHandler(Session, DataCommitHandler)
+
+Where: 
+* Status: OK if the validator was registered successfully.
+* Session: ProviderSession between BI Broker and provider.
+* DataCommitHandler: An object implementing DataCommitHanlder contract, which is participant of two-phase commit as an cohort.
+
+Synopsis:
+
+ Status = removeDataCommitHandler(Session, DataCommitHandler)
+
+Where: 
+
+* Status: OK if the RPC validator registered successfully.
+* Session: ProviderSession between BI Broker and provider.
+* DataValidator: An object implementing DataCommitHandler contract, which is to be removed.
+
+=====Registration of Data Validators=====
+Exposes an API to register for RPC processing and returning result.
+
+ Status = addDataValidator(Session, DataValidator)
+
+Where: 
+* Status: OK if the validator was registered successfully.
+* Session: ProviderSession between BI Broker and provider.
+* DataValidator: An object implementing DataValidator contract, which is called if the validation of data is required.
+
+ Status = removeDataValidator(Session, DataValidator)
+
+Where: 
+* Status: OK if the RPC validator registered successfully.
+* Session: ProviderSession between BI Broker and provider.
+* DataValidator: An object implementing DataValidator contract, which is to be removed.
+
+===Requirements===
+* BI Broker must keep track of:
+** All providers and consumers
+** providers and RPCs exposed by them
+** providers and notifications exposed by them
+** consumers and their registration for receiving notifications
+
+===Dependencies===
+* Binding-Independent model
+* Schema repository
+* BI Data Repository
+
+===Open Questions===
+* Behavior if the RPC schema is unknown.
+
+==Binding-Independent Data Repository== 
+The Binding-independent Repository holds data (the state of the system) in a tree structure.
+
+===Provided Functionality===
+====Repository for Running State====
+The BI Data Repository serves as a Provider for running state that was published by Provider modules. This repository is binding-independent and can be accessed by any Consumer / Provider through RPC calls.
+
+====Repository for Configuration State====
+The BI Data Repository serves as a Provider for configuration state that was published by producer modules and modified by consumers. This repository is binding-independent and can be accessed by any Consumer / Provider through RPC calls.
+
+====Candidate State Modification====
+State modification consists of following steps
+
+# Changes of state
+# Two-Phase Commit of state
+## Validation of new state
+## Commit request phase
+## Commit phase
+# Notification of state change
+
+=====Consumer’s change of state data=====
+State data changes are modeled after NETCONF edit-config operation.
+
+The change operations are part of binding-indepenent DOM form of data, and multiple operations could be done in one change call.
+
+Synopsis:
+
+ Status = editData(Target,ModificationDOMNode)
+
+Where:
+* Target: the change target (if multiple roots / sets of data are available)[10].
+* ModificationDOMNode: The extendent version of DOMNode, which represents the changes to be applied to data.
+
+=====Commit of new state data=====
+=====Validation of state data=====
+Before commitment, state data must be validated. The Data Repository requests a state data validation from the Binding-Independent Broker. The BI Broker triggers data validation on all registered Providers and returns a composite validation result.
+
+=====Notification of state change=====
+The Data Repository is responsible for triggering a notification reporting the change in state data. This notification is passed to the Binding-Independent Broker, which is responsible for routing the notification to all listening Consumers and Providers.
+
+==Model Schema Repository==
+Model schema repository is infrastructure component serving as a centralized storage of all known (registered) YANG schemas /modules, which could be used and processed by other components.
+
+It is not responsible for parsing YANG schemas, neither the understanding the extensions.
+
+===Provided Functionality===
+* Unified access to YANG schemas
+* Access to Unified YANG schema – a joint schema tree representing all the schemas known to the system with all augmentation applied. 
+* Access to context YANG schemas – a joint schema tree representing the model known to the concrete components.  
+
+===Dependencies===
+* Binding-independent model
+* Java YANG parser
+* YANG Schema
+
+==Java YANG Parser==
+Java YANG parser is an infrastructure component responsible for parsing input in the YANG format and providing the parsed schema in the form of Java YANG schema model, which provides programmatic access to schema trees.
+
+===Provided Functionality===
+====Parsing YANG Files====
+The Java YANG parser is responsible for parsing input stream containing YANG schema into the Java representation of the YANG schema.
+
+===Dependencies===
+* Java representation of YANG schema
+
+==Binding-Independent Consumer==
+Binding-Independent consumers (and consumers in general) usually do not provide implementations of specific contracts, but use contracts provided by the Binding-independent Broker to change the state of the system and/or to invoke functionality provided by Providers.
+
+===Notification Listener===
+When a Consumer implements the notification listener functionality defined in the NotificationListener contract,, it can expose and register the implementation with the Broker by using the:
+* pull form – returning the objects implementing the contract in result of getFunctionality method
+* push form – see NotificationService contract of Binding Independent broker
+
+==Binding-Independent Provider==
+=== Exposing Provided Functionality===
+A Provider exposes functionality by registering its implementations of various functionality contracts with the Broker. 
+
+The registration of functionality is supported in two forms:
+* Pull form – at registration time, the Broker requests (pulls) the provided functionality from the Provider
+* Push form – at runtime, a Provider can register additional functionality by invoking the registration mechanism specific to the functionality type (contract).
+
+The functionality is usually an implementation of one or more  contracts (Java interfaces) marked as ProviderFunctionality.
+
+====Initial Registration of Functionality====
+To be able to register with the Broker, a Provider must implement a method with the following synopsis:
+
+Synopsis:
+
+ Functionality = getFunctionality()    
+
+Where:
+
+* Functionality: A set of contract implementation instances that are exposed by a Provider to the Broker and other components. This set can be empty and there is no requirement for a Provider to include all its functionality in this set.
+
+===Exposing a RPC Implementation===
+When a Provider implements an RPC functionality defined in the RpcImplementation contract, it can register the implementation with the Broker by using the:
+* pull form – returning the objects implementing the contract in result of getFunctionality method
+* push form – see RpcService contract of Binding Independent broker
+
+====RpcImplementation Contract====
+The RpcImplementation contract defines how a Provider exposes its RPC functionality.
+
+This contract allows for support of multiple RPC types to be available in one implementation by using QNames as function parameters.
+
+The implementation of the contract can support the pull registration of a Provider's RPCs during the Provider's registration.  It must provide a method with following synopsis:
+
+Synopsis:
+
+ Supported = getSupportedRpcs()    
+
+Where:
+
+* Supported: A set of QNames identifying the names of the RPCs which will be provided to the broker and other consumers. 
+
+The actual implementation of the RPC functionality is done by implementing the following method:
+
+Synopsis:
+
+ RpcResult = invokeRpc(Qname,Input)    
+
+Where:
+* Qname: QName identifying invoked RPC
+* Input: CompositeNode representing the input data in the binding-indepenendent form, which are input to the RPC.
+* RpcResult: an RpcResult triplet in form (Success,Output,Error) where:
+** Success: A boolean indicating success of the rpc execution.
+** Output: CompositeNode representing the output data of rpc in the binding-independent form.
+**  Error: a list of errors or warnings encountered during the execution of rpc.
+
+===Two Phase Commit of Configuration ===
+When a Provider supports the commit operation by implementing the functionality in the DataCommitHandler contract, it can expose and register the implementation with the Broker by using the:
+*  pull form – returning the objects implementing the contract in result of getFunctionality method
+* push form – see DataBrokerService contract of Binding Independent broker
+
+====DataCommitHandler Contract====
+When a Provider serves as one of the cohorts in a two phase commit of runtime or configuration data, it uses the DataCommitHandler contract. (see the  “Data Repository” section for two-phase commit definition).
+
+=====Request Commit=====
+The implementation of the request commit phase (voting on the commit) has the following synopsis:
+
+Synopsis:
+
+ Result = requestCommit()     
+
+Where:
+* Result: an RpcResult triplet in form (Success,Output,Error) where:
+** Success: a Boolean indicating if the commit request was successful in the scope of the provider. If the Success value is False, the whole commit will be rollbacked.
+** Output: Additional information, usually null.
+** Error: A list of all errors encountered during the execution of the commit request.
+
+=====Success Commit Phase=====
+The implementation of the successful finish of the commit (voting on the commit) has the following synopsis:
+
+Synopsis:
+
+ Result = finishCommit() 
+
+Where:
+*  Result: an RpcResult triplet in form (Success,Output,Error) where:
+** Success: a Boolean indicating if the finish commit was successful in the scope of the provider.
+** Output: Additional information, usually null.
+** Error: A list of all errors encountered during the execution of the commit request.
+
+=====Rollback Commit=====
+Synopsis:
+
+ Result = rollbackCommit()    
+
+Where:
+* Result: an RpcResult triplet in form (Success,Output,Error) where:
+** Success: a Boolean indicating if the rollback was successful in the scope of the provider.
+** Output: Additional information, usually null.
+** Error: A list of all errors encountered during the execution of the commit request.
+
+===Data Validation===
+When a Provider implements the data validation functionality defined in the contract DataValidator, it can expose and register the implementation with the Broker by using the: 
+* pull form – returning the objects implementing the contract in result of getFunctionality method
+* push form – see DataBroker contract of Binding Independent Broker
+
+===Data Refreshing===
+When a Provider implements the data refresh functionality defined in the contract DataRefresher, it can expose and register the implementation with the Broker by using the:
+* pull form – returning the objects implementing the contract in result of getFunctionality method
+* push form – see DataBroker contract of Binding Independent broker
+
+===Exposing a Nested Subsystem===
+Data from nested subsystem are exposed exactly like any other data in the system - by modifying system state and adding data nodes under the attachment point of the nested subsystem.
+
+This allows for Consumers to use the same system state access contracts to access and modify data in nested subsystems, without the knowledge that the data subtree may be residing in a different system.
+
+
+[[Category:OpenDaylight Controller]]
