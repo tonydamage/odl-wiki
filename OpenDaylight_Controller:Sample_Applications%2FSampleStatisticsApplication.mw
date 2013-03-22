@@ -1,0 +1,232 @@
+= JAXB&nbsp;Statistics Client  =
+
+'''[[OpenDaylight Controller:Sample Applications|<< Back to Sample Applications]]'''
+
+This JAXB-based sample uses the Statistics module. Let's begin by examining the following code: 
+
+<source lang="java">package org.opendaylight.controller.topology;
+
+import java.io.InputStream;
+import java.net.URL;
+import java.net.URLConnection;
+
+import javax.xml.bind.JAXBContext;
+import javax.xml.bind.Unmarshaller;
+
+import org.apache.commons.codec.binary.Base64;
+import org.opendaylight.controller.sal.reader.FlowOnNode;
+import org.opendaylight.controller.statistics.northbound.AllFlowStatistics;
+import org.opendaylight.controller.statistics.northbound.FlowStatistics;
+
+public class JAXBStatisticsClient {
+
+ public static void main(String[] args) {
+
+ System.out.println("Starting Statistics JAXB client.");
+
+ String baseURL = "http://127.0.0.1:8080/one/nb/v2/statistics";
+ String containerName = "default";
+ String user = "admin";
+ String password = "admin";
+
+ URL url;
+ try {
+ url = new java.net.URL(baseURL + "/" + containerName + "/flowstats");
+
+ String authString = user + ":" + password;
+ byte[] authEncBytes = Base64.encodeBase64(authString.getBytes());
+ String authStringEnc = new String(authEncBytes);
+ URLConnection connection = url.openConnection();
+ connection.setRequestProperty("Authorization", "Basic "
+ + authStringEnc);
+
+ connection.setRequestProperty("Content-Type", "application/xml");
+ connection.setRequestProperty("Accept", "application/xml");
+
+ connection.connect();
+
+ JAXBContext context = JAXBContext.newInstance(AllFlowStatistics.class);
+ Unmarshaller unmarshaller = context.createUnmarshaller();
+
+ InputStream inputStream = connection.getInputStream();
+
+ AllFlowStatistics result = (AllFlowStatistics) unmarshaller.unmarshal(inputStream);
+
+ System.out.println("We have these statistics:");
+
+ for (FlowStatistics statistics : result.getFlowStatistics()) {
+ System.out.println(statistics.getNode().getNodeIDString());
+ System.out.println(statistics.getNode().getType());
+ for (FlowOnNode flowOnNode : statistics.getFlowStat()) {
+ System.out.println("\t" + flowOnNode.getByteCount());
+ System.out.println("\t" + flowOnNode.getDurationNanoseconds());
+ System.out.println("\t" + flowOnNode.getDurationSeconds());
+ System.out.println("\t" + flowOnNode.getPacketCount());
+ System.out.println("\t" + flowOnNode.getTableId());
+ System.out.println("\t" + flowOnNode.getFlow());
+ }
+ }
+
+ } catch (Exception e) {
+ System.out.println(e.getLocalizedMessage());
+ }
+ }
+}</source>&nbsp; 
+
+<br>
+
+To connect to the Statistics module endpoint and be able to retrieve flow statistics, the connection is&nbsp;opened: 
+
+<source lang="java">String baseURL = "http://127.0.0.1:8080/one/nb/v2/statistics";
+ String containerName = "default";
+ String user = "admin";
+ String password = "admin";
+
+ URL url;
+ try {
+ url = new java.net.URL(baseURL + "/" + containerName + "/flowstats");
+
+ String authString = user + ":" + password;
+ byte[] authEncBytes = Base64.encodeBase64(authString.getBytes());
+ String authStringEnc = new String(authEncBytes);
+ URLConnection connection = url.openConnection();
+ connection.setRequestProperty("Authorization", "Basic "
+ + authStringEnc);
+
+ connection.setRequestProperty("Content-Type", "application/xml");
+ connection.setRequestProperty("Accept", "application/xml");
+
+ connection.connect();</source>&nbsp; 
+
+<br>
+
+To retrieve the flow statistics, an instance of the JAXB&nbsp;context is created, and the data is unmarshalled via the input stream into&nbsp;an AllFlowStatistics object: 
+
+<source lang="java">JAXBContext context = JAXBContext.newInstance(AllFlowStatistics.class);
+ Unmarshaller unmarshaller = context.createUnmarshaller();
+
+ InputStream inputStream = connection.getInputStream();
+
+ AllFlowStatistics result = (AllFlowStatistics) unmarshaller.unmarshal(inputStream);</source> 
+
+<br>
+
+The AllFlowStatistics object is used to retrieve the results, which can be displayed via its get methods: 
+
+<source lang="java">for (FlowStatistics statistics : result.getFlowStatistics()) {
+ System.out.println(statistics.getNode().getNodeIDString());
+ System.out.println(statistics.getNode().getType());
+ for (FlowOnNode flowOnNode : statistics.getFlowStat()) {
+ System.out.println("\t" + flowOnNode.getByteCount());
+ System.out.println("\t" + flowOnNode.getDurationNanoseconds());
+ System.out.println("\t" + flowOnNode.getDurationSeconds());
+ System.out.println("\t" + flowOnNode.getPacketCount());
+ System.out.println("\t" + flowOnNode.getTableId());
+ System.out.println("\t" + flowOnNode.getFlow());
+ }
+ }</source>
+
+= Jersey Statistics Client  =
+
+This Jersey-based sample uses the Statistics module. Let's begin by examining the following code: 
+
+<br>
+
+<source lang="java">package org.opendaylight.controller.topology;
+
+import org.opendaylight.controller.sal.reader.FlowOnNode;
+import org.opendaylight.controller.statistics.northbound.AllFlowStatistics;
+import org.opendaylight.controller.statistics.northbound.FlowStatistics;
+
+import com.sun.jersey.api.client.Client;
+import com.sun.jersey.api.client.filter.HTTPBasicAuthFilter;
+
+public class JerseyStatisticsClient {
+
+ public static void main(String[] args) {
+
+ System.out.println("Starting Topology JAXB client.");
+
+ String baseURL = "http://127.0.0.1:8080/one/nb/v2/statistics";
+ String containerName = "default";
+ String user = "admin";
+ String password = "admin";
+
+ try {
+
+ Client client = com.sun.jersey.api.client.Client.create();
+ client.addFilter(new HTTPBasicAuthFilter(user, password));
+
+ AllFlowStatistics result = client.resource(
+ baseURL + "/" + containerName + "/flowstats").get(
+ AllFlowStatistics.class);
+
+ System.out.println("We have these statistics:");
+
+ for (FlowStatistics statistics : result.getFlowStatistics()) {
+ System.out.println(statistics.getNode().getNodeIDString());
+ System.out.println(statistics.getNode().getType());
+ for (FlowOnNode flowOnNode : statistics.getFlowStat()) {
+ System.out.println("\t" + flowOnNode.getByteCount());
+ System.out.println("\t"
+ + flowOnNode.getDurationNanoseconds());
+ System.out.println("\t" + flowOnNode.getDurationSeconds());
+ System.out.println("\t" + flowOnNode.getPacketCount());
+ System.out.println("\t" + flowOnNode.getTableId());
+ System.out.println("\t" + flowOnNode.getFlow());
+ }
+ }
+
+ } catch (Exception e) {
+ System.out.println(e.getLocalizedMessage());
+ }
+ }
+}</source>&nbsp; 
+
+<br>
+
+To connect to the Statistics module endpoint and be able to retrieve flow statistics, the connection is opened: 
+
+<br>
+
+<source lang="java">String baseURL = "http://127.0.0.1:8080/one/nb/v2/statistics";
+ String containerName = "default";
+ String user = "admin";
+ String password = "admin";
+
+ try {
+
+ Client client = com.sun.jersey.api.client.Client.create();
+ client.addFilter(new HTTPBasicAuthFilter(user, password));</source>&nbsp; 
+
+<br>
+
+To retrieve the flow statistics, an instance of the Jersey client is created, and the data is retrieved via the client's resource method into an AllFlowStatistics object: 
+
+<br>
+
+<source lang="java">AllFlowStatistics result = client.resource(
+ baseURL + "/" + containerName + "/flowstats").get(
+ AllFlowStatistics.class);</source>&nbsp;
+
+
+
+The AllFlowStatistics object is cast to a FlowStatistics object. The&nbsp;results are retrieved from the FlowStatistics object, which can be displayed via its get methods: 
+
+
+
+<source lang="java">for (FlowStatistics statistics : result.getFlowStatistics()) {
+ System.out.println(statistics.getNode().getNodeIDString());
+ System.out.println(statistics.getNode().getType());
+ for (FlowOnNode flowOnNode : statistics.getFlowStat()) {
+ System.out.println("\t" + flowOnNode.getByteCount());
+ System.out.println("\t"
+ + flowOnNode.getDurationNanoseconds());
+ System.out.println("\t" + flowOnNode.getDurationSeconds());
+ System.out.println("\t" + flowOnNode.getPacketCount());
+ System.out.println("\t" + flowOnNode.getTableId());
+ System.out.println("\t" + flowOnNode.getFlow());
+ }
+ }</source>
+
+[[Category:OpenDaylight Controller]]
