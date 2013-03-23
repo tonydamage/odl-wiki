@@ -1,0 +1,128 @@
+{| align="right" border="1"
+|align="center"|'''Guide Contents'''
+|-
+|[[OpenDaylight Controller:Overview|OpenDaylight Controller Overview]]<br>[[OpenDaylight Controller:Architectural Framework|Architectural Framework]]<br>[[OpenDaylight Controller:Development Infrastructure Overview|Development Infrastructure Overview]]<br>[[OpenDaylight Controller:Pulling, Hacking, and Pushing the Code from the CLI|Pulling, Hacking, and Pushing the Code from the CLI]]<br>[[OpenDaylight Controller:Pulling, Hacking, and Pushing the Code from Eclipse|Pulling, Hacking, and Pushing the Code from Eclipse]]<br>[[OpenDaylight Controller:Sample Applications|Sample Applications]]<br>[[OpenDaylight Controller:Library Descriptions|Library Descriptions]]<br>[[OpenDaylight Controller:REST Reference and Authentication|REST Reference and Authentication]]<br>[[OpenDaylight Controller:Java API Reference|Java API Reference]]<br>[[OpenDaylight Controller:Topologies|Topologies]]<br>[[OpenDaylight Controller:Main|Top Level Contents]]
+|}
+
+== Gerrit Setup ==
+Code reviews are enabled through Gerrit. [[OpenDaylight Controller:Gerrit Setup|Set up Gerrit]] for use.
+Note: You will need to perform the [[OpenDaylight Controller:Gerrit Setup|Gerrit Setup]] before you can access git via
+ssh as described below.
+
+== Pull code via git CLI ==
+Pull the code by cloning the controller repository.
+<pre>
+git clone ssh://<username>@git.opendaylight.org:29418/controller.git
+</pre>
+
+== Setup Gerrit Change-id Commit Msg Hook==
+This command inserts a unique Change-Id tag in the footer of a commit message. This step is optional but highly recommended for tracking changes.
+
+<pre>
+cd controller
+scp -p -P 29418 git.opendaylight.org:hooks/commit-msg .git/hooks/
+chmod 755 .git/hooks/commit-msg
+</pre>
+
+== Hack the code ==
+The following tasks are used to help you hack the code. 
+
+=== Build the code ===
+
+<pre>
+cd opendaylight/distribution/opendaylight/
+mvn clean install
+</pre>
+
+=== Find the controller === 
+
+<pre>
+ls target/distribution.opendaylight-0.1.0-SNAPSHOT-osgipackage.zip 
+</pre>
+
+== Commit the code via git CLI ==
+Note: To be accepted, all code must come with a [http://elinux.org/Developer_Certificate_Of_Origin  developer certificate of origin] as expressed by having a Signed-off-by.
+This means that you are asserting that you have made the change and you understand that the work was done as part of an open-source license. 
+
+<pre>
+Developer's Certificate of Origin 1.1
+
+        By making a contribution to this project, I certify that:
+
+        (a) The contribution was created in whole or in part by me and I
+            have the right to submit it under the open source license
+            indicated in the file; or
+
+        (b) The contribution is based upon previous work that, to the best
+            of my knowledge, is covered under an appropriate open source
+            license and I have the right under that license to submit that
+            work with modifications, whether created in whole or in part
+            by me, under the same open source license (unless I am
+            permitted to submit under a different license), as indicated
+            in the file; or
+
+        (c) The contribution was provided directly to me by some other
+            person who certified (a), (b) or (c) and I have not modified
+            it.
+
+        (d) I understand and agree that this project and the contribution
+            are public and that a record of the contribution (including all
+            personal information I submit with it, including my sign-off) is
+            maintained indefinitely and may be redistributed consistent with
+            this project or the open source license(s) involved.
+</pre>
+
+Mechanically you do it this way
+<pre>
+git commit --signoff
+</pre>
+
+You will be prompted for a commit message, and if you are fixing a buzilla bug, you can add that to your commit message as well and it will get linked from the Gerrit:
+
+<pre>
+Fix for bug 2.
+
+Signed-off-by: Ed Warnicke <eaw@cisco.com>
+
+# Please enter the commit message for your changes. Lines starting
+# with '#' will be ignored, and an empty message aborts the commit.
+# On branch master
+# Changes to be committed:
+#   (use "git reset HEAD <file>..." to unstage)
+#
+#       modified:   README
+#
+</pre>
+
+== Push the code via git CLI ==
+Use git push to push your changes back to the remote repository.
+
+<pre>
+git push  ssh://eaw@git.opendaylight.org:29418/controller.git HEAD:refs/for/master
+</pre>
+
+You will get a message pointing you to your gerrit request like:
+
+<pre>
+remote: Resolving deltas: 100% (2/2)
+remote: Processing changes: new: 1, refs: 1, done    
+remote: 
+remote: New Changes:
+remote:   http://git.opendaylight.org/gerrit/64
+remote: 
+</pre>
+
+== Seeing your change in Gerrit ==
+
+Follow the link you got above to see your commit in Gerrit:
+
+[[File:Gerrit Code Review.jpg|700px]]
+
+Note the Jenkins Controller User has verified your code, and at the bottom is a link to the Jenkins build.
+
+Once your code has been reviewed and submitted by a committer it will be merged into the authoritative repo, which would look like this:
+
+[[File:Gerrit Merged.jpg|700px]]
+
+
+[[Category:OpenDaylight Controller]]
