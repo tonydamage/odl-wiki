@@ -3,7 +3,7 @@
 <p>
 	[NOTE WELL] The interface here presented will only be dispatching Data Packets, not protocol packets which for example in the case of OF travel in the same channel. The interface is exclusively designed for data packet dispatching because they are a common pattern.</p>
 <p>
-	In order to define the services exported by SAL for data packet handling and the architecture for it, let start from an high lever view of what we need to do and the constraints. The picture below shows the goal we want to achieve, basically we SAL packet services need to be delivered to every application in each slice. Of course SAL doesn&#39;t generate or consume packets so those need to be dispatched in/from the <em>&quot;Protocol Plugins&quot;<strong>, </strong></em>the interfaces indicated in the graphic below with &quot;@&quot; shows the interfaces and who will export in order to achieve what.</p>
+	In order to define the services exported by SAL for data packet handling and the architecture for it, let start from an high lever view of what we need to do and the constraints. The picture below shows the goal we want to achieve, basically we SAL packet services need to be delivered to every application in each container. Of course SAL doesn&#39;t generate or consume packets so those need to be dispatched in/from the <em>&quot;Protocol Plugins&quot;<strong>, </strong></em>the interfaces indicated in the graphic below with &quot;@&quot; shows the interfaces and who will export in order to achieve what.</p>
 <pre>
 LEGEND                       ACRONYMS
  @ indicates an interface      ILDP:     IListenDataPacket
@@ -27,7 +27,7 @@ LEGEND                       ACRONYMS
   |       SAL            |   #  |       SAL            |   #   |       SAL            |
   |                      |   #  |                      |   #   |                      |
   +.---.-@---------------+   #  +------@---------------+   #   +------@---------------+
-   | \  \ IPODPS        SLICE#          IPODPS        SLICE#           IPODPS        SLICE
+   | \  \ IPODPS    CONTAINER#          IPODPS    CONTAINER#           IPODPS    CONTAINER
    |  \  +--._           RED #                         BLUE#                         GREEN
 ###|##&#39;#######`.##########################################################################
    |    --._    `-.
@@ -88,7 +88,7 @@ LEGEND                       ACRONYMS
 	<li>
 		Lets say that the <em>Protocol Plugin</em> ONEPK receives an 802.1x packet that need to be dispatched to applications.</li>
 	<li>
-		ONEPK <em>Protocol Plugin </em>will classify the packet on belonging to a given slice, assuming ONEPK could be supporting the Slice concept else all will be assigned to the default slice as fallback. Now the <em>Protocol Plugin</em> will call the interface <strong>IPluginOutDataPacketService </strong>to let the packet travel toward SAL. The service will be fetched from the OSGi service registry selecting among the several ones based on the slice name.</li>
+		ONEPK <em>Protocol Plugin </em>will classify the packet on belonging to a given container, assuming ONEPK could be supporting the container concept else all will be assigned to the default container as fallback. Now the <em>Protocol Plugin</em> will call the interface <strong>IPluginOutDataPacketService </strong>to let the packet travel toward SAL. The service will be fetched from the OSGi service registry selecting among the several ones based on the container name.</li>
 	<li>
 		SAL will receive the packet and based on how has registered the <strong>IListenDataPacket </strong>will dispatch the packets to the app receiving it. The gist there is that the several listener if they didn&#39;t expressed constraints will receive a copy of the same packet in parallel so noone can override the other component from seeing the packet all of them will. If there is a need for a component to see a packet after someone else has done processing then he can express that in the service registration. In this way noone can preempt another component from receiving a packet, but one component can, express the desire to see the packet after another module has processed it, maybe simply because wants to get some extra information or wants extra filtering done.</li>
 	<li>
@@ -100,7 +100,7 @@ LEGEND                       ACRONYMS
 	<li>
 		The application create the packet and call the interface <strong>IDataPacketService </strong>provided by SAL to send out the packet, of course the destination node must be provided in the API, but for detailed API signature refer to the code.</li>
 	<li>
-		SAL will now call the <strong>IPluginInDataPacketService </strong>interface for a given <em>Protocol Plugin </em>based on the destination chosen. The service selected will be on a slice base, so not to intermix traffic belonging to different slices.</li>
+		SAL will now call the <strong>IPluginInDataPacketService </strong>interface for a given <em>Protocol Plugin </em>based on the destination chosen. The service selected will be on a container base, so not to intermix traffic belonging to different containers.</li>
 	<li>
 		Protocol plugin will ship the packet toward the network element based based on the specific methodology of the plugin.</li>
 </ol>
