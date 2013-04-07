@@ -1,0 +1,196 @@
+<div class="WordSection1">
+
+=OpenDaylight Openstack Quantum Plug-in=
+
+This procedure will install Devstack with the current Big Switch Quantum Plugin on a single node. If you just need to use a single openstack node for a standalone demo/usage, you can skip the section on "Using Dataplane Devices".
+
+=Prerequisites=
+
+Configure Openstack support in OpenDaylight Network Virtualization. View the section called [[OpenDaylight Network Virtualization (ONV):OpenStack|OpenDaylight Network Virtualization - OpenStack]]
+
+=Location of Repositories=
+
+The following lists the different code repositories and their relevance:
+
+1. The OpenStack/Quantum community accepted version of our code resides in the OpenStack Quantum repo's master branch:
+
+ https://github.com/openstack/quantum
+
+In this tree you will need to navigate to: quantum/plugins/bigswitch
+
+Note that the plugin directory is "bigswitch", not "restproxy" (the plugin implementation class is called RestProxy). This version of the code is actively maintained by us, however it lags our latest version
+since we have decided to push changes periodically (to avoid getting bogged down by review cycles) unless it's a critical bug that needs to be fixed.
+
+2. The latest version of the plugin code will be in the bigswitch/quantum repo:
+
+ https://github.com/bigswitch/quantum
+
+and more specifically for Fat Tire, it will be in the grizzly/master branch:
+
+ https://github.com/bigswitch/quantum/tree/grizzly/master
+
+This code will get eventually pushed to the OpenStack Quantum repo as
+explained before.
+
+3. For customers using the Folsom packages, the following Quantum branch is being used:
+
+ https://github.com/bigswitch/quantum/tree/folsom/master
+
+
+=Installation Instructions=
+
+==Install a standalone Openstack node==
+
+Start with a fresh Ubuntu server 12.04.1 (64-bit) VM.  You probably want to configure two interfaces: eth0 for mgmt and eth1 for data.
+
+'''Note:'''  Please do not run these instructions as 'root'. The script will 'sudo' for you when needed.
+
+ wget https://github.com/bigswitch/deployment-support/archive/master.tar.gz
+  tar xfz master.tar.gz
+  cd deployment-support-master/openstack
+  ./install-devstack.sh &lt;controller1&gt;[:port][,&lt;controller2&gt;[:port]]* [&lt;password&gt;]
+  ./install-node.sh &lt;comma-separated-list-of-controllers&gt;
+  sudo ./configure-metadata-server.sh &lt;management interface e.g. eth0&gt; 8775
+  cd ~/devstack; ./stack.sh
+
+==Install Ubuntu VM image==
+
+ cd ~/devstack
+  wget http://uec-images.ubuntu.com/precise/current/precise-server-cloudimg-amd64-disk1.img
+  source openrc admin admin
+  glance image-create --name=ubuntu --is-public=true --container-format=bare --disk-format=qcow2 &lt;  precise-server-cloudimg-amd64-disk1.img
+
+==Set up an SSH Key==
+
+ source openrc admin admin
+  ssh-keygen
+  cd ~/.ssh
+  nova keypair-add --pub_key id_rsa.pub mykey
+
+
+==Loosen security group settings==
+
+ cd ~/devstack
+  source openrc admin admin
+  nova secgroup-add-rule default icmp -1 -1 0.0.0.0/0
+  nova secgroup-add-rule default tcp 1 65535 0.0.0.0/0
+  nova secgroup-add-rule default udp 1 65535 0.0.0.0/0
+
+
+==Configure External Gateway==
+
+First, create the external BVS and add the MAC of the gw.
+
+ bvs-controller-1# configure 
+  bvs-controller-1(config)# tenant external
+ <span style="mso-spacerun: yes"> </span>bvs-controller-1(config-tenant)# bvs-definition external
+  bvs-controller-1(config-tenant-def-bvs)# priority 1100
+  bvs-controller-1(config-tenant-def-bvs)# interface-rule default-gw-mac
+  bvs-controller-1(config-tenant-def-bvs-if-rule)# match mac &lt;insert_your_gw_mac&gt;
+  bvs-controller-1(config-tenant-def-bvs-if-rule)# allow-multiple
+  bvs-controller-1(config-tenant-def-bvs-if-rule)# end
+
+
+Next, create the external router:
+
+
+ bvs-controller-1# configure 
+  bvs-controller-1(config)# tenant external
+ <span style="mso-spacerun: yes"> </span>bvs-controller-1(config-tenant)# router external
+  bvs-controller-1(config-tenant-router)# interface to_bvs_external bvs external
+ <span style="mso-spacerun: yes"> </span>bvs-controller-1(config-tenant-router-intf)# exit
+  bvs-controller-1(config-tenant-router)# interface to_vrsystem tenant system vrsystem
+ <span style="mso-spacerun: yes"> </span>bvs-controller-1(config-tenant-router-intf)# exit
+  bvs-controller-1(config-tenant-router)# route from bvs external to any permit
+  bvs-controller-1(config-tenant-router)# route from any to &lt;your_supernet_cidr&gt; deny
+  bvs-controller-1(config-tenant-router)# route from any to &lt;gw_ip&gt; permit
+  bvs-controller-1(config-tenant-router)# route from any to any &lt;gw_ip&gt; to_bvs_external permit
+  bvs-controller-1(config-tenant-router)# end
+
+
+Next, edit the system router:
+
+
+ bvs-controller-1# configure 
+  bvs-controller-1(config)# tenant system
+ <span style="mso-spacerun: yes"> </span>bvs-controller-1(config-tenant)# router vrsystem
+ <span style="mso-spacerun: yes"> </span>bvs-controller-1(config-tenant-router)# interface to_external tenant external external
+ <span style="mso-spacerun: yes"> </span>bvs-controller-1(config-tenant-router-intf)# exit
+  bvs-controller-1(config-tenant-router)# route from tenant external to any permit
+ <span style="mso-spacerun: yes"> </span>bvs-controller-1(config-tenant-router)# route from any to any to_external permit
+ <span style="mso-spacerun: yes"> </span>bvs-controller-1(config-tenant-router)# end
+
+
+Finally, create a static arp entry:
+
+
+ bvs-controller-1# configure
+  bvs-controller-1(config)# arp &lt;gw_ip&gt; &lt;gw_mac&gt;
+  bvs-controller-1(config)# end
+
+
+==Use openstack to create VMs==
+
+After successful installation, you can access the OpenStack web UI (Horizon) as a "demo" user. The password is what you provided when you executed the install-devstack.sh script (if you did not provide one, it's "nova" by default).
+
+You can perform administrative tasks by logging in as "admin" user (the password is the same as that for the "demo" user).
+
+Steps to Launch a VM:
+
+# Create a Quantum Network and Subnet.   A default network called "private" will be automatically created after the devstack installation. You can choose to create more networks from the "Networks" panel.  When creating networks leave the "IP Gateway" field blank. A .1 IP in that subnet will be automatically chosen for the gateway.
+# Launch Instance.  You should select "mykey" as ssh key and the network you chose as well.
+
+
+===Image notes===
+
+ Ubuntu VM: It is recommended you use the ubuntu vm.<span style="mso-spacerun: yes">  </span>It comes  with a user "ubuntu" but no password configured.  To login, you must set up an ssh key via openstack.
+ Cirros VM: The cirros vm has an older version of dhcp client and cannot read routes from dhcp. As a result, the VNC console does not work.
+ The username and password for cirros vm (that is the image installed by default) are "cirros" and "cubswin:)"
+
+==Using Dataplane devices==
+
+If you have not yet configured it, you may want to configure tunnels or add an external interface to OVS.  Make sure both interfaces are configured and up:
+
+ /etc/network/intefaces
+  # This file describes the network interfaces available on your system
+  # and how to activate them. For more information, see interfaces(5).
+  # The loopback network interface
+  auto lo
+  iface lo inet loopback
+ <span style="mso-spacerun: yes"> </span># The primary network interface
+  auto eth0
+  iface eth0 inet dhcp
+ <span style="mso-spacerun: yes"> </span>auto eth1
+  iface eth1 inet manual
+
+Then attach eth1 to ovs.
+
+ $ sudo ovs-vsctl add-port br-int eth1
+  $ sudo ifconfig eth1 up
+
+=Stopping Devstack=
+
+To stop the currently running devstack instance, unstack as:
+
+ $ cd ~/devstack; ./unstack.sh
+
+==Restarting Devstack==
+
+To restart the devstack instance, run as:
+
+  $ sudo rm -rf ~/devstack/aarc
+  $ sudo ~/deployment-support/openstack/configure-metadata-server.sh &lt;management interface e.g. eth0&gt; 8775
+  $ cd ~/devstack; ./stack.sh
+
+
+==Troubleshooting==
+
+If you run into any issues you might find some solutions Troubleshooting Tips for OpenStack Installation/Deployment]
+
+==Notes==
+
+===Floating IP Addresses===
+
+Horizon will display the widgets to set the floating IP addresses. However these are currently not supported by the plugin.
+
+[[Category:OpenDaylight SDN Controller Platform]]
