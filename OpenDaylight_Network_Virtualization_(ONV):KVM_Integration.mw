@@ -1,0 +1,369 @@
+{| align="right" border="1"
+|align="center"|'''OpenDaylight Network Virtualization Contents'''
+|-
+|[[OpenDaylight Network Virtualization (ONV):Configuration|Configuration]]<br>[[OpenDaylight Network Virtualization (ONV):Routing|Routing]]<br>[[OpenDaylight Network Virtualization (ONV):KVM Integration|KVM Integration]]<br>[[OpenDaylight Network Virtualization (ONV):OpenStack|OpenStack Quantum]]<br>[[OpenDaylight Network Virtualization (ONV):Host Configuration|Host Configuration]]<br>[[OpenDaylight Network Virtualization (ONV):Main|Back to Top]]
+|}
+
+=Integrating with KVM=
+
+This describes how to OpenFlow-enable the logical switch used by KVM servers for use with OpenDaylight Network Virtualization (ONV) and Big Network Controller. It describes the process of installing, configuring, and integrating an open-source OpenFlow software switch - OpenVSwitch (OVS, http://www.openvswitch.org) -with a KVM installation.
+
+=Notation=
+
+ Shell commands that are prefixed with a # must be executed as root. Commands that are prefixed with 
+ a % can be executed as a non-privileged user.
+
+=Installing OpenVSwitch=
+
+Build OpenVSwitch (OVS) binary packages from source and install them. The instructions vary depending if the target system is Debian/Ubuntu-based or RedHat/RHEL based. The OpenVSwitch project no longer distributes binaries and our controller requires OVS version 1.3.0 or higher.
+
+==Getting and Unpacking the Source Code==
+
+ % mkdir src
+ % cd src
+ % wget http://openvswitch.org/releases/openvswitch-1.4.0.tar.gz
+ % tar xzvf openvswitch-1.4.0.tar.gz
+ % cd openvswitch-1.4.0
+
+==Building for Ubuntu/Debian Systems==
+
+===Install the Necessary Build Dependencies===
+
+ # sudo apt-get install build-essential git libtool pkg-config autoconf \
+             debhelper libssl-dev module-assistant bridge-utils dkms \
+             python-qt4 python-twisted-conch
+
+===Build the .deb Files in the Parent Directory===
+
+ # sudo make -f debian/rules binary
+ % ls ../*.deb
+
+If the make command fails, for example, at ovsdb monitor, you might be missing one or more of the dependencies specified above. To identify which dependencies might be missing, run the command dpkg-buildpackage and look for the line Unmet build dependencies. Installing the dependencies as specified above is the best way to avoid this problem.
+
+===Install the Switch, Kernel Module, and Bridge Compatibility Components===
+
+OVS is a complete replacement for the standard Linux bridge and as such cannot be loaded at the same time. You must unload the bridge module before installing OVS. The OpenVSwitch kernel module is automatically loaded as part of the init script.
+
+ # rmmod bridge
+ # dpkg -i openvswitch-common_1.4.0-1_amd64.deb \
+        openvswitch-switch_1.4.0-1_amd64.deb \
+        openvswitch-brcompat_1.4.0-1_amd64.deb \
+        openvswitch-datapath-dkms_1.4.0-1_all.deb
+
+===Enable Bridge Compatibility Mode===
+
+ # echo "BRCOMPAT=yes" >>/etc/default/openvswitch-switch
+ # /etc/init.d/openvswitch-switch stop
+ # /etc/init.d/openvswitch-switch start
+
+==Building for RedHat/RHEL Systems==
+
+Follow the instructions in INSTALL.RHEL in the openvswitch-1.4.0 directory.
+
+=Configuring OpenVSwitch=
+
+OpenVSwitch (OVS) uses the same notion of a bridge, as a private and local software switch, similar to the standard Linux kernel's bridge. The standard Big Network Controller software allows you to virtualize, that is to logically subdivide, the software switch as you would any other hardware switch. As with any network device (logical or physical) there are many ways to deploy it. The following is our recommended deployment, but it is not the only means of using OVS.
+
+==OpenVSwitch Control Command: ovs-vsctl==
+
+The command ovs-vsctl is used to create and destroy bridges, as well as add/remove/configure ports, tunnels, and QoS queues. The commands are stored in a persistent database, ovsdb-server, and are re-applied at system reboot. Refer to the manpage for ovs-vsctl,(man 1 ovs-vsctl), and the many cookbook style recipes documented online at: http://openvswitch.org/support/config-cookbooks/. Perhaps the most convenient ovs-vsctl command is the command to list a summary of the current configuration.
+
+ # ovs-vsctl show
+
+At this point in the setup process, nothing has been configured so only version information is displayed.
+
+==Creating the First Bridge==
+
+Create a virtual bridge and name it ovs-br0. Then add a dedicated physical interface to it, eth1. These instructions assume that eth1 is an interface onto a dedicated data plane and that there is a second interface on the host, for example, <code>eth0</code>, that can serve as a control plane interface.
+
+ # ovs-vsctl add-br ovs-br0            # create a bridge named 'ovs-br0'
+ # ovs-vsctl add-port ovs-br0 eth1     # attach eth1 to ovs-br0
+
+By adding eth1 to OVS, eth1 is no longer managed by the Linux kernel's IP stack. This means that eth1 no longer responds to ping or follows the Linux routing table. All of this functionality can be replicated through OVS and the Big Switch Controller, but most critically, if the SSH management session, that you are using to manage the host, crosses eth1, then your session hangs and you are disconnected from the box!
+
+As a result, there is now a new Linux kernel interface named ovs-br0:
+
+ # ifconfig -a   # can also run `ip link show`
+ [snip]
+ ovs-br0   Link encap:Ethernet  HWaddr de:ac:82:75:51:42
+          BROADCAST MULTICAST  MTU:1500  Metric:1
+          RX packets:0 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:0 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:0
+          RX bytes:0 (0.0 B)  TX bytes:0 (0.0 B)
+
+This new ovs-br0 interface is similar to the loopback interface on a standard hardware switch and eth1 is now a data plane interface. Packets that come in eth1 can be forwarded to ovs-br0 and vice versa.
+
+Next, add an IP address to the new ovs-br0 interface. You can have ovs-br0 use DHCP like any other interface and the broadcasts go out eth1.
+
+ # ifconfig ovs-br0 172.16.1.1 netmask 255.255.0.0 up
+
+This configuration can be made permanent though the distribution startup scripts similar to any normal interface. For example, for Debian/Ubuntu, add:
+
+ % cat /etc/network/interface
+ [snip]
+ auto ovs-br0
+ iface ovs-br0 inet static
+   address 172.16.1.1
+   netmask 255.255.0.0
+   broadcast 172.16.255.255
+
+For all intents and purposes, this is a fully functioning Linux interface.
+
+Add the following in the interfaces file underneath the IP address configuration of the ovs-br0.
+
+Interface Event
+Script
+pre-up	bash /root/start-ovs.sh
+post-up	bash /root/configure-tunnel-ip.sh
+up	ip link set $IFACE mtu 1500
+post-down	bash /root/stop-ovs.sh
+
+Add the following scripts under the /root folder as listed below:
+ '''/root/start-ovs.sh'''
+ #!/bin/sh
+ iface_data=eth1
+ test -f /sys/class/net/$iface_data/address
+ mac=$(cat /sys/class/net/$iface_data/address | tr -d : )
+ dpid=0000$mac
+ mkdir -p /var/run/openvswitch
+ ovsdb-server /etc/openvswitch/conf.db \
+          --remote=punix:/var/run/openvswitch/db.sock \
+          --remote=db:Open_vSwitch,manager_options --detach \
+          --remote=ptcp:6635
+ ovs-vsctl --no-wait init
+ ovs-vsctl --no-wait set bridge ovs-br0 \
+    other-config:datapath_type=system \
+    other-config:datapath-id=$dpid
+ ovs-vswitchd --pidfile --detach 
+ ovs-brcompatd --pidfile --detach
+ '''/root/configure-tunnel-ip.sh'''
+ #!/bin/sh
+ iface_tunnel="ovs-br0"
+ tunnelip=""
+ while true; do
+     tunnelip=$(ip addr show $iface_tunnel | \
+                awk '$1=="inet" { print $2 }' | \
+                cut -d/ -f 1 ) || true
+     if [ -n "$tunnelip" ]; then
+         break;
+     fi
+     sleep 1
+done
+
+# write the tunnel interface's IP to the database using a custom field
+ovs-vsctl --no-wait set bridge ovs-br0 other-config:tunnel-ip=$tunnelip
+
+ '''/root/stop-ovs.sh'''
+ #!/bin/sh
+ killall ovs-brcompatd
+ killall ovs-vswitchd
+ killall ovsdb-server
+
+==Configuring OpenVSwitch's OpenFlow Controller==
+
+Next, tell OpenVSwitch to receive OpenFlow commands from a controller where $ip and $port are the IP address and TCP port (default: 6633) of the controller process. The setup of the controller is not described in this document, see your OpenFlow documentation and the Controller Platform Users Guide
+
+ '''Set Controller'''
+ % ip=172.16.248.153
+ % port=6633
+ # ovs-vsctl set-controller ovs-br0 tcp:$ip:$port
+ '''Verify Connection'''
+ # ovs-vsctl list controller        # verify that it's actively connected
+ _uuid               : f499e1e6-929c-4364-a9a2-1e8d2d549dfc
+ connection_mode     : []
+ controller_burst_limit: []
+ controller_rate_limit: []
+ external_ids        : {}
+ inactivity_probe    : []
+ is_connected        : true
+ local_gateway       : []
+ local_ip            : []
+ local_netmask       : [] 
+ max_backoff         : []
+ role                : other
+ status              : {{sec_since_connect="696", state=ACTIVE}} <----- YES
+ target              : "tcp:172.16.248.153:6633"
+
+OVS does support in-band network management, that is, using the data plane (for example, through eth1) to reach the OpenFlow controller. However, we recommend running your controller out-of-band, that is, on a dedicated control plane (for example, through eth0) to ensure that no matter the state of the data plane, there is always a path from the control plane to the switch.
+
+
+Changing Default OVS Forwarding Policy
+In normal operations, the OpenFlow controller ensures inter-tenant isolation and other ACLs. However, in the unlikely situation that the connection to the controller fails, it's important for OVS to continue to maintain tenant isolation. The default behavior of OVS when the controller is disconnected is to ignore tenant boundaries, allowing all VMs to communicate with each other. The following command blocks all traffic when a controller is disconnected.
+# ovs-vsctl --no-wait set-fail-mode ovs-br0 secure
+==Enabling Automatic Tunnel Creation==
+
+Run the following command to tell the controller the IP address to use for terminating tunnels on this server. Typically, this is the IP address assigned to the ovs-br0 interface.
+
+# ovs_br0_ip=172.16.1.1 # update to the ovs-br0 address
+# ovs-vsctl set bridge ovs-br0 other-config:tunnel-ip=$ovs_br0_ip
+# datapath_id=`ovs-vsctl get bridge ovs-br0 datapath_id`
+# echo $datapath_id
+1122334455667788   <--- a 16 digit hex string, different on each machine
+# ovs-vsctl set bridge ovs-br0 other-config:datapath_id=$datapath_id
+
+Next, from the Big Switch Controller's CLI, enable tunnel termination for this box using the datapath_id value identified in the previous step.
+
+ % ssh admin@controller
+ admin@controller's password: XXXX
+ Last login: Mon Apr 23 22:10:59 2012 from 192.168.101.11
+ BigShell (bigsh) v0.1 (c) by Big Switch Networks. 
+ default controller is: 127.0.0.1:8000
+ controller> enable
+ controller# configure
+ controller(config)# switch _datapath-id_
+ controller(config-switch)# tunnel termination enabled
+ controller(config-switch)# end
+
+In the startup script: ovsdb-server listens on port 6635 for incoming connections from TunnelManager. Ensure that listening is either only on the control interface (eth0) or that firewall rules are set to prevent connections from the data plane.
+
+
+
+=Integration with Command Line KVM=
+
+Many orchestration frameworks start and stop KVM instances at the command line. The following is a typical KVM invocation:
+
+ /usr/bin/kvm -S -M pc-0.14 -enable-kvm -m 1024 \
+              -smp 1,sockets=1,cores=1,threads=1 \
+              -name kvm-alice -uuid 7664f4b9-30f3-4212-4cbf-bce3b996c98e \
+              [...]
+
+To integrate OVS with KVM on the command line, we need to create two scripts to manage the interfaces: ovs-ifup and ovs-ifdown. These scripts can live anywhere on the system, but are listed here as in the /etc directory to coincide with the equivalent /etc/qemu-ifup and /etc/qemu-ifdown scripts.
+
+ '''/etc/ovs-ifup'''
+ #!/bin/sh
+ switch='ovs-br0'
+ /sbin/ifconfig $1 up
+ ovs-vsctl add-port $switch $1
+
+ '''/etc/ovs-ifdown'''
+ #!/bin/sh
+ switch='ovs-br0'
+ /sbin/ifconfig $1 down
+ ovs-vsctl del-port $switch $1
+
+When starting a new KVM instance, add the -net tap parameter to the normal KVM command line. It is important that the script and downscript options point to the location of the ovs-ifup and ovs-ifdown scripts we just created.
+
+ /usr/bin/kvm [....] -net tap,script=/etc/ovs-ifup,downscript=/etc/ovs-ifdown
+
+This brings up a new virtual interface, for example, vnet0, for each VM and adds that interface to OVS control. To see this new interface, use ifconfig. The controller sees the new interface as a distinct port on the switch.
+
+
+=Integration with libvirt, virsh, and virt-manager=
+
+libvirt is a library that implements a number of VM orchestration functions and has support for KVM. It has many tools built on top of it including virsh and virt-manager. Internally, libvirt uses the /etc/qemu-ifup and /etc/qemu-ifdown scripts to connect new VMs to the network. Integrating OVS with libvirt is as simple as replacing the qemu scripts with the OVS equivalents. So, create /etc/ovs-ifup and /etc/ovs-ifdown, the same as with the command-line case and then:
+
+ # mv /etc/qemu-ifup /etc/qemu-ifup.orig && \
+    ln -s /etc/ovs-ifup /etc/qemu-ifup
+ # mv /etc/qemu-ifdown /etc/qemu-ifdown.orig && \
+    ln -s /etc/ovs-ifdown /etc/qemu-ifdown
+
+==Integration with virsh==
+
+virsh uses XML files to describe a VM's configuration. To enable OVS, add an interface stanza to the standard VM XML configuration file:
+
+ <domain type='kvm'>
+  [...]
+  <devices>
+    [...]
+    <interface type='bridge'>
+      <mac address='52:54:00:03:c8:d4'/>
+      <source bridge='ovs-br0'/>
+      <model type='virtio'/>
+      <address type='pci' domain='0x0000' bus='0x00' slot='0x03' function='0x0'/>
+    </interface>
+  </devices>
+ </domain>
+
+==Integration with virt-manager==
+
+virt-manager is a graphical VM management tool. To enable OVS for a VM, start the Create VM wizard as you normally would. At step 5 of 5, when configuring the network, click Advanced Options then click Virtual Network 'Default': Nat and change it to Specify a shared device name. A dialog labeled Bridge Name: opens. Enter ovs-br0 as the bridge name.
+
+XXX
+
+=Advanced Topics=
+
+The advanced topics listed here are not required to deploy OVS on KVM, but they provide interesting applications of the technology.
+
+==tcpdump==
+
+Because the virtual interfaces, such as, vnet0 facing a VM or ovs-br0 for the switch's loopback interface, are exposed as standard Linux interfaces, it is possible to run tcpdum on them just as you would with any other physical interface. Therefore, if you are concerned that there is a broadcast storm on your logical switch, run:
+
+ # tcpdump -n -s 0 -i ovs-br0
+
+If you want to debug network problems for a VM that you do not have administrative rights to, dump the host-side VM interface to see what traffic is going to the VM:
+
+ # tcpdump -n -s 0 -i vnet0
+
+Debugging network problems is dramatically simplified when you can examine each interface on the VM network.
+
+==Setting the Switch datapath ID==
+
+OpenFlow uses an 8-byte number to unique identify each switch, called a datapath-id. OVS automatically generates the datapath-id using local interface rules, but it is conceivable that you might want to set it manually. The string must be exactly 16 characters of hexadecimal.
+
+ # ovs-vsctl set bridge ovs-br0 other-config:datapath-id=0011223344556677
+
+==Advanced Linux Routing and the Loopback Interface==
+
+Because the ovs-br0 interface is a normal Linux interface in all respects, you can do all of the standard Linux tricks with it, including routing, firewalling, and NAT'ing. For example, if physical control/data plane isolation was not an important feature for your deployment (for example, if you were just testing in a lab with limited resources), you could actually enable routing between the ovs-br0 interface and the out-going control interface eth0 on the server. Then configure each VM on the data network to use that IP as its default route. This is particularly useful for servers with only a single physical interface or for virtual networks that have no physical interfaces.
+
+ '''First, Enable IP forwarding on server'''
+ # ifconfig ovs-br0 172.16.1.1 netmask 255.255.0.0
+ # echo 1 > /proc/sys/net/ipv4/ip_forward
+
+ '''Second, On each VM, set the server's ovs-br0 as a default route'''
+ # ping www.google.com
+ [... doesn't work]
+ # ifconfig eth0 172.16.1.2 netmask 255.255.0.0
+ # route add default gw 172.16.1.1
+ # ping www.google.com
+  [... does work!]
+
+==Running the Controller on the Same KVM Server as Other VMs==
+
+Sometimes it's useful to not need an additional server box for the controller and to put the controller VM running on the same server as the other VMs. While there are many ways to do this, our recommended method is to have a dedicated physical NIC for the control traffic and a dedicated extra bridge for the controller VM. This recipe assumes that the pNIC is eth0 and that you are logged on to console because network connectivity of the box is broken during setup.
+
+ ovs-vsctl add-br control-br0 # create a bridge specific to the control channel
+ vs-vsctl add-port control-br0 eth0 # add eth0 to the new control bridge
+
+In the network configuration, for example, /etc/network/interfaces, move the configuration for eth0 to control-br0.
+
+Bring up the controller VM using the control-br0 bridge instead of ovs-br0.
+
+==Building and Installing by Hand==
+
+These steps are not for the faint-of-heart and are mostly listed here for educational benefit. We strongly recommend to build binary packages and install them through the existing distribution package managers.
+
+ '''Building from scratch'''
+
+ % cd openvswitch-x.y.z  # from before
+ % export OVS_SRC=`pwd`
+ % sh boot.sh
+ % ./configure --with-linux=/lib/modules/`uname -r`/build
+ % make
+ # make install
+ # install -D datapath/linux/openvswitch_mod.ko \
+    /lib/modules/$(uname -r)/misc/openvswitch_mod.ko;
+ # install -D datapath/linux/brcompat_mod.ko \
+    /lib/modules/$(uname -r)/misc/brcompat_mod.ko
+ # depmod -a
+
+ '''Linux kernel module setup'''
+ # rmmod bridge
+ # echo "blacklist bridge" > /etc/modprobe.d/blacklist-bridge.conf
+ # modprobe openvswitch_mod
+ # modprobe brcompat_mod
+ # echo openvswitch_mod >> /etc/modules
+ # echo brcompat_mod >> /etc/modules
+
+ '''prep OVS configuration'''
+ # mkdir -p /usr/local/etc/openvswitch
+ # ovsdb-tool create /usr/local/etc/openvswitch/conf.db $OVS_SRC/vswitchd/vswitch.ovsschema
+ start OVS daemons and load kernel mods
+ # ovsdb-server --remote=punix:/usr/local/var/run/openvswitch/db.sock \
+               --remote=db:Open_vSwitch,manager_options --detach
+ # ovs-vsctl --no-wait init
+ # ovs-vswitchd --pidfile --detach
+ # ovs-brcompatd --pidfile --detach
+
+[[Category:OpenDaylight SDN Controller Platform]]
