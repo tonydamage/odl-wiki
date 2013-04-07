@@ -1,0 +1,576 @@
+{| align="right" border="1"
+|align="center"|'''OpenDaylight SDN Controller Platform Contents'''
+|-
+|[[OpenDaylight SDN Controller Platform (OSCP):Installation|Installation]]<br>[[OpenDaylight SDN Controller Platform (OSCP):Clustering|Clustering & HA]]<br>[[OpenDaylight SDN Controller Platform (OSCP):Management|Management Integration]]<br>[[OpenDaylight SDN Controller Platform (OSCP):Troubleshooting|Troubleshooting]]<br>[[OpenDaylight Network Virtualization (ONV):Main|Back to Top]]
+|}
+
+=Cluster Set-up=
+
+# Set up a cassandra cluster and point the controller at it
+# Set up a keepalived cluster, set up to check the controller's health and change roles using the scripts provided in the scripts directory
+# Configure floodlight.properties to point to the HA role file used by the role change script
+ 
+ A more complete set-up guide is being developed. Please send questions to the 
+ netvirt-platform mailing list or contact Paul Lappas (paul@bigswitch.com).
+
+=Cluster Management=
+
+==Overview==
+
+This section describes common controller cluster management tasks.
+
+There are several tasks you can perform on a OVP cluster. These tasks are performed using a set of OVP commands, including show, ha, configure, reload, and upgrade. Tasks performed include:
+
+* Checking the status
+* Changing cluster identification or IP address
+* Manually failing over or failing back cluster nodes
+* Upgrading, downgrading, resetting, and decommissioning cluster nodes
+
+==Querying High Availability State==
+
+To view the current state of the Controller cluster, use the show controller-node command. Options for the show controller-node command, include:
+
+* <code><cr></code>– Show controller nodes summaries
+* <code><id></code>– Alphabetic character, followed by alphanumerics
+* <code>all</code>– Show statistics for a given controller node
+* <code><node1_name></code>– Controller node selection
+* <code><node2_name></code>– Controller node selection
+* <code>localhost</code>– Select currently logged in controller
+
+The following are example output return from show controller-node commands. Generally, run all CLI commands from the master node.
+
+Display the current controller roles, from either the master or slave node CLI, run show controller-node all.
+controller> show controller-node all
+
+ # Controller ID                        Alias Domain Lookups Enabled Domain Name Servers Domain Name Default Gateway NTP  Server     Time Zone Logging Enabled Logging Server HA Role
+ -|------------------------------------|-----|----------------------|-------------------|-----------|---------------|--------------|---------|---------------|--------------|-------
+ 1 98e5b138-1b75-414d-a8fd-f23fae52093e       True                   192.168.2.1                     192.168.10.1     0.pool.ntp.org UTC       False                          MASTER 
+ 2 af1ac4ce-2593-4ab2-92af-77a4d618282e       True                   192.168.2.1                     192.168.10.1     0.pool.ntp.org UTC       False                          SLAVE
+ 
+Display the controller ID and role of the current node, run show controller-node localhost.
+ controller# show controller-node localhost
+ # Controller ID                        Alias Domain Lookups Enabled Domain Name Servers Domain Name Default Gateway NTP  Server     Time Zone Logging Enabled Logging Server HA Role
+ -|------------------------------------|-----|----------------------|-------------------|-----------|---- -----------|--------------|---------|---------------|--------------|-------
+ 1 98e5b138-1b75-414d-a8fd-f23fae52093e       True                   192.168.2.1                     192.168.10.1     0.pool.ntp.org UTC       False                          MASTER
+
+Display the controller ID and role of the slave node, run show controller-node localhost.
+controller-backup> show controller-node localhost
+
+ # Controller ID                        Alias Domain Lookups Enabled Domain Name Servers Domain Name Default Gateway NTP  Server     Time Zone Logging Enabled Logging Server HA Role
+ -|------------------------------------|-----|----------------------|-------------------|-----------|---- -----------|--------------|---------|---------------|--------------|-------
+ 1 af1ac4ce-2593-4ab2-92af-77a4d618282e       True                   192.168.2.1                     192.168.10.1     0.pool.ntp.org UTC       False                          SLAVE
+
+
+==Adding a Second Node to the Controller-Node Cluster==
+
+If a node in the controller-node cluster has been decommissioned, removed, or become unavailable to the cluster, you can add node to the existing cluster.
+
+To add a second node to the controller-node cluster:
+
+1. On the master node, run the ha provision <node2_ip_address> command.
+
+ bsnmac1> enable
+ bsnmac1# ha provision 192.168.67.131
+ Confirm to continue addition of new ip, enter "yes" (or "y") to continue:y
+
+2. On the second node, run the initial configuration.
+3. At the prompt, enter the IP address of the master node.
+
+ Enter the IP address of master controller OR
+ To start a new cluster, just enter <cr>.
+ Existing controller IP: <node1_ip_address>
+
+4. Continue and complete the initial configuration wizard. 
+
+The second node is automatically configured and added to the cluster. 
+
+==Specifying VRRP Cluster Number==
+
+When the controller boots, it attempts to choose an unused Virtual Router Redundancy Protocol (VRRP) cluster to use for master/slave leader election. To specify the VRRP choice, use the configure command in enable mode:
+
+ controller> enable 
+ controller# configure
+ controller(config)# ha cluster-number 42
+
+==Changing the IP Address of a Controller-Node in the Cluster==
+
+You can change the IP address of a node only when it is a slave node in the cluster.
+
+To change a node's IP address, decommission it from its cluster and re-provision it into the cluster. 
+
+# Ensure that the node is not the current master. If it is a master node, run ha failover in enable mode to force a failover to slave mode. See Forcing Failover to the Slave Node.
+
+# From the master node, decommission the node, run ha decommission <current_ip_address> in enable mode on the master node. This also resets the node being decommissioned to factory default state. See Decommissioning a Controller-Node.
+
+# From the master node, re-provision the node, run ha provision <new_ip_address> in enable mode on the Master. See Installing Software on First Controller-Node.
+
+# From the decommissioned node, on the serial console, complete the first boot process. In the first boot process, specify the new IP address.
+
+==Forcing Failover to the Slave Node==
+To force the master node to fail over to the slave, run the ha failover command, in enable mode, on the master node. If you run a show controller-node command before and after, the output identifies which node is the master and which is the slave. The asterisk ( * ) in the at ( @ ) indicates from which node the show command was run. In the example, prior to the failover, bnc1 Is MASTER. After the failover, bnc2 is MASTER and bnc1 is SLAVE.
+
+ bnc1> show controller-node localhost
+ # Alias @ HA Role Status Uptime     Errors
+ -|-----|-|-------|------|----------|------
+ 1 bnc1  * MASTER  Ready  12 minutes
+ 
+ bnc1> enable
+ bnc1# ha failover
+ 
+ [ wait -- this could take several seconds ]
+
+ Fallback will change the HA operating mode,enter "yes" (or "y") to continue:yes
+ bnc1#
+
+ bnc1# show controller-node all
+ # Alias @ HA Role Status Uptime     Errors
+ -|-----|-|-------|------|----------|------
+ 1 bnc2    MASTER  Ready  11 minutes
+ 2 bnc1  * SLAVE   Ready  20 minutes
+
+==Upgrading the Controller Cluster==
+
+The OSCP Controller upgrade feature:
+
+* Performs most of the upgrade steps while the controller is running, and orchestrates switch hand off in a 2-node cluster to minimize down time. Down time in the order of 10-20 seconds might be observed only after the first node reboots during the upgrade.
+* Reduces the need to interact with the virtual machine platform configuration interface. This might be accessible only by separate administrative staff.
+* Migrates running configuration and first-time setup parameters to the new installation: network interface configuration (IP address, gateway, etc.), admin user password, hostname, NTP server, time zone, and SSH host keys.
+* Keeps the previous installation available as a fail-safe. Partially or fully upgraded 2-node clusters can be reverted back to the previous installation with all pre-upgrade configurations intact.
+
+A 2-node cluster must be upgraded by first copying the upgrade image to each of the nodes, and then running the upgrade commands on the SLAVE and then the MASTER serially and strictly in that order. The exact steps are listed below.
+
+===Prepare for the Upgrade===
+
+1. Backup the current configuration data. 
+In the Master node, run show running-config. Save the output to a file outside the OVP cluster nodes.
+
+ node1# show running-config
+ !
+ ! Big Switch Controller (2013.01.17.0437-b.bsc.efes)
+ ! Current Time: 2013-02-20.19:06:18
+ !
+ version 1.0
+ !
+ controller-node 4f04277e-5e89-4003-9788-33a95a11ce1f
+  controller-alias node2
+  ip default-gateway 192.168.67.1
+  interface Ethernet 0
+    ip address 192.168.67.141 255.255.255.0
+    firewall allow from 192.168.67.140 local-ip 224.0.0.18 vrrp
+    firewall allow from 192.168.67.140 tcp 7000
+    firewall allow from 192.168.67.140 web
+ !
+ controller-node fd54647f-0220-40ec-8b7b-8f31d488b342
+  controller-alias node1
+  ip default-gateway 192.168.67.1
+  interface Ethernet 0
+    ip address 192.168.67.140 255.255.255.0
+    firewall allow from 192.168.67.141 local-ip 224.0.0.18 vrrp
+    firewall allow from 192.168.67.141 tcp 7000
+    firewall allow from 192.168.67.141 web
+ !
+ bvs-definition default
+
+2. Verify the state of the OVP cluster.
+
+Log in to any node and run show ha. Verify that:
+* The status column shows Ready for both controller nodes. 
+* The HA Role column shows MASTER for only a single node and SLAVE for the other node.
+
+ node1> show ha
+ Cluster Name                           Cluster Number HA Enabled
+ --------------------------------------|--------------|----------
+ 9efe10ae-8fea-4eab-90f4-ad29c29e5d5b.0 140            True
+ Controller Nodes
+ # Controller ID                        @ Alias HA Role Status Uptime              DNS     Logging
+ -|------------------------------------|-|-----|-------|------|-------------------|-------|--------
+ 1 1473ecc0-b3cd-4de8-98c9-1d59c04d8326 * node1 MASTER  Ready  4 hours, 2 minutes  enabled disabled
+ 2 fe4706a7-cd0a-49c1-8879-b6832e030acf   node2 SLAVE   Ready  3 hours, 53 minutes enabled disabled
+ 3. Log in as admin on each node, and setup a password for user "images". On the CLI type debug bash to get a bash s shell. Then execute sudo passwd images.
+ node1> debug bash
+ ***** Warning: this is a debug command - use caution! *****
+ ***** Type "exit" or Ctrl-D to return to the BigOS CLI *****
+ bsn@node1:~$ 
+ bsn@node1:~$ sudo passwd images
+ Enter new UNIX password: 
+ Retype new UNIX password: 
+ passwd: password updated successfully
+
+===Upgrade the Slave Node===
+
+In these examples the original slave node, is node2.
+
+1. Copy the upgrade package to each node using scp on the images account. For example: 
+scp <upgrade-package> images@<node-ip>:
+
+ localhost:~ username$ scp /Users/username/Desktop/bigswitchcontroller-upgrade-2013.02.13.0921.pkg   images@192.168.67.141:
+ images@192.168.67.141's password: 
+ bigswitchcontroller-upgrade-2013.02.13.0921.p 100%  501MB  21.8MB/s   00:23    
+
+2. Log in as admin on the SLAVE node.
+
+3. Enter enable mode.
+
+4. Run the upgrade command. Confirm the upgrade.
+If the upgrade command fails, run upgrade abort and return to step 2.
+
+ $ ssh admin@192.168.67.141
+ admin@192.168.67.141's password: 
+ Last login: Sun Feb 17 18:31:39 2013 from 192.168.67.1
+ BigShell (bigsh) v0.1 (c) by Big Switch Networks.
+ default controller: 127.0.0.1:8000, Big Switch Controller (2013.01.17.0437-b.bsc.efes)
+
+ node2> enable
+
+ node2# upgrade 
+ Upgrade controller from image '/home/images/bigswitchcontroller-upgrade-2013.02.13.0921.pkg'?
+ (yes to continue) yes
+ Executing upgrade...
+ 1 - Verifying package checksum
+  Succeeded
+ 2 - Verifying connectivity to other nodes via ping
+  Succeeded
+ 3 - Checking minimum system requirements
+  Succeeded
+ 4 - Copying configuration
+  Succeeded
+ 5 - Creating new filesystem
+  Succeeded
+ Controller node upgrade complete.
+ Upgrade will not take effect until system is rebooted. Use 'reload' to
+ reboot this controller node. To revert, select the appropriate image 
+ from the boot menu
+
+5. Execute <code>show ha</code> to verify:
+
+* The node is still a SLAVE. 
+If the node has become the MASTER, run upgrade abort and return to step 2.
+* The <code>Status</code> column for the node shows Upgrading. 
+If not, run upgrade abort and return to step 2.
+
+ node2# show ha
+ Cluster Name                           Cluster Number HA Enabled
+ --------------------------------------|--------------|----------
+ 9efe10ae-8fea-4eab-90f4-ad29c29e5d5b.0 140            True
+ Controller Nodes
+ # Controller ID                        @ Alias HA Role Status    Uptime              DNS     Logging
+ -|------------------------------------|-|-----|-------|---------|-------------------|-------|--------
+ 1 1473ecc0-b3cd-4de8-98c9-1d59c04d8326   node1 MASTER  Ready     4 hours, 59 minutes enabled disabled
+ 2 fe4706a7-cd0a-49c1-8879-b6832e030acf * node2 SLAVE   Upgrading 4 hours, 49 minutes enabled disabled
+ node2# 
+
+6. Execute reload to reboot the node. This node reboots to the upgraded image, and takes over the switches. There is a very short downtime, in the order of a few seconds after the reboot.
+
+ node2# reload
+ Confirm Reload (yes to continue) yes
+ Broadcast message from root@node2
+	(unknown) at 18:52 ...
+ The system is going down for reboot NOW!
+ ... 
+ Big Switch Controller (2013.02.13.0921-b.bsc.fat-tire)
+ Log in as 'admin' to configure
+ node2 login:
+
+7. Log in as admin on the rebooted node.
+
+On this first login, the upgrade process continues.
+
+ Upgrading: Initializing controller nodes
+ Big Network Controller
+ default controller: 127.0.0.1:8000, Big Switch Controller (2013.02.13.0921-b.bsc.fat-tire)
+ node2>
+
+8. Execute show ha to verify that:
+
+* The node's Status shows Ready.
+* The node's HA Role shows MASTER.
+* The other nodes Status shows Provisioned.
+
+ node2> show ha
+ Cluster Name                           Cluster Number HA Enabled
+ --------------------------------------|--------------|----------
+ 9efe10ae-8fea-4eab-90f4-ad29c29e5d5b.1 140            True
+ Controller Nodes
+ # Alias @ HA Role Status      Uptime    Errors
+ -|-----|-|-------|-----------|---------|-------------
+ 1 node1   SLAVE   Provisioned 1 minutes 
+ 2 node2 * MASTER  Ready       1 minutes
+
+If the response does not include these states, there might have been a problem in the upgrade. Revert back to the previous version by rebooting the node and selecting the partition containing the previous version in the boot menu. Log in as admin and verify the state of the cluster by executing show ha. There must be one MASTER and one SLAVE, and the Status column should show Ready for both nodes. Then, return to step 2, to retry the upgrade process.
+
+===Upgrade the Master Node===
+
+In these examples the original master node, is node1. 
+
+1. Log in as admin on the original master node. In the example, this is node1.
+
+2. Run show ha. Verify that:
+
+* The node's Status column shows Ready.
+* The node's HA Role column shows MASTER. 
+* The other node's Status column shows Upgrading.
+
+ node1> show ha
+ Cluster Name                           Cluster Number HA Enabled
+ --------------------------------------|--------------|----------
+ 9fe33241-ac36-4899-a47f-10cc50e375f4.0 140            True
+ Controller Nodes
+ # Controller ID                        @ Alias HA Role Status    Uptime    DNS     Logging
+ -|------------------------------------|-|-----|-------|---------|---------|-------|--------
+ 1 2e566744-50e1-4358-a97c-d0bb2bfe7bca * node1 MASTER  Ready     5 minutes enabled disabled
+ 2 f73ac9bf-e1fb-4c74-9392-ea1f43059031   node2 MASTER  Upgrading 5 minutes enabled disabled
+
+3. Enter enable mode.
+
+4. Run the upgrade command. Confirm the upgrade. If the command fails, abort the upgrade by executing <code>upgrade abort</code> and repeat this step.
+
+ node1# show ha
+ Cluster Name                           Cluster Number HA Enabled
+ --------------------------------------|--------------|----------
+ 9fe33241-ac36-4899-a47f-10cc50e375f4.0 140            True
+ Controller Nodes
+ # Controller ID                        @ Alias HA Role Status    Uptime     DNS     Logging
+ -|------------------------------------|-|-----|-------|---------|----------|-------|--------
+ 1 2e566744-50e1-4358-a97c-d0bb2bfe7bca * node1 MASTER  Ready     20 minutes enabled disabled
+ 2 f73ac9bf-e1fb-4c74-9392-ea1f43059031   node2 MASTER  Upgrading 20 minutes enabled disabled
+ node1# enable
+ node1# upgrade
+ Upgrade controller from image '/home/images/bigswitchcontroller-upgrade-2013.02.13.0921.pkg'?
+ (yes to continue) yes
+ Executing upgrade...
+ 1 - Verifying package checksum
+  Succeeded
+ 2 - Verifying connectivity to other nodes via ping
+  Succeeded
+ 3 - Checking minimum system requirements
+  Succeeded
+ 4 - Copying configuration
+  Succeeded
+ 5 - Creating new filesystem
+ ...
+ Copying system configuration to partition 2
+ node1#
+
+5. Run show ha to verify the Status column for the node shows Upgrading. 
+If it does not show Upgrading, run upgrade abort and return to step 4.
+
+ node1# show ha
+ Cluster Name                           Cluster Number HA Enabled
+ --------------------------------------|--------------|----------
+ 9fe33241-ac36-4899-a47f-10cc50e375f4.0 140            True
+ Controller Nodes
+ # Controller ID                        @ Alias HA Role Status    Uptime     DNS     Logging
+ -|------------------------------------|-|-----|-------|---------|----------|-------|--------
+ 1 2e566744-50e1-4358-a97c-d0bb2bfe7bca * node1 MASTER  Upgrading 23 minutes enabled disabled
+ 2 f73ac9bf-e1fb-4c74-9392-ea1f43059031   node2 SLAVE   Ready     23 minutes enabled disabled
+
+6. Execute reload to reboot. 
+
+7. Log in as admin on the node.
+On this first login, the upgrade process continues.
+
+ Starting Database
+ Upgrading: Syncing Database
+ Big Network Controller
+ default controller: 127.0.0.1:8000, Big Switch Controller (2013.02.13.0921-b.bsc.fat-tire)
+ node1>
+
+8. Execute <codee>show ha</code>. Verify that both nodes show Ready in their Status column, and there is exactly one MASTER and one SLAVE in the HA Role column. If this is not so, the cluster might be in an inconsistent state, and might be reverted.
+
+ node1# show ha
+ Cluster Name                           Cluster Number HA Enabled
+ --------------------------------------|--------------|----------
+ 9fe33241-ac36-4899-a47f-10cc50e375f4.0 140            True
+ Controller Nodes
+ # Controller ID                        @ Alias HA Role Status    Uptime     DNS     Logging
+ -|------------------------------------|-|-----|-------|---------|----------|-------|--------
+ 1 2e566744-50e1-4358-a97c-d0bb2bfe7bca * node1 SLAVE   Ready     23 minutes enabled disabled
+ 2 f73ac9bf-e1fb-4c74-9392-ea1f43059031   node2 MASTER  Ready     23 minutes enabled disabled
+
+The 2-node cluster at this point is upgraded.
+
+===Restoring Configuration Data===
+
+Once the upgraded controller is up and running, use the copy command with a URL argument (either an FTP server or an HTTP server) to copy the file back into the running-config.
+
+==Downgrading the Controller Cluster==
+
+A fully or partially upgraded 2-node cluster can be reverted back to the previous image.
+
+1. Power off the slave node using the reload command.
+
+ node2> enable
+ node2# reload
+ Confirm Reload (yes to continue) 
+
+2. Press the spacebar when prompted to pause the boot sequence.
+
+ SYSLINUX 4.02 debian=20101016 EDD Copyright (C) 1994-2010 H. Peter Anvin et al
+ 1   Big Switch Controller (2013.01.17.0437-b.bsc.efes)
+ 2 * Big Switch Controller (2013.02.13.0931-b.bsc.fat-tire)
+ Press Space within 3 seconds to interrupt automatic boot
+ boot:
+
+3. Select the partition containing the previous image in the boot menu.
+
+4. Power off the master node using the reload command.
+
+5. Press the spacebar when prompted to pause the boot sequence.
+
+6. Select the partition containing the previous image in the boot menu.
+
+7. Login as admin on each node. The system messages include:
+
+ Starting Database
+ Reverting: Configuring firewalls
+ BigShell (bigsh) v0.1 (c) by Big Switch Networks.
+ default controller: 127.0.0.1:8000, Big Switch Controller (2013.01.17.0437-b.bsc.efes)
+ node1>
+
+8. Run <code>show ha</code>. 
+
+Both nodes should show Ready in their Status column and there should be exactly one MASTER and one SLAVE in the HA Role column.
+
+==Decommissioning a Controller-Node==
+
+Only a Slave node can be decommissioned. You can run this command on either the master or slave node. You specify the slave node to decommission from either node.
+
+To decommission a Slave node:
+
+# Run show ha. Confirm which node is in slave mode.
+# Run enable.
+# Run the <code>ha decommission <slave_node_ip_address></code> command.
+# Confirm decommission.
+
+This removes the node from the BNC cluster and resets this Slave node to factory settings, preparing it for a re-configuration.
+
+ node1> enable
+ node1# ha decommission 192.168.67.131
+ Decommission controller '192.168.67.131'?
+ (yes to continue) yes
+ Decommission in progress
+ Decommission in progress
+ Decommission in progress
+ Decommission finished
+
+==Resetting the Controller-Node to a Factory-Default State==
+
+Resetting the controller to the factory default configuration wipes out all configuration and logs files and restores the controller to its initial default configuration. You can run this command on either the master or slave node.
+
+To reset a controller node to factory default settings:
+
+# Run show ha. Confirm the node is in slave mode.
+# Run enable.
+# Run the boot factory-default command.
+
+ node> enable
+ node# boot factory-default
+ Re-setting controller to factory defaults...
+ Warning: This will reset your controller to factory-default state and reboot it.
+         You will lose all node/controller configuration and the logs
+ Do you want to continue [no]?yes
+ ...
+ boot:
+ ...
+ localhost login:
+
+==Rolling Back the Controller Cluster to a Previous Configuration==
+
+The OBNC Controller rollback feature can be used to rollback a 2-node cluster to a configuration snapshot taken back in time.
+
+* The rollback feature can only be used to rollback to a configuration snapshot with exactly the same controller-node configurations as the currently running configuration.
+* Both nodes of the cluster must be powered on before issuing the command.
+
+===Prepare to Rollback the Cluster===
+
+1. Backup the current configuration data. 
+In the Master node, run copy running-config <destination>. The following example shows confirming node as master node, saving the configuration file to a directory on the node, and locating it. 
+
+ bnc1# show ha
+ Cluster Name                           Cluster Number HA Enabled
+ --------------------------------------|--------------|----------
+ 9c3be28f-e5cd-4ec9-9f77-087808119e11.0 130            True
+ Controller Nodes
+ # Alias @ HA Role Status Uptime             Errors
+ -|-----|-|-------|------|------------------|------
+ 1 bnc1  * MASTER  Ready  1 hour, 16 minutes
+ 2 bnc2    SLAVE   Ready  1 hour, 12 minutes
+
+ bnc1# copy running-config file://copy1
+ 
+ bnc1# debug bash
+ ***** Warning: this is a debug command - use caution! *****
+ ***** Type "exit" or Ctrl-D to return to the BigOS CLI *****
+ 
+ bsn@bnc1:/$ cd ../../opt/bigswitch/run/saved-configs
+ bsn@bnc1:/opt/bigswitch/run/saved-configs$ ls -la
+ total 16
+ drwxr-xr-x 2 bsn bsn 4096 2013-02-20 04:48 .
+ drwxr-xr-x 3 bsn bsn 4096 2013-02-20 00:46 ..
+ -rw-r--r-- 1 bsn bsn 2582 2013-02-20 04:48 copy1
+
+2. If you saved your configuration data off the node, copy the configuration file to the /images directory on the node.
+
+a) Log in as admin on each node, and setup a password for user "images". On the CLI type debug bash to get a bash shell. Then execute sudo passwd images. 
+
+ node1> debug bash
+ ***** Warning: this is a debug command - use caution! *****
+ ***** Type "exit" or Ctrl-D to return to the BigOS CLI *****
+ bsn@node1:~$ 
+   
+ bsn@node1:~$ sudo passwd images
+ Enter new UNIX password: 
+ Retype new UNIX password: 
+ passwd: password updated successfully
+ b) Copy it to the images:// directory on the node using scp on the images account. For example: 
+ scp <config_file> images@<node-ip>:
+ localhost:~ username$ scp /Users/username/Desktop/last-config-state images@192.168.67.141:
+ images@192.168.67.131's password: 
+ last-config-state.p 100%  5KB  21.8MB/s   00:23    
+
+===Rollback a Node to a Saved Configuration===
+
+From the master node, run the rollback command in enable mode referencing either the /images or /saved-configs directory, depending where you stored your backup configuration files.
+
+1. Ensure you have the backup copy of the configuration file in either the /images or /saved-configs directory.
+2. From the master node, run the rollback command in enable mode. Specify the appropriate directory, your choices are:
+
+* <code>rollback images:// <filename>
+* rollback saved-configs:// <filename></code>
+
+3. At the prompt, confirm before rolling back each node. 
+
+You have the option to abort the rollback after rolling back the first (slave) node. OpenFlow switch traffic is migrated back to the un-rolled-back (master) node and the rolled-back (slave) node is placed in the factory-reset state. You must manually complete the first boot configuration on rolled-back (slave) node to add it to the cluster.
+
+# The snapshot configuration is restored from /opt/bigswitch/run/saved-configs directory or /home/images directory.
+# This command serially returns both nodes of the cluster to a selected previous configuration.
+# The command executes on the slave node first. After the return to the selected configuration on slave node is complete, it reboots and becomes a master node of a newly formed single node cluster. All switch traffic is automatically migrated to this new master node.
+# The command returns the master node from the old cluster to the selected previous configuration. The old master node reboots itself and joins the new cluster as a slave node.
+
+High availability is lost for a brief period after the command returns the first node to the selected configuration and before you confirm to rollback the second node.
+
+Switches lose connectivity for a very short period when OpenFlow traffic is cut-over to the rolled-back node.
+
+==Failure Cases==
+
+There are two classes of failures during upgrade and downgrade.
+
+* Failures that occur during the upgrade step.
+
+Errors due to upgrade display error message on the CLI.
+
+To return the node to a clean step, run upgrade abort, then rerun upgrade.
+
+* Failures that occur after the reload step.
+
+Detecting errors due to reload is a bit trickier. During early system setup after an upgrade, the CLI displays startup status messages before displaying a prompt. These messages refresh every 5 seconds.
+
+If an underlying call returns an error status in the early setup, the CLI displays an error message: Error in cassandra startup: Reboot node to retry.
+
+Sometimes the underlying calls can block for an indefinite period of time (a network partition). If this happens, the CLI repeats the same status message for an extended period of time.
+
+The only case when extended repetitions of the same status message is ok, is when the node is syncing data from other cluster nodes. In this situation, the CLI displays a message, Upgrading: Syncing Database.
+
+When the CLI status message doesn't change for an extended period or when the CLI displays an error message: Press Control-C, shift to enable mode and execute reload. After the reboot, return to the previous version by selecting the appropriate partition on the boot menu. Then rerun the upgrade step for the node.
+
+[[Category:OpenDaylight SDN Controller Platform]]
