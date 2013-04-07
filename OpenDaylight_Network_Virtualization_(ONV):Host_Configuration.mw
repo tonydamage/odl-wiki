@@ -1,0 +1,57 @@
+{| align="right" border="1"
+|align="center"|'''OpenDaylight Network Virtualization Contents'''
+|-
+|[[OpenDaylight Network Virtualization (ONV):Configuration|Configuration]]<br>[[OpenDaylight Network Virtualization (ONV):Routing|Routing]]<br>[[OpenDaylight Network Virtualization (ONV):KVM Integration|KVM Integration]]<br>[[OpenDaylight Network Virtualization (ONV):OpenStack|OpenStack Quantum]]<br>[[OpenDaylight Network Virtualization (ONV):Host Configuration|Host Configuration]]<br>[[OpenDaylight Network Virtualization (ONV):Main|Back to Top]]
+|}
+
+=Advanced Feature: Network Host Configuration=
+
+Network Host Configuration is an advanced feature of OpenDaylight Network Virtualization. This section covers how the feature is configured. However, it is recommended you consult with your support team before configuring/deploying this feature or consulting the appropriate specific deployment guide.
+
+=General Host Configuration=
+
+A network host is identified in the context of an address-space. In the default address-space a host is identified by its VLAN tag (if any) and its MAC address. In a non-default address-space a host is identified by its MAC address. You can assign an alias to a network host that can then be displayed in the show CLI commands that contain information about hosts.
+
+ '''Alias configuration for host in default address-space'''
+ host vlan 10 00:00:00:00:22:22
+   host-alias router
+
+ host 00:00:00:00:00:11
+   host-alias db1
+ '''Alias configuration for host address-space "red"'''
+ host address-space red 00:00:00:00:00:33
+   host-alias red-router
+
+=Host Security Settings=
+
+The controller allows configuring security settings to prevent network hosts from accidentally or maliciously spoofing MAC or IP addresses of other hosts.
+
+==IP Security==
+
+To prevent IP address spoofing, an IP address can be linked to a host or to multiple hosts. When an IP address is linked to a set of hosts, only these hosts can use this IP address. However, these hosts can still use other IP addresses in addition to the configured one. Since address-spaces allow reuse of overlapping IP addresses, IP security settings are limited to a particular address-space. For example, if IP 10.0.0.1 is restricted to a host in address-space 'red' it will be unrestricted in address-space 'green' since traffic from 'red' and 'green' is completely independent.
+
+ IP security settings are only enforced on ARP and DHCP packets. This implies that a host could still 
+ send "normal" IP traffic using a spoofed IP address. However, it cannot receive a reply because it 
+ cannot send an ARP reply to notify its peers about its MAC address.
+
+ '''Host security configuration'''
+ host address-space red 00:00:00:00:00:23
+   security policy bind ip-address 10.0.0.1
+ host address-space red 00:00:00:00:00:42
+   security policy bind ip-address 10.0.0.1
+
+==Attachment-Point Security==
+
+To prevent MAC address spoofing, a network host can be bound to a set of switch/interfaces on which the device is allowed to appear. Traffic from this host is then not allowed on other switch/interfaces. However, the switch/interface continues to allow other hosts. When specifying the switch/interface for a particular host use certain wildcards. Either specify a particular switch DPID or the keyword all to identify all switches. The interface name is specified as a regular expression, for example .* matches all interfaces. The regular expression is anchor at both start and beginning. For example, a regular expressions of "Ethernet" only matches interfaces with the exact name "Ethernet".
+
+ '''Host security configuration'''
+ ! Allow host 00:00:00:00:00:23 in address-space "red" to all interfaces
+ ! starting with "eth" on any switch
+ host address-space red 00:00:00:00:00:23
+   security policy bind attachment-point all eth.*
+ ! Allow host 00:00:00:00:00:24 in address-space "red" to the interface ports
+ ! named "Ethernet5" on the switch with DPID 00:00:11:22:33:44:55:66 
+ host address-space red 00:00:00:00:00:24
+   security policy bind attachment-point 00:00:11:22:33:44:55:66 Ethernet5
+
+[[Category:OpenDaylight SDN Controller Platform]]
