@@ -1,0 +1,331 @@
+{| align="right" border="1"
+|align="center"|'''OpenDaylight Network Virtualization Contents'''
+|-
+|[[OpenDaylight Network Virtualization (ONV):Configuration|Configuration]]<br>[[OpenDaylight Network Virtualization (ONV):Routing|Routing]]<br>[[OpenDaylight Network Virtualization (ONV):KVM Integration|KVM Integration]]<br>[[OpenDaylight Network Virtualization (ONV):OpenStack|OpenStack Quantum]]<br>[[OpenDaylight Network Virtualization (ONV):Host Configuration|Host Configuration]]<br>[[OpenDaylight Network Virtualization (ONV):Main|Back to Top]]
+|}
+
+=Relation to L3 Routing and Subnetting=
+
+You can configure VNSes to support the particular IP addressing and subnetting scheme of your machines and groups.
+
+If all your machines are in the same subnet (like a /8), then you can use the OpenDaylight Networking Virtualization to provide the logical separation necessary between the groups by using tenants and VNSes. In other words, you do not need to have machines in different IP subnets.
+
+However, if you have machines that need to communicate with each other and they are in different IP subnets, then you will need to ensure those machines have access to their default gateway/router to have connectivity. There are two methods for handling this:
+
+* The preferred method because of its flexibility and ease of deployment is to use distributed virtual routing provided by ONV. ONV provides a distributed virtual router that can be used to control connectivity between VNSes within a tenant, connectivity between tenants, and connectivity between tenants and the external network.
+
+* The alternate method is to use your existing L3 gateways/routers by making them members of the required VNSes. L3 gateway interfaces can be placed into each VNS that requires them. You can use the same interface in multiple VNSes by using the "allow-multiple" command. You can also use the optimal gateway capabilities. See the appropriate chapters in the user guide for more information on this.
+
+=Distributed Virtual Routing=
+
+Distributed virtual routing allows you to define connectivity among different VNSes as well connectivity between VNS hosts and the external network.
+
+Distributed virtual routing is achieved through a set of distributed virtual routers. Each tenant will have its own distributed virtual router to define the connectivity among the VNSs under the same tenant.
+
+A distributed virtual router is conceptually a single entity, but it is implemented across all the OpenFlow switches in the network. There is no single routing instance running on a single machine/hypervisor that is all VNS traffic must route through. ONV ensures that the policy described in the distributed virtual router is pushed down to all the required switches under the Big Network Controller. This allows for extremely efficient and scalable performance and policy enforcement.
+
+In addition to this there is a system-wide distributed virtual router which connects different tenant routers and defines the connectivity among different tenants and to the outside world.
+
+Using the example network extended with distributed virtual routing, you can see conceptually below how the tenant routers and system router can control connectivity throughout the network.
+
+[[File:Onv-routing-image1.png|530 px]]
+
+Practically, the system router is contained within its own reserved tenant called the system tenant, and the external network is modeled as a reserved tenant called the "external" tenant. When you first were creating the red and green tenants in the "Configuring Tenants" chapter, you saw this output from show tenant:
+
+ bnc# show tenant
+ # Tenant ID Active Description Router ID
+ -|---------|------|-----------|---------
+ 1 default   True
+ 2 external  True
+ 3 green     True
+ 4 red       True
+ 5 system    True               vrsystem
+ bnc# show running-config | begin tenant
+ tenant default
+  bvs-definition default
+ !
+ tenant external
+ !
+ tenant green
+ !
+ tenant red
+ !
+ tenant system
+  router vrsystem
+
+Thus, the example network more precisely looks like this:
+
+[[File:Onv-routing-image2.png|530 px]]
+
+ Virtual routing only works between VNSes belonging to a single address space. See Address Spaces chapter.
+
+=Configuring a Tenant Distributed Virtual Router=
+
+A tenant distributed virtual router is initially configured through the controller CLI by creating a router object.
+
+Use <code>router</code> to:
+
+* Create a router object for a given tenant
+* Create and connect router interfaces
+* Set routing rules to define the connectivity within the tenant
+
+ bnc# conf t
+ bnc(config)# tenant red
+ bnc(config-tenant)# router dvr-red
+ bnc(config-tenant-router)# show tenant red
+ # Tenant ID Active Description Router ID
+ -|---------|------|-----------|---------
+ 1 red       True               dvr-red
+
+Within the tenant router, you can also set a description for the tenant router and add interfaces and routes (see below).
+
+=Configuring Virtual Router Interface=
+
+Once a distributed virtual router has been created, next you can create and connect virtual router interfaces. A virtual router interface can connect to:
+a defined VNS under the same tenant,
+the system tenant router
+
+Do this by creating interface under a router.
+
+ bnc# conf t
+ bnc(config)# tenant red
+ bnc(config-tenant)# router dvr-red
+ bnc(config-tenant-router)# interface if1 bvs devtest-vns
+ bnc(config-tenant-router-intf)# exit
+ bnc(config-tenant-router)# interface ifs tenant system vrsystem
+ bnc(config-tenant-router-intf)# exit
+ bnc(config-tenant-router)# end
+ 
+You can then use the show tenant < tenant > router < router name > interfaces command to see the interfaces on the r router:
+
+ bnc# show tenant red router dvr-red interfaces
+ # Virtual Router ID Interface Name Active BVS connected to Virtual Router connected to
+ -|-----------------|--------------|------|----------------|---------------------------
+ 1 red|dvr-red       if1            True   red|devtest-vns
+ 2 red|dvr-red       ifs            True                    system|vrsystem
+ 
+You can create multiple interfaces for multiple VNSes. The green tenant has two VNSes, so you can create a router for the green tenant and add interfaces for each VNS:
+
+ bnc# conf t
+ bnc(config)# tenant green
+ bnc(config-tenant)# router dvr-green
+ bnc(config-tenant-router)# interface app-vns-if bvs app-vns 
+ bnc(config-tenant-router-intf)# exit
+ bnc(config-tenant-router)# interface web-vns-if bvs web-vns
+ bnc(config-tenant-router-intf)# exit
+ bnc(config-tenant-router)# interface system-if tenant system vrsystem 
+ bnc(config-tenant-router-intf)# show tenant green router dvr-green interfaces 
+ # Virtual Router ID Interface Name Active BVS connected to Virtual Router connected to
+ -|-----------------|--------------|------|----------------|---------------------------
+ 1 green|dvr-green   app-vns-if     True   green|app-vns
+ 2 green|dvr-green   system-if      True                    system|vrsystem
+ 3 green|dvr-green   web-vns-if     True   green|web-vns
+
+Additionally, use the active command under an interface to enable/disable the interface. If an interface is disabled, all traffic going through that interface will be dropped.
+
+=Providing a Default Gateway=
+
+Optionally, an IP address/subnet mask can be assigned to an interface connected to a VNS. The IP address here should be the one referred to the hosts on that VNS as the default gateway. With this functionality, the hosts within a VNS are able to communicate to other hosts in different subnets without having to reach a physical router in the network. That function is entirely provided by the tenant's distributed virtual router.
+
+The example network in mininet does not have multiple subnets, but you can see how to configure the IP address/subnet for an interface in the example diagram below
+
+[[File:Onv-routing-image3.png|530 px]]
+
+ localhost(config-tenant)#router vrA
+ localhost(config-tenant-router)#interface if1 bvs A1
+ localhost(config-tenant-router-intf)#ip 10.0.1.1/24
+ localhost(config-tenant-router)#interface if2 bvs A2
+ localhost(config-tenant-router-intf)#ip 10.0.2.1/24
+ localhost(config-tenant-router)#interface if3 bvs A3
+ localhost(config-tenant-router-intf)#ip 10.0.3.1/24
+ localhost(config-tenant-router)#interface ifs tenant system vrsystem
+ localhost(config-tenant-router-intf)# show router vrA interfaces 
+ # Virtual Router ID Interface Name Active BVS connected to Virtual Router connected to
+ -|-----------------|--------------|------|----------------|---------------------------
+ 1 A|vrA             if1            True   A|A1
+ 2 A|vrA             if2            True   A|A2
+ 3 A|vrA             if3            True   A|A3
+ 4 A|vrA             ifs            True                    system|vrsystem
+
+
+ localhost(config-tenant-router-intf)# show router vrA ip-address-pool
+ # Virtual Router Interface IP Address Subnet IP Mask
+ -|------------------------|----------|--------------
+ 1 A|vrA|if1                10.0.1.1   255.255.255.0
+ 2 A|vrA|if2                10.0.2.1   255.255.255.0
+ 3 A|vrA|if3                10.0.3.1   255.255.255.0
+
+=Setting Distributed Virtual Router Routing Rules=
+
+Once router interfaces are created and connected, you can specify the routing rules on the distributed virtual router.  This is a configuration of the router's "routing table". All routes need to be explicitly permitted. There is a 'default deny' rule.
+
+A virtual router routing rule can be specified by:
+
+* source: source can be one of the following: a specified host, a ip subnet, a defined VNS, a defined tenant
+* destination: destination can also be one of the following: a specified host, a ip subnet, a defined VNS, a defined tenant.
+* next hop ip address: This is optional. Specifying a numerical next hop on a directly connected interface prevents the router from performing ARP on each destination address.
+* outgoing interface: This is optional too. Specifying a directly connected outgoing interface forces the flow going through your planned route.
+* action: permit or deny.
+
+It is possible for routing rules to overlap or conflict. Said another way, a given flow can match multiple routing rules at the same time. However, only the most specific one should be applied to the flow. The following order is used to evaluate the routing rules:
+
+# matching host, specified by a /32 ip address,  has the top priority.
+# matching bvs
+# matching tenant
+# matching ip/subnet, among matching ip/subnet, longest prefix match is taken.
+
+Source is always evaluated first and takes precedence than destination. 
+
+==Example: Routing Between VNSes Using a Tenant's Distributed Virtual Router==
+
+The example network configured to date does not allow the two VNSes inside the green tenant to communicate with each other. You can create routes under the dvr-green router to allow this.
+
+ You need a route in each direction between the VNSes.
+
+ bnc# conf t
+ bnc(config)# tenant green
+ bnc(config-tenant)# router dvr-green 
+ bnc(config-tenant-router)# route from bvs web-vns to bvs app-vns permit
+ bnc(config-tenant-router)# route from bvs app-vns to bvs web-vns permit
+ bnc(config-tenant)# router dvr-green 
+ bnc(config-tenant-router)# show tenant green router dvr-green route
+ # Virtual Router ID permit or deny source tenant ID source BVS ID Source IP Source IP Mask Destination tenant ID  Destination BVS ID Destination IP Destination IP Mask Next Hop IP Outgoing Interface
+ -|-----------------|--------------|----------------|-------------|---------|--------------|---------------------|------------------|--------------|-------------------|-----------|------------------
+ 1 green|dvr-green   permit         green            green|app-vns                          green                 green|web-vns
+ 2 green|dvr-green   permit         green            green|web-vns                          green                 green|app-vns
+ bnc(config-tenant-router)#
+
+Previously, in the mininet window, pings from the machines in the same tenant (but in different VNSes) failed, but now they work. h2 is in the web-vns and h4 is in the app-vns:
+
+ mininet> h2 ping h4
+ mnexec -p ping 10.0.0.4
+ PING 10.0.0.4 (10.0.0.4) 56(84) bytes of data.
+ ^C^C^C
+ --- 10.0.0.4 ping statistics ---
+ 1 packets transmitted, 0 received, 100% packet loss, time 0ms
+
+ < ... route rules then added >
+
+ mininet> h2 ping h4
+ mnexec -p ping 10.0.0.4
+ PING 10.0.0.4 (10.0.0.4) 56(84) bytes of data.
+ 64 bytes from 10.0.0.4: icmp_req=1 ttl=64 time=13.7 ms
+ 64 bytes from 10.0.0.4: icmp_req=2 ttl=64 time=0.264 ms
+ 64 bytes from 10.0.0.4: icmp_req=3 ttl=64 time=0.054 ms
+ ^C
+
+In the example network, the routes have been placed on tenant green's router:
+
+[[File:Onv-routing-image4.png|530 px]]
+
+==Example: Routing Between Tenants==
+
+The 'system' tenant and its distributed virtual router, 'vrsystem', control connectivity among different tenants.
+
+Configuring the system distributed virtual router is similar to configuring a tenant's distributed virtual router. The main difference is that the routes are between tenants instead of between VNSes.
+
+In the example network, you can follow the same procedure as above for allowing connectivity between VNSes:
+
+# Add interfaces to the system router corresponding to each tenant that needs to be handled
+# Add routes to the system tenant's router to allow connectivity between the red tenant and the green tenant
+
+In addition, you must also configure the tenant distributed virtual routers to allow the connectivity from the tenant to/from any.
+
+Below is an example of configuring the system distributed virtual router:
+
+ bnc# conf t
+ bnc(config)# tenant system
+ bnc(config-tenant)# router vrsystem 
+ bnc(config-tenant-router)# interface red-if tenant red dvr-red 
+ bnc(config-tenant-router-intf)# exit
+ bnc(config-tenant-router)# interface green-if tenant green dvr-green 
+ bnc(config-tenant-router-intf)# exit
+ bnc(config-tenant-router)# route from tenant red to tenant green permit
+ bnc(config-tenant-router)# route from tenant green to tenant red permit
+ bnc(config-tenant-router)# sh tenant system router vrsystem route
+ # Virtual Router ID permit or deny source tenant ID source BVS ID Source IP Source IP Mask Destination tenant ID   Destination BVS ID Destination IP Destination IP Mask Next Hop IP Outgoing Interface
+ -|-----------------|--------------|----------------|-------------|---------|--------------|---------------------|------------------|--------------|-------------------|-----------|------------------
+ 1 system|vrsystem   permit         green                                                   red
+ 2 system|vrsystem   permit         red                                                     green
+ bnc(config-tenant-router)# 
+
+And then you must configure the individual tenant distributed virtual routers:
+
+ bnc# conf t
+ bnc(config)# tenant green 
+ bnc(config-tenant)# router dvr-green 
+ bnc(config-tenant-router)# route from tenant green to any permit
+ bnc(config-tenant-router)# route from any to tenant green permit
+ bnc(config-tenant-router)# exit
+ bnc(config-tenant)# exit
+ bnc(config)# tenant red
+ bnc(config-tenant)# router dvr-red 
+ bnc(config-tenant-router)# route from any to tenant red permit
+ bnc(config-tenant-router)# route from tenant red to any permit
+
+Once this has been done, now you can ping from one of the machines in the red tenant devtest-vns and one of the green tenant's machines.
+
+ mininet> h1 ping h2
+ mnexec -p ping 10.0.0.2
+ PING 10.0.0.2 (10.0.0.2) 56(84) bytes of data.
+ 64 bytes from 10.0.0.2: icmp_req=1 ttl=64 time=10.6 ms
+ 64 bytes from 10.0.0.2: icmp_req=2 ttl=64 time=0.178 ms
+ 64 bytes from 10.0.0.2: icmp_req=3 ttl=64 time=0.048 ms
+
+In the example network, the routes have been placed on system router:
+
+[[File:Onv-routing-image5.png|530 px]]
+
+==Example: Routing to an External Network==
+
+Below is an example of how to configure connectivity to the external network by referring to the external tenant.
+
+ localhost(config-tenant)#router vrA
+ localhost(config-tenant-router)# route from bvs A1 to bvs A2 permit
+ localhost(config-tenant-router)# route from bvs A2 to bvs A1 permit
+ localhost(config-tenant-router)# route from tenant A to tenant external permit
+ localhost(config-tenant-router)# route from tenant external to tenant A permit
+ localhost(config-tenant-router)# show router vrA route
+ # Virtual Router ID permit or deny source tenant ID source BVS ID Source IP Destination tenant ID Destination BVS ID  Destination IP Next Hop IP Outgoing Interface
+ -|-----------------|--------------|----------------|-------------|---------|---------------------|------ ------------|--------------|-----------|------------------
+ 1 A|vrA             permit         A                                        external
+ 2 A|vrA             permit         A                                        system
+ 3 A|vrA             permit         A                A|A1                    A                     A|A2
+ 4 A|vrA             permit         A                A|A2                    A                     A|A1
+ 5 A|vrA             permit         external                                 A
+ 6 A|vrA             permit         system                                   A
+
+After this step, VNSs under the same tenant can communicate as defined by the connectivity and routing rules. To communicate among different tenants and communicate with outside world, we need to configure system tenant / system virtual router and external tenant accordingly.
+
+==Configuring External Access==
+
+External tenant is a reserved entity to hold the configuration/information for external access. The pre-defined tenant is named as 'external'.
+
+Configuring the external tenant is the same as configuring a general purpose tenant.
+
+First, creating a BVS under external tenant to hold the default gateway for outside world access. 
+
+ localhost(config)#tenant external 
+ localhost(config-tenant)# bvs-definition externalbvs
+ localhost(config-tenant-def-bvs)# priority 1100
+ localhost(config-tenant-def-bvs)# interface-rule default-gateway
+ localhost(config-tenant-def-bvs-if-rule)# match mac 00:19:30:ac:34:23
+
+Second, creating a virtual router to define the connectivity and routing rules.
+
+ localhost(config)#tenant external 
+ localhost(config-tenant)# router vrexternal
+ localhost(config-tenant-router)# interface if-sys tenant system vrsystem
+ localhost(config-tenant-router)# interface if-exe bvs externalbvs
+ localhost(config-tenant-router)# route from bvs external to any permit
+ localhost(config-tenant-router)# route from any to any 10.10.0.1 if-exe permit
+
+Last, configure static ARP for the default gateway. This is step is essential for now.
+
+ localhost(config)#arp 10.10.0.1 00:19:30:ac:34:23
+ localhost(config)# show arp
+ # Ip        Mac
+ -|---------|-----------------
+ 1 10.10.0.1 00:19:30:ac:34:23
+
+[[Category:OpenDaylight SDN Controller Platform]]
