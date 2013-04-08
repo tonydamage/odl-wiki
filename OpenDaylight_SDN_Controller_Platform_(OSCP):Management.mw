@@ -1,0 +1,136 @@
+{| align="right" border="1"
+|align="center"|'''OpenDaylight SDN Controller Platform Contents'''
+|-
+|[[OpenDaylight SDN Controller Platform (OSCP):Installation|Installation]]<br>[[OpenDaylight SDN Controller Platform (OSCP):Clustering|Clustering & HA]]<br>[[OpenDaylight SDN Controller Platform (OSCP):Management|Management Integration]]<br>[[OpenDaylight SDN Controller Platform (OSCP):Troubleshooting|Troubleshooting]]<br>[[OpenDaylight SDN Controller Platform (OSCP):Main|Back to Top]]
+|}
+
+=Management Integration=
+
+You can configure a controller-node to be managed by your existing network management systems. Configuration of the 
+ controller-node is done from the OVP CLI:
+ controller-node 0fadff6f-12da-4409-a865-7c71be7ae3ac
+  controller-alias n2
+  ip default-gateway 192.168.38.1
+  interface Ethernet 0
+    ip address 192.168.38.143 255.255.255.0
+    firewall allow from 192.168.38.142 local-ip 224.0.0.18 vrrp
+    firewall allow from 192.168.38.142 tcp 7000
+    firewall allow from 192.168.38.142 web
+    firewall allow web
+
+=Interface and Firewall Configuration=
+
+You can configure the interfaces of a controller-node using the interface command under the controller-node. You can configure the IP addresses of additional interfaces beyond Ethernet 0 to support communication across different interfaces, e.g., switch to controller-node communication and controller-node to controller-node communication can take place on Ethernet 0, while management communication can take place on Ethernet 1.
+
+ n2(config-controller)# interface Ethernet 1
+ n2(config-controller-if)# ip-address 192.168.38.145/32
+
+You can secure access to the controller-node interfaces by configuring security policies on each interface with the "firewall" command:
+
+ n2(config)# controller-node localhost
+ n2(config-controller)# interface Ethernet 0
+ n2(config-controller-if)# firewall allow from 192.168.1.124 
+ local-ip  Configure firewall rule for controller-node
+ openflow  Configure rule for a specific service port
+ ssh       Configure rule for a specific service port
+ ssl       Configure rule for a specific service port
+ tcp       Configure rule for protocol (TCP, UDP)
+ udp       Configure rule for protocol (TCP, UDP)
+ vrrp      Configure rule for protocol (TCP, UDP)
+ web       Configure rule for a specific service port
+ n2(config-controller-if)# firewall allow from 192.168.1.124 web
+
+=NTP=
+
+You can configure the ntp server for a controller-node using the ntp server command:
+
+ n2(config-controller)# ntp server 1.1.1.1 
+ n2(config-controller)#
+
+This is especially important to do on both controller-nodes of a cluster to ensure proper HA operations.
+
+=Syslog=
+
+You can configure the syslog server for a controller-node using the logging server command:
+
+ n2(config-controller)# logging on
+ n2(config-controller)# logging server 1.1.1.1
+
+This will export the syslog entries of the controller-node to the syslog server in your management network.
+
+=SNMP=
+
+SNMP (Simple Network Management Protocol) provides a method for communication between NMS (Network Management Systems) and various network devices about their operational and configuration states. The information managed by an SNMP agent is organized as a collection of objects called MIBs. It provides information about the underlying Linux based virtual appliance hosting the OpenFlow controller. Only SNMPv2 protocol is supported at this time.
+
+==Enable / Disable SNMP Agent==
+
+Following command enables or disables the SNMP server on the controller. By default, the SNMP server is disabled. Enabling a server does not automatically enable firewall rule that allows the SNMP port to be accessed from outside of the controller.
+
+ controller(config)# [no] snmp-server enable
+
+To enable access to the SNMP server from outside the controller, open UDP port 161 in the controller's firewall configuration. For example:
+
+ controller(config)# controller-node 18b26a14-0a53-46c9-a929-e906f406ba2a 
+ controller(config-controller)# interface Ethernet 0
+ controller(config-controller-if)# firewall allow 161 udp 
+
+==Setting Up a Community String==
+
+A community string is a password used by the NMS application for accessing SNMP information from the controller. The controller admin can configure this password/community-string as shown below. The community privilege is read only by default and not configurable in this release.
+
+ controller(config)# [no] snmp-server ro community <string>
+
+'''Note:''' Changes to the configuration of the SNMP community restarts the SNMP server to apply the new community settings.
+
+==Setting SNMP Agents Contact and Location Information==
+
+ controller(config)# [no] snmp-server contact <text>
+ controller(config)# [no] snmp-server location <text>
+
+'''Note:'''  Changes to the configuration of the SNMP contact or location restarts the SNMP server to apply the new community settings.
+
+==SNMP Show Commands==
+
+To inspect the operational and configuration state of SNMP server on the controller platform:
+
+ controller# show snmp 
+ SNMP server status Community string System location System contact Interfaces
+ ------------------|----------------|---------------|--------------|----------
+ enabled            test                                            192.168.1.22
+
+The IP address under the Interfaces column displays the address of the controller interface on which the SNMP server is listening. 
+
+==High Availability Support==
+
+SNMP configuration is synced between Active and Standby controllers. However, you must explicitly open up the firewall ports (UDP port 161) for both the controllers. The firewall configuration for both the nodes can be done through CLI on the Active Controller under controller-node submode. For example:
+
+ controller(config)# controller-node <active-controller-id> 
+ controller(config-controller)# interface Ethernet 0
+ controller(config-controller-if)# firewall allow 161 udp 
+  
+ controller(config)# controller-node <standby-controller-id> 
+ controller(config-controller)# interface Ethernet 0
+ controller(config-controller-if)# firewall allow 161 udp 
+
+==Troubleshooting SNMP==
+
+The following are some common troubleshooting options when the SNMP server is not performing correctly.
+
+To check if the SNMP server is enabled or not:
+
+# Run the  show running snmp command. Check if the snmp server enable command is present in the configuration.
+# Login to bash mode using debug bash. 
+# Check in the file, /etc/default/snmpd. If the server is enabled, verify SNMPDRUN=yes. If the server is not enabled, verify  SNMPDRUN=no.
+# Run a pgrep snmpd. If a process ID is shown that means SNMP server is running.
+
+To verify the configuration of an SNMP server:
+
+# Execute show snmp at the CLI prompt. It displays the status of the SNMP server.
+# From bash mode, check the contents of the /etc/default/snmpd and  /etc/snmp/snmpd.conf files.
+
+If the SNMP server is not accessible from a NMS station in the network:
+
+# Check if the firewall rule is configured to open the UDP port 161 for the Ethernet interface hosting the IP address of the controller. This is needed to access SNMP daemon port on the controller from outside network.
+# Run the show snmp command on the controller. Check if the correct IP address is listed under the Interfaces column.
+
+[[Category:OpenDaylight SDN Controller Platform]]
