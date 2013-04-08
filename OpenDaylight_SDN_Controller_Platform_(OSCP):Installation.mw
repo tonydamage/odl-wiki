@@ -1,0 +1,166 @@
+{| align="right" border="1"
+|align="center"|'''OpenDaylight SDN Controller Platform Contents'''
+|-
+|[[OpenDaylight SDN Controller Platform (OSCP):Installation|Installation]]<br>[[OpenDaylight SDN Controller Platform (OSCP):Clustering|Clustering & HA]]<br>[[OpenDaylight SDN Controller Platform (OSCP):Management|Management Integration]]<br>[[OpenDaylight SDN Controller Platform (OSCP):Troubleshooting|Troubleshooting]]<br>[[OpenDaylight SDN Controller Platform (OSCP):Main|Back to Top]]
+|}
+
+=Installation=
+
+This section describes the steps for installing OpenDaylight SDN Controller Platform (OSCP).
+
+==Pre-Requisites==
+
+Provision an Ubuntu server, version 11.x or 12.x. 
+
+Install dependencies by running:
+
+ sudo apt-get install unzip python-dev python-virtualenv \
+       git openjdk-7-jdk ant build-essential
+
+Note that on Ubuntu 12.04, you may want to remove java6:
+
+ sudo apt-get remove openjdk-6-jre-lib openjdk-6-jre-headless 
+
+==Building==
+
+To build OSCP:
+
+
+ git clone ssh://<userid>@git.opendaylight.org:29418/netvirt-platform.git
+
+or if you are behind a firewall:
+
+ https://<userid>@git.opendaylight.org/gerrit/p/netvirt-platform.git
+
+Then run:
+
+  ./setup.sh
+  make
+
+=Running=
+
+==BigCon==
+
+To run OVP and the cli, you need to be running a working instance of cassandra and bigcon. The setup script will have created a python virtualenv for you to make it easy to run the python components. You must first activate the virtualenv in your current shell by running
+
+ source ./workspace/ve/bin/activate 
+
+Now you can easily run any of the python commands.
+
+The make targets start-cassandra and start-bigcon will automatically start a local copy of cassandra and bigcon. There are corresponding stop commands as well. These commands require an activated virtualenv. If you run
+
+ make stop-bigcon reset-cassandra start-bigcon 
+
+This will stop any existing bigcon and cassandra, reset their databases to zero, and start a new bigcon with a fresh database. The output from these commands will go to a log file in your workspace/ve/logs directory.
+
+==Controller (aka Floodlight)==
+
+Now you're ready to run a copy of the controller, aka Floodlight. The easiest way is to run
+
+ make start-floodlight
+
+or you can do this manually with output to standard out by running from the floodlight directory
+
+ java -jar target/floodlight.jar 
+ 
+You can specify your own configuration file with -cf [path] or use the default.
+
+==Command-Line Interface (CLI)==
+
+The CLI depends on a running instance of bigcon. To run the CLI, just run it from the command line from the CLI directory:
+
+ ./bigcli.py 
+
+The CLI has online help and tab completion on its commands.
+
+==Eclipse==
+
+To set up an eclipse environment:
+
+# make eclipse 
+#  Import floodlight project into any eclipse workspace
+
+Connecting Switches to OSCP
+
+The OpenFlow connection between a switch and the OSCP is initiated by the switch. The specific switch configuration steps vary based on the type of switch. Essentially, configure the switch with the IP address of the OSCP's controller-nodes and port 6633 (this is the port that controller is listening to for switch connections).
+
+If you are running a two-node cluster, then you need to configure your switches so they know about both master and slave controller-nodes in the cluster. OSCP supports two different types of failover in a cluster configuration:
+
+# OpenFlow 1.0 Failover - Some switches support OpenFlow 1.0-style failover. This switch type provides for configuring multiple controllers, but only connects to one controller at a time.  These use the first controller that accepts the connection attempt. These switches might require some time to fail over to the backup controller. The behavior is entirely under the control of the switch.
+
+# OpenFlow 1.2 Style Failover - Some switches implement an OpenFlow 1.0 vendor extension that enables a style of failover similar to the failover feature added to OpenFlow 1.2.  In this scheme, the switches connect to all configured controllers in parallel, but only one of the controllers is considered the master for the switches.
+
+Some switches do not support a failover feature at all. These switches are not directly supported with a cluster configuration, although it is possible to make them work using a virtual IP scheme and a load balancer.
+
+When switches have been connected to the cluster, they appear in CLI commands as below:
+
+ localhost> show switch
+ # Switch DPID             Alias Connected Since         IP Address Tun Capable -Enabled -State Core Switch
+ -|-----------------------|-----|-----------------------|----------|-----------|--------|------|-----------
+ 1 00:00:00:00:00:00:00:01       2013-02-07 14:40:14 UTC 127.0.0.1
+ 2 00:00:00:00:00:00:00:02       2013-02-07 14:40:14 UTC 127.0.0.1
+
+=Using the Mininet Virtual Network Environment=
+
+For testing purposes, try managing a software-defined network with OSCP by starting the Mininet virtual network environment. Mininet is a pure software environment that creates virtual switches and software hosts that can be controlled by an OpenFlow controller such as the OSCP. See the full Mininet documentation at Mininet Documentation.
+
+For example: to start Mininet in interactive mode, run the following commands:
+
+ bsn@localhost:~$ sudo mn --controller=remote --ip=127.0.0.1 --port=6633 --mac --topo=linear
+ *** Loading openvswitch_mod
+ *** Adding controller
+ *** Creating network
+ *** Adding hosts:
+ h3 h4 
+ *** Adding switches:
+ s1 s2 
+ *** Adding links:
+ (s1, s2) (s1, h3) (s2, h4) 
+ *** Configuring hosts
+ h3 h4 
+ *** Starting controller
+ *** Starting 2 switches
+ s1 s2 
+ *** Starting CLI:
+ mininet> 
+
+That command creates a network of two switches (s1 and s2) and a host connected to each switch (h3 and h4) with both switches connected out-of-band to the controller:
+
+[[File:Oscp-installation-image1.png|530 px]]
+
+When the Mininet virtual network connects to OVP, OVP discovers the switches and the connectivity between them as well as the attached hosts.  See below for output from the show switch, show link, and show host commands on the controller-node and note how they reflect the topology above.
+
+ localhost# show switch
+ # Switch DPID             Alias Connected Since         IP Address Tun Capable -Enabled -State Core Switch
+ -|-----------------------|-----|-----------------------|----------|-----------|--------|------|-----------
+ 1 00:00:00:00:00:00:00:01       2013-02-07 14:46:27 UTC 127.0.0.1
+ 2 00:00:00:00:00:00:00:02       2013-02-07 14:46:27 UTC 127.0.0.1
+
+ 
+ localhost# show host
+ # MAC Address       Address Space VLAN IP Address Switch/OF Port (Physical Port)      Tag Last Seen
+ -|-----------------|-------------|----|----------|-----------------------------------|---|----------
+ 1 00:00:00:00:00:03 default            Unknown    00:00:00:00:00:00:00:01/1 (s1-eth1)     15 minutes
+ 2 00:00:00:00:00:04 default            Unknown    00:00:00:00:00:00:00:02/1 (s2-eth1)     15 minutes
+
+ 
+ localhost# show link
+ # Src Switch DPID         Src Port    Src Port State         Dst Switch DPID         Dst Port    Dst Port State         Type
+ -|-----------------------|-----------|----------------------|-----------------------|-----------|----------------------|--------
+ 1 00:00:00:00:00:00:00:01 2 (s1-eth2) link-up: stp-listen(0) 00:00:00:00:00:00:00:02 2 (s2-eth2) link-up: stp-listen(0) internal
+ 2 00:00:00:00:00:00:00:02 2 (s2-eth2) link-up: stp-listen(0) 00:00:00:00:00:00:00:01 2 (s1-eth2) link-up: stp-listen(0) internal
+
+From within mininet, to execute a command in a particular host, simply use the host's ID from mininet's CLI. The host ID can also be used instead of an IP address. For example:
+
+ mininet> h3 ping h4
+ mnexec -p ping 10.0.0.4
+ PING 10.0.0.4 (10.0.0.4) 56(84) bytes of data.
+ 64 bytes from 10.0.0.4: icmp_req=1 ttl=64 time=69.4 ms
+ 64 bytes from 10.0.0.4: icmp_req=2 ttl=64 time=2.51 ms
+ 64 bytes from 10.0.0.4: icmp_req=3 ttl=64 time=0.050 ms
+ 64 bytes from 10.0.0.4: icmp_req=4 ttl=64 time=0.055 ms
+ 64 bytes from 10.0.0.4: icmp_req=5 ttl=64 time=0.049 ms
+ 64 bytes from 10.0.0.4: icmp_req=6 ttl=64 time=0.050 ms
+ 64 bytes from 10.0.0.4: icmp_req=7 ttl=64 time=0.049 ms
+
+[[Category:OpenDaylight SDN Controller Platform]]
