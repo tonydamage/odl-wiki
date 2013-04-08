@@ -1,0 +1,349 @@
+{| align="right" border="1"
+|align="center"|'''OpenDaylight SDN Controller Platform Contents'''
+|-
+|[[OpenDaylight SDN Controller Platform (OSCP):Installation|Installation]]<br>[[OpenDaylight SDN Controller Platform (OSCP):Clustering|Clustering & HA]]<br>[[OpenDaylight SDN Controller Platform (OSCP):Management|Management Integration]]<br>[[OpenDaylight SDN Controller Platform (OSCP):Troubleshooting|Troubleshooting]]<br>[[OpenDaylight SDN Controller Platform (OSCP):Main|Back to Top]]
+|}
+
+=Troubleshooting and Debugging=
+
+==Running show tech-support==
+
+You can use the show tech-support command to run a number of different show commands at once to get information about various system processes. You can share this information with technical support teams. The following CLI and os-level commands are automatically invoked:
+
+ Execute bigcli: show version
+ Execute bigcli: show controller-node localhost summary
+ Execute bigcli: show clock
+ Execute bigcli: show config
+ Execute bigcli: show config-file
+ Execute bigcli: show controller-node
+ Execute bigcli: show controller-node all interfaces
+ Execute bigcli: show controller-node localhost stats
+ Execute bigcli: show running-config
+ Execute bigcli: show switch
+ Execute bigcli: show switch-cluster
+ Execute bigcli: show link
+ Execute bigcli: show tunnel all active
+ Execute bigcli: show host
+ Execute bigcli: show host all attachment-point
+ Execute bigcli: show host all ip-address
+ Execute bigcli: show flow-cache
+ Execute bigcli: show flow-entry
+ Execute bigcli: show network-service
+ Execute bigcli: show event-history topology-cluster
+ Execute bigcli: show event-history topology-link
+ Execute bigcli: show event-history topology-switch
+ Execute bigcli: show logging all
+ Execute bigcli: history 100
+ Executing os command: uptime
+ Executing os command: ps -elf
+ Executing os command: pstree
+ Executing os command: cat /proc/meminfo
+ Executing os command: df -m
+ Executing os command: top -n 1 -b
+ Executing os command: dmesg
+ Execute bigcli: show tacacs
+ Executing os command: cat /etc/nsswitch.conf
+ Executing os command: cat /etc/pam.d/sshd
+ Execute bigcli: show snmp
+ Executing os command: pgrep snmpd
+ Executing os command: cat /etc/snmp/snmpd.conf
+ Executing os command: cat /etc/default/snmpd
+ Execute bigcli: show bvs all
+ Execute bigcli: show bvs all interfaces
+ Execute bigcli: show bvs all switch
+ Execute bigcli: show bvs all mac-address-table
+ Execute bigcli: show bvs all flow
+ Execute bigcli: show network-service
+
+You can capture the output of show tech-support in two different ways:
+
+* Use your terminal's capabilities to log the output.  Do this with either terminal window logging or a shell utility such as screen.
+* Output the show tech-support command to a file.  Do this by running the bsn-support.py command from the Linux bash shell. This command will generate a timestamped file with the prefix bsn-support in the /tmp directory.
+
+ localhost> debug bash
+ ***** Warning: this is a debug command - use caution! *****
+ ***** Type "exit" or Ctrl-D to return to the BigOS CLI *****
+ bsn@localhost:~$ bsn-support.py
+ bsn@localhost:~$ ls -la /tmp
+ total 5196
+ drwxrwxrwt  6 root root    4096 2013-02-09 05:41 .
+ drwxr-xr-x 23 root root    4096 2013-02-03 00:04 ..
+ -rw-r--r--  1 bsn  bsn  5218867 2013-02-09 05:41 bsn-support-Sat-Feb-09-2013-05:41:11
+ drwxr-xr-x  2 bsn  bsn     4096 2013-02-09 05:41 hsperfdata_bsn
+ drwxr-xr-x  2 root root    4096 2013-02-07 13:17 hsperfdata_root
+ drwxrwxrwt  2 root root    4096 2013-02-07 13:11 .ICE-unix
+ -rw-r--r--  1 bsn  bsn    57646 2013-02-07 13:24 jffi2115184533386810414.tmp
+ -rw-r--r--  1 root root    6866 2013-02-07 13:16 post-start.log
+ -rw-r--r--  1 root root     304 2013-02-07 13:15 pre-start.log
+ -rw-r--r--  1 bsn  bsn        0 2013-02-09 05:39 temp7945557730888645816.tmp
+ drwxrwxrwt  2 root root    4096 2013-02-07 13:11 .X11-unix
+ bsn@localhost:~$ 
+
+==Debugging Connectivity Issues==
+
+Connectivity problems can occur in the various connections that the OSCP controller-nodes are maintaining:
+
+* Connections from the controller-nodes to management systems 
+* Connections from the controller-nodes to other controller-nodes
+* Connections from the controller-nodes to the switches
+
+[[File:Oscp-troubleshooting-image1.png|530 px]]
+
+===Using ping, traceroute, show firewall, and tcpdump===
+
+All of the connections above can be debugged with standard networking utilities such as ping and traceroute.  Both are accessible from the OSCP CLI.
+
+ localhost> ping count 5 192.168.38.140
+ PING 192.168.38.140 (192.168.38.140) 56(84) bytes of data.
+ 64 bytes from 192.168.38.140: icmp_req=1 ttl=64 time=0.237 ms
+ 64 bytes from 192.168.38.140: icmp_req=2 ttl=64 time=0.350 ms
+ 64 bytes from 192.168.38.140: icmp_req=3 ttl=64 time=0.331 ms
+ 64 bytes from 192.168.38.140: icmp_req=4 ttl=64 time=0.312 ms
+ 64 bytes from 192.168.38.140: icmp_req=5 ttl=64 time=0.258 ms
+ --- 192.168.38.140 ping statistics ---
+ 5 packets transmitted, 5 received, 0% packet loss, time 4001ms
+ rtt min/avg/max/mdev = 0.237/0.297/0.350/0.047 ms
+
+ localhost> traceroute 192.168.1.1
+ traceroute to 192.168.1.1 (192.168.1.1), 30 hops max, 60 byte packets
+  1  10.10.10.10 (10.10.10.10)  0.360 ms  0.351 ms  0.346 ms
+  2  192.168.1.1 (192.168.1.1)  16.961 ms  17.064 ms  17.100 ms
+
+It is also important to check the firewall configuration of the controller with the show firewall command to ensure connectivity to the particular IP address and port is allowed. You can configure these permissions by using the firewall command under the specific interface of a specific controller-node.
+
+ localhost> show firewall
+ #  Controller                           Type     Number Source IP  Local IP   Port Number ip proto Firewall Rule
+ --|------------------------------------|--------|------|----------|----------|-----------|--------|-----  --------------------------------------------------
+ 1  1d17ac53-b12d-410d-b6bd-6eef5f6e60bb Ethernet 0      10.10.10.8 224.0.0.18 0           vrrp     firewall allow from  10.10.10.8 local-ip 224.0.0.18 vrrp
+ 2  1d17ac53-b12d-410d-b6bd-6eef5f6e60bb Ethernet 0      10.10.10.8            7000        tcp      firewall allow from  10.10.10.8 tcp 7000
+ 3  1d17ac53-b12d-410d-b6bd-6eef5f6e60bb Ethernet 0      10.10.10.8            80          tcp      firewall allow from  10.10.10.8 web
+ 4  1d17ac53-b12d-410d-b6bd-6eef5f6e60bb Ethernet 0                            22          tcp      firewall allow ssh
+ 5  1d17ac53-b12d-410d-b6bd-6eef5f6e60bb Ethernet 0                            6633        tcp      firewall allow openflow
+ 6  9d798232-1fab-4fd1-9da5-8734d1753842 Ethernet 0      10.10.10.9 224.0.0.18 0           vrrp     firewall allow from  10.10.10.9 local-ip 224.0.0.18 vrrp
+ 7  9d798232-1fab-4fd1-9da5-8734d1753842 Ethernet 0      10.10.10.9            7000        tcp      firewall allow from  10.10.10.9 tcp 7000
+ 8  9d798232-1fab-4fd1-9da5-8734d1753842 Ethernet 0      10.10.10.9            80          tcp      firewall allow from  10.10.10.9 web
+ 9  9d798232-1fab-4fd1-9da5-8734d1753842 Ethernet 0                            22          tcp      firewall allow ssh
+ 10 9d798232-1fab-4fd1-9da5-8734d1753842 Ethernet 0                            6633        tcp      firewall allow openflow
+
+
+===Debugging Controller-Node to Controller-Node Connections===
+
+In addition to using the general connectivity debugging utilities, you can use specialized commands such as show ha and show controller-node to show the status of the controller-node cluster and the connectivity between controller-nodes.
+
+ localhost> show ha
+ Cluster Name                           Cluster Number HA Enabled
+ --------------------------------------|--------------|----------
+ fe13dd95-471c-4178-85e9-b0bca0eb1ba0.0 140            True
+ Controller Nodes
+ # Controller ID                        @ Alias HA Role Status Uptime     DNS     Logging
+ -|------------------------------------|-|-----|-------|------|----------|-------|--------
+ 1 18780267-0987-42dd-a844-2f1f9ec7ca25 *       MASTER  Ready  25 minutes enabled disabled
+ 2 34a86c14-fdfa-4679-92f5-132448d4339a         SLAVE   Ready  1 minute   enabled disabled
+
+===Debugging Controller-Node to Switch Connections===
+
+In addition to using the general connectivity debugging utilities, you can use the trace command to debug OpenFlow control messages between the controller-nodes and the switches.
+
+This is basic trace output:
+
+ localhost> trace
+ Starting openflow trace, use ^C to quit
+ 13:21:07.204678    packet_in          [ 10.1.2.11:50581 -> 10.1.3.10:6633 ]
+ 13:21:07.205598    packet_out         [ 10.1.3.10:6633 -> 10.1.2.11:50581 ]
+ 13:21:07.304562    packet_in          [ 10.1.2.11:50581 -> 10.1.3.10:6633 ]
+ 13:21:07.322781    flow_removed       [ 10.1.2.7:38807 -> 10.1.3.10:6633 ]
+ 13:21:07.341792    packet_in          [ 10.1.2.11:50581 -> 10.1.3.10:6633 ]
+ 13:21:07.342263    flow_mod           [ 10.1.3.10:6633 -> 10.1.2.11:50581 ]
+ 13:21:07.376005    packet_in          [ 10.1.2.11:50581 -> 10.1.3.10:6633 ]
+ 13:21:07.451762    packet_in          [ 10.1.2.11:50581 -> 10.1.3.10:6633 ]
+ 13:21:07.524229    packet_in          [ 10.1.2.11:50581 -> 10.1.3.10:6633 ]
+ 13:21:07.525019    flow_mod           [ 10.1.3.10:6633 -> 10.1.2.11:50581 ]
+ 13:21:07.534166    packet_in          [ 10.1.2.11:50581 -> 10.1.3.10:6633 ]
+ 13:21:07.579958    packet_in          [ 10.1.2.11:50581 -> 10.1.3.10:6633 ]
+ 13:21:07.580322    flow_mod           [ 10.1.3.10:6633 -> 10.1.2.11:50581 ]
+ 13:21:07.674796    packet_in          [ 10.1.2.7:38807 -> 10.1.3.10:6633 ]
+ 13:21:07.675363    flow_mod           [ 10.1.3.10:6633 -> 10.1.2.7:38807 ]
+ 13:21:07.675566    flow_mod           [ 10.1.3.10:6633 -> 10.1.2.11:50581 ]
+ 13:21:07.676969    packet_in          [ 10.1.2.11:50581 -> 10.1.3.10:6633 ]
+ 13:21:07.677225    packet_out         [ 10.1.3.10:6633 -> 10.1.2.11:50581 ]
+ 13:21:07.678968    packet_in          [ 10.1.2.11:50581 -> 10.1.3.10:6633 ]
+ 13:21:07.679253    flow_mod           [ 10.1.3.10:6633 -> 10.1.2.7:38807 ]
+ 13:21:07.679293    flow_mod           [ 10.1.3.10:6633 -> 10.1.2.11:50581 ]
+ 13:21:07.828968    packet_in          [ 10.1.2.11:50581 -> 10.1.3.10:6633 ]
+ 13:21:07.861995    packet_in          [ 10.1.2.7:38807 -> 10.1.3.10:6633 ]
+ 13:21:07.862067    packet_in          [ 10.1.2.7:38807 -> 10.1.3.10:6633 ]
+
+This is detailed trace output:
+
+ localhost> trace detail
+ Starting openflow trace, use ^C to quit
+ 13:22:58.745778    packet_in          [ 10.1.2.11:50581 -> 10.1.3.10:6633 ]
+    total_len=98 in_port=45 data_len=98 (unbuffered)
+    tcp
+    in_port=45
+    dl_vlan=0xffff
+    dl_vlan_pcp=0x00
+    dl_src=70:56:08:90:28:08
+    dl_dst=00:00:5e:00:01:10
+    nw_src=10.1.20.73
+    nw_dst=13.12.23.2
+    nw_tos=0x00
+    tp_src=54270
+    tp_dst=61617
+ 13:22:58.746207    flow_mod           [ 10.1.3.10:6633 -> 10.1.2.11:50581 ]
+    ip
+    in_port=45
+    dl_vlan=0xffff
+    dl_vlan_pcp=*
+    dl_src=70:56:08:90:28:08
+    dl_dst=00:00:5e:00:01:10
+    nw_src=*
+    nw_dst=*
+    nw_tos=*
+    nw_proto=*
+    tp_src=*
+    tp_dst=*
+    ADD: cookie:9007199254740992 idle:5 hard:0 pri:10 buf:0xffffffff flg:0x1 actions=mod_vlan_vid:16
+    output:16
+ 13:22:58.747565    echo_request       [ 10.1.2.13:62519 -> 10.1.3.10:6633 ]
+    0 bytes of payload
+ 13:22:58.747676    echo_reply         [ 10.1.3.10:6633 -> 10.1.2.13:62519 ]
+    0 bytes of payload
+
+==Capturing show Command Output==
+
+The OpenDaylight CLI has facilities to capture show command output with greater than ( > ) operator. For example, to capture the running config, you can issue the following command:
+
+ localhost# show running-config > config://full-config
+
+You can then see the list of output files with the show config command:
+
+ localhost# show config
+ # Name         Length Version Timestamp
+ -|------------|------|-------|-------------------
+ 1 full-config  4537   1       2013-02-12.21:29:02
+
+You can also pipe the commands through other commands like grep. You can look at the contents of the output files by giving an argument to the show config command
+
+ localhost# show running-config | grep bvs  > config://bvs-snippets
+ localhost# show config bvs-snippets
+  bvs-definition default
+  bvs-definition office
+  bvs-definition phones
+  bvs-definition testlab-data
+  bvs-definition testlab-mgmt
+
+If you want to copy one of these captures off the controller-node, you can export it to an external file using the copy command with the file:// argument. These external files are saved in the /opt/bigswitch/run/saved-configs directory. These external files are then accessible by using the underlying Linux bash shell and using Linux utilities (like scp, ftp) to copy them off.
+
+ localhost# copy config://bvs-snippets file://bvs-snippets-export
+ localhost# debug bash
+ ***** Warning: this is a debug command - use caution! *****
+ ***** Type "exit" or Ctrl-D to return to the BigOS CLI *****
+ bsn@localhost:~$ cd /opt/bigswitch/run/saved-configs/
+ bsn@localhost:/opt/bigswitch/run/saved-configs$ ls -la
+ total 12
+ drwxr-xr-x 2 bsn bsn 4096 2013-02-12 13:37 .
+ drwxr-xr-x 3 bsn bsn 4096 2013-02-12 13:37 ..
+ -rw-r--r-- 1 bsn bsn  270 2013-02-12 13:37 bvs-snippets-export
+
+==Logging==
+
+You can use the show logging command to examine the logs of the various components of the OpenDaylight SDN Controller Platform.
+
+ localhost# show logging 
+ all               Show various controller logs
+ authlog           Show various controller logs
+ cassandra         Show various controller logs
+ console-access    Show various controller logs
+ floodlight        Show various controller logs
+ orchestrationlog  Show various controller logs
+ syslog            Show various controller logs
+ localhost# show logging all|grep UFW|tail -10
+ [372045.132097] [UFW BLOCK] IN=eth0 OUT= MAC=01:00:5e:00:00:12 SRC=10.1.2.2 DST=10.1.1.18 LEN=56  TOS=0x10 PREC=0x00 TTL=255 ID=61229 DF PROTO=112
+ [372065.101402] [UFW BLOCK] IN=eth0 OUT= MAC=01:00:5e:00:00:12 SRC=10.1.2.2 DST=10.1.1.18 LEN=56  TOS=0x10 PREC=0x00 TTL=255 ID=51792 DF PROTO=112
+ [372085.065929] [UFW BLOCK] IN=eth0 OUT= MAC=01:00:5e:00:00:12 SRC=10.1.2.2 DST=10.1.1.18 LEN=56  TOS=0x10 PREC=0x00 TTL=255 ID=10253 DF PROTO=112
+ [372105.031829] [UFW BLOCK] IN=eth0 OUT= MAC=01:00:5e:00:00:12 SRC=10.1.2.2 DST=10.1.1.18 LEN=56  TOS=0x10 PREC=0x00 TTL=255 ID=59005 DF PROTO=112
+ [372125.001304] [UFW BLOCK] IN=eth0 OUT= MAC=01:00:5e:00:00:12 SRC=10.1.2.2 DST=10.1.1.18 LEN=56  TOS=0x10 PREC=0x00 TTL=255 ID=14505 DF PROTO=112
+ [372144.989169] [UFW BLOCK] IN=eth0 OUT= MAC=01:00:5e:00:00:12 SRC=10.1.2.2 DST=10.1.1.18 LEN=56  TOS=0x10 PREC=0x00 TTL=255 ID=1658 DF PROTO=112
+ [372163.977484] [UFW BLOCK] IN=eth0 OUT= MAC=01:00:5e:00:00:12 SRC=10.1.2.2 DST=10.1.1.18 LEN=56  TOS=0x10 PREC=0x00 TTL=255 ID=937 DF PROTO=112
+ [372183.967824] [UFW BLOCK] IN=eth0 OUT= MAC=01:00:5e:00:00:12 SRC=10.1.2.2 DST=10.1.1.18 LEN=56  TOS=0x10 PREC=0x00 TTL=255 ID=26926 DF PROTO=112
+ [372203.935660] [UFW BLOCK] IN=eth0 OUT= MAC=01:00:5e:00:00:12 SRC=10.1.2.2 DST=10.1.1.18 LEN=56  TOS=0x10 PREC=0x00 TTL=255 ID=59540 DF PROTO=112
+ [372223.903065] [UFW BLOCK] IN=eth0 OUT= MAC=01:00:5e:00:00:12 SRC=10.1.2.2 DST=10.1.1.18 LEN=56  TOS=0x10 PREC=0x00 TTL=255 ID=14733 DF PROTO=112
+
+==Using the debug Command==
+
+You can use the debug command variants to access and view different internal systems and functions of the OpenDaylight Virtualization Platform. 
+
+For example, debug bash gives access to the underlying Linux shell of the OVP.
+
+ n2> debug bash
+ ***** Warning: this is a debug command - use caution! *****
+ ***** Type "exit" or Ctrl-D to return to the BigOS CLI *****
+ bsn@n2:~$ df -m 
+ Filesystem           1M-blocks      Used Available Use% Mounted on
+ /dev/sda2                 8563      1261      6867  16% /
+ none                      1004         1      1004   1% /dev
+ none                      1006         0      1006   0% /dev/shm
+ none                      1006         1      1006   1% /var/run
+ none                      1006         0      1006   0% /var/lock
+ /dev/sda1                   10         1        10   2% /sysboot
+ /dev/sda6                 1008        37       920   4% /log
+ bsn@n2:~$ 
+
+Another useful variant is the debug rest [ details ] command. This will echo in the CLI the underlying REST API calls that are being made by a given CLI command. You can use this information to help automate your interactions with the OVP and its applications.
+
+For example, below is the output when running the show switch command:
+
+ n2> show switch
+ REST-SIMPLE: GET http://127.0.0.1:8000/rest/v1/model/feature/
+ REST-SIMPLE: http://127.0.0.1:8000/rest/v1/model/feature/ reply "[{"bvs-feature": true, "static-flow-pusher-feature":  true, "performance-monitor-feature": false, "networkservice-feature": true, "id": "feature", "bigtap-feature": false}]"
+ REST-SIMPLE: GET http://127.0.0.1:8000/rest/v1/switches
+ REST-SIMPLE: http://127.0.0.1:8000/rest/v1/switches reply " [{"uplinkPorts":null,"actions":4095,"dpid":"00:00:06:eb:3f:ea:1e:4a","attributes": {"supportsOfppFlood":true,"com.bigswitch.SupportsSetTunnelDstAction":true,"supportsNxRole":true,"FastWildcards":4194 303,"DescriptionData":"None","com.bigswitch.SupportsNxTtlDecrement":true,"supportsOfppTable":true},"buffers":256,"ca pabilities":199,"tables":-1,"ports":[{"name":"br- int","state":1,"portNumber":65534,"hardwareAddress":"06:eb:3f:ea:1e:4a","config":1,"currentFeatures":0,"advertisedFeatur es":0,"supportedFeatures":0,"peerFeatures":0},{"name":"tap46317540- b7","state":0,"portNumber":2,"hardwareAddress":"fa:16:3e:39:d9:5d","config":0,"currentFeatures":0,"advertisedFeatures":0 ,"supportedFeatures":0,"peerFeatures":0},{"name":"tap09fa40da- 20","state":0,"portNumber":1,"hardwareAddress":"fa:16:3e:51:50:e2","config":0,"currentFeatures":0,"advertisedFeatures":0 ,"supportedFeatures":0,"peerFeatures":0},{"name":"tap95916c3b- 33","state":0,"portNumber":3,"hardwareAddress":"fa:16:3e:31:09:19","config":0,"currentFeatures":0,"advertisedFeatures":0 ,"supportedFeatures":0,"peerFeatures":0},{"name":"qvo1cb20b15- b1","state":0,"portNumber":4,"hardwareAddress":"be:72:17:1e:de:76","config":0,"currentFeatures":192,"advertisedFeatures ":0,"supportedFeatures":0,"peerFeatures":0}],"inetAddress":"/192.168.38.1:55120","connectedSince":1360808286619,"ha role":"MASTER"}]"
+ REST-SIMPLE: GET http://127.0.0.1:8000/rest/v1/model/switch-config/
+ REST-SIMPLE: http://127.0.0.1:8000/rest/v1/model/switch-config/ reply "[{"core-switch": false, "dpid":  "00:00:00:00:00:00:00:01", "tunnel-termination": "default"}, {"core-switch": false, "dpid": "00:00:00:00:00:00:00:02",  "tunnel-termination": "default"}]"
+ REST-SIMPLE: GET http://127.0.0.1:8000/rest/v1/model/switch-alias/
+ REST-SIMPLE: http://127.0.0.1:8000/rest/v1/model/switch-alias/ reply "[{"switch": "00:00:00:00:00:00:00:01", "id":  "s1"}, {"switch": "00:00:00:00:00:00:00:02", "id": "s2"}]"
+ REST-SIMPLE: GET http://127.0.0.1:8000/rest/v1/tunnel-manager/all
+ REST-SIMPLE: http://127.0.0.1:8000/rest/v1/tunnel-manager/all reply "{}"
+ # Switch DPID             Alias Connected Since         IP Address   Tun Capable -Enabled -State Core Switch
+ -|-----------------------|-----|-----------------------|------------|-----------|--------|------|------- ----
+ 1 00:00:00:00:00:00:00:01 s1                                                                     False
+ 2 00:00:00:00:00:00:00:02 s2                                                                     False
+ 3 00:00:06:eb:3f:ea:1e:4a       2013-02-14 02:18:06 UTC 192.168.38.1
+ n2>
+
+==Statistics==
+
+You can use the <code>show controller-node < id > stats</code> command and its variants to see statistics about the controller-node, including CPU, memory, and disk space. This information is stored periodically so you can see trends of this information.
+
+ n2> show controller-node localhost stats
+ CPU User       : 1 %
+ CPU Nice       : 0 %
+ CPU System     : 0 %
+ Memory Used    : 1183680 kB
+ Swap Used      : 0 kB
+ / Used         : 14 %
+ /log Used      : 3 %
+ /sysboot Used  : 1 %
+ Floodlight CPU : 0 %
+ Database CPU   : 0 %
+ Apache CPU     : 1 %
+ Cli CPU        : 0 %
+ Statd CPU      : 0 %
+ Memory Free    : 876088 kB
+ CPU Idle       : 97 %
+ n2> 
+
+You can also see statistics per switch with the <code>show switch < id > stats</code> command, including the number of packets received from the switch by the controller (such as OpenFlow packet-in packets) and packets sent from the controller to the switch (such as OpenFlow flow-mod packets).
+
+ n2> show switch s1 stats 
+ OF Packet In   : 1791 Packets
+ OF Flow Mod    : 1651 Flow Mods
+ OF Active Flow : 9 Flows
+ n2>
+
+If the web port is enabled in the firewall, then you can also see this information in a web browser and browse the trended data.
+
+[[File:Oscp-troubleshooting-image2.png|530 px]]
+
+[[Category:OpenDaylight SDN Controller Platform]]
