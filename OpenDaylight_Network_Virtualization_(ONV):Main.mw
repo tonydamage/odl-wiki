@@ -1,0 +1,96 @@
+{| align="right" border="1"
+|align="center"|'''OpenDaylight Network Virtualization Contents'''
+|-
+|[[OpenDaylight Network Virtualization (ONV):Configuration|Configuration]]<br>[[OpenDaylight Network Virtualization (ONV):Routing|Routing]]<br>[[OpenDaylight Network Virtualization (ONV):KVM Integration|KVM Integration]]<br>[[OpenDaylight Network Virtualization (ONV):OpenStack|OpenStack Quantum]]<br>[[OpenDaylight Network Virtualization (ONV):Host Configuration|Host Configuration]]<br>[[OpenDaylight Network Virtualization (ONV):Main|Back to Top]]
+|}
+
+
+=Conceptual Overview=
+
+The OpenDaylight Network Virtualization (ONV) application is a Network as a Service (network virtualization) application.  ONV currently runs on the OpenDaylight SDN Controller Platform (OSCP).  As a result, ONV is packaged along with OSCP in the same source repository. Please see the [[OpenDaylight SDN Controller Platform (OSCP):Main|OSCP User Guide]] for instructions on installation and configuration of OSCP.
+
+A traditional network service often has these drawbacks:
+
+* Functional limitations drive suboptimal designs 
+* Static, inflexible networks bar VM mobility
+* Fixed workload isolation wastes compute capacity
+
+However, using a software-defined network results in these benefits:
+
+* Dynamic network segmentation dramatically increases business agility and flexibility
+* 25% to 50% improved VM densities drives down costs
+** Capex (compute & storage)
+** Opex (power & cooling)
+
+[[File:Onv-concepts-image1.png|530px]]
+
+==Tenants and Virtual Network Segments==
+
+The (ONV) application allows you to take a pool of compute resources (e.g., virtual machines) and allocate them to different groups, called tenants. 
+
+For example, suppose you have the following general pool of 12 VMs across three different virtualized servers:
+
+[[File:Onv-concepts-image2.png|530px]]
+
+The ONV application allows you to group the VMs into tenants.
+
+[[File:Onv-concepts-image3.png|530 px]]
+
+Further, the VMs within a tenant can be further grouped into logical, virtual networks - each of these is called a "virtual network segment" (VNS). Continuing the example, you can take the VMs in both the red and green tenant and group them into separate VNSes corresponding to the different tiers of a web application (web tier, application tier, and database tier).
+
+[[File:Onv-concepts-image4.png|530 px]]
+
+
+ This document refers to the concept of a Virtual Network Segment, 
+ but that is currently implemented in the command-line interface as 
+ a "BVS." Thus, 'BVS' refers to both the general SDN application as well 
+ as the individual virtual network segment. For example, to see the list 
+ of all VNSes in the system, you will issue the command "show bvs all" 
+ (as opposed to "show vns all").
+
+==VNS Membership and Configuration==
+
+You have several different options for specifying what machines are part of a specific VNS. These include:
+
+* Location information such as the switch and interface to which a machine is attached, e.g., switch 2, interface 27)
+* Packet information such as the layer 2 MAC address, the layer 3 IP address, or VLAN, e.g., mac = 00:00:00:00:00:08 or IP subnet = 10.2.2.0/24
+* External information that can be mapped to either location or packet information, e.g., members of a specific network in OpenStack
+* Any combination of the above
+
+These policies are defined by using "interface-rule" commands in the CLI, and each member of the VNS is considered attached to an interface in the VNS.
+
+There are also a number of configuration options for the VNS, including ARP/DHCP/broadcast control, prioritization controls for tie-breaking membership rules, and access control lists.
+
+==Virtual Routing==
+
+The ONV application allows you to control connectivity and traffic patterns in several different areas:
+
+[[File:Onv-concepts-image5.png|530px]]
+
+# Between hosts within a given virtual network segment, e.g., within the Web-VNS of the Red tenant
+# Between different virtual network segments of a given tenant, e.g., between App-VNS and DB-VNS of the Green tenant
+# Between VNSes of different tenants, e.g., between red and green tenants
+# Between hosts, VNSes, tenants, and the external network, e.g., the Web-VNS should be accessible by the external network
+
+Within the ONV application, #1 is handled with access control lists (ACLs) within a VNS.  
+
+#2-#4 are handled with the virtual routing service. Logically, you use the per-tenant router to define policies that address #2 - connectivity between VNSes of the tenant. You use the system router to define policies between tenants and between tenants and the external network (#3 and #4).
+
+[[File:Onv-concepts-image6.png|530px]]
+
+==Automation and Cloud Orchestration==
+
+Cloud orchestration systems such as OpenStack and CloudStack are frequently used to manage the underlying pool of compute resources in a cloud datacenter. The orchestration system will assign virtual machines to different groups and then program the network to support the desired connectivity for those groups. The Big Virtual Switch application provides an ideal underlying network implementation for cloud orchestration systems such as OpenStack.  
+
+The following outlines how ONV can provide the network for an OpenStack deployment:
+
+# Admins use OpenStack's Web UI (Horizon) or Nova CLI to request virtual machines for specific groups (projects and networks)
+# The OpenStack Quantum provides the network abstraction for OpenStack, meaning OpenStack systems will call Quantum to implement the underlying network.
+# The Big Switch Networks Quantum Plugin communicates via REST to the northbound APIs of the ONV application
+# The ONV applications programs the network via the underlying libraries of the OSCP controller to support the groupings requested in #1
+
+[[File:Onv-concepts-image7.png|530px]]
+
+You can implement integrations with other cloud orchestration systems by using the ONV APIs in a similar manner.
+
+[[Category:OpenDaylight SDN Controller Platform]]
