@@ -56,7 +56,7 @@ By default, all the hosts created in this network will join the "default" VNS in
  h4 -> h1 h2 h3 
  *** Results: 0% dropped (0/12 lost)
 
-Then, in the OSCP CLI, you can see them with the show bvs all mac-address-table command:
+Then, in the OSCP CLI, you can see them with the show onv all mac-address-table command:
 
  bnc# show onv all mac-address-table 
  # Tenant  onv     Address Space MAC Address            VLAN IP Address Attachment Point Last Seen
@@ -70,7 +70,7 @@ Then, in the OSCP CLI, you can see them with the show bvs all mac-address-table 
 
 =Virtual Network Segments (VNSes)=
 
-You can create a virtual network segment under a tenant by using the bvs-definition command.
+You can create a virtual network segment under a tenant by using the onv-definition command.
 
  oscp# conf t
  oscp(config)# tenant red
@@ -83,14 +83,14 @@ You can create a virtual network segment under a tenant by using the bvs-definit
  oscp(config-tenant)# onv-definition app-vns
  oscp(config-tenant-def-onv)# exit
 
-Use the show tenant < tenant id > onv command or the show bvs all command to see the VNSes that have been configured.
+Use the show tenant < tenant id > onv command or the show onv all command to see the VNSes that have been configured.
 
- bnc# sh tenant green onv
+oscp# sh tenant green onv
  # Tenant ONV ID  Active Priority ARP Config Mode  DHCP Config Mode DHCP Ip Broadcast Mode   Network Service Address   Space
  -|------|-------|------|--------|----------------|----------------|-------|----------------|-------------   --|-------------
  1 green  app-vns True   1000     flood-if-unknown flood-if-unknown         forward-to-known
  2 green  web-vns True   1000     flood-if-unknown flood-if-unknown         forward-to-known
- bnc# sh bvs all
+ oscp# sh onv all
  # Tenant  ONV ID      Active Priority ARP Config Mode  DHCP Config Mode DHCP Ip Broadcast Mode   Network Service    Address Space
  -|-------|-----------|------|--------|----------------|----------------|-------|----------------|-------- -------|-------------
  1 default default     True   1000     flood-if-unknown flood-if-unknown         forward-to-known
@@ -103,9 +103,9 @@ At this point, you have created the virtual network segments within each tenant,
 [[File:Onv-configuration-image4.png|530 px]]
 
 
-You can validate this with the show tenant green bvs app-vns mac-address-table command string and it shows no hosts are assigned to the VNS at this point.
+You can validate this with the show tenant green onv app-vns mac-address-table command string and it shows no hosts are assigned to the VNS at this point.
 
- bnc# sh tenant green onv app-vns mac-address-table 
+ oscp# sh tenant green onv app-vns mac-address-table 
  None.
 
 Now that you have a onv-definition object, you can:
@@ -121,7 +121,7 @@ All these are covered in later sections of the user guide.
 =Defining Membership in a VNS=
 
 By default, a VNS provides any-to-any connectivity for all the machines that are included in it.
-Once a VNS has been created, next you define which machines in the network are members of the VNS. Do this by creating <code>interface-rules</code> under a <code>bvs-definition</code>. These rules can be based on:
+Once a VNS has been created, next you define which machines in the network are members of the VNS. Do this by creating <code>interface-rules</code> under a <code>onv-definition</code>. These rules can be based on:
 
 * port-based rules (port 42 on switch 3),
 * header-based rules (ip-subnet = 10.0.1.0/24),
@@ -225,7 +225,7 @@ Using the test network in mininet, you can see that h1 (mac address 00:00:00:00:
  --- 10.0.0.4 ping statistics ---
  1 packets transmitted, 0 received, 100% packet loss, time 0ms
 
-You can also validate this by using the show bvs all mac-address-table command (or the specific show tenant <tenant id> bvs < id > mac-address table command) on the controller:
+You can also validate this by using the show onv all mac-address-table command (or the specific show tenant <tenant id> onv < id > mac-address table command) on the controller:
 
  oscp# show onv all mac-address-table 
  # Tenant  ONV         Address Space MAC Address            VLAN IP Address Attachment Point Last Seen
@@ -266,11 +266,11 @@ Continuing the example from earlier sections, you can see that in mininet, h1 an
  h4 -> X X X 
  *** Results: 83% dropped (10/12 lost)
 
-Checking the VNS assignment with the show bvs all mac-address-table command, you can see that h2 is now part of the 
+Checking the VNS assignment with the show onv all mac-address-table command, you can see that h2 is now part of the 
  
  web-vns of the green tenant:
- oscp(config-tenant-def-onv-if-rule)# sh bvs all mac-address-table 
- # Tenant  Bvs         Address Space MAC Address            VLAN IP Address Attachment Point Last Seen
+ oscp(config-tenant-def-onv-if-rule)# sh onv all mac-address-table 
+ # Tenant  ONV         Address Space MAC Address            VLAN IP Address Attachment Point Last Seen
  -|-------|-----------|-------------|----------------------|----|----------|----------------|----------
  1 red     devtest-vns default       00:00:00:00:00:01 (h1)      10.0.0.1   s6/1 (s6-eth1)   11 minutes
  2 green   web-vns     default       00:00:00:00:00:02 (h2)      10.0.0.2   s6/2 (s6-eth2)   11 minutes
