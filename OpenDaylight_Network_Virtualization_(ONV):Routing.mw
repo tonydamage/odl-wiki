@@ -33,7 +33,7 @@ Using the example network extended with distributed virtual routing, you can see
 
 Practically, the system router is contained within its own reserved tenant called the system tenant, and the external network is modeled as a reserved tenant called the "external" tenant. When you first were creating the red and green tenants in the "Configuring Tenants" chapter, you saw this output from show tenant:
 
- bnc# show tenant
+oscp# show tenant
  # Tenant ID Active Description Router ID
  -|---------|------|-----------|---------
  1 default   True
@@ -41,9 +41,9 @@ Practically, the system router is contained within its own reserved tenant calle
  3 green     True
  4 red       True
  5 system    True               vrsystem
- bnc# show running-config | begin tenant
+ oscp# show running-config | begin tenant
  tenant default
-  bvs-definition default
+  onv-definition default
  !
  tenant external
  !
@@ -70,10 +70,10 @@ Use <code>router</code> to:
 * Create and connect router interfaces
 * Set routing rules to define the connectivity within the tenant
 
- bnc# conf t
- bnc(config)# tenant red
- bnc(config-tenant)# router dvr-red
- bnc(config-tenant-router)# show tenant red
+ oscp# conf t
+ oscp(config)# tenant red
+ oscp(config-tenant)# router dvr-red
+ oscp(config-tenant-router)# show tenant red
  # Tenant ID Active Description Router ID
  -|---------|------|-----------|---------
  1 red       True               dvr-red
@@ -88,35 +88,35 @@ the system tenant router
 
 Do this by creating interface under a router.
 
- bnc# conf t
- bnc(config)# tenant red
- bnc(config-tenant)# router dvr-red
- bnc(config-tenant-router)# interface if1 bvs devtest-vns
- bnc(config-tenant-router-intf)# exit
- bnc(config-tenant-router)# interface ifs tenant system vrsystem
- bnc(config-tenant-router-intf)# exit
- bnc(config-tenant-router)# end
+ oscp# conf t
+ oscp(config)# tenant red
+ oscp(config-tenant)# router dvr-red
+ oscp(config-tenant-router)# interface if1 onv devtest-vns
+ oscp(config-tenant-router-intf)# exit
+ oscp(config-tenant-router)# interface ifs tenant system vrsystem
+ oscp(config-tenant-router-intf)# exit
+ oscp(config-tenant-router)# end
  
 You can then use the show tenant < tenant > router < router name > interfaces command to see the interfaces on the r router:
 
- bnc# show tenant red router dvr-red interfaces
- # Virtual Router ID Interface Name Active BVS connected to Virtual Router connected to
+ oscp# show tenant red router dvr-red interfaces
+ # Virtual Router ID Interface Name Active ONV connected to Virtual Router connected to
  -|-----------------|--------------|------|----------------|---------------------------
  1 red|dvr-red       if1            True   red|devtest-vns
  2 red|dvr-red       ifs            True                    system|vrsystem
  
 You can create multiple interfaces for multiple VNSes. The green tenant has two VNSes, so you can create a router for the green tenant and add interfaces for each VNS:
 
- bnc# conf t
- bnc(config)# tenant green
- bnc(config-tenant)# router dvr-green
- bnc(config-tenant-router)# interface app-vns-if bvs app-vns 
- bnc(config-tenant-router-intf)# exit
- bnc(config-tenant-router)# interface web-vns-if bvs web-vns
- bnc(config-tenant-router-intf)# exit
- bnc(config-tenant-router)# interface system-if tenant system vrsystem 
- bnc(config-tenant-router-intf)# show tenant green router dvr-green interfaces 
- # Virtual Router ID Interface Name Active BVS connected to Virtual Router connected to
+ oscp# conf t
+ oscp(config)# tenant green
+ oscp(config-tenant)# router dvr-green
+ oscp(config-tenant-router)# interface app-vns-if bvs app-vns 
+ oscp(config-tenant-router-intf)# exit
+ oscp(config-tenant-router)# interface web-vns-if bvs web-vns
+ oscp(config-tenant-router-intf)# exit
+ oscp(config-tenant-router)# interface system-if tenant system vrsystem 
+ oscp(config-tenant-router-intf)# show tenant green router dvr-green interfaces 
+ # Virtual Router ID Interface Name Active ONV connected to Virtual Router connected to
  -|-----------------|--------------|------|----------------|---------------------------
  1 green|dvr-green   app-vns-if     True   green|app-vns
  2 green|dvr-green   system-if      True                    system|vrsystem
@@ -171,7 +171,7 @@ A virtual router routing rule can be specified by:
 It is possible for routing rules to overlap or conflict. Said another way, a given flow can match multiple routing rules at the same time. However, only the most specific one should be applied to the flow. The following order is used to evaluate the routing rules:
 
 # matching host, specified by a /32 ip address,  has the top priority.
-# matching bvs
+# matching onv
 # matching tenant
 # matching ip/subnet, among matching ip/subnet, longest prefix match is taken.
 
@@ -183,18 +183,18 @@ The example network configured to date does not allow the two VNSes inside the g
 
  You need a route in each direction between the VNSes.
 
- bnc# conf t
- bnc(config)# tenant green
- bnc(config-tenant)# router dvr-green 
- bnc(config-tenant-router)# route from bvs web-vns to bvs app-vns permit
- bnc(config-tenant-router)# route from bvs app-vns to bvs web-vns permit
- bnc(config-tenant)# router dvr-green 
- bnc(config-tenant-router)# show tenant green router dvr-green route
+ oscp# conf t
+ oscp(config)# tenant green
+ oscp(config-tenant)# router dvr-green 
+ oscp(config-tenant-router)# route from onv web-vns to onv app-vns permit
+ oscp(config-tenant-router)# route from onv app-vns to onv web-vns permit
+ oscp(config-tenant)# router dvr-green 
+ oscp(config-tenant-router)# show tenant green router dvr-green route
  # Virtual Router ID permit or deny source tenant ID source BVS ID Source IP Source IP Mask Destination tenant ID  Destination BVS ID Destination IP Destination IP Mask Next Hop IP Outgoing Interface
  -|-----------------|--------------|----------------|-------------|---------|--------------|---------------------|------------------|--------------|-------------------|-----------|------------------
  1 green|dvr-green   permit         green            green|app-vns                          green                 green|web-vns
  2 green|dvr-green   permit         green            green|web-vns                          green                 green|app-vns
- bnc(config-tenant-router)#
+ oscp(config-tenant-router)#
 
 Previously, in the mininet window, pings from the machines in the same tenant (but in different VNSes) failed, but now they work. h2 is in the web-vns and h4 is in the app-vns:
 
@@ -234,17 +234,17 @@ In addition, you must also configure the tenant distributed virtual routers to a
 
 Below is an example of configuring the system distributed virtual router:
 
- bnc# conf t
- bnc(config)# tenant system
- bnc(config-tenant)# router vrsystem 
- bnc(config-tenant-router)# interface red-if tenant red dvr-red 
- bnc(config-tenant-router-intf)# exit
- bnc(config-tenant-router)# interface green-if tenant green dvr-green 
- bnc(config-tenant-router-intf)# exit
- bnc(config-tenant-router)# route from tenant red to tenant green permit
- bnc(config-tenant-router)# route from tenant green to tenant red permit
- bnc(config-tenant-router)# sh tenant system router vrsystem route
- # Virtual Router ID permit or deny source tenant ID source BVS ID Source IP Source IP Mask Destination tenant ID   Destination BVS ID Destination IP Destination IP Mask Next Hop IP Outgoing Interface
+ oscp# conf t
+ oscp(config)# tenant system
+ oscp(config-tenant)# router vrsystem 
+ oscp(config-tenant-router)# interface red-if tenant red dvr-red 
+ oscp(config-tenant-router-intf)# exit
+ oscp(config-tenant-router)# interface green-if tenant green dvr-green 
+ oscp(config-tenant-router-intf)# exit
+ oscp(config-tenant-router)# route from tenant red to tenant green permit
+ oscp(config-tenant-router)# route from tenant green to tenant red permit
+ oscp(config-tenant-router)# sh tenant system router vrsystem route
+ # Virtual Router ID permit or deny source tenant ID source ONV ID Source IP Source IP Mask Destination tenant ID   Destination ONV ID Destination IP Destination IP Mask Next Hop IP Outgoing Interface
  -|-----------------|--------------|----------------|-------------|---------|--------------|---------------------|------------------|--------------|-------------------|-----------|------------------
  1 system|vrsystem   permit         green                                                   red
  2 system|vrsystem   permit         red                                                     green
@@ -252,17 +252,17 @@ Below is an example of configuring the system distributed virtual router:
 
 And then you must configure the individual tenant distributed virtual routers:
 
- bnc# conf t
- bnc(config)# tenant green 
- bnc(config-tenant)# router dvr-green 
- bnc(config-tenant-router)# route from tenant green to any permit
- bnc(config-tenant-router)# route from any to tenant green permit
- bnc(config-tenant-router)# exit
- bnc(config-tenant)# exit
- bnc(config)# tenant red
- bnc(config-tenant)# router dvr-red 
- bnc(config-tenant-router)# route from any to tenant red permit
- bnc(config-tenant-router)# route from tenant red to any permit
+ oscp# conf t
+ oscp(config)# tenant green 
+ oscp(config-tenant)# router dvr-green 
+ oscp(config-tenant-router)# route from tenant green to any permit
+ oscp(config-tenant-router)# route from any to tenant green permit
+ oscp(config-tenant-router)# exit
+ oscp(config-tenant)# exit
+ oscp(config)# tenant red
+ oscp(config-tenant)# router dvr-red 
+ oscp(config-tenant-router)# route from any to tenant red permit
+ oscp(config-tenant-router)# route from tenant red to any permit
 
 Once this has been done, now you can ping from one of the machines in the red tenant devtest-vns and one of the green tenant's machines.
 
@@ -304,21 +304,21 @@ External tenant is a reserved entity to hold the configuration/information for e
 
 Configuring the external tenant is the same as configuring a general purpose tenant.
 
-First, creating a BVS under external tenant to hold the default gateway for outside world access. 
+First, creating a ONV under external tenant to hold the default gateway for outside world access. 
 
  localhost(config)#tenant external 
- localhost(config-tenant)# bvs-definition externalbvs
- localhost(config-tenant-def-bvs)# priority 1100
- localhost(config-tenant-def-bvs)# interface-rule default-gateway
- localhost(config-tenant-def-bvs-if-rule)# match mac 00:19:30:ac:34:23
+ localhost(config-tenant)# onv-definition externalbvs
+ localhost(config-tenant-def-onv)# priority 1100
+ localhost(config-tenant-def-onv)# interface-rule default-gateway
+ localhost(config-tenant-def-onv-if-rule)# match mac 00:19:30:ac:34:23
 
 Second, creating a virtual router to define the connectivity and routing rules.
 
  localhost(config)#tenant external 
  localhost(config-tenant)# router vrexternal
  localhost(config-tenant-router)# interface if-sys tenant system vrsystem
- localhost(config-tenant-router)# interface if-exe bvs externalbvs
- localhost(config-tenant-router)# route from bvs external to any permit
+ localhost(config-tenant-router)# interface if-exe onv externalbvs
+ localhost(config-tenant-router)# route from onv external to any permit
  localhost(config-tenant-router)# route from any to any 10.10.0.1 if-exe permit
 
 Last, configure static ARP for the default gateway. This is step is essential for now.
