@@ -1,0 +1,121 @@
+{| align="right" border="1"
+|align="center"|'''Guide Contents'''
+|-
+|[[OpenDaylight Controller:Overview|OpenDaylight Controller Overview]]<br>[[OpenDaylight Controller:Architectural Framework|Architectural Framework]]<br>[[OpenDaylight Controller:Development Infrastructure Overview|Development Infrastructure Overview]]<br>[[OpenDaylight Controller:Pulling, Hacking, and Pushing the Code from the CLI|Pulling, Hacking, and Pushing the Code from the CLI]]<br>[[OpenDaylight Controller:Pulling, Hacking, and Pushing the Code from Eclipse|Pulling, Hacking, and Pushing the Code from Eclipse]]<br>[[OpenDaylight Controller:Sample Applications|Sample Applications]]<br>[[OpenDaylight Controller:Library Descriptions|Library Descriptions]]<br>[[OpenDaylight Controller:REST Reference and Authentication|REST Reference and Authentication]]<br>[[OpenDaylight Controller:Java API Reference|Java API Reference]]<br>[[OpenDaylight Controller:Topologies|Topologies]]<br>[[OpenDaylight Controller:Main|Top Level Contents]]
+|}
+ 
+==Framework Overview==
+The Open Daylight Controller is a pure software and as a JVM it can be run on any OS and Metal as long as it supports Java. The following picture shows the structure of the OpenDaylight Controller. 
+
+[[File:Architectural Framework.jpg|530px]]
+
+On the Southbound as stated earlier one can support multiple protocols (as plugins), e.g. OpenFlow 1.0, OpenFlow 1.3, BGP-LS, etc. The Open Daylight Controller will start with an OpenFlow 1.0 Southbound plug in. Other Open Daylight contributors would add to those as part of their contributions/projects. These modules are linked dynamically into a Service Abstraction Layer (SAL). The SAL exposes services to which the modules north of it are written. The SAL figures out how to fulfill the requested service irrespective of the underlying protocol used between the Controller and the network devices. This provides investment protection to the Applications as the OpenFlow and other protocols evolve over time.
+For the Controller to control devices in its domain it needs to know about the devices, their capabilities, reachability, etc. This information is stored and managed by the Topology Manager. The other components like ARP handler, Host Tracker, Device Manager and Switch Manager help in generating the topology database for the Topology Manager. 
+
+The Controller exposes open Northbound APIs which are used by Applications. We support the OSGi framework and bidirectional REST for the Northbound API. OSGi framework is used for applications that will run in the same address space as the Controller while the REST (web based) API is used for Apps that do not run in the same address space (or even the same metal) as the Controller. 
+The business logic and algorithms reside in the Apps. These Apps use the Controller to gather network intelligence, runs its algorithm to do analytics and then use the Controller to orchestrate the new rules throughout the network.
+
+The Controller has a built in GUI. The GUI is implemented as an application using the same Northbound API as would be available for any other user application.
+
+==Functional Overview==
+This section gives an overview of the main components of the Open Daylight Controller.
+
+===Service Abstraction Layer===
+Service Abstraction Layer is at the heart of the modular design of the Controller and allows it to support multiple protocols on the Southbound and providing consistent services for modules and Apps (where the business logic is embedded). 
+
+[[File:Service Abstraction Layer.jpg|600px]]
+ 
+The OSGi framework allows dynamically linking plugins for the evolving southbound protocols. The SAL provides basic services like Device Discovery which are used by modules like Topology Manager to build the topology and device capabilities. Services are constructed using the features exposed by the plugins (based on the presence of a plugin and capabilities of a network device). Based on the service request the SAL maps to the appropriate plugin and thus uses the most appropriate Southbound protocol to interact with a given network device. Each plugin is independent of each other and are loosely coupled with the SAL. (Please note that  the OpenFlow 1.0 plugin is currently provided and other plugin shown in the pictures above are examples of the extensibility of the SAL framework. The SAL framework is included in the Open Daylight controller contribution).
+
+* Topology Service is a set of services that allow to convey topology information like a new node a new link has been discovered and so on. 
+* Data Packet services, in summary the possibility to deliver to applications the packets coming from the agents, if any. 
+* Flow Programming service is supposed to provide the necessary logic to program in the different agents a Match/Actions rule. 
+* Statistics service will export API to be able to collect statistics at least per: 
+* Flow
+* Node Connector (port)
+* Queue
+* Inventory service will provide APIs for returning inventory information about the node and node connectors for example 
+* Resource service is a placeholder to query resource status
+
+====SAL Services: Data Packet Service====
+As an example of a SAL Service is implemented let us take a look at the Data Packet Service with OpenFlow 1.0 plugin
+
+[[File:Data Packet Service.jpg|600px]]
+
+'''IListenDataPacket:''' is a service implemented by the Upper layer module or App (ARP Handler is one such module in the picture above) which want to receive data packets
+
+'''IDataPacketService:''' This interface is implemented by the SAL and provides the service of sending and receiving packets from the Agent. This service will be registed in the OSGi service registry so that an application can retrieve it.
+
+'''IPluginOutDataPacketService:''' This iinterface is exported by SAL when a Protocol Plugin wants to deliver a Packet toward the Application Layer
+
+'''IPluginInDataPacketService:''' This interface is exported by the Protocol Plugin and is used to send out the packets through SAL towards the Agent on the network devices.
+
+Now let us see how the code execution takes place in the SAL with the Services and plugins:
+
+# Say the OpenFlow plugin receives an ARP packet that need to be dispatched to the ARP Handler Application
+# The OpenFlow Plugin will call IPluginOutDataPacketService to get the packet to the SAL.
+# The ARP Handler Application would’ve registered to the IListenDataPacket Service. The SAL upon receiving the packet (in #2 above) will thus handover the packet to the ARP Handler App.
+# The Application can now process the packet.
+
+For the reverse path of the Application sending a packet out, the execution flow would be:
+
+# The Application constructs the packet and calls the interface IDataPacketService provided by AL to send the packet. The Destination network device is to be provided as part of the API.
+# SAL will then call the IPluginInDataPacketService interface for a given Protocol plugin based on the destination network device (OpenFlow Plugin in this case)
+# The Protocol plugin will then ship the packet to the appropriate network element. The plugin will handle all protocol specific processing.
+
+More details on the other Service Sets is available as part of the Java Docs and REST API documentation.
+
+====Evolution of the Controller Service Abstraction Layer====
+The SAL evolves into a model based approach, where a framework is provided to model the network, its properties and network devices, and dynamically map between services/applications using the north-bound APIs and protocol plugins providing the southbound APIs. The following figure shows how southbound plugins provide portions of the overall network model tree.
+
+[[File:SAL 2.jpg|600px]]
+
+The following figure shows how applications can access information in the network model through northbound APIs.
+
+[[File:SAL NB Plugins.jpg|600px]]
+
+For more information, see [[OpenDaylight_Controller:Model-Driven_Controller_Service_Abstraction_Layer|Model-Driven Controller Service Abstraction Layer]].
+
+===Switch Manager===
+The Switch Manager API holds the details of the network element. As a network element is discovered, its attributes (e.g. what switch/router it is, SW version, capabilities, etc.) are stored in the data base by the Switch Manager
+
+===GUI===
+The GUI is implemented as an APP and uses the NB REST API to interact with the other modules of the Controller. This architecture thus ensures that whatever is possible with the GUI is also available via REST API and thus the Controller can be integrated easily into other management or orchestration systems.
+
+===High Availability===
+The Open Daylight Controller supports a Cluster based High Availability model. There are several instances of the Open Daylight Controller which logically act as one logical controller. This not only gives a fine grain redundancy but also allows a scale-out model for linear scalability.
+To make the Controller highly available, we need to add resilience at:
+
+* Controller level, by adding 1 or more controller instances in clustered fashion
+* Make sure the Open Flow enabled switches (OF-S elements) are multi-homed to multiple instances of the controller
+* Make sure the applications are multi-homed to the controller instances
+
+The OF enabled Switches connect to two or more instances of the Controller via persistent point-to-point TCP/IP connection. On the northbound side the interaction between the controller and the applications is done via RESTful webservices for all the Request-Response type of interaction, being those based on HTTP and being HTTP based on non-persistent connections between the server and the client, it's possible to leverage all the high-available techniques used to give resilience on the WEB, like:
+
+* Provide the cluster of controller with a virtual IP to be reached via an anycast type of solution
+* Have the APP to talk to the cluster after a DNS request is done using a [http://en.wikipedia.org/wiki/Round-robin_DNS DNS round-robin technique]
+* Deploy between the APPs and the cluster of controller an HTTP load-balancer that can then not only be used to provided resilience but also distributed the workload accordinly to the URL requested.
+
+The interaction between the Controller(s) and the Open-Flow enabled switches is essentially to have one Openflow switch multi-homed to multiple controller, so if one of the controller goes down another is ready to controll the switch. This interaction has already been specified in the openflow 1.2 specifications in particular [https://www.opennetworking.org/images/stories/downloads/openflow/openflow-spec-v1.2.pdf Section 6.3 of Openflow 1.2 specifications]. To summarize it when having multiple controllers connected to one switch, the openflow 1.2 specification specify two mode of operations:
+
+# Equal interaction: in this case all the controllers have read/write access to the switch, which means they have to syncronize in order no to step on each other feet.
+# Master/Slave interaction: in this case there will be one master and multiple slaves (there could be still multiple equal as well)
+
+In our case given we syncronize internally among the controller via the controller-to-controller interaction, we can use either methodology, however in case of Master/Slave we get the benefit that in case of race conditions, the switch will accept orders from only one controller (guaranteed) so it seems a safer bet. However with OF 1.0 only the above dual homing is not available so a suggestion is to implement multi-homing as vendor extensions on OF 1.0 switches (cherry-pick the messages as specified in section "A.3.9 Role Request Message" of the OF 1.2 specification and encapsulate those in OpenFlow 1.0 Vendor messages as specified in [https://www.opennetworking.org/images/stories/downloads/openflow/openflow-spec-v1.0.0.pdf section 5.5.4 Vendor of OF 1.0 specs].)
+
+For Controller (instance) to Controller (instance) interaction one needs to synchronize the following information amongst the instances:
+# Topology in-memory database
+# Switch and Host tracking database
+# Configuration files 
+# Master controller for a given OF switch, this could simply be based on simple metric like the highest IP address controller takes the master role, with designated backup being the next higest IP address.
+# User database
+
+It is assumed that the path calculation on each node can happen independently. If consistency is desired then we should include the paths in the information that need to be synchronized. 
+
+Apps using REST API use non-persistent connections between the App and the Controller (instance), which means that if a Controller instance goes down the App will reestablish a new connection on the next transaction. If the failure happens in the middle of a transaction then there will be an HTTP error and appropriate corrective action is taken.
+
+In case an App uses the OSGi framework then the App is running on one of the instances of the Controller. If that Controller instance goes down, the App goes down with it. However, it is the responsibility of the App to ensure its’ own resiliency by having multiple instances and providing its own state synchronization between the instances.
+
+The Controller provides Clustering Services which the Controller modules can use to get state and event synchronization. It also provides a transaction API to maintain transactions across the nodes in a cluster.
+
+[[Category:OpenDaylight Controller]]
