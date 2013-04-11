@@ -8,7 +8,7 @@
 
 # Set up a cassandra cluster and point the controller at it
 # Set up a keepalived cluster, set up to check the controller's health and change roles using the scripts provided in the scripts directory
-# Configure floodlight.properties to point to the HA role file used by the role change script
+# Configure fl.properties to point to the HA role file used by the role change script
  
  A more complete set-up guide is being developed. Please send questions to the 
  netvirt-platform mailing list or contact Paul Lappas (paul@bigswitch.com).
@@ -69,8 +69,8 @@ To add a second node to the controller-node cluster:
 
 1. On the master node, run the ha provision <node2_ip_address> command.
 
- bsnmac1> enable
- bsnmac1# ha provision 192.168.67.131
+ oscpmac1> enable
+ oscpmac1# ha provision 192.168.67.131
  Confirm to continue addition of new ip, enter "yes" (or "y") to continue:y
 
 2. On the second node, run the initial configuration.
@@ -82,7 +82,7 @@ To add a second node to the controller-node cluster:
 
 4. Continue and complete the initial configuration wizard. 
 
-The second node is automatically configured and added to the cluster. 
+The second node is automatically configured and added to the cluster.
 
 ==Specifying VRRP Cluster Number==
 
@@ -107,26 +107,26 @@ To change a node's IP address, decommission it from its cluster and re-provision
 # From the decommissioned node, on the serial console, complete the first boot process. In the first boot process, specify the new IP address.
 
 ==Forcing Failover to the Slave Node==
-To force the master node to fail over to the slave, run the ha failover command, in enable mode, on the master node. If you run a show controller-node command before and after, the output identifies which node is the master and which is the slave. The asterisk ( * ) in the at ( @ ) indicates from which node the show command was run. In the example, prior to the failover, bnc1 Is MASTER. After the failover, bnc2 is MASTER and bnc1 is SLAVE.
+To force the master node to fail over to the slave, run the ha failover command, in enable mode, on the master node. If you run a show controller-node command before and after, the output identifies which node is the master and which is the slave. The asterisk ( * ) in the at ( @ ) indicates from which node the show command was run. In the example, prior to the failover, OSCP1 Is MASTER. After the failover, OSCP2 is MASTER and OSCP1 is SLAVE.
 
- bnc1> show controller-node localhost
+OSCP1> show controller-node localhost
  # Alias @ HA Role Status Uptime     Errors
  -|-----|-|-------|------|----------|------
- 1 bnc1  * MASTER  Ready  12 minutes
+ 1 OSCP1  * MASTER  Ready  12 minutes
  
- bnc1> enable
- bnc1# ha failover
+ OSCP1> enable
+ OSCP1# ha failover
  
  [ wait -- this could take several seconds ]
 
  Fallback will change the HA operating mode,enter "yes" (or "y") to continue:yes
- bnc1#
+OSCP1#
 
- bnc1# show controller-node all
+ OSCP1# show controller-node all
  # Alias @ HA Role Status Uptime     Errors
  -|-----|-|-------|------|----------|------
- 1 bnc2    MASTER  Ready  11 minutes
- 2 bnc1  * SLAVE   Ready  20 minutes
+ 1 OSCP2    MASTER  Ready  11 minutes
+ 2 OSCP1  * SLAVE   Ready  20 minutes
 
 ==Upgrading the Controller Cluster==
 
@@ -146,7 +146,7 @@ In the Master node, run show running-config. Save the output to a file outside t
 
  node1# show running-config
  !
- ! Big Switch Controller (2013.01.17.0437-b.bsc.efes)
+ ! OpenDaylight SDN Controller Platform (2013.01.17.0437-b.bsc.efes)
  ! Current Time: 2013-02-20.19:06:18
  !
  version 1.0
@@ -169,7 +169,7 @@ In the Master node, run show running-config. Save the output to a file outside t
     firewall allow from 192.168.67.141 tcp 7000
     firewall allow from 192.168.67.141 web
  !
- bvs-definition default
+ onv-definition default
 
 2. Verify the state of the OVP cluster.
 
@@ -190,8 +190,8 @@ Log in to any node and run show ha. Verify that:
  node1> debug bash
  ***** Warning: this is a debug command - use caution! *****
  ***** Type "exit" or Ctrl-D to return to the BigOS CLI *****
- bsn@node1:~$ 
- bsn@node1:~$ sudo passwd images
+ oscp@node1:~$ 
+ oscp@node1:~$ sudo passwd images
  Enter new UNIX password: 
  Retype new UNIX password: 
  passwd: password updated successfully
@@ -203,9 +203,9 @@ In these examples the original slave node, is node2.
 1. Copy the upgrade package to each node using scp on the images account. For example: 
 scp <upgrade-package> images@<node-ip>:
 
- localhost:~ username$ scp /Users/username/Desktop/bigswitchcontroller-upgrade-2013.02.13.0921.pkg   images@192.168.67.141:
+ localhost:~ username$ scp /Users/username/Desktop/controller-upgrade-2013.02.13.0921.pkg   images@192.168.67.141:
  images@192.168.67.141's password: 
- bigswitchcontroller-upgrade-2013.02.13.0921.p 100%  501MB  21.8MB/s   00:23    
+ oscp-upgrade-2013.02.13.0921.p 100%  501MB  21.8MB/s   00:23    
 
 2. Log in as admin on the SLAVE node.
 
@@ -217,13 +217,13 @@ If the upgrade command fails, run upgrade abort and return to step 2.
  $ ssh admin@192.168.67.141
  admin@192.168.67.141's password: 
  Last login: Sun Feb 17 18:31:39 2013 from 192.168.67.1
- BigShell (bigsh) v0.1 (c) by Big Switch Networks.
- default controller: 127.0.0.1:8000, Big Switch Controller (2013.01.17.0437-b.bsc.efes)
+ BigShell (bigsh) v0.1 (c) by Open Daylight Foundation
+ default controller: 127.0.0.1:8000, Open Daylight Foundation (2013.01.17.0437-b.bsc.efes)
 
  node2> enable
 
  node2# upgrade 
- Upgrade controller from image '/home/images/bigswitchcontroller-upgrade-2013.02.13.0921.pkg'?
+ Upgrade controller from image '/home/images/oscp-upgrade-2013.02.13.0921.pkg'?
  (yes to continue) yes
  Executing upgrade...
  1 - Verifying package checksum
@@ -267,7 +267,7 @@ If not, run upgrade abort and return to step 2.
 	(unknown) at 18:52 ...
  The system is going down for reboot NOW!
  ... 
- Big Switch Controller (2013.02.13.0921-b.bsc.fat-tire)
+OSCP (2013.02.13.0921-b.bsc.fat-tire)
  Log in as 'admin' to configure
  node2 login:
 
@@ -276,8 +276,8 @@ If not, run upgrade abort and return to step 2.
 On this first login, the upgrade process continues.
 
  Upgrading: Initializing controller nodes
- Big Network Controller
- default controller: 127.0.0.1:8000, Big Switch Controller (2013.02.13.0921-b.bsc.fat-tire)
+ OSCP
+ default controller: 127.0.0.1:8000, OSCP (2013.02.13.0921-b.bsc.fat-tire)
  node2>
 
 8. Execute show ha to verify that:
@@ -335,7 +335,7 @@ In these examples the original master node, is node1.
  2 f73ac9bf-e1fb-4c74-9392-ea1f43059031   node2 MASTER  Upgrading 20 minutes enabled disabled
  node1# enable
  node1# upgrade
- Upgrade controller from image '/home/images/bigswitchcontroller-upgrade-2013.02.13.0921.pkg'?
+ Upgrade controller from image '/home/images/oscp-upgrade-2013.02.13.0921.pkg'?
  (yes to continue) yes
  Executing upgrade...
  1 - Verifying package checksum
@@ -371,8 +371,8 @@ On this first login, the upgrade process continues.
 
  Starting Database
  Upgrading: Syncing Database
- Big Network Controller
- default controller: 127.0.0.1:8000, Big Switch Controller (2013.02.13.0921-b.bsc.fat-tire)
+OSCP
+ default controller: 127.0.0.1:8000, OSCP (2013.02.13.0921-b.bsc.fat-tire)
  node1>
 
 8. Execute <codee>show ha</code>. Verify that both nodes show Ready in their Status column, and there is exactly one MASTER and one SLAVE in the HA Role column. If this is not so, the cluster might be in an inconsistent state, and might be reverted.
@@ -406,8 +406,8 @@ A fully or partially upgraded 2-node cluster can be reverted back to the previou
 2. Press the spacebar when prompted to pause the boot sequence.
 
  SYSLINUX 4.02 debian=20101016 EDD Copyright (C) 1994-2010 H. Peter Anvin et al
- 1   Big Switch Controller (2013.01.17.0437-b.bsc.efes)
- 2 * Big Switch Controller (2013.02.13.0931-b.bsc.fat-tire)
+ 1   OSCP(2013.01.17.0437-b.bsc.efes)
+ 2 * OSCP(2013.02.13.0931-b.bsc.fat-tire)
  Press Space within 3 seconds to interrupt automatic boot
  boot:
 
@@ -423,8 +423,8 @@ A fully or partially upgraded 2-node cluster can be reverted back to the previou
 
  Starting Database
  Reverting: Configuring firewalls
- BigShell (bigsh) v0.1 (c) by Big Switch Networks.
- default controller: 127.0.0.1:8000, Big Switch Controller (2013.01.17.0437-b.bsc.efes)
+ BigShell (bigsh) v0.1 (c) by OSCP
+ default controller: 127.0.0.1:8000, OSCP (2013.01.17.0437-b.bsc.efes)
  node1>
 
 8. Run <code>show ha</code>. 
@@ -442,7 +442,7 @@ To decommission a Slave node:
 # Run the <code>ha decommission <slave_node_ip_address></code> command.
 # Confirm decommission.
 
-This removes the node from the BNC cluster and resets this Slave node to factory settings, preparing it for a re-configuration.
+This removes the node from the OSCP cluster and resets this Slave node to factory settings, preparing it for a re-configuration.
 
  node1> enable
  node1# ha decommission 192.168.67.131
@@ -486,28 +486,28 @@ The OBNC Controller rollback feature can be used to rollback a 2-node cluster to
 1. Backup the current configuration data. 
 In the Master node, run copy running-config <destination>. The following example shows confirming node as master node, saving the configuration file to a directory on the node, and locating it. 
 
- bnc1# show ha
+ OSCP1# show ha
  Cluster Name                           Cluster Number HA Enabled
  --------------------------------------|--------------|----------
  9c3be28f-e5cd-4ec9-9f77-087808119e11.0 130            True
  Controller Nodes
  # Alias @ HA Role Status Uptime             Errors
  -|-----|-|-------|------|------------------|------
- 1 bnc1  * MASTER  Ready  1 hour, 16 minutes
- 2 bnc2    SLAVE   Ready  1 hour, 12 minutes
+ 1 OSCP1  * MASTER  Ready  1 hour, 16 minutes
+ 2 OSCP2    SLAVE   Ready  1 hour, 12 minutes
 
- bnc1# copy running-config file://copy1
+OSCP1# copy running-config file://copy1
  
- bnc1# debug bash
+ OSCP1# debug bash
  ***** Warning: this is a debug command - use caution! *****
  ***** Type "exit" or Ctrl-D to return to the BigOS CLI *****
  
- bsn@bnc1:/$ cd ../../opt/bigswitch/run/saved-configs
- bsn@bnc1:/opt/bigswitch/run/saved-configs$ ls -la
+ oscp@OSCP1:/$ cd ../../opt/oscp/run/saved-configs
+ oscp@OSCP1:/opt/oscp/run/saved-configs$ ls -la
  total 16
- drwxr-xr-x 2 bsn bsn 4096 2013-02-20 04:48 .
- drwxr-xr-x 3 bsn bsn 4096 2013-02-20 00:46 ..
- -rw-r--r-- 1 bsn bsn 2582 2013-02-20 04:48 copy1
+ drwxr-xr-x 2 oscp oscp 4096 2013-02-20 04:48 .
+ drwxr-xr-x 3 oscp oscp 4096 2013-02-20 00:46 ..
+ -rw-r--r-- 1 oscp oscp 2582 2013-02-20 04:48 copy1
 
 2. If you saved your configuration data off the node, copy the configuration file to the /images directory on the node.
 
@@ -516,9 +516,9 @@ a) Log in as admin on each node, and setup a password for user "images". On the 
  node1> debug bash
  ***** Warning: this is a debug command - use caution! *****
  ***** Type "exit" or Ctrl-D to return to the BigOS CLI *****
- bsn@node1:~$ 
+ oscp@node1:~$ 
    
- bsn@node1:~$ sudo passwd images
+ oscp@node1:~$ sudo passwd images
  Enter new UNIX password: 
  Retype new UNIX password: 
  passwd: password updated successfully
@@ -542,7 +542,7 @@ From the master node, run the rollback command in enable mode referencing either
 
 You have the option to abort the rollback after rolling back the first (slave) node. OpenFlow switch traffic is migrated back to the un-rolled-back (master) node and the rolled-back (slave) node is placed in the factory-reset state. You must manually complete the first boot configuration on rolled-back (slave) node to add it to the cluster.
 
-# The snapshot configuration is restored from /opt/bigswitch/run/saved-configs directory or /home/images directory.
+# The snapshot configuration is restored from /opt/oscp/run/saved-configs directory or /home/images directory.
 # This command serially returns both nodes of the cluster to a selected previous configuration.
 # The command executes on the slave node first. After the return to the selected configuration on slave node is complete, it reboots and becomes a master node of a newly formed single node cluster. All switch traffic is automatically migrated to this new master node.
 # The command returns the master node from the old cluster to the selected previous configuration. The old master node reboots itself and joins the new cluster as a slave node.
