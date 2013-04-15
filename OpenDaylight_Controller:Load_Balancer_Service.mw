@@ -23,8 +23,113 @@ Assumptions:
 # Packets to a VIP must leave the OpenFlow  cluster from the same switch from where it entered it.
 # When you delete a VIP or a server pool or a server from a pool, the service does not delete the flow rules it has already installed. The flow rules should automatically time out after the idle timeout of 5 seconds.
 
-==How to Run==
+==Load balancer service REST APIs summary==
 
-Forthcoming...
+{| class="wikitable"
+|-
+! Description !! URI !!	Type !!	Request Body/Arguments !! Response Codes
+|-
+| List details of all existing pools || /one/nb/v2/lb/{container-name*}/ || GET || || 200 ("Operation successful")<br> 404 ("The containerName is not found") <br>503 "Load balancer service is unavailable")
+|-
+|List details of all existing VIPs||	/one/nb/v2/lb/{container-name}/vips||	GET	|| ||	200 ("Operation successful")<br>404 ("The containerName is not found") <br>503 ("Load balancer service is unavailable")
+|-
+|Create pool||	/one/nb/v2/lb/{container-name}/create/pool ||	POST	|| {<br>"name":"",<br>"lbmethod":""<br>} ||	201 ("Pool created successfully")<br>404 ("The containerName not found")<br>503 ("Load balancer service is unavailable")<br>409 ("Pool already exist")<br>415 ("Invalid input data")
+|-
+|Delete pool||	/one/nb/v2/lb/{container-name}/delete/pool/{pool-name}||	DELETE|| ||	200 ("Pool deleted successfully")<br>404 ("The containerName not found")<br> 503 ("Load balancer service is unavailable")<br> 404 ("Pool not found") <br> 500 ("Failed to delete pool")
+|-
+|Create VIP || /one/nb/v2/lb/{container-name}/create/vip || POST || {<br> "name":"", <br> "ip":"ip in (xxx.xxx.xxx.xxx) format", <br> "protocol":"TCP/UDP", <br> "port":"any valid port number", <br>  "poolname":"" (optional) <br> } || 201 ("VIP created successfully") <br> 404 ("The containerName not found") <br>  503 ("Load balancer service is unavailable") <br> 409 ("VIP already exists") <br> 415 ("Invalid input data")
+
+|-
+|Update VIP || /one/nb/v2/lb/{container-name}/update/vip || PUT	|| { <br> "name":"", <br> "poolname":"" <br> } || 201 ("VIP updated successfully") <br> 404 ("The containerName not found") <br> 503 ("VIP not found") <br> 404 ("Pool not found") <br> 405 ("Pool already attached to the VIP") <br> 415 ("Invalid input name")
+|-
+|Delete VIP || /one/nb/v2/lb/{container-name}/delete/vip/{vip-name} || DELETE || || 200 ("VIP deleted successfully") <br> 404 ("The containerName not found") <br> 503 ("Load balancer service is unavailable") <br> 404 ("VIP not found") <br> 500 ("Failed to delete VIP")
+|-
+|Create pool member || /one/nb/v2/lb/{container-name}/create/poolmember|| POST|| { <br> "name":"", <br> "ip":"ip in (xxx.xxx.xxx.xxx) format", <br> "poolname":"existing pool name" <br> } || 201 ("Pool member created successfully") <br> 404 ("The containerName not found") <br> 503 ("Load balancer service is unavailable") <br> 404 ("Pool not found") <br> 409 ("Pool member already exists") <br> 415 ("Invalid input data")
+
+|-
+|Delete pool member || /one/nb/v2/lb/{container-name}/delete/poolmember/<br>{pool-member-name}/{pool-name} || DELETE || || 200 ("Pool member deleted successfully") <br> 404 ("The containerName not found") <br> 503 ("Load balancer service is unavailable") <br> 404 ("Pool member not found") <br> 404 ("Pool not found")
+|}
+<span>*Current implementation of opendaylight usage 'default' as a container name </span>
+<span><br>NOTE:Property "name" of each individual entity must be unique.</span>
+
+==Load balancer service in action==
+Load Balancer Service In Action:
+
+1. Start opendaylight controller - make sure samples.loadbalancer & samples.loadbalancer.northbound modules are loaded by the controller.
+
+2. Create any mininet topology and connect it to the controller. For this example we assume tree topology with depth=2,fanout=4. This topology will create 16 hosts, 4 edge switches each connected to 4 hosts, and 1 core switch connected to all the 4 edge switches. You can use following command to start mininet with this tree topology
+<pre>
+mn --topo=tree,2,4 --controller=remote,ip=<Host IP where controller is running>,port=6633
+</pre>
+
+	This default tree topology will assign ip address from 10.0.0.1 - 10.0.0.16/8 IP range to its 16 hosts.
+
+3. Add default gateway in opendaylight for the mininet network as mentioned in the following URL:
+https://wiki.opendaylight.org/view/OpenDaylight_Controller:Installation 
+
+4. Execute the command "pingall" in mininet and make sure that all the hosts are reachable from each other.
+
+5. Create load balancer pool with round robin load balancing policy
+<pre>
+curl --user "admin":"admin" -H "Accept: application/json" -H "Content-type: application/json" -X POST  
+                         http://<Controller_IP>:8080/one/nb/v2/lb/default/create/pool -d '{"name":"PoolRR","lbmethod":"roundrobin"}'
+</pre>
+6. Create load balancer VIP
+
+<pre>
+curl --user "admin":"admin" -H "Accept: application/json" -H "Content-type: application/json" -X POST  
+                         http://Controller_IP:8080/one/nb/v2/lb/default/create/vip -d '{"name":"VIP-RR","ip":"10.0.0.20","protocol":"TCP","port":"5550"}'
+</pre>
+
+7. Add pool members to the load balancer pool. Host H1 (10.0.0.1) will be used as a source/client that will send traffic to the VIP.
+<pre>
+curl --user "admin":"admin" -H "Accept: application/json" -H "Content-type: application/json" -X POST  
+                         http://Controller_IP:8080/one/nb/v2/lb/default/create/poolmember -d '{"name":"PM2","ip":"10.0.0.2","poolname":"PoolRR"}'
+
+curl --user "admin":"admin" -H "Accept: application/json" -H "Content-type: application/json" -X POST  
+                         http://Controller_IP:8080/one/nb/v2/lb/default/create/poolmember -d '{"name":"PM3","ip":"10.0.0.3","poolname":"PoolRR"}'
+</pre>
+
+	Similarly you can add all the remaining 13 hosts to the pool. 
+
+8. Since VIP created in step 7, doesn't exist in the network, opendaylight controller won't be able to resolve ARP for IP of the VIP. Load balancer application assumes that if VIP is configured and exposed by user to internal/external network, packets that are destined to the VIP's IP address will get routed to it through external mechanisms. For this example, we can locally resolve the ARP for the VIP's IP, by adding static entry to the ARP table of the client/source host. The steps below will take you through details of how to accomplish that.
+
+9. Spawn xterm for hosts h1 to h4 from mininet prompt.
+
+10. Add static ARP entry for VIP's IP address in the host h1 arp cache. Execute the following command in h1 xterm window to add the ARP entry
+<pre>
+arp -s 10.0.0.20 00:00:10:00:00:20
+</pre>
+
+11. On hosts h2-h3-h4,  start iperf server instances that listen on port 5550 ( iperf -s -p 5550 )
+
+12. On h1,  start iperf client that sends traffic to the virtual ip address -- iperf -c 10.0.0.20 -p 5550
+
+13. You should see that iperf client connects to the iperf server running on host h2.
+
+14. Once the previous test of iperf finishes, trigger the iperf client again, and this time it will connect to the iperf server running on host h3. Similarly in next iteration it will connect to the h4 in round robin fashion. 
+
+Similarly ,you can try the random load balancing policy by create load balancer pool with "random" policy.
+
+You can execute the following curl commands to clean up the load balancer entities you created in step 6,7 and 8.
+
+1. Delete pool members:
+<pre>
+curl --user "admin":"admin"  -H "Accept: application/json" -H "Content-type: application/json" -X DELETE
+                                                                 http://Controller_IP:8080/one/nb/v2/lb/default/delete/poolmember/PM2/PoolRR'
+</pre>
+	You can delete remaining pool members similarly.
+
+2. Delete VIP
+<pre>
+curl --user "admin":"admin"  -H "Accept: application/json" -H "Content-type: application/json" -X DELETE 
+                                                                http://Controller_IP:8080/one/nb/v2/lb/default/delete/vip/VIP-RR
+</pre>
+
+3. Delete pool:
+<pre>
+curl --user "admin":"admin"  -H "Accept: application/json" -H "Content-type: application/json" -X DELETE
+                                                                http://Controller_IP:8080/one/nb/v2/lb/default/delete/pool/PoolRR
+</pre>
 
 [[Category:OpenDaylight Controller]]
