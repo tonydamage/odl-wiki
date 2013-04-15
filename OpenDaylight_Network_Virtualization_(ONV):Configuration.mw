@@ -6,9 +6,9 @@
 
 =This Guide and the Example Network=
 
-This user guide will directly cover configuration examples for most of the OpenDaylight Network Virtualization (ONV) concepts and show how you can configure these manually using the command-line interface (CLI) by using a small, software-only network. While this is useful to explain the concepts and give examples, you should note that the most common deployment of ONV is in conjunction with a cloud orchestration system such as OpenStack or CloudStack. In that case, much of the configuration in BVS will be automatically created by the integration with the cloud orchestration system. Even in that case, you may still want to use the CLI to augment/specialize the configuration or to troubleshoot the system.
+This user guide will directly cover configuration examples for most of the OpenDaylight Network Virtualization (ONV) concepts and show how you can configure these manually using the command-line interface (CLI) by using a small, software-only network. While this is useful to explain the concepts and give examples, you should note that the most common deployment of ONV is in conjunction with a cloud orchestration system such as OpenStack or CloudStack. In that case, much of the configuration in ONV will be automatically created by the integration with the cloud orchestration system. Even in that case, you may still want to use the CLI to augment/specialize the configuration or to troubleshoot the system.
 
-Further, you can deploy BVS in many different combinations, including choice of fabric (Layer 2 non-OpenFlow fabric, Layer 3 non-OpenFlow fabric with overlay tunnels, or OpenFlow fabric), mix of servers (non-virtualized (bare-metal) and virtualized), and others. All these combinations will not be covered in this guide, but you can consult with Big Switch Networks support for access to deployment guides that cover more of these specific combinations.
+Further, you can deploy ONV in many different combinations, including choice of fabric (Layer 2 non-OpenFlow fabric, Layer 3 non-OpenFlow fabric with overlay tunnels, or OpenFlow fabric), mix of servers (non-virtualized (bare-metal) and virtualized), and others. 
 
 Below is the example network that will be used throughout this guide:
 
@@ -16,9 +16,9 @@ Below is the example network that will be used throughout this guide:
 
 You can create this network by running a mininet command (refer to the OSCP user guide for info on how to use mininet) on the master controller-node from the debug bash prompt:
 
- bsn@bnc:~$ sudo mn --controller=remote --ip=<substitute the IP address of your controller-node here> --mac --topo=tree,depth=2
+ oscp@oscp:~$ sudo mn --controller=remote --ip=<substitute the IP address of your controller-node here> --mac --topo=tree,depth=2
 
-Each section is this guide will build various BVS concepts around this network.  In the examples, you will see how BVS can treat the four hosts (h1-h4) as a general pool of compute that can be converted into multiple tenants and VNSes inside them.
+Each section is this guide will build various ONV concepts around this network.  In the examples, you will see how ONV can treat the four hosts (h1-h4) as a general pool of compute that can be converted into multiple tenants and VNSes inside them.
 
 [[File:Onv-configuration-image2.png|530 px]]
 
@@ -56,10 +56,10 @@ By default, all the hosts created in this network will join the "default" VNS in
  h4 -> h1 h2 h3 
  *** Results: 0% dropped (0/12 lost)
 
-Then, in the OSCP CLI, you can see them with the show bvs all mac-address-table command:
+Then, in the OSCP CLI, you can see them with the show onv all mac-address-table command:
 
- bnc# show bvs all mac-address-table 
- # Tenant  Bvs     Address Space MAC Address            VLAN IP Address Attachment Point Last Seen
+oscp# show onv all mac-address-table 
+ # Tenant  onv     Address Space MAC Address            VLAN IP Address Attachment Point Last Seen
  -|-------|-------|-------------|----------------------|----|----------|----------------|---------
  1 default default default       00:00:00:00:00:01 (h1)      10.0.0.1   s6/1 (s6-eth1)   0 minute
  2 default default default       00:00:00:00:00:02 (h2)      10.0.0.2   s6/2 (s6-eth2)   0 minute
@@ -70,28 +70,28 @@ Then, in the OSCP CLI, you can see them with the show bvs all mac-address-table 
 
 =Virtual Network Segments (VNSes)=
 
-You can create a virtual network segment under a tenant by using the bvs-definition command.
+You can create a virtual network segment under a tenant by using the onv-definition command.
 
- bnc# conf t
- bnc(config)# tenant red
- bnc(config-tenant)# bvs-definition devtest-vns
- bnc(config-tenant-def-bvs)# exit
- bnc(config-tenant)# exit
- bnc(config)# tenant green
- bnc(config-tenant)# bvs-definition web-vns
- bnc(config-tenant-def-bvs)# exit
- bnc(config-tenant)# bvs-definition app-vns
- bnc(config-tenant-def-bvs)# exit
+ oscp# conf t
+ oscp(config)# tenant red
+ oscpconfig-tenant)# onv-definition devtest-vns
+ oscp(config-tenant-def-onv)# exit
+ oscp(config-tenant)# exit
+ oscp(config)# tenant green
+ oscp(config-tenant)# onv-definition web-vns
+ oscp(config-tenant-def-onv)# exit
+ oscp(config-tenant)# onv-definition app-vns
+ oscp(config-tenant-def-onv)# exit
 
-Use the show tenant < tenant id > bvs command or the show bvs all command to see the VNSes that have been configured.
+Use the show tenant < tenant id > onv command or the show onv all command to see the VNSes that have been configured.
 
- bnc# sh tenant green bvs
- # Tenant BVS ID  Active Priority ARP Config Mode  DHCP Config Mode DHCP Ip Broadcast Mode   Network Service Address   Space
+oscp# sh tenant green onv
+ # Tenant ONV ID  Active Priority ARP Config Mode  DHCP Config Mode DHCP Ip Broadcast Mode   Network Service Address   Space
  -|------|-------|------|--------|----------------|----------------|-------|----------------|-------------   --|-------------
  1 green  app-vns True   1000     flood-if-unknown flood-if-unknown         forward-to-known
  2 green  web-vns True   1000     flood-if-unknown flood-if-unknown         forward-to-known
- bnc# sh bvs all
- # Tenant  BVS ID      Active Priority ARP Config Mode  DHCP Config Mode DHCP Ip Broadcast Mode   Network Service    Address Space
+ oscp# sh onv all
+ # Tenant  ONV ID      Active Priority ARP Config Mode  DHCP Config Mode DHCP Ip Broadcast Mode   Network Service    Address Space
  -|-------|-----------|------|--------|----------------|----------------|-------|----------------|-------- -------|-------------
  1 default default     True   1000     flood-if-unknown flood-if-unknown         forward-to-known
  2 green   app-vns     True   1000     flood-if-unknown flood-if-unknown         forward-to-known
@@ -103,12 +103,12 @@ At this point, you have created the virtual network segments within each tenant,
 [[File:Onv-configuration-image4.png|530 px]]
 
 
-You can validate this with the show tenant green bvs app-vns mac-address-table command string and it shows no hosts are assigned to the VNS at this point.
+You can validate this with the show tenant green onv app-vns mac-address-table command string and it shows no hosts are assigned to the VNS at this point.
 
- bnc# sh tenant green bvs app-vns mac-address-table 
+ oscp# sh tenant green onv app-vns mac-address-table 
  None.
 
-Now that you have a bvs-definition object, you can:
+Now that you have a onv-definition object, you can:
 
 * Define rules about which machines should be included in the VNS
 * Define broadcast, ARP, and DHCP behavior
@@ -121,7 +121,7 @@ All these are covered in later sections of the user guide.
 =Defining Membership in a VNS=
 
 By default, a VNS provides any-to-any connectivity for all the machines that are included in it.
-Once a VNS has been created, next you define which machines in the network are members of the VNS. Do this by creating <code>interface-rules</code> under a <code>bvs-definition</code>. These rules can be based on:
+Once a VNS has been created, next you define which machines in the network are members of the VNS. Do this by creating <code>interface-rules</code> under a <code>onv-definition</code>. These rules can be based on:
 
 * port-based rules (port 42 on switch 3),
 * header-based rules (ip-subnet = 10.0.1.0/24),
@@ -146,16 +146,16 @@ All the conditions specified under a single interface-rule must be matched in or
 To create and configure your Virtual Network Segments (VNSes), first create tenant object to contain the VNSes.
 From the controller CLI, create tenant objects for the "red" tenant and the "green" tenant.
 
- bnc# 
- bnc# conf t
- bnc(config)# tenant red
- bnc(config-tenant)# exit
- bnc(config)# tenant green
- bnc(config-tenant)# exit
+ oscp# 
+ oscp# conf t
+ oscp(config)# tenant red
+ oscp(config-tenant)# exit
+ oscp(config)# tenant green
+ oscp(config-tenant)# exit
 
 Use the show tenant command or the show running config command to see the "red" and "green" tenants have been created.
 
- bnc# show tenant
+ oscp# show tenant
  # Tenant ID Active Description Router ID
  -|---------|------|-----------|---------
  1 default   True
@@ -163,9 +163,9 @@ Use the show tenant command or the show running config command to see the "red" 
  3 green     True
  4 red       True
  5 system    True               vrsystem
- bnc# show running-config | begin tenant
+ oscp# show running-config | begin tenant
  tenant default
-   bvs-definition default
+   onv-definition default
  !
  tenant external
  !
@@ -191,16 +191,16 @@ Membership based on information in the packet, such as MAC address or IP subnet,
 
 Use the match mac, match ip-subnet, or match vlans commands to define membership based on information in the packet. For example, you can see assignment of two of the machines based on the MAC address and IP subnet below:
 
- bnc# conf t
- bnc(config)# tenant red
- bnc(config-tenant)# bvs-definition devtest-vns
- bnc(config-tenant-def-bvs)# interface-rule mac-1
- bnc(config-tenant-def-bvs-if-rule)# match mac 00:00:00:00:00:01
- bnc(config-tenant-def-bvs-if-rule)# exit
- bnc(config-tenant-def-bvs)# interface-rule ip-3
- bnc(config-tenant-def-bvs-if-rule)# match ip-subnet 10.0.0.3/32
- bnc(config-tenant-def-bvs-if-rule)# end
- bnc# 
+ oscp# conf t
+ oscp(config)# tenant red
+ oscp(config-tenant)# onv-definition devtest-vns
+ oscp(config-tenant-def-onv)# interface-rule mac-1
+ oscpconfig-tenant-def-onv-if-rule)# match mac 00:00:00:00:00:01
+ oscp(config-tenant-def-onv-if-rule)# exit
+ oscp(config-tenant-def-onv)# interface-rule ip-3
+ oscp(config-tenant-def-onv-if-rule)# match ip-subnet 10.0.0.3/32
+ oscp(config-tenant-def-onv-if-rule)# end
+ oscp# 
 
 Using the test network in mininet, you can see that h1 (mac address 00:00:00:00:00:01) is allowed to ping h3 (IP address 10.0.0.3), but it no longer is able to ping 10.0.0.2 or 10.0.0.4:
 
@@ -225,17 +225,17 @@ Using the test network in mininet, you can see that h1 (mac address 00:00:00:00:
  --- 10.0.0.4 ping statistics ---
  1 packets transmitted, 0 received, 100% packet loss, time 0ms
 
-You can also validate this by using the show bvs all mac-address-table command (or the specific show tenant <tenant id> bvs < id > mac-address table command) on the controller:
+You can also validate this by using the show onv all mac-address-table command (or the specific show tenant <tenant id> onv < id > mac-address table command) on the controller:
 
- bnc# show bvs all mac-address-table 
- # Tenant  Bvs         Address Space MAC Address            VLAN IP Address Attachment Point Last Seen
+ oscp# show onv all mac-address-table 
+ # Tenant  ONV         Address Space MAC Address            VLAN IP Address Attachment Point Last Seen
  -|-------|-----------|-------------|----------------------|----|----------|----------------|---------
  1 red     devtest-vns default       00:00:00:00:00:01 (h1)      10.0.0.1   s6/1 (s6-eth1)   1 minute
  2 default default     default       00:00:00:00:00:02 (h2)      10.0.0.2   s6/2 (s6-eth2)   6 minutes
  3 red     devtest-vns default       00:00:00:00:00:03 (h3)      10.0.0.3   s7/1 (s7-eth1)   3 minutes
  4 default default     default       00:00:00:00:00:04 (h4)      10.0.0.4   s7/2 (s7-eth2)   6 minutes
- bnc# show tenant red bvs devtest-vns mac-address-table 
- # Tenant Bvs         Address Space MAC Address            VLAN IP Address Attachment Point Last Seen
+ oscp# show tenant red onv devtest-vns mac-address-table 
+ # Tenant ONV        Address Space MAC Address            VLAN IP Address Attachment Point Last Seen
  -|------|-----------|-------------|----------------------|----|----------|----------------|---------
  1 red    devtest-vns default       00:00:00:00:00:01 (h1)      10.0.0.1   s6/1 (s6-eth1)   1 minute
  2 red    devtest-vns default       00:00:00:00:00:03 (h3)      10.0.0.3   s7/1 (s7-eth1)   4 minutes
@@ -250,11 +250,11 @@ Continuing the example from earlier sections, at this point, two of the machines
 
 Use the match switch command under an interface-rule to specify membership of a VNS based on specific switch/port information. For example, you can see assignment of the h2 machine below to a VNS of the green tenant based on the switch-port information.
 
- bnc# conf t
- bnc(config)# tenant green
- bnc(config-tenant)# bvs-definition web-vns
- bnc(config-tenant-def-bvs)# interface-rule host-dot-2
- bnc(config-tenant-def-bvs-if-rule)# match switch s6 s6-eth2
+ oscp# conf t
+ oscpconfig)# tenant green
+ oscp(config-tenant)# onv-definition web-vns
+ oscpconfig-tenant-def-onv)# interface-rule host-dot-2
+ oscp(config-tenant-def-onv-if-rule)# match switch s6 s6-eth2
 
 Continuing the example from earlier sections, you can see that in mininet, h1 and h3 are still the only machines that are able to ping each other as h2 is a machine in a VNS by itself.
 
@@ -266,11 +266,11 @@ Continuing the example from earlier sections, you can see that in mininet, h1 an
  h4 -> X X X 
  *** Results: 83% dropped (10/12 lost)
 
-Checking the VNS assignment with the show bvs all mac-address-table command, you can see that h2 is now part of the 
+Checking the VNS assignment with the show onv all mac-address-table command, you can see that h2 is now part of the 
  
  web-vns of the green tenant:
- bnc(config-tenant-def-bvs-if-rule)# sh bvs all mac-address-table 
- # Tenant  Bvs         Address Space MAC Address            VLAN IP Address Attachment Point Last Seen
+ oscp(config-tenant-def-onv-if-rule)# sh onv all mac-address-table 
+ # Tenant  ONV         Address Space MAC Address            VLAN IP Address Attachment Point Last Seen
  -|-------|-----------|-------------|----------------------|----|----------|----------------|----------
  1 red     devtest-vns default       00:00:00:00:00:01 (h1)      10.0.0.1   s6/1 (s6-eth1)   11 minutes
  2 green   web-vns     default       00:00:00:00:00:02 (h2)      10.0.0.2   s6/2 (s6-eth2)   11 minutes
@@ -296,15 +296,15 @@ Use the match tags command under an interface-rule to specify the meta-tags that
 
 For example, you can see assignment of the tag type=appserver to h4's MAC address, and then the use of the match tags command under a new interface-rule appservers:
 
- bnc# conf t
- bnc(config)# tag default.type=appserver 
- bnc(config-tag)# match mac 00:00:00:00:00:04
- bnc(config-tag)# exit
- bnc(config)# tenant green
- bnc(config-tenant)# bvs-definition app-vns 
- bnc(config-tenant-def-bvs)# interface-rule appservers
- bnc(config-tenant-def-bvs-if-rule)# match tags type=appserver
- bnc(config-tenant-def-bvs-if-rule)#
+ oscp# conf t
+ oscp(config)# tag default.type=appserver 
+ oscp(config-tag)# match mac 00:00:00:00:00:04
+ oscp(config-tag)# exit
+ oscp(config)# tenant green
+ oscp(config-tenant)# onv-definition app-vns 
+ oscp(config-tenant-def-onv)# interface-rule appservers
+ oscp(config-tenant-def-onv-if-rule)# match tags type=appserver
+ oscp(config-tenant-def-onv-if-rule)#
 
 Continuing the example from earlier sections, you can see that in mininet, h1 and h3 are still the only machines that are able to ping each other as h2 and h4 are each in a VNS by itself.
 
@@ -316,16 +316,16 @@ Continuing the example from earlier sections, you can see that in mininet, h1 an
  h4 -> X X X 
  *** Results: 83% dropped (10/12 lost)
 
-Checking the VNS assignment with the show bvs all mac-address-table command, you can see that h4 is now part of the app-vns of the green tenant:
+Checking the VNS assignment with the show onv all mac-address-table command, you can see that h4 is now part of the app-vns of the green tenant:
 
- bnc# sh bvs all mac-address-table
- # Tenant Bvs         Address Space MAC Address            VLAN IP Address Attachment Point Last Seen
+oscp# sh onv all mac-address-table
+ # Tenant ONV         Address Space MAC Address            VLAN IP Address Attachment Point Last Seen
  -|------|-----------|-------------|----------------------|----|----------|----------------|---------
  1 red    devtest-vns default       00:00:00:00:00:01 (h1)      10.0.0.1   s6/1 (s6-eth1)   1 minute
  2 green  web-vns     default       00:00:00:00:00:02 (h2)      10.0.0.2   s6/2 (s6-eth2)   1 minute
  3 red    devtest-vns default       00:00:00:00:00:03 (h3)      10.0.0.3   s7/1 (s7-eth1)   1 minute
  4 green  app-vns     default       00:00:00:00:00:04 (h4)      10.0.0.4   s7/2 (s7-eth2)   1 minute
- bnc# 
+ oscp# 
 
 The example network now looks like this. Again note that machines h1 and h3 are able to reach each other, but machines h2 and h4 are not.  Even though h2 and h4 are part of the same green tenant, they are still unable to ping each other because they are in different VNSes. You can use the virtual routing service to allow inter-VNS connectivity.
 
@@ -337,22 +337,22 @@ Each interface-rule creates an interface on the VNS and any machine that matches
 
 For example, below is the configuration of the example network thus far:
 
- bnc# sh running-config | begin tenant
+ oscp# sh running-config | begin tenant
  tenant default
-  bvs-definition default
+  onv-definition default
  !
  tenant external
  !
  tenant green
-  bvs-definition app-vns
+  onv-definition app-vns
     interface-rule host-dot-4
       match tags type=appserver
-  bvs-definition web-vns
+  onv-definition web-vns
     interface-rule host-dot-2
       match switch s6 s6-eth2
  !
  tenant red
-  bvs-definition devtest-vns
+  onv-definition devtest-vns
     interface-rule ip-3
       match ip-subnet 10.0.0.3/32
     interface-rule mac-1
@@ -360,16 +360,16 @@ For example, below is the configuration of the example network thus far:
  !
  tenant system
   router vrsystem
- bnc# 
+ oscp# 
 
-Use the show bvs all interfaces command to see the "interfaces" that each host is attached to. This is useful for understanding which interface-rule is responsible for the membership of a machine in a VNS, especially when using tags or dynamic packet information. Note you still need to use the show bvs all mac-address-table command to see the  machines that are assigned to a VNS using the match switch command.
+Use the show onv all interfaces command to see the "interfaces" that each host is attached to. This is useful for understanding which interface-rule is responsible for the membership of a machine in a VNS, especially when using tags or dynamic packet information. Note you still need to use the show onv all mac-address-table command to see the  machines that are assigned to a VNS using the match switch command.
 
- bnc# sh bvs all interfaces
+oscp# sh onv all interfaces
  # Physical I/F       Address Space Switch                       Last Seen
  -|------------------|-------------|----------------------------|---------
  1 host-dot-2         default       00:00:00:00:00:00:00:06 (s6) 0 minute
  2 host-dot-2/s6-eth2 default       00:00:00:00:00:00:00:06 (s6) 0 minute
- # Tenant Bvs         Address Space Virtual I/F                  MAC Address       VLAN IP Address  Tags           Last Seen
+ # Tenant ONV        Address Space Virtual I/F                  MAC Address       VLAN IP Address  Tags           Last Seen
  -|------|-----------|-------------|----------------------------|-----------------|----|-----------|--------------|---------
  1 green  app-vns     default       appservers                                                      type=appserver 0 minute
  2 green  app-vns     default       appservers/00:00:00:00:00:04 00:00:00:00:00:04      10.0.0.4    type=appserver 0 minute
@@ -396,13 +396,13 @@ Access control lists (ACLs) can be defined with a VNS to control the flow of tra
 
 Within a VNS, access-lists can contain access-list entries. Each access-list entry can be defined to match a particular protocol and optional source/destination addresses and ports. These access-lists are then referred to using access-group statements underneath specific interfaces of the VNS.
 
-Note that these are defined within the VNS object itself, not as part of the bvs-definition. For example:
+Note that these are defined within the VNS object itself, not as part of the onv-definition. For example:
 
- bvs-definition by-subnet
+onv-definition by-subnet
  interface-rule main-subnet
     match ip-subnet 10.0.0.0/24
 
- bvs by-subnet
+ onv by-subnet
  access-list pair-blocker
     10 deny ip 10.0.0.65 10.0.0.66
     15 permit ip any any
@@ -419,7 +419,7 @@ Traditional networking using VLANs can manage broadcasts somewhat, but at the co
 
 ===ARP Handling===
 
-The Big Virtual Switch application has specific handlers for address resolution protocol (ARP) as it is responsible for much of the broadcast traffic in a network, and it is critical for proper interaction with the end machines on the network. A VNS can significantly reduce the amount of ARP traffic in the network by directly responding to ARP requests for hosts that it knows about.
+The Open Network Virtualization application has specific handlers for address resolution protocol (ARP) as it is responsible for much of the broadcast traffic in a network, and it is critical for proper interaction with the end machines on the network. A VNS can significantly reduce the amount of ARP traffic in the network by directly responding to ARP requests for hosts that it knows about.
 
 ARP options include:
 
@@ -451,7 +451,7 @@ A VNS can also manage other broadcast traffic in addition to ARP and DHCP. The o
 
 ===Unicast Traffic===
 
-The ONV Application requires that both hosts involved in a unicast packet are known to the Big Network Controller, i.e., these host must have sent a previous packet (e.g., a gratuitous ARP)  so that the OSCP is aware of the host's location. If the destination host of a unicast packet is not known ONV can send an ARP broadcast probe packet (RFC-5227) to try to discover the destination host. Host discovery is only possible if:
+The ONV Application requires that both hosts involved in a unicast packet are known to the Open SDN controller , i.e., these host must have sent a previous packet (e.g., a gratuitous ARP)  so that the OSCP is aware of the host's location. If the destination host of a unicast packet is not known ONV can send an ARP broadcast probe packet (RFC-5227) to try to discover the destination host. Host discovery is only possible if:
 
 * Arp-manager mode is <code>always-flood</code> or <code>flood-if-unknown</code>
 * Non OpenFlow networks forward ARP packets with zero sender protocol address (RFC-5227)
