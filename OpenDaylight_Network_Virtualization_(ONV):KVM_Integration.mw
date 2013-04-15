@@ -6,7 +6,7 @@
 
 =Integrating with KVM=
 
-This describes how to OpenFlow-enable the logical switch used by KVM servers for use with OpenDaylight Network Virtualization (ONV) and Big Network Controller. It describes the process of installing, configuring, and integrating an open-source OpenFlow software switch - OpenVSwitch (OVS, http://www.openvswitch.org) -with a KVM installation.
+This describes how to OpenFlow-enable the logical switch used by KVM servers for use with OpenDaylight Network Virtualization (ONV) and OpenDaylight SDN Controller Platform. It describes the process of installing, configuring, and integrating an open-source OpenFlow software switch - OpenVSwitch (OVS, http://www.openvswitch.org) -with a KVM installation.
 
 =Notation=
 
@@ -62,7 +62,7 @@ Follow the instructions in INSTALL.RHEL in the openvswitch-1.4.0 directory.
 
 =Configuring OpenVSwitch=
 
-OpenVSwitch (OVS) uses the same notion of a bridge, as a private and local software switch, similar to the standard Linux kernel's bridge. The standard Big Network Controller software allows you to virtualize, that is to logically subdivide, the software switch as you would any other hardware switch. As with any network device (logical or physical) there are many ways to deploy it. The following is our recommended deployment, but it is not the only means of using OVS.
+OpenVSwitch (OVS) uses the same notion of a bridge, as a private and local software switch, similar to the standard Linux kernel's bridge. The standard OSCP software allows you to virtualize, that is to logically subdivide, the software switch as you would any other hardware switch. As with any network device (logical or physical) there are many ways to deploy it. The following is our recommended deployment, but it is not the only means of using OVS.
 
 ==OpenVSwitch Control Command: ovs-vsctl==
 
@@ -79,7 +79,7 @@ Create a virtual bridge and name it ovs-br0. Then add a dedicated physical inter
  # ovs-vsctl add-br ovs-br0            # create a bridge named 'ovs-br0'
  # ovs-vsctl add-port ovs-br0 eth1     # attach eth1 to ovs-br0
 
-By adding eth1 to OVS, eth1 is no longer managed by the Linux kernel's IP stack. This means that eth1 no longer responds to ping or follows the Linux routing table. All of this functionality can be replicated through OVS and the Big Switch Controller, but most critically, if the SSH management session, that you are using to manage the host, crosses eth1, then your session hangs and you are disconnected from the box!
+By adding eth1 to OVS, eth1 is no longer managed by the Linux kernel's IP stack. This means that eth1 no longer responds to ping or follows the Linux routing table. All of this functionality can be replicated through OVS and the controller, but most critically, if the SSH management session, that you are using to manage the host, crosses eth1, then your session hangs and you are disconnected from the box!
 
 As a result, there is now a new Linux kernel interface named ovs-br0:
 
@@ -202,12 +202,12 @@ Run the following command to tell the controller the IP address to use for termi
 1122334455667788   <--- a 16 digit hex string, different on each machine
 # ovs-vsctl set bridge ovs-br0 other-config:datapath_id=$datapath_id
 
-Next, from the Big Switch Controller's CLI, enable tunnel termination for this box using the datapath_id value identified in the previous step.
+Next, from the controller's CLI, enable tunnel termination for this box using the datapath_id value identified in the previous step.
 
  % ssh admin@controller
  admin@controller's password: XXXX
  Last login: Mon Apr 23 22:10:59 2012 from 192.168.101.11
- BigShell (bigsh) v0.1 (c) by Big Switch Networks. 
+ BigShell (bigsh) v0.1 (c) by OpenDaylight
  default controller is: 127.0.0.1:8000
  controller> enable
  controller# configure
@@ -216,8 +216,6 @@ Next, from the Big Switch Controller's CLI, enable tunnel termination for this b
  controller(config-switch)# end
 
 In the startup script: ovsdb-server listens on port 6635 for incoming connections from TunnelManager. Ensure that listening is either only on the control interface (eth0) or that firewall rules are set to prevent connections from the data plane.
-
-
 
 =Integration with Command Line KVM=
 
