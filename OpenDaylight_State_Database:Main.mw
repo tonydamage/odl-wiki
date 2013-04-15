@@ -1,0 +1,73 @@
+[[File:OpenDaylight logo.jpg|300px]]
+
+=Overview=
+
+The OpenDaylight State Database (OSD) is a proposed architectural component of the controller platform that serves as a hub to access/share/persist state from the other components in the system. 
+
+OSD presents a tree model to clients. Different parts of the tree are backed by different storage backends depending on the storage characteristics/requirements described in the data schema. The overall logical data tree is the union of all of the overlaid physical trees from the different storage backends.
+
+OSD can be deployed either as a standalone component or embedded in another program (e.g. OpenDaylight Controller). In the standalone mode clients maintain persistent connections with OSD through which they can invoke request/reponse-style read/write operations and receive notifications. In the embedded mode the embedding application can invoke operations directly on the interface/class that implements the OSD API.
+
+The REST API is implemented as a separate client of the core OSD component and serves as the interface for external applications to access OSD. It mostly proxies requests through to the underlying OSD, except that it implements a permissions system to enforce AAA.
+ 
+The goals of the OpenDaylight State Database are:
+
+* Provide a unified way to access data from all of the components in the system.
+* Support access from multiple languages with minimal effort to support additional languages
+* Support a more flexible tree model for the data instead of flat tables
+* Provide a standard way to define the schema of the data with support for extensibility of data types
+* Support a notification mechanism that works across controller nodes in a cluster
+* Support AAA
+
+=Schema Definition=
+
+The logical tree is specified by schema definitions. The schema definitions are loaded at startup (but we could eventually support dynamic schema definition)
+
+The data schema supports the following types:
+
+* '''Boolean:''' true or false
+* '''Integer:''' a long integer (or possibly multi-precision, but that may not be supported by all client languages)
+* '''Floating Point:''' a double
+* '''String:''' a UTF8 character string
+* '''Date/Time:''' a UTC date/time, probably encoded as something like microseconds since the epoch
+* '''Binary Data:''' a blob of binary data
+* '''List''': of either one of the scalar data types or a aggregate data type
+* '''Aggregate:''' typically specified by defining a custom aggregate data type and specifying a node of the tree to be that data type (or a list of the data type).
+* '''Reference:''' a link to another part of the tree (sort of like a symbolic link in the Unix file system)
+
+Common attributes of nodes in the schema are:
+
+* '''Access Mode:''' Read-only, Write-only or Read/Write
+* '''Data Source Mapping:''' For example, "Config" attribute to distinguish between config vs. operational state data sources
+* '''Default Value'''
+* '''Restrictions:''' For example, Range restrictions for integer values, Length/RegEx restrictions for string values
+* '''Units:''' For example, seconds/milliseconds/microseconds for a setting that specifies a period/duration
+
+There are several options for how the data schema is specified. Options that have been discussed are:
+
+* YANG
+* custom JSON/YAML format
+* Java class (stylized subset of java; data members map to subnodes in the tree)
+
+YANG seems to be the closest thing to a standard for defining this sort of thing, so we will likely use that (and other parts of this document assume that).
+
+=OSD API=
+
+OSD provides the following abstract operations:
+
+* '''Read Schema:''' Return the data schema for a node of the tree. Input is the path to the node of the tree to read.
+* '''Write Schema:''' Update the data schema for a data type or a node of the tree. Input is the data schema (in some representation TBD). Initially we don't support this option and instead only support definition of schema via static schema configuration files (i.e YANG files)
+* '''Read Data:''' Read data from the tree. Input is the path to the node of the tree to read and a "Recursive" flag for whether to return the complete subtree rooted at the specified path. Output is the data for the specified node.
+* '''Query Tree:''' Query for data in a subtree. Input is the root path of a node in the tree to search and a query specification. Still need to decide the format of the query, but probably something based on a really simple subset of CSS selectors or XMLQuery. Output is the data that matches the query.
+* '''Write:''' Write a new node of the tree. Input is the path to the node of the tree to write and the (possibly hierarchical) data to write. The data must conform with the data schema for that node of the tree.
+* '''Delete:''' Delete a node of the tree. Input is the path to the node of the tree to delete.
+* '''Register Notification:''' Register to receive notifications about modifications to the tree. Input is the path to node of the tree
+* '''Unregister Notification:''' Unregister a notification that was previously registered. Input is the path to the node of the tree. [Or if we want to allow multiple notification for a single client on the same path we can return a notification token when the notification is register that is used to unregister it.]
+* '''Register Dynamic Node:''' Register a client callback to back a node of the tree with data that's generated dynamically by the client. Read/write operations to that data node invoke a callback to the client instead of being backed by one of built-in storage backends.
+* '''Unregister Dynamic Node:''' Unregister a dynamic data node that was previously registered by the client. Input is the path to the node of the tree.
+* '''Begin Transaction:''' Begin a transaction on a node of the tree. Subsequent write operations are only visible to the client that initiated the transaction.
+* '''Commit Transaction:''' Commit a transaction. Data modified during the the transaction is now visible to other clients (including invocation of any notifications that were registered).
+* '''Rollback Transaction:''' Rollback a transaction. All data modifications made since the transaction was begun are discarded.
+
+
+[[Category:OpenDaylight SDN Controller Platform]]
