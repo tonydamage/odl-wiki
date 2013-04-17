@@ -1,0 +1,228 @@
+{| align="right" border="1"
+|align="center"|'''User Guide'''
+|-
+|[[OpenDaylight SDN Controller Platform (OSCP):Installation|Installation]]<br>[[OpenDaylight SDN Controller Platform (OSCP):Clustering|Clustering & HA]]<br>[[OpenDaylight SDN Controller Platform (OSCP):Management|Management Integration]]<br>[[OpenDaylight SDN Controller Platform (OSCP):Troubleshooting|Troubleshooting]]<br>[[OpenDaylight SDN Controller Platform (OSCP):Main|Back to Top]]
+|}
+
+{| align="right" border="1"
+|align="center"|'''Programmer Guide     '''
+|-
+|[[OpenDaylight SDN Controller Platform (OSCP):Overview|Overview]]<br>[[OpenDaylight SDN Controller Platform (OSCP):Rest Reference|REST Reference]]<br>[[OpenDaylight SDN Controller Platform (OSCP):Module Loading System|Module Loading System]]<br>[[OpenDaylight SDN Controller Platform (OSCP):Tutorial-Writing a Module|Tutorial-Writing a Module]]<br>[[OpenDaylight SDN Controller Platform (OSCP):Main|Back to Top]]
+|}
+
+=Introduction=
+
+SDNplatform uses a home grown module system in order to decide what will be run. The goals of this system are as follows.
+* Define what modules are going to be loaded by modifying a configuration file
+* Swap out implementations of modules without modifying modules that depend upon them
+* Create a well defined platform and API to extend SDNplatform.
+* Enforce code modularity
+
+=Main Parts=
+
+The module system consists of a few main parts. The module loader, modules, services, a configuration file, and a file that contains the list of modules available in a jar.
+
+==Modules==
+
+A module is defined as a class that implements the ISDNplatformModule interface.
+
+ /**
+ * Defines an interface for loadable SDNplatform modules.
+ *
+ * At a high level, these functions are called in the following order:
+ * <ol>
+ * <li> getServices() : what services does this module provide
+ * <li> getDependencies() : list the dependencies
+ * <li> init() : internal initializations (don't touch other modules)
+ * <li> startUp() : external initializations (<em>do</em> touch other modules)
+ * </ol>
+ *
+ * @author alexreimers
+ */
+ public interface ISDNplatformModule {
+ 
+ /**
+ * Return the list of interfaces that this module implements.
+ * All interfaces must inherit ISDNplatformService
+ * @return
+ */
+ 
+ public Collection<Class<? extends ISDNplatformService>> getModuleServices();
+  
+ /**
+ * Instantiate (as needed) and return objects that implement each
+ * of the services exported by this module. The map returned maps
+ * the implemented service to the object. The object could be the
+ * same object or different objects for different exported services.
+ * @return The map from service interface class to service implementation
+ */
+ public Map<Class<? extends ISDNplatformService>,
+ ISDNplatformService> getServiceImpls();
+ 
+ /**
+ * Get a list of Modules that this module depends on. The module system
+ * will ensure that each these dependencies is resolved before the
+ * subsequent calls to init().
+ * @return The Collection of ISDNplatformServices that this module depnds
+ * on.
+ */
+ 
+ public Collection<Class<? extends ISDNplatformService>> getModuleDependencies();
+ 
+ /**
+ * This is a hook for each module to do its <em>internal</em> initialization,
+ * e.g., call setService(context.getService("Service"))
+ *
+ * All module dependencies are resolved when this is called, but not every module
+ * is initialized.
+ *
+ * @param context
+ * @throws SDNPlatformModuleException
+ */
+ 
+ void init(SDNPlatformModuleContext context) throws SDNPlatformModuleException; 
+
+ /**
+ * This is a hook for each module to do its <em>external</em> initializations,
+ * e.g., register for callbacks or query for state in other modules
+ *
+ * It is expected that this function will not block and that modules that want
+ * non-event driven CPU will spawn their own threads.
+ *
+ * @param context
+ */
+ 
+ void startUp(SDNPlatformModuleContext context);
+ }
+
+=Services=
+
+A module 'may'export one or more services. A service is defined as an interface that extends the ISDNplatformService interface.
+
+ /**
+ * This is the base interface for any ISDNplatformModule package that provides
+ * a service.
+ * @author alexreimers
+ *
+ */
+ public abstract interface ISDNplatformService {
+ // This space is intentionally left blank....don't touch it
+ }
+
+Currently, this interface is blank. It is used to enforce type safety in our loading system.
+
+==Configuration file==
+
+The configuration file specifies which modules to explicitly load. The format is standard Java properties. It uses a key value pair. For the module list we use the key "SDNplatform.modules". The value is a comma separated list on modules either on one line or using the \ delimiter. Here is the default configuration for SDNplatform.
+
+ sdnplatform.modules = net. sdnplatformcontroller.staticflowentry.StaticFlowEntryPusher,\
+ net. sdnplatform.forwarding.Forwarding,\
+ net. sdnplatform.jython.JythonDebugInterface
+
+Notice that there are many modules that are loaded in this configuration are not listed here. This is because the module system automatically loads the dependencies. If a module does not provide a service it&nbsp;*must*&nbsp;be explicitly specified here.
+
+==Module file==
+
+To find the modules in the classpath we use Java's ServiceLoader. This requires us to list all of the classes in a file. The format of the file is the fully qualified name of the module on it's own line. The file is located in src/main/resources/META-INFO/services/net.sdnplatform.module.ISDNplatformModule. Each jar which you are using (if you are using multiple jars, see below), should have its own META-INFO/services/net. sdnplatformcontroller.module.ISDNplatformModule listing classes which implement ISDNplatformModule. This is a sample file.
+
+ net.sdnplatform.core.CoreModule
+ net.sdnplatform.storage.memory.MemoryStorageSource
+ net.sdnplatform.devicemanager.internal.DeviceManagerImpl
+ net.sdnplatform.topology.internal.TopologyImpl
+ net.sdnplatform.routing.dijkstra.RoutingImpl
+ net.sdnplatform.forwarding.Forwarding
+ net.sdnplatform.core.OFMessageFilterManager
+ net.sdnplatform.staticflowentry.StaticFlowEntryPusher
+ net.sdnplatform.perfmon.PktInProcessingTime
+ net.sdnplatform.restserver.RestApiServer
+ net.sdnplatform.learningswitch.LearningSwitch
+ net.sdnplatform.hub.Hub
+ net.sdnplatform.jython.JythonDebugInterface
+
+=Startup sequence=
+
+==Module discovery==
+
+All modules (classes that implement SDNplatformModule) in the classpath are found and we create 3 maps.
+* The Service Map - Maps a service (i.e. IStorageSourceService) to the module(s) that provide it.
+* The Module Service Map - Maps a module (i.e. MemoryStorageSource) to all the service(s) it provides (i.e. IStorageSourceService)
+* The Module Name Map - Maps a string name to the module class
+
+==Find the minimal set of modules to load==
+
+The Depth First Search (DFS) algorithm is used to find the minimal set of modules that need to be loaded. All of the modules specified in the configuration file are added to the queue. As each module is dequeued it is added to the list of modules to be started. getModuleDependencies() is also called on the module. If it's module dependencies have not been added to the list of modules to be started they are done here. A SDNplatformModuleException can be thrown here for two reasons. First is if a module or it's dependency has been specified in the configuration file but was not found. The second is if two modules provide the same service and which one to use was not specified in the configuration file.
+
+==Initialize modules==
+
+The set of modules to be loaded are iterated over and init() is called on each of them. Here the module is supposed to do two things.
+
+* Wire together it's dependencies (i.e. IStorageSourceService) using the getServiceImpl() call on the SDNplatformModuleContext.
+* Perform&nbsp;*internal*&nbsp;initialization of it's own data structures.
+
+The order in which init() is called is not deterministic.
+
+==Startup modules==
+
+After init() has been called on each module startUp() is then called. In this call modules are allowed to perform calls that depend upon other modules. An example would be creating database tables using the IStorageSourceService module or starting worker threads using ISDNplatformProviderService's executor service.
+
+=Launching the controller via the command line=
+
+==Only using sdnplatform.jar==
+
+If you want to run sdnplatform in it's default configuration, the easiest way is to just run it via this command line.
+
+ java -jar sdnplatform.jar
+
+==Using multiple Jars==
+
+It is also possible to run sdnplatform using multiple jars. This is useful if you want to offer another package for distribution. The command to run it is slightly different.
+
+ java -cp sdnplatform.jar:/path/to/other.jar net.sdnplatform.core.Main
+
+\-cp tells Java what jar files to use in the classpath. The net.sdnplatform.core.Mains specifies where the main method to start the application is. &nbsp;Be sure to create MAIN-INF/{color:#222222}services/net.{color}{color:#222222}sdnplatform.core.{color}{color:#222222}module.ISDNplatformModule if your additional jar file includes classes which implement ISDNplatformModule.{color}
+
+==Specifying another configuration file==
+
+With both of the methods you can also specify a different configuration file. This is used using the \-cf option.
+
+java -cp sdnplatform.jar:/path/to/other.jar net.sdnplatform.core.Main -cf path/to/config/file.properties
+
+The \-cf must come after all the Java options are specified. This makes Java pass the argument to the program instead of the JVM. The ordering sequence of which configuration file to use is
+
+* The file specified by using the \-cf option
+* The config/sdnplatform.properties file if it exists
+* The sdnplatformdefault.properties file built into the jar (under src/main/resources)
+
+=Per module configuration options=
+
+The properties file can also specify per module configuration options. The format of the parameters is <fully qualified module name>.<config option name> = <value>. We use the fully qualified module name so any module can create configuration options specific to it's own implementation.
+
+For example if we want to specify the REST API port in the configuration file we add this to the property file we are using.
+
+ net.sdnplatform.restserver.RestApiServer.port = 8080
+
+In RestApiServer.java's init() method we parse the option.
+
+// read our config options
+Map<String, String> configOptions = context.getConfigParams(this);
+String port = configOptions.get("port");
+if (port != null) {
+restPort = Integer.parseInt(port);
+}
+
+Note that the null check is required. If no configuration option is provided the SDNplatformModuleLoader will not add it to the context.
+
+Options can also be specified via the command line as Java properties. These will override anything specified in a sdnplatform properties file.
+
+ java -Dnet.sdnplatform.restserver.RestApiServer.port=8080 -jar sdnplatform.jar
+
+Two these to note here. First is that any Java properties must be specified before \-jar sdnplatform.jar. Anything after this will be passed to the Java executable as a command line argument. The second is that there are no spaces with the \-D option.
+
+=Caveats=
+
+* In order to deal with circular dependencies the order in which init() and startUp() are called are not deterministic. Therefore you can not assume any other module's init or startUp methods have been called before yours.
+* Your configuration file can not be called sdnplatformdefault.properties. This is the default file included in the jar.
+* Each module must have a 0 argument (and preferably empty) constructor. Anything normally done in the constructor should be done instead in the init() call.
+* Multiple modules may not have service overlap, but functional overlap. For example both LearningSwitch and Forwarding are a way of forwarding packets as a response to PacketIns. Since they do not provide a common service we do not detect and overlap.
+
+[[Category:OpenDaylight SDN Controller Platform]]
