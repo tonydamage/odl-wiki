@@ -1,0 +1,1454 @@
+{| align="right" border="1"
+|align="center"|'''User Guide'''
+|-
+|[[OpenDaylight SDN Controller Platform (OSCP):Installation|Installation]]<br>[[OpenDaylight SDN Controller Platform (OSCP):Clustering|Clustering & HA]]<br>[[OpenDaylight SDN Controller Platform (OSCP):Management|Management Integration]]<br>[[OpenDaylight SDN Controller Platform (OSCP):Troubleshooting|Troubleshooting]]<br>[[OpenDaylight SDN Controller Platform (OSCP):Main|Back to Top]]
+|}
+
+{| align="right" border="1"
+|align="center"|'''Programmer Guide     '''
+|-
+|[[OpenDaylight SDN Controller Platform (OSCP):Overview|Overview]]<br>[[OpenDaylight SDN Controller Platform (OSCP):Rest Reference|REST Reference]]<br>[[OpenDaylight SDN Controller Platform (OSCP):Module Loading System|Module Loading System]]<br>[[OpenDaylight SDN Controller Platform (OSCP):Tutorial-Writing a Module|Tutorial-Writing a Module]]<br>[[OpenDaylight SDN Controller Platform (OSCP):Main|Back to Top]]
+|}
+
+=Introduction=
+
+This document describes the REST API for the OpenDaylight SDN Controller Platform. The REST API provides access to the network database that includes configuration data for the controller (e.g. static flow table entries), data for dynamically discovered network entities (e.g. switches, hosts), and statistics and logging data.
+
+The REST API is implemented in a separate process (i.e. "sdncon") from the OpenFlow controller (i.e. sdnplatform). sdnplatform has its own REST API for obtaining certain information, much of which is also available through the console API through proxied calls. This document only describes the sdncon network database REST API, not the sdnplatform REST API.
+
+By default the firewall on the controller blocks access to the REST API. If the application accessing the REST API is running on a remote machine, then the firewall settings on the controller machine need to be configured to allow access:
+
+# ssh to the controller machine: "ssh admin@<controller-ip>". This will put you in the CLI. 2. 
+#Enable remote access to the REST API (i.e. port 80): "enable; firewall allow web".
+
+Earlier releases of the controller used port 8000 for accessing the REST API. This port is still supported for backward compatibility. To configure the firewall to allow access on that port use the "firewall allow rest" command from the CLI. Use of this port is deprecated, though, so you should convert any code or scripts that use port 8000 to use port 80 instead (i.e. no explicit port specified in the URL).
+
+In many of the URL examples in the rest of the document "localhost" is used as the domain name in the URL. This works if the REST call is made from the controller itself. If you're accessing it remotely use the actual IP address or host name of the controller, not "localhost".
+
+
+xxxxxxxxx
+
+==Querying Items==
+
+Items are queried using the HTTP GET method. The form of the URL is: "http://&lt;domain-or-ip-address&gt;/rest/v1/model/&lt;data-type&gt;/&lt;optional-id&gt;?&lt;optional-query-params&gt;". You can optionally include a trailing slash at the end of the path portion of the URL.
+
+The data types currently supported are:
+
+* '''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">controller-node</font></span>'''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">: Read-only. The individual controller nodes/instances in the overall controller platform</font></span>
+* '''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">controller-alias</font></span>'''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">: Configure an alias/hostname for a controller node</font></span>
+* '''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">controller-interface</font></span>'''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">: Configure network interfaces for a controller</font></span>
+* '''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">controller-domain-name-server</font></span>'''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">: Configure the DNS servers for a controller node</font></span>
+* '''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">firewall-rule</font></span>'''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">: Configure firewall rules on controller interfaces</font></span>
+* '''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">global-config</font></span>'''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">: Configure global properties for the HA cluster</font></span>
+* '''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">feature</font></span>'''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">: Configure features that have been enabled on the controller</font></span>
+* '''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">topology-config</font></span>'''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">: Configure topology discovery properties</font></span>
+* '''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">snmp-server-config</font></span>'''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">: Configure SNMP server</font></span>
+* '''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">tacacs-plus-config</font></span>'''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">: Configure TACACS+ server</font></span>
+* '''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">tacacs-plus-host</font></span>'''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">: Configure TACACS+ hosts</font></span>
+* '''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">image-drop-user</font></span>'''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">: Configure password for upload of upgrade images</font></span>
+* '''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">switch</font></span>'''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">: Read-only. The switches associated with this controller</font></span>
+* '''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">switch-alias</font></span>'''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">: Configure an alias for a switch</font></span>
+* '''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">switch-config</font></span>'''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">: Per-switch configuration for Big Switch Controller</font></span>
+* '''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">switch-interface-config</font></span>'''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">: Per-switch interface configuration for Big Switch Controller</font></span>
+* '''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">switch-interface-alias</font></span>'''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">: Configure an alias for a switch interface</font></span>
+* '''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">port</font></span>'''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">: Read-only. The port info for the switches</font></span>
+* '''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">port-alias</font></span>'''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">: The port info for the switches</font></span>
+* '''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">port-channel</font></span>'''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">: Create port channels</font></span>
+* '''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">port-channel-config</font></span>'''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">: Configure port channels</font></span>
+* '''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">link</font></span>'''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">: Read-only. The links between switches</font></span>
+* '''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">flow-entry</font></span>'''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">: The statically configured flow table entries</font></span>
+* '''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">host-config</font></span>'''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">: Per-host configuration</font></span>
+* '''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">host-alias</font></span>'''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">: Configure aliases for hosts</font></span>
+* '''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">host-security-ip-address</font></span>'''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">: Configure ip address for spoofing protection</font></span>
+* '''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">host-security-attachment-point</font></span>'''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">: Configure attachment point for spoofing protection</font></span>
+* '''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">vns-definition</font></span>'''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">: Define Big Virtual Switches (VNS)</font></span>
+* '''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">vns-interface-rule</font></span>'''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">: Define interface rules for VNS</font></span>
+* '''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">vns-interface-config</font></span>'''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">: Per-interface configuration for interfaces created by VNS rules</font></span>
+* '''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">vns-access-list</font></span>'''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">: ACLs for VNS</font></span>
+* '''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">vns-access-list-entry</font></span>'''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">: Individual entries in a VNS ACL</font></span>
+* '''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">vns-interface-access-list</font></span>'''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">: Associate an VNS interface config object with an ACL</font></span>
+
+<span style="mso-fareast-font-family: Symbol; mso-bidi-font-family: Symbol"><font face="Symbol"><span style="mso-list: Ignore">·<span style="font: 7.0pt &quot;Times New Roman&quot;">       </span></span></font></span>'''<font face="Arial">vns-interface-rule-network-service-node-mapping</font>''': Associate a network service with a VNS
+
+* '''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">address-space</font></span>'''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">: Define an address space</font></span>
+* '''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">address-space-identifier-rule</font></span>'''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">: Define a membership rule for an address space</font></span>
+* '''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">vlan-config</font></span>'''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">: Configure VLANs to use with address-spaces</font></span>
+* '''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">network-service</font></span>'''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">: Define a network service</font></span>
+* '''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">network-service-node</font></span>'''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">: Define a network service node</font></span>
+* '''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">network-service-ip</font></span>'''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">: Associate an IP address with a network service</font></span>
+* '''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">network-service-mapping</font></span>'''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">: Associate a network service with a VNS</font></span>
+* '''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">bigtap-interface</font></span>'''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">: Define a tap interface</font></span>
+* '''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">bigtap-interface-config</font></span>'''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">: Configure a tap interface</font></span>
+* '''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">bigtap-policy</font></span>'''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">: Define a tap policy</font></span>
+* '''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">bigtap-policy-delivery-interface</font></span>'''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">: Configure delivery interfaces for a tap policy</font></span>
+* '''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">bigtap-policy-match</font></span>'''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">: Configure a match criteria for a tap policy</font></span>
+* '''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">bigtap-policy-network-identifier</font></span>'''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">: Configure a VLAN for a tap policy's traffic</font></span>
+* '''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">bigtap-policy-receive-interface</font></span>'''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">: Configure receive interfaces for a tap policy</font></span>
+* '''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">bigtap-policy-service</font></span>'''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">: Configure a service for tap policy</font></span>
+* '''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">bigtap-service</font></span>'''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">: Define a tap service for tapped traffic</font></span>
+* '''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">bigtap-service-preinterface</font></span>'''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">: Configure the pre-interface for a tap service</font></span>
+* '''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">bigtap-service-postinterface</font></span>'''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">: Configure the post-interface for a tap service</font></span>
+* '''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">tag</font></span>'''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">: Create a host tag</font></span>
+* '''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">tag-mapping</font></span>'''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">: map a host tag to a host</font></span>
+* '''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">vcenter</font></span>'''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">: Configure a vCenter instance</font></span>
+* '''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">dvs</font></span>'''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">: Configure a distributed virtual switch (DVS) associated with a vcenter</font></span>
+* '''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">dvs-port-group</font></span>'''<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">: Configure a port group that will be created on a DVS by the controller</font></span>
+
+Experiment with queries for each of the types and look at what fields are there. The fields should be pretty self-explanatory for controller-node, host, and link. For switch, port and flow-entry you can look at the descriptions of the ofp_switch_features, ofp_phy_port and ofp_match structs in the OpenFlow spec. The fields in the REST API data types pretty much mirror those structs.
+
+If the optional ID and query params are omitted, then the REST API returns a list of all of the items of the given data type. The format of the return data is JSON. So, for example, to get all of the controller nodes:
+
+<div>
+
+{| class="MsoNormalTable" style="mso-cellspacing: 1.5pt; mso-yfti-tbllook: 1184"
+|- style="mso-yfti-irow: 0; mso-yfti-firstrow: yes"
+| style="padding: .75pt .75pt .75pt .75pt" |
+<center>'''URL'''</center>
+| style="padding: .75pt .75pt .75pt .75pt" |
+http://&lt;host-name-or-ip&gt;/rest/v1/model/controller-node
+|- style="mso-yfti-irow: 1; mso-yfti-lastrow: yes"
+| style="padding: .75pt .75pt .75pt .75pt" |
+<center>'''Return Text'''</center>
+| style="padding: .75pt .75pt .75pt .75pt" |
+[{"ntp-server": "0.acme.pool.ntp.org", "time-zone": "America/Los_Angeles", "logging-level": "notice", "logging-enabled": false, "domain-name": "acme.com", "default-gateway": "192.168.2.1", "logging-server": "", "domain-lookups-enabled": true, "id": "02a32314-7a75-44fe-9412-6bcb36b25367"}]
+|}
+
+</div>
+
+If you know the unique ID of a data item you can retrieve just that item by including the optional ID in the URL path:
+
+<div>
+
+{| class="MsoNormalTable" style="mso-cellspacing: 1.5pt; mso-yfti-tbllook: 1184"
+|- style="mso-yfti-irow: 0; mso-yfti-firstrow: yes"
+| style="padding: .75pt .75pt .75pt .75pt" |
+<center>'''URL'''</center>
+| style="padding: .75pt .75pt .75pt .75pt" |
+http://&lt;host-name-or-ip&gt;/rest/v1/model/switch/00:00:00:00:00:00:00:01
+|- style="mso-yfti-irow: 1; mso-yfti-lastrow: yes"
+| style="padding: .75pt .75pt .75pt .75pt" |
+<center>'''Return Text'''</center>
+| style="padding: .75pt .75pt .75pt .75pt" |
+{"tables": 1, "socket-address": "/192.168.2.104:50663", "connected-since": "2012-07-16 03:46:28.572000", "capabilities": 71, "active": true, "controller": "02a32314-7a75-44fe-9412-6bcb36b25367", "actions": 2367, "ip-address": "192.168.2.104", "dpid": "00:00:00:00:00:32:90:11", "tunneling-capable": false, "buffers": 256}
+|}
+
+</div>
+
+Note that this returns a single item, not a list of items (i.e. no enclosing square brackets)
+
+The unique ID fields for the different data types are:
+
+<div>
+
+{| class="MsoNormalTable" style="mso-cellspacing: 1.5pt; mso-yfti-tbllook: 1184"
+|- style="mso-yfti-irow: 0; mso-yfti-firstrow: yes"
+| style="padding: .75pt .75pt .75pt .75pt" |
+<center>'''Data Type'''</center>
+| style="padding: .75pt .75pt .75pt .75pt" |
+<center>'''ID Field Name'''</center>
+| style="padding: .75pt .75pt .75pt .75pt" |
+<center>'''Description'''</center>
+|- style="mso-yfti-irow: 1"
+| style="padding: .75pt .75pt .75pt .75pt" |
+controller-node
+| style="padding: .75pt .75pt .75pt .75pt" |
+id
+| style="padding: .75pt .75pt .75pt .75pt" |
+GUID value assigned during initial controller setup
+|- style="mso-yfti-irow: 2"
+| style="padding: .75pt .75pt .75pt .75pt" |
+controller-alias
+| style="padding: .75pt .75pt .75pt .75pt" |
+alias
+| style="padding: .75pt .75pt .75pt .75pt" |
+Name of the controller alias
+|- style="mso-yfti-irow: 3"
+| style="padding: .75pt .75pt .75pt .75pt" |
+controller-interface
+| style="padding: .75pt .75pt .75pt .75pt" |
+id
+| style="padding: .75pt .75pt .75pt .75pt" |
+&lt;controller-id&gt;|Ethernet|&lt;interface-number&gt;
+|- style="mso-yfti-irow: 4"
+| style="padding: .75pt .75pt .75pt .75pt" |
+controller-domain-name-server
+| style="padding: .75pt .75pt .75pt .75pt" |
+id
+| style="padding: .75pt .75pt .75pt .75pt" |
+&lt;controller-id&gt;|&lt;sequence-number&gt;
+|- style="mso-yfti-irow: 5"
+| style="padding: .75pt .75pt .75pt .75pt" |
+firewall-rule
+| style="padding: .75pt .75pt .75pt .75pt" |
+id
+| style="padding: .75pt .75pt .75pt .75pt" |
+&lt;controller-interface-id&gt;|&lt;port-number&gt;|&lt;protocol&gt;
+|- style="mso-yfti-irow: 6"
+| style="padding: .75pt .75pt .75pt .75pt" |
+switch
+| style="padding: .75pt .75pt .75pt .75pt" |
+dpid
+| style="padding: .75pt .75pt .75pt .75pt" |
+Datapath ID of the switch
+|- style="mso-yfti-irow: 7"
+| style="padding: .75pt .75pt .75pt .75pt" |
+switch-alias
+| style="padding: .75pt .75pt .75pt .75pt" |
+id
+| style="padding: .75pt .75pt .75pt .75pt" |
+Name of the switch alias
+|- style="mso-yfti-irow: 8"
+| style="padding: .75pt .75pt .75pt .75pt" |
+switch-config
+| style="padding: .75pt .75pt .75pt .75pt" |
+switch
+| style="padding: .75pt .75pt .75pt .75pt" |
+&lt;switch DPID&gt;
+|- style="mso-yfti-irow: 9"
+| style="padding: .75pt .75pt .75pt .75pt" |
+switch-interface-config
+| style="padding: .75pt .75pt .75pt .75pt" |
+id
+| style="padding: .75pt .75pt .75pt .75pt" |
+&lt;switch DPID&gt;|&lt;interface-name&gt;
+|- style="mso-yfti-irow: 10"
+| style="padding: .75pt .75pt .75pt .75pt" |
+switch-interface-alias
+| style="padding: .75pt .75pt .75pt .75pt" |
+id
+| style="padding: .75pt .75pt .75pt .75pt" |
+Name of the switch interface alias
+|- style="mso-yfti-irow: 11"
+| style="padding: .75pt .75pt .75pt .75pt" |
+port
+| style="padding: .75pt .75pt .75pt .75pt" |
+id
+| style="padding: .75pt .75pt .75pt .75pt" |
+&lt;switch DPID&gt;:&lt;port #&gt;
+|- style="mso-yfti-irow: 12"
+| style="padding: .75pt .75pt .75pt .75pt" |
+port-alias
+| style="padding: .75pt .75pt .75pt .75pt" |
+id
+| style="padding: .75pt .75pt .75pt .75pt" |
+Name of port alias
+|- style="mso-yfti-irow: 13"
+| style="padding: .75pt .75pt .75pt .75pt" |
+port-channel
+| style="padding: .75pt .75pt .75pt .75pt" |
+id
+| style="padding: .75pt .75pt .75pt .75pt" |
+Port channel name
+|- style="mso-yfti-irow: 14"
+| style="padding: .75pt .75pt .75pt .75pt" |
+port-channel-config
+| style="padding: .75pt .75pt .75pt .75pt" |
+id
+| style="padding: .75pt .75pt .75pt .75pt" |
+&lt;switch DPID&gt;|&lt;OF-port-name&gt;
+|- style="mso-yfti-irow: 15"
+| style="padding: .75pt .75pt .75pt .75pt" |
+link
+| style="padding: .75pt .75pt .75pt .75pt" |
+id
+| style="padding: .75pt .75pt .75pt .75pt" |
+&lt;src switch DPID&gt;-&lt;src port&gt;-&lt;dst switch DPID&gt;-&lt;dst port&gt; [Note: there are dashes between the components of the ID]
+|- style="mso-yfti-irow: 16"
+| style="padding: .75pt .75pt .75pt .75pt" |
+flow-entry
+| style="padding: .75pt .75pt .75pt .75pt" |
+name
+| style="padding: .75pt .75pt .75pt .75pt" |
+User-defined name of the static flow entry
+|- style="mso-yfti-irow: 17"
+| style="padding: .75pt .75pt .75pt .75pt" |
+host-config
+| style="padding: .75pt .75pt .75pt .75pt" |
+mac
+| style="padding: .75pt .75pt .75pt .75pt" |
+&lt;host MAC address&gt;
+|- style="mso-yfti-irow: 18"
+| style="padding: .75pt .75pt .75pt .75pt" |
+host-alias
+| style="padding: .75pt .75pt .75pt .75pt" |
+id
+| style="padding: .75pt .75pt .75pt .75pt" |
+Name of the host alias
+|- style="mso-yfti-irow: 19"
+| style="padding: .75pt .75pt .75pt .75pt" |
+vns-definition
+| style="padding: .75pt .75pt .75pt .75pt" |
+id
+| style="padding: .75pt .75pt .75pt .75pt" |
+Name of the VNS
+|- style="mso-yfti-irow: 20"
+| style="padding: .75pt .75pt .75pt .75pt" |
+vns-interface-rule
+| style="padding: .75pt .75pt .75pt .75pt" |
+id
+| style="padding: .75pt .75pt .75pt .75pt" |
+&lt;VNS name&gt;|&lt;rule-id&gt;
+|- style="mso-yfti-irow: 21"
+| style="padding: .75pt .75pt .75pt .75pt" |
+vns-interface-config
+| style="padding: .75pt .75pt .75pt .75pt" |
+id
+| style="padding: .75pt .75pt .75pt .75pt" |
+&lt;VNS name&gt;|&lt;interface-name&gt;
+|- style="mso-yfti-irow: 22"
+| style="padding: .75pt .75pt .75pt .75pt" |
+vns-access-list
+| style="padding: .75pt .75pt .75pt .75pt" |
+id
+| style="padding: .75pt .75pt .75pt .75pt" |
+&lt;VNS Name&gt;|&lt;ACL name&gt;
+|- style="mso-yfti-irow: 23"
+| style="padding: .75pt .75pt .75pt .75pt" |
+vns-access-list-entry
+| style="padding: .75pt .75pt .75pt .75pt" |
+id
+| style="padding: .75pt .75pt .75pt .75pt" |
+&lt;vns-acl-id&gt;|&lt;rule-id&gt;
+|- style="mso-yfti-irow: 24"
+| style="padding: .75pt .75pt .75pt .75pt" |
+vns-interface-access-list
+| style="padding: .75pt .75pt .75pt .75pt" |
+id
+| style="padding: .75pt .75pt .75pt .75pt" |
+&lt;vns-interface-id&gt;|&lt;vns-acl-id&gt;|&lt;in-or-out&gt;
+|- style="mso-yfti-irow: 25"
+| style="padding: .75pt .75pt .75pt .75pt" |
+tag
+| style="padding: .75pt .75pt .75pt .75pt" |
+id
+| style="padding: .75pt .75pt .75pt .75pt" |
+&lt;namespace&gt;|&lt;name&gt;|&lt;value&gt;
+|- style="mso-yfti-irow: 26"
+| style="padding: .75pt .75pt .75pt .75pt" |
+tag-mapping
+| style="padding: .75pt .75pt .75pt .75pt" |
+id
+| style="padding: .75pt .75pt .75pt .75pt" |
+&lt;tag-id&gt;|&lt;host MAC&gt;
+|- style="mso-yfti-irow: 27"
+| style="padding: .75pt .75pt .75pt .75pt" |
+vcenter
+| style="padding: .75pt .75pt .75pt .75pt" |
+id
+| style="padding: .75pt .75pt .75pt .75pt" |
+Name for the vCenter instance
+|- style="mso-yfti-irow: 28"
+| style="padding: .75pt .75pt .75pt .75pt" |
+dvs
+| style="padding: .75pt .75pt .75pt .75pt" |
+id
+| style="padding: .75pt .75pt .75pt .75pt" |
+&lt;vcenter-id&gt;|&lt;datacenter-name&gt;|&lt;dvs-id&gt;
+|- style="mso-yfti-irow: 29; mso-yfti-lastrow: yes"
+| style="padding: .75pt .75pt .75pt .75pt" |
+dvs-port-group
+| style="padding: .75pt .75pt .75pt .75pt" |
+id
+| style="padding: .75pt .75pt .75pt .75pt" |
+&lt;dvs-id&gt;|&lt;port-group-id&gt;
+|}
+
+</div>
+
+You can also do more complex queries using the optional query params. Note that if you do a query with the query params you should not set the optional ID in the URL path; those query modes are mutually exclusive. The format of the query params is the same as for standard query params: a semicolon-separated list of &lt;name&gt;=&lt;value&gt; pairs. In the simplest case the &lt;name&gt; is the name of a field in the data type being queried and the &lt;value&gt; is the value of that field you want to filter the query with. For example, to get all of the links coming from connected to the switch whose DPID is 00:00:00:00:00:73:28:04:
+
+<div><div>
+
+ $ curl 'http://localhost/rest/v1/model/link?src-switch=00:00:00:1c:73:10:3e:24' | python -mjson.tool
+ <span style="mso-spacerun: yes">   </span>% Total<span style="mso-spacerun: yes">    </span>% Received % Xferd<span style="mso-spacerun: yes">  </span>Average Speed<span style="mso-spacerun: yes">   </span>Time<span style="mso-spacerun: yes">    </span>Time<span style="mso-spacerun: yes">     </span>Time<span style="mso-spacerun: yes">  </span>Current
+ <span style="mso-spacerun: yes">                                  </span>Dload<span style="mso-spacerun: yes">  </span>Upload<span style="mso-spacerun: yes">   </span>Total<span style="mso-spacerun: yes">   </span>Spent<span style="mso-spacerun: yes">    </span>Left<span style="mso-spacerun: yes">  </span>Speed
+  100<span style="mso-spacerun: yes">   </span>736<span style="mso-spacerun: yes">    </span>0<span style="mso-spacerun: yes">   </span>736<span style="mso-spacerun: yes">    </span>0<span style="mso-spacerun: yes">     </span>0<span style="mso-spacerun: yes">  </span>11461<span style="mso-spacerun: yes">      </span>0 --:--:-- --:--:-- --:--:-- 11682
+  [
+ <span style="mso-spacerun: yes">     </span>{
+ <span style="mso-spacerun: yes">         </span>"dst-port": 18,
+ <span style="mso-spacerun: yes">         </span>"dst-port-state": 0,
+ <span style="mso-spacerun: yes">   </span><span style="mso-spacerun: yes">      </span>"dst-switch": "00:00:00:1c:73:10:3e:24",
+ <span style="mso-spacerun: yes">         </span>"id": "00:00:00:1c:73:10:3e:24-17-00:00:00:1c:73:10:3e:24-18",
+ <span style="mso-spacerun: yes">         </span>"link-type": "internal",
+ <span style="mso-spacerun: yes">         </span>"src-port": 17,
+ <span style="mso-spacerun: yes">         </span>"src-port-state": 0,
+ <span style="mso-spacerun: yes">         </span>"src-switch": "00:00:00:1c:73:10:3e:24"
+ <span style="mso-spacerun: yes">     </span>},
+ <span style="mso-spacerun: yes">     </span>{
+ <span style="mso-spacerun: yes">         </span>"dst-port": 17,
+ <span style="mso-spacerun: yes">         </span>"dst-port-state": 0,
+ <span style="mso-spacerun: yes">         </span>"dst-switch": "00:00:00:1c:73:10:3e:24",
+ <span style="mso-spacerun: yes">         </span>"id": "00:00:00:1c:73:10:3e:24-18-00:00:00:1c:73:10:3e:24-17",
+ <span style="mso-spacerun: yes">         </span>"link-type": "internal",
+ <span style="mso-spacerun: yes">         </span>"src-port": 18,
+ <span style="mso-spacerun: yes">    </span><span style="mso-spacerun: yes">     </span>"src-port-state": 0,
+ <span style="mso-spacerun: yes">         </span>"src-switch": "00:00:00:1c:73:10:3e:24"
+ <span style="mso-spacerun: yes">     </span>},
+ <span style="mso-spacerun: yes">     </span>{
+ <span style="mso-spacerun: yes">         </span>"dst-port": 24,
+ <span style="mso-spacerun: yes">         </span>"dst-port-state": 0,
+ <span style="mso-spacerun: yes">         </span>"dst-switch": "00:00:00:00:00:73:28:04",
+ <span style="mso-spacerun: yes">         </span>"id": "00:00:00:1c:73:10:3e:24-3-00:00:00:00:00:73:28:04-24",
+ <span style="mso-spacerun: yes">         </span>"link-type": "internal",
+ <span style="mso-spacerun: yes">         </span>"src-port": 3,
+ <span style="mso-spacerun: yes">         </span>"src-port-state": 0,
+ <span style="mso-spacerun: yes">         </span>"src-switch": "00:00:00:1c:73:10:3e:24"
+ <span style="mso-spacerun: yes">     </span>}
+  ]
+
+
+If you include multiple name/value pairs then the return text is the list of items that satisfies all of the conditions (i.e. the conditions are AND'd together).
+
+You can also do more complex filtering operations using a special form of the name in the name/value pairs: &lt;field-name&gt;__&lt;operation&gt;. Note that that's a double underscore between the field name and the operation. For example to get all of the hosts whose MAC address starts with 00:00:00 you can use the startswith operation:
+
+ $ curl 'http://localhost/rest/v1/model/switch?dpid__startswith=00:00:19' | python -mjson.tool
+ <span style="mso-spacerun: yes">   </span>% Total<span style="mso-spacerun: yes">    </span>% Received % Xferd<span style="mso-spacerun: yes">  </span>Average Speed<span style="mso-spacerun: yes">   </span>Time<span style="mso-spacerun: yes">    </span>Time<span style="mso-spacerun: yes">     </span>Time<span style="mso-spacerun: yes">  </span>Current
+ <span style="mso-spacerun: yes">                                  </span>Dload<span style="mso-spacerun: yes">  </span>Upload<span style="mso-spacerun: yes">   </span>Total<span style="mso-spacerun: yes">   </span>Spent<span style="mso-spacerun: yes">    </span>Left<span style="mso-spacerun: yes">  </span>Speed
+  100<span style="mso-spacerun: yes">   </span>321<span style="mso-spacerun: yes">    </span>0<span style="mso-spacerun: yes">   </span>321<span style="mso-spacerun: yes">    </span>0<span style="mso-spacerun: yes">     </span>0<span style="mso-spacerun: yes">   </span>4700<span style="mso-spacerun: yes">      </span>0 --:--:-- --:--:-- --:--:--<span style="mso-spacerun: yes">  </span>4791
+  [
+ <span style="mso-spacerun: yes">     </span>{
+ <span style="mso-spacerun: yes">         </span>"actions": 2049,
+ <span style="mso-spacerun: yes">      </span><span style="mso-spacerun: yes">   </span>"active": true,
+ <span style="mso-spacerun: yes">         </span>"buffers": 256,
+ <span style="mso-spacerun: yes">         </span>"capabilities": 71,
+ <span style="mso-spacerun: yes">         </span>"connected-since": "2012-07-12 22:03:05.461000",
+ <span style="mso-spacerun: yes">         </span>"controller": "02a32314-7a75-44fe-9412-6bcb36b25367",
+ <span style="mso-spacerun: yes">         </span>"dpid": "00:00:19:21:68:00:20:27",
+ <span style="mso-spacerun: yes">         </span>"ip-address": "192.168.2.27",
+ <span style="mso-spacerun: yes">         </span>"socket-address": "/192.168.2.27:60766",
+ <span style="mso-spacerun: yes">         </span>"tables": 1,
+ <span style="mso-spacerun: yes">         </span>"tunneling-capable": false
+ <span style="mso-spacerun: yes">     </span>}
+  ]
+
+
+The supported filtering operations are:
+
+{| class="MsoNormalTable" style="mso-cellspacing: 1.5pt; mso-yfti-tbllook: 1184"
+|- style="mso-yfti-irow: 0; mso-yfti-firstrow: yes"
+| style="padding: .75pt .75pt .75pt .75pt" |
+<center>'''Operation Name'''</center>
+| style="padding: .75pt .75pt .75pt .75pt" |
+<center>'''Description'''</center>
+|- style="mso-yfti-irow: 1"
+| style="padding: .75pt .75pt .75pt .75pt" |
+exact
+| style="padding: .75pt .75pt .75pt .75pt" |
+Exact match of specified value. Equivalent to setting the name to just the field name
+|- style="mso-yfti-irow: 2"
+| style="padding: .75pt .75pt .75pt .75pt" |
+iexact
+| style="padding: .75pt .75pt .75pt .75pt" |
+Case insensitive match of the specified value
+|- style="mso-yfti-irow: 3"
+| style="padding: .75pt .75pt .75pt .75pt" |
+contains
+| style="padding: .75pt .75pt .75pt .75pt" |
+The field contains the specified value, case-sensitive
+|- style="mso-yfti-irow: 4"
+| style="padding: .75pt .75pt .75pt .75pt" |
+icontains
+| style="padding: .75pt .75pt .75pt .75pt" |
+The field contains the specified value, case-insensitive
+|- style="mso-yfti-irow: 5"
+| style="padding: .75pt .75pt .75pt .75pt" |
+startswith
+| style="padding: .75pt .75pt .75pt .75pt" |
+The field starts with the specified value, case-sensitive
+|- style="mso-yfti-irow: 6"
+| style="padding: .75pt .75pt .75pt .75pt" |
+istartswith
+| style="padding: .75pt .75pt .75pt .75pt" |
+The field starts with the specified value, case-insensitive
+|- style="mso-yfti-irow: 7"
+| style="padding: .75pt .75pt .75pt .75pt" |
+endswith
+| style="padding: .75pt .75pt .75pt .75pt" |
+The field ends with the specified value, case-sensitive
+|- style="mso-yfti-irow: 8"
+| style="padding: .75pt .75pt .75pt .75pt" |
+iendswith
+| style="padding: .75pt .75pt .75pt .75pt" |
+The field ends with the specified value, case-insensitive
+|- style="mso-yfti-irow: 9"
+| style="padding: .75pt .75pt .75pt .75pt" |
+gt
+| style="padding: .75pt .75pt .75pt .75pt" |
+The field is greater than the specified value
+|- style="mso-yfti-irow: 10"
+| style="padding: .75pt .75pt .75pt .75pt" |
+gte
+| style="padding: .75pt .75pt .75pt .75pt" |
+The field is greater than or equal to the specified value
+|- style="mso-yfti-irow: 11"
+| style="padding: .75pt .75pt .75pt .75pt" |
+lt
+| style="padding: .75pt .75pt .75pt .75pt" |
+The field is less than the specified value
+|- style="mso-yfti-irow: 12"
+| style="padding: .75pt .75pt .75pt .75pt" |
+lte
+| style="padding: .75pt .75pt .75pt .75pt" |
+The field is less than or equal to the specified value
+|- style="mso-yfti-irow: 13"
+| style="padding: .75pt .75pt .75pt .75pt" |
+regex
+| style="padding: .75pt .75pt .75pt .75pt" |
+The field matches the specified regular expression, case-sensitive
+|- style="mso-yfti-irow: 14; mso-yfti-lastrow: yes"
+| style="padding: .75pt .75pt .75pt .75pt" |
+iregex
+| style="padding: .75pt .75pt .75pt .75pt" |
+The field matches the specified regular expression, case-insensitive
+|}
+
+</div>
+
+The syntax of the regular expressions for the regex and iregex operations is the Python regular expression syntax.
+
+There are also some special query parameters that can be used to affect how the results are returned from a query:
+
+<div>
+
+{| class="MsoNormalTable" style="mso-cellspacing: 1.5pt; mso-yfti-tbllook: 1184"
+|- style="mso-yfti-irow: 0; mso-yfti-firstrow: yes"
+| style="padding: .75pt .75pt .75pt .75pt" |
+<center>'''Query Parameter Name'''</center>
+| style="padding: .75pt .75pt .75pt .75pt" |
+<center>'''Description'''</center>
+|- style="mso-yfti-irow: 1"
+| style="padding: .75pt .75pt .75pt .75pt" |
+callback
+| style="padding: .75pt .75pt .75pt .75pt" |
+Return query results in the JSONP format with the specified value as the JSONP function name. Google "JSONP" for more info on why you'd want to use this feature.
+|- style="mso-yfti-irow: 2"
+| style="padding: .75pt .75pt .75pt .75pt" |
+nolist
+| style="padding: .75pt .75pt .75pt .75pt" |
+If specified value is true (or True or 1), then return a single item, not a list (i.e. no enclosing square brackets]. This returns an error if there's not exactly one item that satisfies the query parameters.
+|- style="mso-yfti-irow: 3; mso-yfti-lastrow: yes"
+| style="padding: .75pt .75pt .75pt .75pt" |
+orderby
+| style="padding: .75pt .75pt .75pt .75pt" |
+Order the results by the specified value. The value is a comma-separated list of field names to use to sort the results, in decreasing precedence. So, for example, to order the results from a host query first on the switch, then on the ingress port, the orderby value would be "switch,ingress-port".
+|}
+
+</div>
+
+==<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">Creating Items</font></span>==
+
+New items are created using the HTTP PUT method with a URL path of: "/rest/v1/model/&lt;data-type&gt;". The PUT data is the JSON formatted data for the item (or items) to be created. Each item is a JSON object (i.e. comma-separated list of field name/value pairs bracketed with curly brackets) with the fields of the given data type specified. In some cases some of the fields are optional and can be omitted. [TBD: Need descriptions of which fields are optional for each of the data types.] You can insert multiple items in a single REST call by specifying a JSON array of objects (i.e. comma-separated list of JSON objects bracketed with square brackets). Basically the format of the data is the same as you see when you query for items as described in the previous section.
+
+Note that this use of the PUT method to create items isn't the conventional REST way of creating items (normal way is to use the POST method). But using the POST method with POST parameters it wouldn't be possible to create multiple items in one call, which is why we use the PUT method instead.
+
+Most of the data types (controller-node, switch, port, link, etc) currently exposed in the REST API aren't intended to be modified by third party apps, only by the controller. An authentication/authorization model for the REST API is under development that will prevent unprivileged apps from modifying specific types of data.
+
+For now the main thing that third party apps will modify/create are the static flow table entries.
+
+==<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">Updating Items</font></span>==
+
+Items are updated using the HTTP PUT method. The difference between updating vs. creating is that the item (or items) to be updated must be specified using either the optional ID component of the URL path or query parameters. If you use the optional ID in the URL path, then only that single item is updated. If you use query parameters, then any items matching the query parameter conditions are updated. The PUT data is a JSON object that includes the field names/values to be updated. The return value is JSON text. If the update succeeded, the JSON will be an object with a field named "description" describing the result of the operation. The description may be null in some cases for successful operations. If there was an error there is also an "error_type" field. See the "Error Handling" section below for information about how errors are handled.
+
+For example, to set the an alias for a switch whose dpid is 00:00:00:00:00:00:01
+
+<div>
+
+{| class="MsoNormalTable" style="mso-cellspacing: 1.5pt; mso-yfti-tbllook: 1184"
+|- style="mso-yfti-irow: 0; mso-yfti-firstrow: yes"
+| style="padding: .75pt .75pt .75pt .75pt" |
+<center>'''URL'''</center>
+| style="padding: .75pt .75pt .75pt .75pt" |
+<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">http://localhost/rest/v1/model/switch-alias/myalias</font></span>
+|- style="mso-yfti-irow: 1; mso-yfti-lastrow: yes"
+| style="padding: .75pt .75pt .75pt .75pt" |
+<center>'''PUT Data'''</center>
+| style="padding: .75pt .75pt .75pt .75pt" |
+{"switch":"00:00:00:00:00:00:01"}
+|}
+
+</div>
+
+==<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">Deleting Items</font></span>==
+
+Items are deleted using the HTTP DELETE method. Similar to updating items you specify the item(s) to be deleted using either the optional ID component in the URL path (to delete a single item) or the optional query parameters (to delete multiple items). Just to repeat the earlier warning: The only data type you should delete currently is the flow-entry data type. Bad things will probably happen if you delete switch, port, host, link info out from under the controller. If the delete succeeded, the JSON will be an object with a field named "description" describing the result of the operation. The description may be null in some cases for successful operations. If there was an error there is also an "error_type" field. See the "Error Handling" section below for information about how errors are handled.
+
+For example to delete the flow entry named "testping":
+
+<div>
+
+{| class="MsoNormalTable" style="mso-cellspacing: 1.5pt; mso-yfti-tbllook: 1184"
+|- style="mso-yfti-irow: 0; mso-yfti-firstrow: yes; mso-yfti-lastrow: yes"
+| style="padding: .75pt .75pt .75pt .75pt" |
+<center>'''URL'''</center>
+| style="padding: .75pt .75pt .75pt .75pt" |
+<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">http://localhost/rest/v1/model/flow-entry/testping</font></span>
+|}
+
+</div>
+
+==Proxied sdnplatform APIs==
+
+There are also a number of APIs in provided which simply proxy to an equivalent API running in sdnplatform. The semantics and exact return value of each of these APIs varies significantly (unifying and simplifying this API is currently being worked on). Here, we'll simply provide a couple of key useful ones and some simple examples.
+
+===Devices===
+
+This is proxied from the sdnplatform device API which is present in the open source sdnplatform. Possible paramters are "mac", "ipv4", "dpid", "port", "mac_''<font face="Arial">startswith", "ipv4startswith", "dpidstartswith", and "port</font>''_startswith". Note that depending on your configuration, it's possible to have multiple distinct devices in the system that share a MAC address, so the return value is always a list.
+
+
+ $ curl 'http://localhost/rest/v1/device?mac=00:0c:29:69:e1:10' | python -mjson.tool
+ <span style="mso-spacerun: yes">   </span>% Total<span style="mso-spacerun: yes">    </span>% Received % Xferd<span style="mso-spacerun: yes">  </span>Average Speed<span style="mso-spacerun: yes">   </span>Time<span style="mso-spacerun: yes">    </span>Time<span style="mso-spacerun: yes">     </span>Time<span style="mso-spacerun: yes">  </span>Current
+ <span style="mso-spacerun: yes">                                  </span>Dload<span style="mso-spacerun: yes">  </span>Upload<span style="mso-spacerun: yes">   </span>Total<span style="mso-spacerun: yes">   </span>Spent<span style="mso-spacerun: yes">    </span>Left<span style="mso-spacerun: yes">  </span>Speed
+  100<span style="mso-spacerun: yes">   </span>179<span style="mso-spacerun: yes">    </span>0<span style="mso-spacerun: yes">   </span>179<span style="mso-spacerun: yes">    </span>0<span style="mso-spacerun: yes">     </span>0<span style="mso-spacerun: yes">   </span>1854<span style="mso-spacerun: yes">      </span>0 --:--:-- --:--:-- --:--:--<span style="mso-spacerun: yes">  </span>1864
+  [
+ <span style="mso-spacerun: yes">     </span>{
+ <span style="mso-spacerun: yes">         </span>"attachmentPoint": [
+ <span style="mso-spacerun: yes">             </span>{
+ <span style="mso-spacerun: yes">                 </span>"errorStatus": null,
+ <span style="mso-spacerun: yes">                 </span>"port": 9,
+ <span style="mso-spacerun: yes">                 </span>"switchDPID": "00:00:19:21:68:00:20:27"
+ <span style="mso-spacerun: yes">             </span>}
+ <span style="mso-spacerun: yes">         </span>],
+ <span style="mso-spacerun: yes">         </span>"ipv4": [
+ <span style="mso-spacerun: yes">             </span>"172.18.1.102"
+ <span style="mso-spacerun: yes">         </span>],
+ <span style="mso-spacerun: yes">         </span>"lastSeen": 1342198497188,
+ <span style="mso-spacerun: yes">         </span>"mac": [
+ <span style="mso-spacerun: yes">             </span>"00:0c:29:69:e1:10"
+ <span style="mso-spacerun: yes">         </span>],
+ <span style="mso-spacerun: yes">         </span>"vlan": []
+ <span style="mso-spacerun: yes">     </span>}
+  ]
+
+===VNS===
+
+This is not present in the open source sdnplatform. Possible parameters are "name" and "name__startswith".
+
+
+ $ curl 'http://localhost/rest/v1/vns?name=default' | python -mjson.tool
+ <span style="mso-spacerun: yes">   </span>% Total<span style="mso-spacerun: yes">  </span><span style="mso-spacerun: yes">  </span>% Received % Xferd<span style="mso-spacerun: yes">  </span>Average Speed<span style="mso-spacerun: yes">   </span>Time<span style="mso-spacerun: yes">    </span>Time<span style="mso-spacerun: yes">     </span>Time<span style="mso-spacerun: yes">  </span>Current
+ <span style="mso-spacerun: yes">                                  </span>Dload<span style="mso-spacerun: yes">  </span>Upload<span style="mso-spacerun: yes">   </span>Total<span style="mso-spacerun: yes">   </span>Spent<span style="mso-spacerun: yes">    </span>Left<span style="mso-spacerun: yes">  </span>Speed
+  100<span style="mso-spacerun: yes">   </span>169<span style="mso-spacerun: yes">    </span>0<span style="mso-spacerun: yes">   </span>169<span style="mso-spacerun: yes">    </span>0<span style="mso-spacerun: yes">     </span>0<span style="mso-spacerun: yes">   </span>2592<span style="mso-spacerun: yes">      </span>0 --:--:-- --:--:-- --:--:--<span style="mso-spacerun: yes">  </span>2640
+  [
+ <span style="mso-spacerun: yes">     </span>{
+ <span style="mso-spacerun: yes">         </span>"active": true,
+ <span style="mso-spacerun: yes">         </span>"arpManagerMode": "flood-if-unknown",
+ <span style="mso-spacerun: yes">         </span>"broadcastMode": "forward-to-known",
+ <span style="mso-spacerun: yes">         </span>"dhcpIp": 0,
+ <span style="mso-spacerun: yes">         </span>"dhcpManagerMode": "flood-if-unknown",
+ <span style="mso-spacerun: yes">         </span>"name": "default",
+ <span style="mso-spacerun: yes">         </span>"priority": 1000
+ <span style="mso-spacerun: yes">     </span>}
+  ]
+
+
+===VNS Interfaces===
+
+This is not present in the open source sdnplatform. Possible parameters are "vns", "name", "vns_''<font face="Arial">startswith", and "name</font>''_startswith".
+
+ $ curl 'http://localhost/rest/v1/vns/interface?vns=default&amp;name=default' | python -mjson.tool
+ <span style="mso-spacerun: yes">   </span>% Total<span style="mso-spacerun: yes">    </span>% Received % Xferd<span style="mso-spacerun: yes">  </span>Average Speed<span style="mso-spacerun: yes">   </span>Time<span style="mso-spacerun: yes">    </span>Time<span style="mso-spacerun: yes">     </span>Time<span style="mso-spacerun: yes">  </span>Current
+ <span style="mso-spacerun: yes">                                  </span>Dload<span style="mso-spacerun: yes">  </span>Upload<span style="mso-spacerun: yes">   </span>Total<span style="mso-spacerun: yes">   </span>Spent<span style="mso-spacerun: yes">    </span>Left<span style="mso-spacerun: yes">  </span>Speed
+  100<span style="mso-spacerun: yes">   </span>243<span style="mso-spacerun: yes">    </span>0<span style="mso-spacerun: yes">   </span>243<span style="mso-spacerun: yes">    </span>0<span style="mso-spacerun: yes">     </span>0<span style="mso-spacerun: yes">   </span>2384<span style="mso-spacerun: yes">      </span>0 --:--:-- --:--:-- --:--:--<span style="mso-spacerun: yes">  </span>2405
+  [
+ <span style="mso-spacerun: yes">     </span>{
+ <span style="mso-spacerun: yes">         </span>"lastSeen": 1342199069856,
+ <span style="mso-spacerun: yes">      </span><span style="mso-spacerun: yes">   </span>"name": "default",
+ <span style="mso-spacerun: yes">         </span>"parentVNS": {
+ <span style="mso-spacerun: yes">             </span>"active": true,
+ <span style="mso-spacerun: yes">             </span>"arpManagerMode": "flood-if-unknown",
+ <span style="mso-spacerun: yes">             </span>"broadcastMode": "forward-to-known",
+ <span style="mso-spacerun: yes">             </span>"dhcpIp": 0,
+ <span style="mso-spacerun: yes">             </span>"dhcpManagerMode": "flood-if-unknown",
+ <span style="mso-spacerun: yes">  </span><span style="mso-spacerun: yes">           </span>"name": "default",
+ <span style="mso-spacerun: yes">             </span>"priority": 1000
+ <span style="mso-spacerun: yes">         </span>},
+ <span style="mso-spacerun: yes">         </span>"parentRule": null
+ <span style="mso-spacerun: yes">     </span>}
+  ]
+  bsn@beta-controller-b:~$ curl 'http://localhost/rest/v1/vns/interface?vns=default&amp;name=default/00:0c:29:10:56:20' | python -mjson.tool
+ <span style="mso-spacerun: yes">   </span>% Total<span style="mso-spacerun: yes">    </span>% Received % Xferd<span style="mso-spacerun: yes">  </span>Average Speed<span style="mso-spacerun: yes">   </span>Time<span style="mso-spacerun: yes">    </span>Time<span style="mso-spacerun: yes">     </span>Time<span style="mso-spacerun: yes">  </span>Current
+ <span style="mso-spacerun: yes">                                  </span>Dload<span style="mso-spacerun: yes">  </span>Upload<span style="mso-spacerun: yes">   </span>Total<span style="mso-spacerun: yes">   </span>Spent<span style="mso-spacerun: yes">    </span>Left<span style="mso-spacerun: yes">  </span>Speed
+  100<span style="mso-spacerun: yes">   </span>261<span style="mso-spacerun: yes">    </span>0<span style="mso-spacerun: yes">   </span>261<span style="mso-spacerun: yes">    </span>0<span style="mso-spacerun: yes">     </span>0<span style="mso-spacerun: yes">   </span>2629<span style="mso-spacerun: yes">      </span>0 --:--:-- --:--:-- --:--:--<span style="mso-spacerun: yes">  </span>2636
+  [
+ <span style="mso-spacerun: yes">     </span>{
+ <span style="mso-spacerun: yes">         </span>"lastSeen": 1342197609281,
+ <span style="mso-spacerun: yes">         </span>"name": "default/00:0c:29:10:56:20",
+ <span style="mso-spacerun: yes">         </span>"parentVNS": {
+ <span style="mso-spacerun: yes">             </span>"active": true,
+ <span style="mso-spacerun: yes">             </span>"arpManagerMode": "flood-if-unknown",
+ <span style="mso-spacerun: yes">             </span>"broadcastMode": "forward-to-known",
+ <span style="mso-spacerun: yes">             </span>"dhcpIp": 0,
+ <span style="mso-spacerun: yes">          </span><span style="mso-spacerun: yes">   </span>"dhcpManagerMode": "flood-if-unknown",
+ <span style="mso-spacerun: yes">             </span>"name": "default",
+ <span style="mso-spacerun: yes">             </span>"priority": 1000
+ <span style="mso-spacerun: yes">         </span>},
+ <span style="mso-spacerun: yes">         </span>"parentRule": null
+ <span style="mso-spacerun: yes">     </span>}
+  ]
+
+===Device/VNS Interface Mappings===
+
+Lets you know to which VNS a device has been mapped. Possible parameters match those of the device API.
+
+ $ curl 'http://localhost/rest/v1/vns/device-interface?mac=00:0c:29:69:e1:10' | python -mjson.tool
+ <span style="mso-spacerun: yes">   </span>% Total<span style="mso-spacerun: yes">    </span>% Received % Xferd<span style="mso-spacerun: yes">  </span>Average Speed<span style="mso-spacerun: yes">   </span>Time<span style="mso-spacerun: yes">    </span>Time<span style="mso-spacerun: yes">     </span>Time<span style="mso-spacerun: yes">  </span>Current
+ <span style="mso-spacerun: yes">                                  </span>Dload<span style="mso-spacerun: yes">  </span>Upload<span style="mso-spacerun: yes">   </span>Total<span style="mso-spacerun: yes">   </span>Spent<span style="mso-spacerun: yes">    </span>Left<span style="mso-spacerun: yes">  </span>Speed
+  100<span style="mso-spacerun: yes">   </span>460<span style="mso-spacerun: yes">    </span>0<span style="mso-spacerun: yes">   </span>460<span style="mso-spacerun: yes">    </span>0<span style="mso-spacerun: yes">     </span>0<span style="mso-spacerun: yes">   </span>7044<span style="mso-spacerun: yes">      </span>0 --:--:-- --:--:-- --:--:--<span style="mso-spacerun: yes">  </span>7187
+  [
+ <span style="mso-spacerun: yes">     </span>{
+ <span style="mso-spacerun: yes">         </span>"device": {
+ <span style="mso-spacerun: yes">             </span>"attachmentPoint": [
+ <span style="mso-spacerun: yes">                 </span>{
+ <span style="mso-spacerun: yes">                     </span>"errorStatus": null,
+ <span style="mso-spacerun: yes">              </span><span style="mso-spacerun: yes">       </span>"port": 9,
+ <span style="mso-spacerun: yes">                     </span>"switchDPID": "00:00:19:21:68:00:20:27"
+ <span style="mso-spacerun: yes">                 </span>}
+ <span style="mso-spacerun: yes">             </span>],
+ <span style="mso-spacerun: yes">             </span>"ipv4": [
+ <span style="mso-spacerun: yes">                 </span>"172.18.1.102"
+ <span style="mso-spacerun: yes">             </span>],
+ <span style="mso-spacerun: yes">             </span>"lastSeen": 1342199464155,
+ <span style="mso-spacerun: yes">             </span>"mac": [
+ <span style="mso-spacerun: yes">         </span><span style="mso-spacerun: yes">        </span>"00:0c:29:69:e1:10"
+ <span style="mso-spacerun: yes">             </span>],
+ <span style="mso-spacerun: yes">             </span>"vlan": []
+ <span style="mso-spacerun: yes">         </span>},
+ <span style="mso-spacerun: yes">         </span>"iface": [
+ <span style="mso-spacerun: yes">             </span>{
+ <span style="mso-spacerun: yes">                 </span>"lastSeen": 1342199465319,
+ <span style="mso-spacerun: yes">                 </span>"name": "default/00:0c:29:69:e1:10",
+ <span style="mso-spacerun: yes">                 </span>"parentVNS": {
+ <span style="mso-spacerun: yes">           </span><span style="mso-spacerun: yes">          </span>"active": true,
+ <span style="mso-spacerun: yes">                     </span>"arpManagerMode": "flood-if-unknown",
+ <span style="mso-spacerun: yes">                     </span>"broadcastMode": "forward-to-known",
+ <span style="mso-spacerun: yes">                     </span>"dhcpIp": 0,
+ <span style="mso-spacerun: yes">                     </span>"dhcpManagerMode": "flood-if-unknown",
+ <span style="mso-spacerun: yes">                   </span><span style="mso-spacerun: yes">  </span>"name": "default",
+ <span style="mso-spacerun: yes">                     </span>"priority": 1000
+ <span style="mso-spacerun: yes">                 </span>},
+ <span style="mso-spacerun: yes">                 </span>"parentRule": null
+ <span style="mso-spacerun: yes">             </span>}
+ <span style="mso-spacerun: yes">         </span>]
+ <span style="mso-spacerun: yes">     </span>}
+  ]
+ 
+==Storing Data Blobs==
+
+The REST API also supports storing &amp; retrieving arbitrary data blobs from the network database. For example, the CLI uses this to store/archive configuration scripts in the database. The format of the URL for the data blobs is: "http://&lt;domain&gt;/rest/v1/data/&lt;blob-name&gt;". To store blob data you use the HTTP PUT method where the PUT data is the raw blob data. To retrieve data you use the HTTP GET method. The data that's returned is the exact data that was stored in the earlier PUT call (i.e. there's no enclosing JSON formatting or anything else).
+
+When storing data the REST API implementation looks for the Content-Type header in the HTTP request. If it's specified, then this value is saved along with the data and returned as the Content-Type header when the data is retrieved. You can also specify a query parameter of "binary" set to "true" to indicate that the data is binary data. In this case the REST API will set the content type to be "application/octet-stream". If neither the Content-Type header nor the binary query parameter is specified the data is assumed to be text data and the content type is set to "text/plain".
+
+There's no particular format for the blob name imposed by the REST API. It can contain alphanumeric characters as well as any of the following punctuation characters: "_:./=;-". By convention it's useful to think of the name as an absolute path in a virtual file system with '/' as the path separator. That way you can group different types of data in logical directories and query for data blobs (described below) using the startswith filter operation. Currently we don't have any guidelines for reserved names in the global namespace, but for now you should prefix any blob names with something that you are reasonably certain will be globally unique to avoid conflicts with how Big Switch or another third party uses the data blob namespace.
+
+You can also query to get a list of blobs matching some specified criteria. In this case the URL is "http://&lt;domain&gt;/rest/v1/data/?&lt;query-params&gt;" where the query parameters specify the criteria similar to querying other types of data in the REST API. The following fields are available for querying:
+
+<div>
+
+{| class="MsoNormalTable" style="mso-cellspacing: 1.5pt; mso-yfti-tbllook: 1184"
+|- style="mso-yfti-irow: 0; mso-yfti-firstrow: yes"
+| style="padding: .75pt .75pt .75pt .75pt" |
+<center>'''Field Name'''</center>
+| style="padding: .75pt .75pt .75pt .75pt" |
+<center>'''Description'''</center>
+|- style="mso-yfti-irow: 1"
+| style="padding: .75pt .75pt .75pt .75pt" |
+name
+| style="padding: .75pt .75pt .75pt .75pt" |
+The name of the data blob
+|- style="mso-yfti-irow: 2; mso-yfti-lastrow: yes"
+| style="padding: .75pt .75pt .75pt .75pt" |
+content_type
+| style="padding: .75pt .75pt .75pt .75pt" |
+The content type of the data blob
+|}
+
+</div>
+
+The return value is a JSON formatted list of data blob references, where each blob reference contains the name of the blob and the URL path to access that data blob.
+
+For example, to get all of the data blobs whose names starts with "/sdnplatform/config/":
+
+<div>
+
+{| class="MsoNormalTable" style="mso-cellspacing: 1.5pt; mso-yfti-tbllook: 1184"
+|- style="mso-yfti-irow: 0; mso-yfti-firstrow: yes"
+| style="padding: .75pt .75pt .75pt .75pt" |
+<center>'''URL'''</center>
+| style="padding: .75pt .75pt .75pt .75pt" |
+<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">http://localhost/rest/v1/data/?name__startswith=/sdnplatform/config/</font></span>
+|- style="mso-yfti-irow: 1; mso-yfti-lastrow: yes"
+| style="padding: .75pt .75pt .75pt .75pt" |
+<center>'''Return Text'''</center>
+| style="padding: .75pt .75pt .75pt .75pt" |
+[{"name":"/sdnplatform/config/running", "url_path":"rest/v1/data/sdnplatform/config/running"},{"name":"/sdnplatform/config/backup", "url_path":"rest/v1/data/sdnplatform/config/backup"}]
+|}
+
+</div>
+
+==<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">Retrieving Stats Data</font></span>==
+
+The controller collects time-sampled stats from the controller node and the switches that are connected to the controller.
+
+These stats data are retrieved using the following URL:
+
+http:///rest/v1/stats/data////?
+
+The return text is a JSON-formatted array of time/value tuples or error info (see error handling section below). The time value is an integer UTC time in milliseconds since the epoch. The value is dependent on the type of stats value being retrieved. For example, the return text for a query for the mem-used stat type might be something like:
+
+<nowiki>[[1303307359476, 870156], [1303308019478, 870416], [1303311619488, 869844]]</nowiki>
+
+The cluster-id is included for multi-tenant and multi-cluster stats support from a cloud server. Currently for the local controller we only support a single tenant and the cluster ID is hard-coded to be "default"
+
+The target-type is the type of the source of the stats data. The target-id identifies a specific instance of the target type. Currently there are two target types:
+
+<div>
+
+{| class="MsoNormalTable" style="mso-cellspacing: 1.5pt; mso-yfti-tbllook: 1184"
+|- style="mso-yfti-irow: 0; mso-yfti-firstrow: yes"
+| style="padding: .75pt .75pt .75pt .75pt" |
+<center>'''Target Type'''</center>
+| style="padding: .75pt .75pt .75pt .75pt" |
+<center>'''Description'''</center>
+| style="padding: .75pt .75pt .75pt .75pt" |
+<center>'''Target ID'''</center>
+|- style="mso-yfti-irow: 1"
+| style="padding: .75pt .75pt .75pt .75pt" |
+controller
+| style="padding: .75pt .75pt .75pt .75pt" |
+Stats associated with a controller node
+| style="padding: .75pt .75pt .75pt .75pt" |
+The ID of the controller node. Currently we only support a single node controller, so the ID is hard-coded to be "localhost"
+|- style="mso-yfti-irow: 2; mso-yfti-lastrow: yes"
+| style="padding: .75pt .75pt .75pt .75pt" |
+switch
+| style="padding: .75pt .75pt .75pt .75pt" |
+Stats associated with a switch
+| style="padding: .75pt .75pt .75pt .75pt" |
+The DPID of the switch, e.g. 00:00:00:00:00:00:00:01
+|}
+
+</div>
+
+The stat-type identifies the specific time series stats data being retrieved, e.g. "cpu-user", "OFPacketIn").
+
+The optional-query-params are used to specify the time range for the query and how the data is downsampled to return a manageable number of data points. The raw sample data for different stat types is sampled at frequencies that are configured for the controller process that collects stats. Currently these are only configurable by editing a config file on the controller system, but eventually we will support configuration via the CLI or web UI. The raw sampling frequencies can be as frequent as every few seconds. If an application retrieves stats data over a much longer period (e.g. days, weeks), then it would be too much data to return the raw sample data, so the REST API supports downsampling of the data, as specified in the query parameters described below.
+
+The following query params are supported:
+
+<div>
+
+{| class="MsoNormalTable" style="mso-cellspacing: 1.5pt; mso-yfti-tbllook: 1184"
+|- style="mso-yfti-irow: 0; mso-yfti-firstrow: yes"
+| style="padding: .75pt .75pt .75pt .75pt" |
+<center>'''Query Param'''</center>
+| style="padding: .75pt .75pt .75pt .75pt" |
+<center>'''Description'''</center>
+|- style="mso-yfti-irow: 1"
+| style="padding: .75pt .75pt .75pt .75pt" |
+start-time
+| style="padding: .75pt .75pt .75pt .75pt" |
+The start time for the data to return.
+|- style="mso-yfti-irow: 2"
+| style="padding: .75pt .75pt .75pt .75pt" |
+end-time
+| style="padding: .75pt .75pt .75pt .75pt" |
+The end time for the data to return. Time format is the same as start-time
+|- style="mso-yfti-irow: 3"
+| style="padding: .75pt .75pt .75pt .75pt" |
+duration
+| style="padding: .75pt .75pt .75pt .75pt" |
+The duration of the time interval of the data to return
+|- style="mso-yfti-irow: 4"
+| style="padding: .75pt .75pt .75pt .75pt" |
+sample-interval
+| style="padding: .75pt .75pt .75pt .75pt" |
+The interval between sample points
+|- style="mso-yfti-irow: 5"
+| style="padding: .75pt .75pt .75pt .75pt" |
+sample-count
+| style="padding: .75pt .75pt .75pt .75pt" |
+The number of sample points returned
+|- style="mso-yfti-irow: 6"
+| style="padding: .75pt .75pt .75pt .75pt" |
+sample-window
+| style="padding: .75pt .75pt .75pt .75pt" |
+The time window around each sample point used to calculate the value
+|- style="mso-yfti-irow: 7; mso-yfti-lastrow: yes"
+| style="padding: .75pt .75pt .75pt .75pt" |
+data-format
+| style="padding: .75pt .75pt .75pt .75pt" |
+The format of the returned data
+|}
+
+</div>
+
+The values of the start-time and end-time parameters are integer values in milliseconds. The value is UTC time in milliseconds since the epoch (where epoch = Unix epoch = midnight 1/1/1970 UTC). For example, in Python this is: "int(time.time()*1000)". In general, the epoch is system-dependent, so it may be necessary to adjust the time value to use time values that are consistent with what the controller uses. You can also use the values "now" or "current" (typically the end-time) to specify the current time.
+
+For time intervals (duration, sample-interval, and sample-window) the units are, by default, milliseconds, but you can also specify an optional units parameters at the end of the value (e.g. 1h = 1 hour). The unit suffixes supported are:
+
+<div>
+
+{| class="MsoNormalTable" style="mso-cellspacing: 1.5pt; mso-yfti-tbllook: 1184"
+|- style="mso-yfti-irow: 0; mso-yfti-firstrow: yes"
+| style="padding: .75pt .75pt .75pt .75pt" |
+<center>'''Units'''</center>
+| style="padding: .75pt .75pt .75pt .75pt" |
+<center>'''Suffix in the parameter value'''</center>
+| style="padding: .75pt .75pt .75pt .75pt" |
+<center>'''Examples'''</center>
+|- style="mso-yfti-irow: 1"
+| style="padding: .75pt .75pt .75pt .75pt" |
+Milliseconds
+| style="padding: .75pt .75pt .75pt .75pt" |
+"ms", "millisecond", "milliseconds"
+| style="padding: .75pt .75pt .75pt .75pt" |
+"60000ms", "3600000millisecond"
+|- style="mso-yfti-irow: 2"
+| style="padding: .75pt .75pt .75pt .75pt" |
+Seconds
+| style="padding: .75pt .75pt .75pt .75pt" |
+"s", "sec", "secs", "second", "seconds"
+| style="padding: .75pt .75pt .75pt .75pt" |
+"60s", "300secs"
+|- style="mso-yfti-irow: 3"
+| style="padding: .75pt .75pt .75pt .75pt" |
+Minutes
+| style="padding: .75pt .75pt .75pt .75pt" |
+"m", "min", "mins", "minute", "minutes"
+| style="padding: .75pt .75pt .75pt .75pt" |
+"5m", "30minutes"
+|- style="mso-yfti-irow: 4"
+| style="padding: .75pt .75pt .75pt .75pt" |
+Hours
+| style="padding: .75pt .75pt .75pt .75pt" |
+"h", "hour", "hours"
+| style="padding: .75pt .75pt .75pt .75pt" |
+"1h", "4hour"
+|- style="mso-yfti-irow: 5"
+| style="padding: .75pt .75pt .75pt .75pt" |
+Days
+| style="padding: .75pt .75pt .75pt .75pt" |
+"d", "day", "days"
+| style="padding: .75pt .75pt .75pt .75pt" |
+"1d", "3days"
+|- style="mso-yfti-irow: 6; mso-yfti-lastrow: yes"
+| style="padding: .75pt .75pt .75pt .75pt" |
+Weeks
+| style="padding: .75pt .75pt .75pt .75pt" |
+"w", "week", "weeks"
+| style="padding: .75pt .75pt .75pt .75pt" |
+"1w", "2week"
+|}
+
+</div>
+
+If you use the duration parameter to specify the time range for the query, then you specify either the start-time or end-time, not both. A common case is to specify the end-time parameter as "current" and the duration parameter as the desired interval.
+
+If neither the start-time nor end-time are specified, then the REST call returns the most recently collected sample point. In this case the return value is a single data point (e.g. "[1303311619488, 869844]") not a list of sample points.
+
+The sample-interval and sample-count params are mutually exclusive. Specifying the sample-count is equivalent to specifying a sample-interval of: (end-time - start-time) / sample-count. If the sample-interval is 0, then the raw data samples are returned. If neither the sample-interval nor sample-count params are specifies, then the REST call defaults to a sample-count value of 50.
+
+The controller only supports certain pre-defined downsampling intervals. These are: 1 minute, 10 minutes, 1 hour, 4 hours, 1 day, 1 week and 4 weeks. The sample-interval (determined as described above) is rounded down to the nearest pre-defined sampling interval.
+
+Currently two data-format values are supported:
+
+<div>
+
+{| class="MsoNormalTable" style="mso-cellspacing: 1.5pt; mso-yfti-tbllook: 1184"
+|- style="mso-yfti-irow: 0; mso-yfti-firstrow: yes"
+| style="padding: .75pt .75pt .75pt .75pt" |
+<center>'''Data Format'''</center>
+| style="padding: .75pt .75pt .75pt .75pt" |
+<center>'''Description'''</center>
+|- style="mso-yfti-irow: 1"
+| style="padding: .75pt .75pt .75pt .75pt" |
+value
+| style="padding: .75pt .75pt .75pt .75pt" |
+The sample value
+|- style="mso-yfti-irow: 2; mso-yfti-lastrow: yes"
+| style="padding: .75pt .75pt .75pt .75pt" |
+rate
+| style="padding: .75pt .75pt .75pt .75pt" |
+The rate at which the sample value is changing (in units per millisecond)
+|}
+
+</div>
+
+The "value" data format returns the value of the sample point. For REST calls with downsampling, if the sample-window is 0, then each returned value is the value of the raw data point at the beginning of each downsampled interval. If the sample-window is non-zero, then the value return is the average of all of the raw sample data points over the specified window, centered around the time of the returned data point.
+
+The "rate" data format returns the rate at which the sample value is changing. If the sample-window is 0, then the rate is calculated using the previous sample point, i.e. rate = (current.value - previous.value) / (current.time - previous.time)). The rate is returned in units per millisecond, where the units depend on the stats type being returned. If the sample-window is non-zero, then the rate is calculated using the first and list sample points in the specified window, centered around the time of the returned data point.
+
+===<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">Supported Stats Types</font></span>===
+
+The following controller-related stat types are supported:
+
+<div>
+
+{| class="MsoNormalTable" style="mso-cellspacing: 1.5pt; mso-yfti-tbllook: 1184"
+|- style="mso-yfti-irow: 0; mso-yfti-firstrow: yes"
+| style="padding: .75pt .75pt .75pt .75pt" |
+<center>'''Stat Name'''</center>
+| style="padding: .75pt .75pt .75pt .75pt" |
+<center>'''Description'''</center>
+|- style="mso-yfti-irow: 1"
+| style="padding: .75pt .75pt .75pt .75pt" |
+cpu-idle
+| style="padding: .75pt .75pt .75pt .75pt" |
+The CPU idle percentage reported by top
+|- style="mso-yfti-irow: 2"
+| style="padding: .75pt .75pt .75pt .75pt" |
+cpu-nice
+| style="padding: .75pt .75pt .75pt .75pt" |
+The CPU nice percentage reported by top
+|- style="mso-yfti-irow: 3"
+| style="padding: .75pt .75pt .75pt .75pt" |
+cpu-user
+| style="padding: .75pt .75pt .75pt .75pt" |
+The CPU user percentage reported by top
+|- style="mso-yfti-irow: 4"
+| style="padding: .75pt .75pt .75pt .75pt" |
+cpu-system
+| style="padding: .75pt .75pt .75pt .75pt" |
+The CPU system percentage reported by top
+|- style="mso-yfti-irow: 5"
+| style="padding: .75pt .75pt .75pt .75pt" |
+mem-used
+| style="padding: .75pt .75pt .75pt .75pt" |
+The memory used reported by top
+|- style="mso-yfti-irow: 6"
+| style="padding: .75pt .75pt .75pt .75pt" |
+mem-free
+| style="padding: .75pt .75pt .75pt .75pt" |
+The memory free reported by top
+|- style="mso-yfti-irow: 7"
+| style="padding: .75pt .75pt .75pt .75pt" |
+swap-used
+| style="padding: .75pt .75pt .75pt .75pt" |
+The swap used reported by top
+|- style="mso-yfti-irow: 8"
+| style="padding: .75pt .75pt .75pt .75pt" |
+disk-root
+| style="padding: .75pt .75pt .75pt .75pt" |
+The disk usage (% free blocks) of the root partition
+|- style="mso-yfti-irow: 9"
+| style="padding: .75pt .75pt .75pt .75pt" |
+disk-log
+| style="padding: .75pt .75pt .75pt .75pt" |
+The disk usage (% free blocks) of the log partition
+|- style="mso-yfti-irow: 10"
+| style="padding: .75pt .75pt .75pt .75pt" |
+disk-boot
+| style="padding: .75pt .75pt .75pt .75pt" |
+The disk usage (% free blocks) of the boot partition
+|- style="mso-yfti-irow: 11"
+| style="padding: .75pt .75pt .75pt .75pt" |
+sdnplatform-cpu
+| style="padding: .75pt .75pt .75pt .75pt" |
+The CPU usage of the sdnplatform OpenFlow controller process
+|- style="mso-yfti-irow: 12"
+| style="padding: .75pt .75pt .75pt .75pt" |
+database-cpu
+| style="padding: .75pt .75pt .75pt .75pt" |
+The CPU usage of the database process that stores network and stats data
+|- style="mso-yfti-irow: 13"
+| style="padding: .75pt .75pt .75pt .75pt" |
+apache-cpu
+| style="padding: .75pt .75pt .75pt .75pt" |
+The CPU usage of the Apache process that supports the REST API and web UI
+|- style="mso-yfti-irow: 14"
+| style="padding: .75pt .75pt .75pt .75pt" |
+cli-cpu
+| style="padding: .75pt .75pt .75pt .75pt" |
+The CPU usage of the CLI process
+|- style="mso-yfti-irow: 15; mso-yfti-lastrow: yes"
+| style="padding: .75pt .75pt .75pt .75pt" |
+statd-cpu
+| style="padding: .75pt .75pt .75pt .75pt" |
+The CPU usage of the statd daemon process that collects system and switch stats
+|}
+
+</div>
+
+The following switch-related stat types are supported:
+
+<div>
+
+{| class="MsoNormalTable" style="mso-cellspacing: 1.5pt; mso-yfti-tbllook: 1184"
+|- style="mso-yfti-irow: 0; mso-yfti-firstrow: yes"
+| style="padding: .75pt .75pt .75pt .75pt" |
+<center>'''Stat Name'''</center>
+| style="padding: .75pt .75pt .75pt .75pt" |
+<center>'''Description'''</center>
+|- style="mso-yfti-irow: 1"
+| style="padding: .75pt .75pt .75pt .75pt" |
+OFPacketIn
+| style="padding: .75pt .75pt .75pt .75pt" |
+The count of OpenFlow packet in events received by the controller from the switch
+|- style="mso-yfti-irow: 2"
+| style="padding: .75pt .75pt .75pt .75pt" |
+OFFlowMod
+| style="padding: .75pt .75pt .75pt .75pt" |
+The count of OpenFlow flow mod commands sent from the controller to the switch
+|- style="mso-yfti-irow: 3; mso-yfti-lastrow: yes"
+| style="padding: .75pt .75pt .75pt .75pt" |
+OFActiveFlow
+| style="padding: .75pt .75pt .75pt .75pt" |
+The number of active flow entries for the switch
+|}
+
+</div>
+
+The values are counters since the last time the controller was restarted.
+
+The flow mod counter includes commands that add or delete flow mods on the switch. Due to the way the controller handles flow mods there are typically 3 flow mod commands per packet in event that is forwarded.
+
+For the OFPacketIn counter there are also subcounters for specific L3 and L4 packet types. The format of these counter names are:
+
+<div>
+
+{| class="MsoNormalTable" style="mso-cellspacing: 1.5pt; mso-yfti-tbllook: 1184"
+|- style="mso-yfti-irow: 0; mso-yfti-firstrow: yes"
+| style="padding: .75pt .75pt .75pt .75pt" |
+<center>'''Stat Name'''</center>
+| style="padding: .75pt .75pt .75pt .75pt" |
+<center>'''Description'''</center>
+| style="padding: .75pt .75pt .75pt .75pt" |
+<center>'''Examples'''</center>
+|- style="mso-yfti-irow: 1"
+| style="padding: .75pt .75pt .75pt .75pt" |
+OFPacketIn_''<font face="Arial">L3</font>''&lt;type&gt;
+| style="padding: .75pt .75pt .75pt .75pt" |
+Subcounter for a particular L3 packet type
+| style="padding: .75pt .75pt .75pt .75pt" |
+OFPacketIn_''<font face="Arial">L3_IPv4, OFPacketIn</font>''_L3_ARP
+|- style="mso-yfti-irow: 2; mso-yfti-lastrow: yes"
+| style="padding: .75pt .75pt .75pt .75pt" |
+OFPacketIn_''<font face="Arial">L4</font>''&lt;type&gt;
+| style="padding: .75pt .75pt .75pt .75pt" |
+Subcounter for a particular L4 packet type
+| style="padding: .75pt .75pt .75pt .75pt" |
+OFPacketIn_''<font face="Arial">L4_ICMP, OFPacketIn</font>''_TCP
+|}
+
+</div>
+
+Note that it's a double underscore between the "OFPacketIn" and the L3/L4 name.
+
+===<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">Getting Target Instance Info</font></span>===
+
+For a given target type (i.e. either "controller" or "switch") it's useful to get a list of the instances of that target type that have stats data:
+
+<div>
+
+{| class="MsoNormalTable" style="mso-cellspacing: 1.5pt; mso-yfti-tbllook: 1184"
+|- style="mso-yfti-irow: 0; mso-yfti-firstrow: yes"
+| style="padding: .75pt .75pt .75pt .75pt" |
+<center>'''URL'''</center>
+| style="padding: .75pt .75pt .75pt .75pt" |
+http://&lt;host-name-or-ip&gt;/rest/v1/stats/target/&lt;cluster-id&gt;/&lt;target-type&gt;
+|- style="mso-yfti-irow: 1; mso-yfti-lastrow: yes"
+| style="padding: .75pt .75pt .75pt .75pt" |
+<center>'''Return Text'''</center>
+| style="padding: .75pt .75pt .75pt .75pt" |
+{"&lt;target-id&gt;": {"controller": "localhost", "last-updated": 1311204432931}, "&lt;target-id&gt;": {"controller": "localhost", "last-updated": 1311204432931}}
+|}
+
+</div>
+
+As described above, use "default" for the cluster-id when using the REST API with the local controller. For the "controller" target type, this isn't all that useful right now, because there's only the single "localhost" controller instance, but this will be important in the future when a logical controller is composed of multiple controller node instances. For the "switch" target type you can retrieve the switches that have stats data. Then you can use the REST API to get the stats types that have been written for a given target (described next) to iterate over all of the stats types for all of the targets. The controller attribute is the controller node that most recently updated that stats value. Again, this isn't all that useful now for a single local controller, but is more important in the context of a multi-node controller.
+
+===<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">Getting Stats Type Index Info</font></span>===
+
+For a given target type and ID you can use the stats index REST API to get all of the stats types that have been written for that target:
+
+<div>
+
+{| class="MsoNormalTable" style="mso-cellspacing: 1.5pt; mso-yfti-tbllook: 1184"
+|- style="mso-yfti-irow: 0; mso-yfti-firstrow: yes"
+| style="padding: .75pt .75pt .75pt .75pt" |
+<center>'''URL'''</center>
+| style="padding: .75pt .75pt .75pt .75pt" |
+http://&lt;host-name-or-ip&gt;/rest/v1/stats/index/&lt;cluster-id&gt;/&lt;target-type&gt;/&lt;target-id&gt;
+|- style="mso-yfti-irow: 1; mso-yfti-lastrow: yes"
+| style="padding: .75pt .75pt .75pt .75pt" |
+<center>'''Return Text'''</center>
+| style="padding: .75pt .75pt .75pt .75pt" |
+{"&lt;base-stats-type&gt;": {"last-updated": 1311204432931, "parameters": {"&lt;parameter-name&gt;": {"last-updated": 1311204432931}, "&lt;parameter-name&gt;": {"last-updated": 1311204432931}}}}
+|}
+
+</div>
+
+As described above, use "default" for the cluster-id when using the REST API with the local controller. The target-type is either "controller" or "switch". The target-id is "localhost" for the controller target type or the switch DPID for the switch target type. The base-stats-type in the return text is one of the stats type listed in the supported stats type section. The parameters attribute in the return text refers to the subcounters listed above for the L3/L4 stats. So in that case the base-stats-type is OFPacketIn and the parameter-name is the L3_&lt;type&gt; or L4_&lt;type&gt; part. The last-updated attribute is the most recent time (in milliseconds since the epoch) when a new stats value was added.
+
+===<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">Examples</font></span>===
+
+To get the latest mem-used
+
+<div>
+
+{| class="MsoNormalTable" style="mso-cellspacing: 1.5pt; mso-yfti-tbllook: 1184"
+|- style="mso-yfti-irow: 0; mso-yfti-firstrow: yes; mso-yfti-lastrow: yes"
+| style="padding: .75pt .75pt .75pt .75pt" |
+<center>'''URL'''</center>
+| style="padding: .75pt .75pt .75pt .75pt" |
+http://&lt;ip&gt;/rest/v1/stats/data/default/controller/localhost/mem-used
+|}
+
+</div>
+
+To get the last hour of mem-used:
+
+<div>
+
+{| class="MsoNormalTable" style="mso-cellspacing: 1.5pt; mso-yfti-tbllook: 1184"
+|- style="mso-yfti-irow: 0; mso-yfti-firstrow: yes; mso-yfti-lastrow: yes"
+| style="padding: .75pt .75pt .75pt .75pt" |
+<center>'''URL'''</center>
+| style="padding: .75pt .75pt .75pt .75pt" |
+http://&lt;ip&gt;/rest/v1/stats/data/default/controller/localhost/mem-used?end-time=now&amp;duration=1h
+|}
+
+</div>
+
+To get the most recent OFPacketIn value for switch 00:00:00:00:00:73:28:02:
+
+<div>
+
+{| class="MsoNormalTable" style="mso-cellspacing: 1.5pt; mso-yfti-tbllook: 1184"
+|- style="mso-yfti-irow: 0; mso-yfti-firstrow: yes; mso-yfti-lastrow: yes"
+| style="padding: .75pt .75pt .75pt .75pt" |
+<center>'''URL'''</center>
+| style="padding: .75pt .75pt .75pt .75pt" |
+http://&lt;ip&gt;/rest/v1/stats/data/switch/default/00:00:00:00:00:73:28:02/OFPacketIn
+|}
+
+</div>
+
+To get the last day of OFPacketIn:
+
+<div>
+
+{| class="MsoNormalTable" style="mso-cellspacing: 1.5pt; mso-yfti-tbllook: 1184"
+|- style="mso-yfti-irow: 0; mso-yfti-firstrow: yes; mso-yfti-lastrow: yes"
+| style="padding: .75pt .75pt .75pt .75pt" |
+<center>'''URL'''</center>
+| style="padding: .75pt .75pt .75pt .75pt" |
+http://&lt;ip&gt;/rest/v1/stats/data/default/switch/00:00:00:00:00:73:28:02/OFPacketIn?end-time=now&amp;duration=1d
+|}
+
+</div>
+
+To get the last day of OFPacketIn rates:
+
+<div>
+
+{| class="MsoNormalTable" style="mso-cellspacing: 1.5pt; mso-yfti-tbllook: 1184"
+|- style="mso-yfti-irow: 0; mso-yfti-firstrow: yes; mso-yfti-lastrow: yes"
+| style="padding: .75pt .75pt .75pt .75pt" |
+<center>'''URL'''</center>
+| style="padding: .75pt .75pt .75pt .75pt" |
+http://&lt;ip&gt;/rest/v1/stats/data/default/switch/00:00:00:00:00:73:28:02/OFPacketIn?end-time=now&amp;duration=1d&amp;data-format=rate
+|}
+
+</div>
+
+==Configuring a VNS==
+
+The REST API can be used to create/update a VNS. This typically consists of creating instances of several different models:
+
+* <span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">The top level VNS object</font></span>
+* <span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">One or more VNS interface rules</font></span>
+* <span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">One or more ACLs</font></span>
+* <span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">Tags</font></span>
+
+===<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">Creating VNS Objects</font></span>===
+
+To create the top-level VNS use a HTTP PUT to the following URL:
+
+<div>
+
+{| class="MsoNormalTable" style="mso-cellspacing: 1.5pt; mso-yfti-tbllook: 1184"
+|- style="mso-yfti-irow: 0; mso-yfti-firstrow: yes; mso-yfti-lastrow: yes"
+| style="padding: .75pt .75pt .75pt .75pt" |
+<center>'''URL'''</center>
+| style="padding: .75pt .75pt .75pt .75pt" |
+http://&lt;ip&gt;/rest/v1/model/vns-definition
+|}
+
+</div>
+
+The data for the PUT method is a JSON object with the following fields:
+
+<div>
+
+{| class="MsoNormalTable" style="mso-cellspacing: 1.5pt; mso-yfti-tbllook: 1184"
+|- style="mso-yfti-irow: 0; mso-yfti-firstrow: yes"
+| style="padding: .75pt .75pt .75pt .75pt" |
+<center>'''Field name'''</center>
+| style="padding: .75pt .75pt .75pt .75pt" |
+<center>'''Description'''</center>
+|- style="mso-yfti-irow: 1"
+| style="padding: .75pt .75pt .75pt .75pt" |
+id
+| style="padding: .75pt .75pt .75pt .75pt" |
+String value for the unique name for the VNS. The name can be up to 32 characters long. Allowed characters are alphanumeric characters, '_', and '-'.
+|- style="mso-yfti-irow: 2"
+| style="padding: .75pt .75pt .75pt .75pt" |
+active
+| style="padding: .75pt .75pt .75pt .75pt" |
+Boolean value for whether the VNS is active/enabled in the controller. Default value (i.e. if omitted from PUT data) is false.
+|- style="mso-yfti-irow: 3"
+| style="padding: .75pt .75pt .75pt .75pt" |
+priority
+| style="padding: .75pt .75pt .75pt .75pt" |
+Integer value for the priority of this VNS relative to other VNSs. Interface rules for VNSs with higher priority values take precedence over interface rules for VNSS with lower priority values. Default value is 32768.
+|- style="mso-yfti-irow: 4"
+| style="padding: .75pt .75pt .75pt .75pt" |
+arp-mode
+| style="padding: .75pt .75pt .75pt .75pt" |
+String enumerated value for how the VNS handles ARP packets. Allowed values are "always-flood", "flood-if-unknown", and "drop-if-unknown". Default value if "flood-if-unknown".
+|- style="mso-yfti-irow: 5"
+| style="padding: .75pt .75pt .75pt .75pt" |
+dhcp-mode
+| style="padding: .75pt .75pt .75pt .75pt" |
+String enumerated value for how the VNS handles DHCP packets. Allowed values are 'bridge' and 'none'. Default value is "none".
+|- style="mso-yfti-irow: 6"
+| style="padding: .75pt .75pt .75pt .75pt" |
+dhcp-ip
+| style="padding: .75pt .75pt .75pt .75pt" |
+String value for the IP address of the DHCP server. Used if the dhcp-mode is set to 'bridge'. Default value is "".
+|- style="mso-yfti-irow: 7"
+| style="padding: .75pt .75pt .75pt .75pt" |
+dhcp-helper
+| style="padding: .75pt .75pt .75pt .75pt" |
+String value for the IP address of the DHCP helper. Used if the dhcp-mode is set to 'bridge'. Default value is "".
+|- style="mso-yfti-irow: 8; mso-yfti-lastrow: yes"
+| style="padding: .75pt .75pt .75pt .75pt" |
+dhcp-vlan
+| style="padding: .75pt .75pt .75pt .75pt" |
+Integer value for the VLAN tag that is added to or stripped from DHCP packets. Default value is 0 (i.e. no tagging).
+|}
+
+</div>
+
+===<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">Creating VNS Interface Rules</font></span>===
+
+Once you've created the top-level VNS definition you can create rules that map hosts/ports to interfaces for the VNS. To create a VNS interface rule use a HTTP put to the following URL:
+
+<div>
+
+{| class="MsoNormalTable" style="mso-cellspacing: 1.5pt; mso-yfti-tbllook: 1184"
+|- style="mso-yfti-irow: 0; mso-yfti-firstrow: yes; mso-yfti-lastrow: yes"
+| style="padding: .75pt .75pt .75pt .75pt" |
+<center>'''URL'''</center>
+| style="padding: .75pt .75pt .75pt .75pt" |
+http://&lt;ip&gt;/rest/v1/model/vns-interface-rule
+|}
+
+</div>
+
+The data for the PUT method is a JSON object with the following fields:
+
+<div>
+
+{| class="MsoNormalTable" style="mso-cellspacing: 1.5pt; mso-yfti-tbllook: 1184"
+|- style="mso-yfti-irow: 0; mso-yfti-firstrow: yes"
+| style="padding: .75pt .75pt .75pt .75pt" |
+<center>'''Field name'''</center>
+| style="padding: .75pt .75pt .75pt .75pt" |
+<center>'''Description'''</center>
+|- style="mso-yfti-irow: 1"
+| style="padding: .75pt .75pt .75pt .75pt" |
+id
+| style="padding: .75pt .75pt .75pt .75pt" |
+Unique name for the interface rule. The format of the id is &lt;VNS-id&gt;|&lt;interface-id&gt; where the VNS id is the id field of the parent VNS and the interface id is either a non-negative integer or a string identifier (allowed characters are A-Z, a-z, 0-9, - and _). Note that the | character in the id is the actual | character used as a separator character in the compound key formed from the VNS id and the interface ID (i.e. it's not being used as a regex alternation operator).
+|- style="mso-yfti-irow: 2"
+| style="padding: .75pt .75pt .75pt .75pt" |
+vns
+| style="padding: .75pt .75pt .75pt .75pt" |
+The VNS id of the parent VNS
+|- style="mso-yfti-irow: 3"
+| style="padding: .75pt .75pt .75pt .75pt" |
+description
+| style="padding: .75pt .75pt .75pt .75pt" |
+Arbitrary string description/comment for the rule. Does not affect behavior of the rule.
+|- style="mso-yfti-irow: 4"
+| style="padding: .75pt .75pt .75pt .75pt" |
+allow-multiple
+| style="padding: .75pt .75pt .75pt .75pt" |
+Boolean value for whether or not this rule allows a host to be associated with multiple VNSs. Default is false.
+|- style="mso-yfti-irow: 5"
+| style="padding: .75pt .75pt .75pt .75pt" |
+active
+| style="padding: .75pt .75pt .75pt .75pt" |
+Boolean value for whether or not the rule is active
+|- style="mso-yfti-irow: 6"
+| style="padding: .75pt .75pt .75pt .75pt" |
+priority
+| style="padding: .75pt .75pt .75pt .75pt" |
+Integer value for the priority of the rule relative to other rules in assigning host, port, switches to VNS interfaces. Higher number means higher priority. Default is 32768.
+|- style="mso-yfti-irow: 7"
+| style="padding: .75pt .75pt .75pt .75pt" |
+mac
+| style="padding: .75pt .75pt .75pt .75pt" |
+String value for the MAC address to match against in applying the rule. Default is "" (i.e. don't match on MAC address)
+|- style="mso-yfti-irow: 8"
+| style="padding: .75pt .75pt .75pt .75pt" |
+ip-subnet
+| style="padding: .75pt .75pt .75pt .75pt" |
+String value for the IP address (with optional CIDR mask) to match against in applying the rule. Default is "" (i.e. don't match on IP).
+|- style="mso-yfti-irow: 9"
+| style="padding: .75pt .75pt .75pt .75pt" |
+switch
+| style="padding: .75pt .75pt .75pt .75pt" |
+The DPID of the switch to match against in applying the rule. Default is "" (i.e. don't match on DPID).
+|- style="mso-yfti-irow: 10; mso-yfti-lastrow: yes"
+| style="padding: .75pt .75pt .75pt .75pt" |
+ports
+| style="padding: .75pt .75pt .75pt .75pt" |
+Comma-separated list of ports from the switch specified in the "switch" field to match against in applying the rule. The ports are the physical port names, not the OpenFlow port numbers. Port ranges can be specified with a dash (e.g. A10-A20). Default is "" (i.e. match any port on the specified switch).
+|}
+
+</div>
+
+If multiple match fields (i.e. mac, ip-subnet, switch, ports) are specified then they must all match for the rule to be applied.
+
+==<span style="mso-fareast-font-family: &quot;Times New Roman&quot;; mso-bidi-font-family: &quot;Times New Roman&quot;"><font face="Arial">Error Handling</font></span>==
+
+If there's an error processing the REST request, then the REST API returns an appropriate HTTP error code and the body of the response is a JSON object containing several fields:
+
+<div>
+
+{| class="MsoNormalTable" style="mso-cellspacing: 1.5pt; mso-yfti-tbllook: 1184"
+|- style="mso-yfti-irow: 0; mso-yfti-firstrow: yes"
+| style="padding: .75pt .75pt .75pt .75pt" |
+<center>'''Field Name'''</center>
+| style="padding: .75pt .75pt .75pt .75pt" |
+<center>'''Description'''</center>
+|- style="mso-yfti-irow: 1"
+| style="padding: .75pt .75pt .75pt .75pt" |
+error_type
+| style="padding: .75pt .75pt .75pt .75pt" |
+The type of the error/exception. This maps to the name of the exception that was thrown by the REST implementation.
+|- style="mso-yfti-irow: 2"
+| style="padding: .75pt .75pt .75pt .75pt" |
+description
+| style="padding: .75pt .75pt .75pt .75pt" |
+A human-readable description of the error
+|- style="mso-yfti-irow: 3"
+| style="padding: .75pt .75pt .75pt .75pt" |
+model_error (optional)
+| style="padding: .75pt .75pt .75pt .75pt" |
+The model-level validation error
+|- style="mso-yfti-irow: 4; mso-yfti-lastrow: yes"
+| style="padding: .75pt .75pt .75pt .75pt" |
+field_errors (optional)
+| style="padding: .75pt .75pt .75pt .75pt" |
+The per-field validation errors
+|}
+
+</div>
+
+The model_error and field_errors fields are only set if the error occurred during validation of the input data when creating or updating a data item. You get these errors if the format of the input doesn't match the expected format of the field you're setting (e.g. trying to set an IP address field to something that doesn't have the format of an IP address).
+
+[[Category:OpenDaylight SDN Controller Platform]]
