@@ -1,0 +1,114 @@
+{| align="right" border="1"
+|align="center"|'''User Guide'''
+|-
+|[[OpenDaylight SDN Controller Platform (OSCP):Installation|Installation]]<br>[[OpenDaylight SDN Controller Platform (OSCP):Clustering|Clustering & HA]]<br>[[OpenDaylight SDN Controller Platform (OSCP):Management|Management Integration]]<br>[[OpenDaylight SDN Controller Platform (OSCP):Troubleshooting|Troubleshooting]]<br>[[OpenDaylight SDN Controller Platform (OSCP):Main|Back to Top]]
+|}
+
+{| align="right" border="1"
+|align="center"|'''Programmer Guide     '''
+|-
+|[[OpenDaylight SDN Controller Platform (OSCP):Overview|Overview]]<br>[[OpenDaylight SDN Controller Platform (OSCP):Rest Reference|REST Reference]]<br>[[OpenDaylight SDN Controller Platform (OSCP):Module Loading System|Module Loading System]]<br>[[OpenDaylight SDN Controller Platform (OSCP):Tutorial-Writing a Module|Tutorial-Writing a Module]]<br>[[OpenDaylight SDN Controller Platform (OSCP):Main|Back to Top]]
+|}
+
+=Introduction=
+
+This document gives an introduction to the architecture of the SDN Controller Platform. It is intended for new programmers who are learning how to develop on the platform.
+
+=OpenFlow in a Nutshell=
+
+OpenFlow is a protocol for programming the data planes of switches at a low level by a centralized service called the controller. The controller is responsible for controlling the forwarding across the whole network, and has a logically centralized view of the network. This removes the need to use distributed protocols like spanning tree because the controller can provide this functionality directly based on its network-wide understanding.
+
+The fundamental abstraction of an OpenFlow switch is a flow table, which is a prioritized list of match rules, along with associated actions. A entry in a a flow table is called a flow table entry, and is configured by the controller using a flow mod. A flow mod can specify what to match on, such as source MAC address or source port, and actions such as rewriting the frame, or outputting the packet to a particular port. Frames arriving at a switch are processed by matching against the match rules in the flow table in priority order, then executing the associated actions.
+
+If a particular frame does not match any entry in the flow table, then it can be sent to the controller in a packet-in message. The packet-in message includes the contents of the ethernet frame, and information about the input port for the incoming frame. The controller can also inject ethernet frames into the switch using the corresponding packet-out message.
+
+=Reactive and Proactive Flow Setup=
+
+There are two important approaches for writing applications for an OpenFlow network:
+
+*In proactive flow setup, the controller sets up flows in advance so that the controller should not get any packet-in events.
+*In reactive flow setup, the controller responds to packet-in events by setting up flow mods to deal with only that particular flow.
+
+Reactive setup is a much more powerful and flexible model because the controller can implement logic that cannot be represented by the flow table on the switch. On the other hand, proactive setup can have better performance because it avoids the extra latency on the first packet of the flow.
+
+Applications can also implement a hybrid approach where some traffic is handled proactively and some is handled reactively. A "true" proactive application cannot learn anything about the flows in the network except what's found in the flow counters or through out-of-band information such as from a orchestration system. In practice few applications are likely to implement a completely pure proactive model.
+
+=Controller Components=
+
+Let's start with a quick overview of the components on the system.
+
+==sdnplatform==
+
+sdnplatform is the controller itself, and it is written in Java. sdnplatform is responsible for communicating with switches using the OpenFlow protocol. It supports a modular architecture that allows for adding additional functionality controlled by a configuration file. 
+
+==Apache==
+
+Figure 1: Controller Node Components
+
+Apache serves as a proxy to access APIs exposed by the state database, and also implements some additional functionality. Running inside Apache is a django web application we call sdncon. sdncon exists somewhat for historical purposes but it still implements some key functionality. This includes:
+
+*Our rudimentary GUI for viewing statistics
+*Configuration of system settings, including IP addresses, NTP configuration, and other settings. This functionality is implemented directly by a python script called oswrapper, or alternately configd. This communicates directly through Cassandra.
+*Statistics storage infrastructure. This communicates directly through Cassandra.
+
+==CLI==
+The CLI is our primary user interface for configuring and interacting with the controller. It is a python program that serves as the default login shell on the system. Everything the CLI does goes through the REST API; it implements no real functionality on its own.
+
+==Statd==
+Statd is responsible for periodically gathering statistics from the system and writing them to the statistics storage infrastruction in sdncon. It also has a cousin statdropd which periodically purges old stats from the system to avoid unbounded growth of the data.
+
+=A Deeper Look at sdnplatform=
+
+sdnplatform is where the most interesting things on the controller image happens; this is the "software" in sofware-defined networking. sdnplatform uses a modular architecture, where modules expose interfaces as services, and can depend on services. The module loader reads a list of modules from its configuration file, then loads not only those modules, but also finds modules that implement services on which those modules depend.
+
+Modules in sdnplatform go through an initialization sequence when they are loaded when sdnplatform starts. At this time, they can register to receive various events exposed by the modules.
+
+Some of the core services provided by sdnplatform are:
+
+*ISdnplatformService: This is the "core" service, and exposes APIs such as gaining access to connected switches. It exposes events such as new switch connections, or OpenFlow events.
+*ITopologyService: This module is responsible for discovering the topology of the network and exposes interfaces that allow you to query for information about the topology and also find routes through the discovered topology. It exposes events related to topology changes.
+*IDeviceService: This modules is responsible for learning about devices attached to the network, such as their MAC addresses, IP addresses, and location on the network. It exposes APIs that allow you to query for this information. It exposes events related to changes to device information.
+
+In ISdnplatformService, modules can register OFMessageListener objects to listen to particular OpenFlow messages. The various listeners for a particular message will form a processing pipeline. The modules can express dependency information so that modules which must run earlier in the pipeline can express this information. There is a sdnplatform context object that follows an event through the pipeline. The modules along the pipeline can communicate to modules later in the pipeline by annotating information into the context.
+
+A particular set of sdnplatform modules loaded in a particular way constitute a sdnplatform application.
+
+=The Packet-In Pipeline=
+
+[[File:oscp-overview-image1.png|400px]]
+
+The controller is a reactive flow setup application that implements a network virtualization solution. Devices are grouped logically into virtual network segments, so that communication cannot occur across these network segment boundaries.
+
+The packet-in pipeline is the key to understanding the design of the controller. We will run through what happens in this pipeline.
+
+==Topology==
+
+Topology discovery is the first thing in the packet-in pipeline. Topology is actually broken into two modules:
+
+*Link discovery manager pe riodically sends probes out of the ports on the network using packet-out. These probe packets come back in on the other side of links as packet-in messages and this allows us to discover the topology of the network.
+*Topology manager listens to events from link discovery manager to construct a graph representation of the network.
+
+==Device Manager==
+
+Device manager is next in the pipeline. It will watch the traffic that comes in to learn about devices in the network. It figures out the source and destination for the ethernet frame in the packet-in message, and annotates this information into the sdnplatform context for the packet-in so that the device information will be available to modules later in the pipeline.
+
+==VNS Manager==
+VNS manager is responsible for mapping the devices associated with the the packet-in by device manager to specific virtual network segments. One of these virtual network segments is called a VNS. This assignment is done by rules configured by the user from the CLI. The mapping for both the source and destination devices are then added to the sdnplatform context so it can be accessed by modules later in the pipeline. Note that VNS Manager itself does not enforce any policy; it simply manages this mapping.
+
+==Virtual Routing==
+
+Virtual routing is responsible for finally determining the actual policy that should apply to the flow. In a sense, this is where the "real" action is in the pipeline, since this is where we finally decide how we're going to process the packet-in. The output of Virtual Routing is a VirtualRoutingD ecision that is added to the sdnplatform context. This decision object contains decisions on what should happen to the flow. This can include dropping the flow, forwarding the flow, or modifying the packets in the flow.
+
+The policy for packets is determined examining the VNS assignments for the source and the destination of the packet, and applying policy based on the configuration for the virtual network segments. For example, typically two devices in different segments cannot communication, and so these flows would be dropped.
+
+Virtual Routing has its own pipeline determining the appropriate policy action. These modules manipulate the decision object. The Virtual Routing module also has some built-in functionality. This includes enforcing virtual network segment isolation, and applying ACLs to the traffic. The other modules include:
+
+*ARP Manager: ARP Manager attempts to convert broadcast ARP packets into unicast packets. If the destination for an ARP query is known, we can simply unicast the ARP traffic to its destination and avoid broadcast.
+*DHCP Manager: DHCP Manager tries to reduce DHCP broadcast traffic in a way analogous to ARP Manager.
+*Network Service Manager: Network service manager is responsible for inserting virtual services into the network. This includes spoofing an ARP reply for service IP addresses to send back a virtual MAC address, and anycasting traffic sent to a virtual MAC address to the closest active device that provides the associated network service. For example, a gateway service could be configured to correspond to multiple real gateway routers, and devices configured to use the virtual IP as their default route will use whichever real router is closest to the device.
+*Virtual Router: This service will perform layer 3 routing between devices across VNS boundaries according to the user configuration.
+
+==Forwarding==
+Forwarding is responsible for turning the high-level intent expressed by the virtual routing pipeline into actual flow mods in the network. It will query the topology service for routes in the network, and then program the individual flow mods on the switches based on the intent expressed by the virtual routing decision.
+
+[[Category:OpenDaylight SDN Controller Platform]]
