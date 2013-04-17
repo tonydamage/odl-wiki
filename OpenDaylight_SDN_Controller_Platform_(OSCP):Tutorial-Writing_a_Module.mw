@@ -1,0 +1,231 @@
+{| align="right" border="1"
+|align="center"|'''User Guide'''
+|-
+|[[OpenDaylight SDN Controller Platform (OSCP):Installation|Installation]]<br>[[OpenDaylight SDN Controller Platform (OSCP):Clustering|Clustering & HA]]<br>[[OpenDaylight SDN Controller Platform (OSCP):Management|Management Integration]]<br>[[OpenDaylight SDN Controller Platform (OSCP):Troubleshooting|Troubleshooting]]<br>[[OpenDaylight SDN Controller Platform (OSCP):Main|Back to Top]]
+|}
+
+{| align="right" border="1"
+|align="center"|'''Programmer Guide     '''
+|-
+|[[OpenDaylight SDN Controller Platform (OSCP):Overview|Overview]]<br>[[OpenDaylight SDN Controller Platform (OSCP):Rest Reference|REST Reference]]<br>[[OpenDaylight SDN Controller Platform (OSCP):Module Loading System|Module Loading System]]<br>[[OpenDaylight SDN Controller Platform (OSCP):Tutorial-Writing a Module|Tutorial-Writing a Module]]<br>[[OpenDaylight SDN Controller Platform (OSCP):Main|Back to Top]]
+|}
+
+=Prerequisites=
+
+We are going to create a bundle that will watch for new MAC addresses that have not been seen before, and log the MAC and switch they were seen on.
+
+* Successfully completed the Getting Started tutorial, including setting up Eclipse
+* Mininet installed and running, or a physical OpenFlow switch
+
+=Creating The Listener=
+
+==Add Class In Eclipse==
+
+# Expand the “sdnplatform” item in the Package Explorer and find the “src/main/java” folder.
+# Right-click on the “src/main/java” folder and choose “New/Class”.
+# Enter “net.sdnplatform.mactracker” in the “Package” box.
+# Enter “MACTracker” in the “Name” box.
+# Next to the “Interfaces” box, choose “Add…”.
+# Add the “IOFMessageListener” and the “ISDNplatformModule”, click “OK”.
+# Click “Finish” in the dialog.
+
+You should end up with something like this:
+
+ package net.sdnplatform.mactracker;
+ 
+ import java.util.Collection;
+ import java.util.Map;
+ 
+ import org.openflow.protocol.OFMessage;
+ import org.openflow.protocol.OFType;
+ 
+ import net.sdnplatform.core.SDNplatformContext;
+ import net.sdnplatform.core.IOFMessageListener;
+ import net.sdnplatform.core.IOFSwitch;
+ import net.sdnplatform.core.module.SDNplatformModuleContext;
+ import net.sdnplatform.core.module.SDNplatformModuleException;
+ import net.sdnplatform.core.module.SDNplatformModule;
+ import net.sdnplatform.core.module.SDNplatformService;
+ 
+ public class MACTracker implements IOFMessageListener, ISDNplatformModule {
+ 
+ 	@Override
+ 	public String getName() {
+ 		// TODO Auto-generated method stub
+ 		return null;
+ 	}
+ 
+ 	@Override
+ 	public int getId() {
+ 		// TODO Auto-generated method stub
+ 		return 0;
+ 	}
+ 
+ 	@Override
+ 	public boolean isCallbackOrderingPrereq(OFType type, String name) {
+ 		// TODO Auto-generated method stub
+ 		return false;
+ 	}
+ 
+ 	@Override
+ 	public boolean isCallbackOrderingPostreq(OFType type, String name) {
+ 		// TODO Auto-generated method stub
+ 		return false;
+ 	}
+
+ 	@Override
+ 	public Collection<Class<? extends ISDNplatformService>> getModuleServices() {
+ 		// TODO Auto-generated method stub
+ 		return null;
+ 	}
+ 
+ 	@Override
+ 	public Map<Class<? extends ISDNplatformService>, ISDNplatformService> getServiceImpls() {
+ 		// TODO Auto-generated method stub
+ 		return null;
+	}
+ 
+ 	@Override
+ 	public Collection<Class<? extends ISDNplatformService>> getModuleDependencies() {
+ 		// TODO Auto-generated method stub
+ 		return null;
+ 	}
+ 
+ 	@Override
+ 	public void init(SDNplatformModuleContext context)
+ 			throws SDNplatformModuleException {
+ 		// TODO Auto-generated method stub
+ 
+ 	}
+ 
+ 	@Override
+ 	public void startUp(SDNplatformModuleContext context) {
+ 		// TODO Auto-generated method stub
+ 
+ 	}
+ 
+ 	@Override
+ 	public Command receive(IOFSwitch sw, OFMessage msg, SDNplatformContext cntx) {
+ 		// TODO Auto-generated method stub
+ 		return null;
+ 	}
+ 
+ }
+
+==Setting Up Module Dependencies And Initialization==
+
+Before we get started, we are going to need a number of dependencies for the code to work. A tool like Eclipse should make it easy to add them. However, if you aren’t using eclipse, you may just want to add them up front:
+
+ import net.sdnplatform.core.ISDNplatformProviderService;
+ import java.util.ArrayList;
+ import java.util.concurrent.ConcurrentSkipListSet;
+ import java.util.Set;
+ import net.sdnplatform.packet.Ethernet;
+ import org.openflow.util.HexString;
+ import org.slf4j.Logger;
+ import org.slf4j.LoggerFactory;
+
+Now that we have our skeleton class, we have to implement the correct functions to make the module loadable. Lets start by registering some member variables we’ll need into the class. Since we are listening to OpenFlow messages we need to register with the SDNplatformProvider (ISDNplatformProviderService class). We also need a set to store macAddresses we’ve seen. Finally, we need a logger to output what we’ve seen.
+
+ protected ISDNplatformProviderService sdnplatformProvider;
+ protected Set macAddresses;
+ protected static Logger logger;
+
+Now we need to wire it up to the module loading system. We tell the module loader we depend on it by modifying the getModuleDependencies() function.
+
+ @Override
+ public Collection<Class<? extends ISDNplatformService>> getModuleDependencies() {
+     Collection<Class<? extends ISDNplatformService>> l =
+         new ArrayList<Class<? extends ISDNplatformService>>();
+     l.add(ISDNplatformProviderService.class);
+     return l;
+ }
+
+Now its time to create our Init method. Init is called early in the controller startup process — it primarily is run to load dependencies and initialize datastructures.
+
+ @Override
+ public void init(SDNplatformModuleContext context) throws SDNplatformModuleException {
+      sdnplatformProvider = context.getServiceImpl(ISDNplatformProviderService.class);
+     macAddresses = new ConcurrentSkipListSet<Long>();
+     logger = LoggerFactory.getLogger(MACTracker.class);
+ }
+
+==Handling The Packet-In Message==
+
+Now it’s time to implement the basic listener. We’ll register for PACKET_IN messages in our startUp method. Here we are assured other modules we depend on are already initialized.
+
+ @Override
+ public void startUp(SDNplatformModuleContext context) {
+     sdnplatformProvider.addOFMessageListener(OFType.PACKET_IN, this);
+ }
+
+We also have to put in an ID for our OFMessage listener. This is done in the getName() call.
+
+ @Override
+ public String getName() {
+     return MACTracker.class.getSimpleName();
+ }
+
+Now we have to define the behavior we want for PACKET_IN messages. Note that we return Command.CONTINUE to allow this message to continue to be handled by other PACKET_IN handlers as well.
+
+ @Override
+    public net.sdnplatform.core.IListener.Command receive(IOFSwitch sw, OFMessage msg,  SDNplatformContext cntx) {
+         Ethernet eth =
+                 ISDNplatformProviderService.bcStore.get(cntx,
+                                             ISDNplatformProviderService.CONTEXT_PI_PAYLOAD);  
+ 
+         Long sourceMACHash = Ethernet.toLong(eth.getSourceMACAddress());
+         if (!macAddresses.contains(sourceMACHash)) {
+             macAddresses.add(sourceMACHash);
+             logger.info("MAC Address: {} seen on switch: {}",
+                     HexString.toHexString(sourceMACHash),
+                     sw.getId());
+         }
+         return Command.CONTINUE;
+     }
+
+==Register The Module==
+
+We’re almost done, now we just need to tell sdnplatform to load the module on startup. First we have to tell the loader that the module exists. This is done by adding the fully qualified module name on it’s own line in src/main/resources/META-INF/services/net.sdnplatform.core.module.ISDNplatformModule. We open that file and append this line.
+
+ net.sdnplatformcontroller.mactracker.MACTracker
+
+Then we tell the module to be loaded. We modify the sdnplatform module configuration file to append the MACTracker. The default one is src/main/resources/sdnplatformdefault.properties. The key is sdnplatform.modules and the value is a comma separated list of fully qualified module names.
+
+ sdnplatform.modules = <leave the default list of modules in place>, net.sdnplatform.mactracker.MACTracker
+
+Finally, let’s run the controller by right clicking on Main.java and choose “Run As…/Java Application”.
+
+=How To Connect Mininet Software OpenFlow Switches To sdnplatform=
+
+This assumes you are running Mininet inside a VM on your host, and you are running sdnplatform from Eclipse on the host.
+
+*Determine your host’s IP address relative to Mininet, in the below example it is set as the Gateway (192.168.110.2)
+
+ mininet@mininet:~$ sudo route -n
+ Kernel IP routing table
+ Destination     Gateway         Genmask         Flags Metric Ref    Use Iface
+ 192.168.110.0   0.0.0.0         255.255.255.0   U     0      0        0 eth0
+ 0.0.0.0         192.168.110.2   0.0.0.0         UG    0      0        0 eth0
+ 
+ mininet@mininet:~$ sudo mn --mac --controller=remote --ip=192.168.110.2 --port=6633
+ *** Loading ofdatapath
+ *** Adding controller
+ *** Creating network
+ *** Adding hosts: 
+ h2 h3
+ *** Adding switches:
+ s1
+ *** Adding edges:
+ (s1, h2) (s1, h3)
+ *** Configuring hosts 
+ h2 h3
+ *** Starting controller
+ *** Starting 1 switches
+ s1
+ *** Starting CLI:
+ mininet>pingall
+
+The Pingall command should generate debug output from your MACTracker on the console.
+
+[[Category:OpenDaylight SDN Controller Platform]]
