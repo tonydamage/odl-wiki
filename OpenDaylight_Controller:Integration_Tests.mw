@@ -4,11 +4,62 @@ Pax exam is an OSGi testing framework that allows specific bundles to be activat
 
 ==Creating Integration Tests==
 
+Integration tests should be in a separate bundle under the main bundle's directory, just like API and Implementation.  For example, the statisticsmanager bundle is in statisticsmanager/api, statisticsmanager.implementation is in statisticsmanager/implementation, and statisticsmanager.integrationtest is in statisticsmanager/integrationtest.
+
 '''Maven pom setup'''
 
+In the pom file of the integration test, all of the bundles needed must be listed in the dependencies list.
 
-<div><div>
-</div></div>
+<source>
+ <dependencies>
+    <dependency>
+      <groupId>org.opendaylight.controller</groupId>
+      <artifactId>protocol_plugins.stub</artifactId>
+      <version>0.5.0-SNAPSHOT</version>
+    </dependency>
+     ...
+  </dependencies>
+
+</source>
+
+Properties also need to be added in order to use the Jacoco plugin to generate integration test results, and then have Sonar find the results.
+
+<source>
+<pluginManagement>
+      <plugins>
+        <plugin>
+          <groupId>org.jacoco</groupId>
+          <artifactId>jacoco-maven-plugin</artifactId>
+          <version>0.5.3.201107060350</version>
+        </plugin>
+      </plugins>
+    </pluginManagement>
+    <plugins>
+      <plugin>
+        <groupId>org.jacoco</groupId>
+        <artifactId>jacoco-maven-plugin</artifactId>
+        <version>0.5.3.201107060350</version>
+        <configuration>
+          <destFile>../implementation/target/jacoco-it.exec</destFile>
+          <includes>org.opendaylight.controller.*</includes>
+        </configuration>
+        <executions>
+          <execution>
+            <id>pre-test</id>
+            <goals>
+              <goal>prepare-agent</goal>
+            </goals>
+          </execution>
+          <execution>
+            <id>post-test</id>
+            <configuration>
+              <skip>true</skip>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+</source>
 
 
 
