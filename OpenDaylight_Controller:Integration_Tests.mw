@@ -73,6 +73,50 @@ The implementation bundle needs to know to look for the jacoco-it.exec.  This is
     <sonar.language>java</sonar.language>
 </source>
 
+
+'''Writing tests'''
+
+All of the test bundles will have the BundleContext injected, which is needed to access other bundles and their services.  
+The bundles are made available through the mavenBundle() method, to be used inside the config() method.
+<source>
+  public class StatisticsManagerIntegrationTest {
+    ...
+    @Inject
+    private BundleContext bc;
+     ...
+   @Configuration
+    public Option[] config() {
+        return options(
+              ...
+                mavenBundle("org.opendaylight.controller", "sal",
+                        "0.5.0-SNAPSHOT"),
+                mavenBundle("org.opendaylight.controller",
+                        "sal.implementation", "0.5.0-SNAPSHOT"),
+                mavenBundle("org.opendaylight.controller", "statisticsmanager",
+                        "0.5.0-SNAPSHOT"),
+                mavenBundle("org.opendaylight.controller", "statisticsmanager.implementation",
+                                "0.5.0-SNAPSHOT"),
+               ...
+          )
+     }
+}
+    
+
+</source>
+
+The bundle interfaces are then accessible by using the ServiceReference retrieved from the bundle context.
+<source>
+ ServiceReference r = bc.getServiceReference(IStatisticsManager.class
+                .getName());
+        if (r != null) {
+            this.manager = (IStatisticsManager) bc.getService(r);
+        }
+        // If StatisticsManager is null, cannot run tests.
+        assertNotNull(this.manager);
+</source>
+  
+
+
 ==Integration Testing Coverage Results==
 After the test is in the repository and the next sonar run is completed, the integration test coverage percentage can be seen.  In this example, StatisticsManager had 28.9% coverage from JUnit testing, and the integration tests were able to get a complete 100% coverage.
 
