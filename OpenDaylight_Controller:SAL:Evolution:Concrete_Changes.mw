@@ -1,0 +1,103 @@
+
+Note: This proposal deals with the current used SAL in controller.git and proposes Java programmatic
+SAL (without model-driven generation) to model concepts in merged controller with extensibility
+to support functionality from both codebases. This proposal introduces Java programmatic APIs
+which will be very similar to the binding-aware APIs planned for the 
+[[OpenDaylight_Controller:Model-Driven_Controller_Service_Abstraction_Layer]].
+
+=== Extensible Flow Matches ===
+
+To make Flow Matches  extensible the Match code (MatchType, MatchField and Match classes)
+should be remodeled to use [[OpenDaylight_Controller:SAL:Evolution:API_Design_Principles,_Patterns#Pattern:_Type-Value_Pairs|Type-Value Pair Pattern]].
+
+The current functionality supported by the SAL is:
+* Type-Value pairs for flow matches
+* Reversion of flow match (creating mirror match - match with replaced source and destinations)
+
+==== Unification of MatchType and MatchField ====
+
+Match Types should be rewrote to use hierarchy of classes instead of Enumeration
+(same approach as with org.opendaylight.controller.sal.core.Property),
+the basic (abstract match) is defined as:
+
+
+<source lang="java">
+  abstract class Match<V,M> {
+      
+      private final V value;
+      private final M mask;      
+      
+      public Match(V value,M mask){
+         this.value = value;
+         this.mask = mask;
+      }
+      
+      public V getValue() { return this.value; }
+      public M getMask() { return this.mask; }
+    
+  }
+  
+  abstract class ReversibleMatch<V,M> extends Match<V,M> {
+     
+     public abstract ReversibleMatch<V,M> getReverseMatch();
+     
+  }
+</source>
+
+This approach allows for external bundles (describing extensions) to define 
+new Match Types which still would not bypass SAL.
+  
+* We use Java class system to define Match Types and provide their extensibility.
+* MatchField class is no longer necessary, we have a specialized classes each representing the particular Match Type (similar to as with the Property). Their instances represents actual MatchFields
+* Compile-time type safe code.
+* Created classes models reversible and non-reversible fields by hierarchy and implemented methods.
+* Does not enforce anything on south-bound plugin internal implementation, only the data representation between south-bound plugins and programmatic consumers (northbound, SAL, applications).
+* Reversible Match concept is directly modeled into class hierarchy and not in the code. This approach adds support for reversible match also for Match types introduced by extensions
+or southbound plugins.
+
+The '''match types''' and types defined in SAL '''SHOULD NOT''' contain any wire
+protocol serialization information e.g. index or string representation of name - 
+these are protocol (southbound and northbound) specific and should not be part of SAL.
+
+====Example of IPv4 Source Match and IPv4 Destination Match====
+
+This example shows NW_SRC and NW_DST matches from Openflow 1.0.
+
+<source lang="java">
+  import java.net.Inet4Address;
+  public class Inet4SourceMatch
+    extends ReversibleMatch<Inet4Address,Inet4Address> {
+    
+    public Inet4SourceMatch(Inet4Address value,Inet4Address mask){
+         super(value,mask);
+    }
+    
+    public ReversibleMatch<Inet4Address,Inet4Address> getReversedMatch(){
+         return new Inet4DestinationMatch(value,mask);
+    }
+  }
+
+  import java.net.Inet4Address;
+  public class Inet4DestinationMatch
+    extends ReversibleMatch<Inet4Address,Inet4Address> {
+    
+    public IPv4DestinationMatch(Inet4Address value,Inet4Address mask){
+         super(value,mask);
+    }
+    
+    public ReversibleMatch<Inet4Address,Inet4Address> getReversedMatch(){
+         return new IPv4SourceMatch(value,mask);
+    }
+  }
+</source>
+
+
+==Enumerations==
+
+Use of standard Java enumerations in SAL layer does not allow for extension from southbound plugins to define
+support for new constants so the enumerations should be promoted / redefined to use the 
+[OpenDaylight_Controller:SAL:Evolution:API_Design_Principles,_Patterns#Pattern:_Extensible_Enumeration| Extensible Enumeration Patterns]
+
+Enumerations to benefit from this update:
+
+* EtherType
