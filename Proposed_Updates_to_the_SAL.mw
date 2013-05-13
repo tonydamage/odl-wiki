@@ -1,7 +1,3 @@
-== Related Pages ==
-
-A summary of some efforts can be found here: [[OpenDaylight Controller:SAL:Evolution:Concrete Changes]]
-
 == Summary ==
 This page is a work in progress that tries to document plans to improve the SAL, specifically that have come out of merging the two controllers.  Some of these updates are more short-term lower hanging fruit and some of these updates are longer term and will require more discussion.  Hopefully the community will contributes to this page and it will serve as a check list of current discussion about the SAL and be updated as discussion points change.
 
@@ -12,21 +8,17 @@ Because understanding the SAL and its capabilities and implications is itself a 
 
 === Missing abstractions to be added === 
 * Packet processing pipeline (e.g., that a packet goes to module A, *then* B, then C)
-* OpenFlow 1.x features
-** Multiple tables
-** Master/Slave notifications between controller and node for HA
-** TTL decrement action
+* TTL decrement action
+* 6 of the 12 OpenFlow 1.0 match fields (e.g., in_port, outer vlan tag, vlan_pcp, IP protocol, IP ToS, etc.) 
 * no NextHop action needed for routing protocols like BGP
+* Multiple tables
+* Master/Slave notifications between controller and node for HA
 * Master/Slave notifications inside the controller (for Apps in the slave node to wake up)
 
-* <s>6 of the 12 OpenFlow 1.0 match fields (e.g., in_port, outer vlan tag, vlan_pcp, IP protocol, IP ToS, etc.)</s> I believe these are already supported: [https://git.opendaylight.org/gerrit/gitweb?p=controller.git;a=blob;f=opendaylight/sal/api/src/main/java/org/opendaylight/controller/sal/match/MatchType.java;h=5ad4bd5b660dbc58e4041a5422205d61edf4a3d0;hb=HEAD#l26 link to relevant java enum].
-
 === Existing abstractions to be updated ===
+* The Host.java does not allow for hosts with multiple IPs or duplicate MACs needed for multi-tenancy
+* The topology service does not have the notion of SDN vs. non-SDN islands and the current code implicitly assumes a pure SDN network
 
-* To be fixed likely by using the DeviceManager, Device and possibly AddressSpace implementations from net-virt-platform
-** The Host.java does not allow for hosts with multiple IPs or duplicate MACs needed for multi-tenancy
-* To be fixed after a discussion of how to handle "control islands"
-** The topology service does not have the notion of SDN vs. non-SDN islands and the current code implicitly assumes a pure SDN network
 
 == Longer Term Updates ==
 === Consistency Assumptions===
@@ -45,7 +37,3 @@ Event ordering is a thorny problem.  If an applications receives a list of event
 
 ==== Partition Recovery ====
 Partition recovery is another thorny problem and is correlated with event re-ordering.  The SAL seems to be written under the assumption that partitions in the management plane do not happen, but this may not be a valid assumption in all deployments.  Particularly with transactions, maintaining the precise transaction boundaries during a partition and ensuring that the recovered state after the partition is resolved accurately reflects those tranaction boundaries is complicated.  For example, using the SAL Property.java properties, imagine application A on controller X sets properties Foo=1 and Bar=1 on a Link, but a partition happens, and application A on controller X sets Foo=1 and application B on controller Y sets Bar=2 for the same Link.  After the partition is resolved, what are the correct values for Foo and Bar?  Application A expects "Foo=2 and Bar=1" and Application B expects "Foo=1 and Bar=2" -- what is the partition resolver supposed to do?  One might assume the right thing is to set both  "Foo=2 and Bar=2", but that might violate the semantics of the state (e.g., if Foo and Bar were being used as mutually exclusive locks).  We need to be very careful that the semantics and assumptions of the SAL are well understood and documented.
-
-=== Extensibility Requirements ===
-In order for the SAL to be successful, it seems that being modular and extensible are important.  More specifically, if the SAL lives in the one project, another project should be able to extend the SAL's interface without modifying the code in the SAL's project.  While such a mechanism does not yet exist, proposals are starting to emerge:
-* [https://wiki.opendaylight.org/view/OpenDaylight_Controller:Architectural_Framework#Evolution_of_the_Controller_Service_Abstraction_Layer Model-driven SAL]
