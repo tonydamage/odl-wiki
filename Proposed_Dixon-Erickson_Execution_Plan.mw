@@ -1,0 +1,130 @@
+ 
+ An Execution Plan for the Dixon-Erickson Merged Controller Proposal
+ Rob Sherwood, May 12 2013
+
+
+= Executive Summary = 
+The Open Daylight Project (www.opendaylight.org) has two “SDN Controller” code bases with some overlapping functionality.  It is the strong belief of the community that a single code base is needed in order to best focus efforts and as a result, a number of proposals to merge the two code bases have been made.  After some discussion, it seems that the differences between two of the proposals -- the original Dixon-Erickson (“D-E”) proposal and the concerns raised in the proposal by Rob Sherwood-- should be resolvable over time.  This document is an attempt to propose the next concrete steps for how to act on the D-E proposal and for resolving the issues raised.  It includes specific technical and procedural next steps as well as specific motions that the TSC would be encouraged to consider.  We hope that by providing such a highly detailed plan, we can both avoid past misunderstandings and ultimately make faster progress towards our common goal of a viable best-of-breed controller project.  In particular, a successful resolution for the controller project will allow the sizable and pre-existing Floodlight community to be compatible with OpenDaylight avoiding dividing the communities.
+
+= Timeline and Background = 
+* 4/8 Two controller code bases were brought into the Open Daylight Project in the bootstrap state
+** From Cisco, the “Open Daylight Controller” (controller.git) 
+*** All code was developed internally by Cisco
+*** We will abbreviate as “ODC”
+*** Code first public available on 4/10 (after passing IPR review)
+** From Big Switch, the “Open SDN Platform” (net-virt-plaform.git)
+*** The code was a combination of the existing floodlight open source repository and Big Switch’s BNC and BVS commercial products
+*** We will abbreviate as “NVC”
+*** Code first publicly available on 4/17 (after passing IPR review)
+* 4/30 Rob Sherwood proposed a ‘strawman’ integration strategy
+** https://lists.opendaylight.org/pipermail/discuss/2013-April/000044.html
+* 5/6 Colin Dixon and David Erickson posted their proposal for how to merge controllers
+** https://lists.opendaylight.org/pipermail/discuss/2013-May/000067.html
+* 5/9 Rob Sherwood posted a modification to the D-E proposal that proposed to make the SAL optional
+** https://lists.opendaylight.org/pipermail/discuss/2013-May/000089.html
+* 5/11 David Erickson proposed using a neutral third repository to host the merged project
+** https://lists.opendaylight.org/pipermail/discuss/2013-May/000102.html
+* 5/12 Version 1 of this document was posted
+
+= Background = 
+The D-E proposal described a high-level view of how a merged best-of-breed controller would work but did not get into the next levels of detail.  At the next level of detail, a number of discussion points arise that need to be resolved.  Many of these details surrounded the Service Abstraction Layer (SAL -- https://wiki.opendaylight.org/view/OpenDaylight_Controller:SAL_Infrastructure ), which is intended to provide an abstration layer over all southbound protocols for controller network devices.
+
+
+The crux of the discussions raised between the D-E and Sherwood proposals had to do with the relative importance of the architectural purity of the System Abstraction Layer (SAL) versus the practical realities of occasionally needing to bypass an abstraction layer for the sake of performance, feature velocity, etc.  The D-E proposal claimed that use of the SAL should be mandatory and the Sherwood proposal claimed that the SAL should be optional.  Additional differences included the implicit temporal aspect of when the porting to the SAL would begin and this is where Rob and Colin had a misunderstanding.  Rob’s 5/9 proposal was concerned about how the SAL is today because his team (not to mention the larger floodlight community) wants to be unblocked and start coding ASAP, while Colin explained that the D-E proposal made the assumption that the controller merging efforts would be done on a future SAL that could exist in, for example, six months time, rather than the one that exists today.  It is also worth noting that understanding the SAL and the implications of using it is a work in progress for everyone, so our group understanding of its capabilities and the requirements upon it continue to evolve over time.
+
+= Steps to Identify and Resolve Next-Step Technical Hurdles = 
+
+
+We propose the following short and long-term steps to identify and resolve these issues.
+== Short Term Efforts == 
+=== Identifying and Resolving Short-term SAL Improvements ===
+There seems to be a lot of “low hanging fruit” to fix in the SAL.  To that end, we have created a wiki page to track proposed updates, the discussion around them, and possible solutions.
+
+[[Proposed_Updates_to_the_SAL]]
+
+As our understanding of the SAL increased, this list will grow, but as the maturity of the SAL increases, hopefully this list will equivalently shrink.  For these specific concerns, it is our belief that they can be addressed quickly, but do need to be addressed if we are to unblock porting of the existing applications from the larger floodlight community.
+
+While the wiki link will be the complete and definitive list of concerns, a small number of example concerns include:
+
+The SAL is missing abstractions for:
+* TTL decrement
+* 6 of the 12 OpenFlow 1.0 match fields (e.g., in_port, outer vlan tag, vlan_pcp, IP protocol, IP ToS, etc.) 
+* no NextHop action needed for routing protocols like BGP
+* Multiple tables
+* Master/Slave notifications between controller and node for HA
+* Master/Slave notifications inside the controller (for Apps in the slave node to wake up)
+
+Additionally, there are a number of existing abstractions which have incomplete functionality:
+* The Host.java does not allow for hosts with multiple IPs or duplicate MACs needed for multi-tenancy
+* The topology service does not have the notion of SDN vs. non-SDN islands and the current code implicitly assumes a pure SDN network
+
+=== Unblocking Immediate Contributions: ioctl() for SAL ===
+It seems highly desirable that programmers who want to start coding ASAP not block on the SAL being updated.  We make the observation that almost every API we can think of (e.g., ioctl() across the user/kernel space boundaries, dropping from C to ASM, dropping from python to C, etc.) has some sort of ‘escape mechanism’ for working around the API when necessary.  We claim that the SAL needs a similar ioctl()-like interface for bypassing the SAL API when none of the other interfaces will suffice and it’s deemed onerous to change the API.  Usage of the ioctl() interface should be discouraged wherever possible, especially in the network services in the controller project.  That said, we believe that a short term ‘escape mechanism’ to get across the SAL is a necessary practical device to unblock short term contributions before a more generic extension mechanism can be created (see below).
+
+== New and Merged Component Tiger Teams ==
+The D-E plan calls for a number of components to be individually best of breed between two roughly comparable components.  We have created wiki entries to document the merging of the following components that need to be merged between the two code bases and the modules that need to be creately newly from scratch.  Hopefully the community will join in and form 2-3 person “tiger teams” and organize around the individual component discussions.
+
+=== New Components Suggested by the D-E Proposal ===
+* Consistent data store
+* Structured log service
+* Thread pool service (likely find existing third party library)
+
+=== Merged Components Suggested by the D-E Proposal ===
+* topology/link discovery
+* path computation
+* node/controller statistics
+* runtime configuration module
+
+== Longer Term Efforts == 
+=== Review and Revise SAL Consistency Assumptions and APIs ===
+The biggest and hardest to resolve concern about the SAL is that it seems to assume a number of strong consistency semantics which makes it hard (if not impossible) to use in environments that do not allow for strong consistency (e.g., across a WAN where partitions may happen).  In particular, many of the APIs seem to assume that events are ordered or that partitions won’t happen.  These concerns are described in more detail 
+=== Specifying Inter-Project SAL Extensions ===
+In order for the SAL to be successful, it seems that being modular and extensible are important. More specifically, if the SAL lives in the one project, another project should be able to extend the SAL's interface without modifying the code in the SAL's project. While such a mechanism does not yet exist, proposals are starting to emerge, including the Yang-based model drive SAL presented last week.  Resolving this sooner will reduce the dependency on the ioctl()-like mechanism.
+= Steps to Resolve Procedural Hurdles =
+In addition to technical challenges, there are also procedural hurdles that have to be resolved as well.  This plan execute on the next steps of the suggestions made by David Erickson in his 5/10 proposal (above).
+== Create a Jointly Proposed New Controller Project ==
+=== Identify all parties who have contributed code to the controller projects ===
+* Cisco: 
+* BSN
+* IBM
+* Stanford
+* Others?
+=== Have interested parties agree upon: ===
+* New project name
+* Committer structure
+** Proposal: Initial committers proportional to lines of code (see Appendix A)
+* Conflict resolution strategy: e.g., what fraction of committers to accept a patch?
+* Document code acceptance policies a priori
+=== Interested parties jointly propose a new controller project via the life cycle process ===
+* Likely into incubation state
+* All other aspects of the project would continue as per the project life cycle document
+=== Gracefully sunset the two existing bootstrapped controller projects ===
+Upon agreement of interested parties and projects, we should:
+* wind down the older mailing lists via general announcements
+* port outstanding bugs to new bugtracker
+* auto-invite old mailing list subscribers to new mailing lists
+* start adapting wiki page documentation to the new project name
+* other activities?
+=== Work to Coordinate with the Floodlight Community ===
+The floodlight community (http://projectfloodlight.org) contains an active membership and a growing number of commercial products that depend on it.  The goal of creating a unified community among Open Daylight members should be inclusive of external projects like Floodlight.  We should work to ease the transition between the two groups including API-compatibility, converged mailing list, and “transitioning from Floodlight” focused developer documentation.
+
+= Recommendations to the TSC =
+Once all the affected parties have agreed and the appropriate motions have been made:
+Accept the newly formed controller project (name TBD)  into ‘incubation’ state
+At the appropriate time, move both the existing “controller” and “net-virt-platform” bootstrap projects into the ‘archived’ state
+= Appendix A: Lines of Code Counting = 
+== Intent and Methodology ==
+Rough order of magnitude approximations only -- everything else is arguable
+Count “human written code” but don’t stress too much
+DO: count Java, Python, Javascript (don’t worry about comments for now)
+DON’T: count build infrastructure (Makefiles, Maven files), HTML, or documentation
+Start from freshly checked out repositories to avoid auto-generated or auto-downloaded code
+find $dir -name \*.py -o -name \*.java -o -name \*.js | xargs wc -l
+Counts done on 5/11
+== LOC Per Contributing Party ==
+Cisco: ODC/opendaylight (but without IBM’s loadbalancer) --   124639 total (~29%)
+IBM: ODC/samples/northbound/loadbalancer --   47268 total (~11%)  -- does IBM have other code contributed?
+BSN: net-virt-platform --  246552 total (~57%)
+Including 13875 lines are in the netvirt application and will be moved to a separate repository shortly
+Stanford: OpenFlowJ: from ODC’s ./third-party/openflowj repo:  -- 11389 total (~3%)
+Total Code:  429848 LOC
