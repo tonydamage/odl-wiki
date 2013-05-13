@@ -1,0 +1,99 @@
+This guide is intended to define common design patterns supporting extensions contributed by south-bound plugins,
+which could be used in the SAL or modeling any abstract extensible APIs.
+
+==Common guidelines==
+
+* '''Wire protocol specific information''' (serialization, serialization constants , TLV identifiers bit masks, field ordering) '''SHOULD NOT''' be part of the '''Service Abstraction Layer'''. 
+* '''APIs''' (interfaces, classes) '''SHOULD supports extensibility''' (via subclassing or other extension patterns). This allows for abstract APIs and also for concrete APIs to coexist in the SAL and to use common infrastructure.
+
+==Pattern: Extensible Enumeration==
+
+This pattern is suitable for modeling / defining APIs for the enumerations of immutable data or types,
+which for example could represent Ether Type, protocol types and others.
+
+The workflow for API definition is simple:
+
+1. Define a simple interface with the needed functionality.
+2. Declare an enum implementing the interface where the enum constants represent the known values.
+3. (optional) Include a factory method mapping from names to objects implementing the interface. 
+
+====References====
+
+* [http://jtechies.blogspot.com/2012/07/item-34-emulate-extensible-enums-with.html Effective Java, Joshua Bloch, Item:34 Emulate Extensible Enums with Interfaces]
+* [http://blogs.oracle.com/darcy/entry/enums_and_mixins Mixing-in an Enum]
+
+
+== Pattern: Type-Value Pairs ==
+This pattern is suitable for modeling / defining APIs for extensible set of
+fields, which values could be of different types. 
+
+The requirements for type-value pairs are:
+- Extensible
+- Type safety
+
+
+===Common antipatterns===
+
+This pattern is to replace the following constructs such as:
+
+* Simple untyped approach to properties (pros: extensible, cons: '''does not provide semantics and type safety'''):
+<source lang="java">
+// Ommited for clarity...
+HashMap<String,Object> properties;
+</source>
+
+ 
+* More refined approach using the enumeration to define set of supported field types. (pros: provides semantics, cons: '''not extensible'''):
+
+<source lang="java">
+enum Type {
+  TYPE1(String.class),
+  TYPE2(Boolean.class),
+  private Class<?> valueType; // This line is optional.
+  // ommited for clarity... 
+}
+
+class Field {
+  Type type;
+  Object value;
+  // ommited for clarity...
+}
+</source>
+
+===Actual Pattern===
+
+We could model this using the abstract class using the generics to define value type and set of subclasses
+representing various types of fields. The instances of this class represents actual type-value pair,
+where class represents type and value is represented by object in the instance.
+  
+<source lang="java">
+abstract class Field<V> {
+   private V value;
+   public Field(V value) {
+      this.value = value;
+   }
+   ...
+}
+
+class Type1Field extends Field<String> {
+  public Type1Field(String value){super(value);}
+}
+
+class Type2Field extends Field<Boolean> {
+  public Type2Field(Boolean value){super(value);}
+}
+</source>
+
+Note: 
+* The abstract class does not have to only define fields or values, but could define also additional methods (concrete or abstract) which could provide additional semantic about the field type.
+* This example shows only one value field, but it is possible to have multiple fields.
+* It is possible to model common part of API also as an interface and leave all the implementation to the super types.
+* Map, which should store one instance of the field is: Map<Class<? extends Field<?>>,Field<?>>. It is possible to provide simpler facade on top of this map.
+
+==Pattern: Extension Interface Pattern==
+
+The following Java design allows an object to be extended without changing its interface to clients. The object can implement additional extension interfaces. 
+Clients can ask the object for extension interfaces that it implements.
+
+The interface present in the SAL models general approach or abstraction, the client code (applications) could ask for extension interface (which could be used to model
+protocol specific functionality, interfaces, data) by querying for the extension. Extension is identified by Java interface.
