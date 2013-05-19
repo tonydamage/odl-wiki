@@ -1,0 +1,126 @@
+== Overview ==
+
+Now that we have broad agreement on the D-E proposal, I wanted to break off one chunk and lay out one way we could go about attacking it. Let's look at <tt>net-virt-platform</tt>'s <tt>DeviceManager</tt> as a replacement for the <tt>HostTracker</tt> and <tt>ArpHandler</tt> in the <tt>controller</tt> project.
+
+My hope is that this will act as a blueprint not only for this particular task, but for the broader execution of the D-E proposal. While there will certainly be specific issues with each part that differ and some may be harder than others, this should outline some of the basic building blocks and approaches that are likely to be useful going forward.
+
+As a meta-level comment, a lot of the work I did in this process was massively helped by Eclipse's  Java-specific features. In particular, I make extensive use of the right-click dialog, then going to References => Workspace feature to list all of the places in any project where a given function or variable is used. It lets you hunt down dependencies and things faster than anything else. You can also use Definitions => Workspace to find out where the implementations of a given function are. I'm sure there's a dozen other great features for this that I'm missing, but these are the ones I use the most when doing things like this.
+
+== Strategy ==
+
+The basic idea has two parts. First, turn the <tt>org.sdnplatform.devicemanager</tt> package into an OSGi bundle. Second, provide for that bundle's dependencies. I'm going to assert that the first part is straightforward and I think it can even be done without changing any of the currently present code and/or breaking the project.
+
+The second part is where I want to focus here. Rather than changing the code on either end---though, in the long run, I suspect we will do some of that too---I propose that we write an adapter OSGi bundle which serves to provide the appropriate dependencies by using the features available in the SAL.
+
+So we will have a <tt>StorageServiceAdapter</tt> bundle that provides an implementation of <tt>IStorageService</tt> backed by <tt>clustering.services</tt> (probably most quickly done by adapting <tt>MemoryStorageSource</tt>) and a <tt>TopologyAdapter</tt> bundle the provides an implementation of <tt>net-virt-platform</tt>'s <tt>ITopologyService</tt> that backed by <tt>controller</tt>'s <tt>TopologyService</tt>. That way placeholder stubs for the OpenFlow island functionality could live in the adapter until we get the real implementations in place.
+
+== Dependencies ==
+
+First, we need to identify the dependencies of the two current <tt>IDeviceService</tt> implementations. I did this by looking at the <tt>getModuleDependencies()</tt> function in the two modules. The <tt>(Better)DeviceManagerImpl</tt> module has the following dependencies:
+
+# <b><tt>IControllerService</tt>:</b> Used to list all of the switches, getting <tt>PACKET_IN</tt>s, HA/Role (master vs. slave) changes and notifications about switches coming up/down or having ports go up/down.
+# <b><tt>IStorageService</tt>:</b> Used to provide high availability by replicating important data to a shared, consistent datastore.
+# <b><tt>ITopologyService</tt>:</b> Used to figure out if a given port is a valid attachment point. Related to islands.
+# <b><tt>IRestApiService</tt>:</b> Used to serve the REST API calls about hosts.
+# <b><tt>IThreadPoolService</tt>:</b> Used to get threads from a common pool.
+# <b><tt>IFlowReconcileService</tt>:</b> Appears to be used to provide context to later processing elements about what hosts are involved in a flow rather than actually consuming this service.
+# <b><tt>IEntityClassifierService</tt>:</b> Used to group entities, observations of devices corresponding to a <tt>PACKET_IN</tt>, into devices. For example, by MAC address or by IP address.
+
+== Action Items ==
+
+The next step is to identify where/how each dependency is used at a low-level to get an idea of what particular functionality, rather than services, are required to get things working. Going through this process, here is a lower-level the list of functionality we need:
+
+Numbers 1-4 correspond to the <tt>IControllerService</tt> while the others have a 1:1 correspondence with the above dependencies.
+
+# Subscribe for/receive HA role change notifications
+# <tt>getSwitches()</tt>
+# Subscribe for/receive <tt>PACKET_IN</tt>s
+# Subscribe for/receive switchUp/switchDown/switchPortRenumbering events
+# <tt>IStorageService</tt>
+# <tt>ITopologyService</tt> <tt>.getL2DomainId()</tt>, <tt>.isAttachmentPointPort()</tt>, <tt>.isConsistent()</tt>, and <tt>.isInSameBroadcastDomain()</tt>
+# REST APIs
+# ThreadPool
+# Flow Reconciliation
+# Entity Classification
+
+=== Detailed Plans ===
+
+And at a much lower-level, here is a list of the approaches to go about meeting the dependencies and loose explanation of how much work would be required. The first thing to do is to take the functionality and see how it does or doesn't map onto the relevant features currently provided by the SAL In many cases, the best thing is to just do the relatively straightforward mapping onto the relevant SAL features, i.e., <tt>getSwitches()</tt>. In other cases, it's easier to just use the existing dependency itself, i.e., Entity Classification. In that case, you also need to make sure you can meet the dependency's dependencies.
+
+
+<b>1. HA Functionality</b>
+
+To just get it up and running, it should be sufficient to just have an empty subscribe call.
+
+To actually get high-availability (HA) to work, we would need to think more carefully about how to share the internal state using the clustering services. There's a fundamental difference between the two projects' approaches to HA. The <tt>controller</tt> project which has apps that typically assume active-active instances which share state continuously via the <tt>clustering.services</tt>.
+
+The <tt>net-virt-platform</tt> code has apps that assume master-slave relationships where the master continuously logs state to replicated storage. Apps expect to be told when their hosting controller instance is going from master to slave or slave to master. Apps are essentially dormant in slave mode. When an app is told the controller is going from master to slave, it typically wipes their in-memory data. When an app is told the controller is going from slave to master, it reads in all the data from <tt>IStorageSource</tt> to the in-memory data structures.
+
+Either we would need to provide some analogous set of notification functions or adapt the internal logic to have the in-memory data structures synced automatically. My guess is that, in the long run, we would like to support the "only one app instance active at a time" design pattern and that we could provide a whole adapter just for that and keep it targeted on the current (and the then new) consistent storage APIs.
+
+Fortunately, despite these general design patterns in the code, the <tt>controller</tt> project has a notion of a cluster coordinator which can take the role of the master-slave notifications. It appears that you can subscribe to them via the <tt>ClusterManager</tt> function <tt>setCoordinatorChangeAware()</tt>.
+
+
+<b>2. List Switches</b>
+
+This should be a simple passthrough from <tt>getSwitches()</tt> to <tt>IInventoryService.getNodeProps().keySet()</tt>. There still needs to be some kind of conversion from <tt>Node</tt> to <tt>IOFSwitch</tt> and possibly an adapter around Node to give it the same functions as <tt>IOFSwitch.</tt> For now, it seems the only functions required are the two versions of <tt>getPort()</tt>.
+
+
+<b>3. Receive <tt>PACKET_IN</tt></b>
+
+Subscribing to receive <tt>PACKET_IN</tt> should just be a simple wrapper around calls to <tt>IDataPacketService</tt>. In practice, there would need to be some filtering to receive <i>only</i> <tt>PACKET_IN</tt> messages and to translate the messages into the proper format.
+
+
+<b>4. Switch up/down notifications</b>
+	
+Providing notifications of switches coming up and down as well as switch ports going up and down should be straightforward mappings to <tt>IInventoryService</tt> by subscribing to these events using <tt>IListenInventoryUpdates</tt>. However, at first glance it appears to me that this is actually used for the IInventoryService to listen for changes rather than to listen for changes in the inventory.
+
+
+<b>5. Consistent Storage</b>
+
+The simplest way to provide this appears to be by using a modified version of <tt>MemoryStorageSource</tt> where the internal Java maps are backed by <tt>clustering.services</tt>. The <tt>MemoryStorageSource</tt> extends <tt>NoSqlStorageSource</tt> which extends <tt>AbstractStorageSource</tt> and together they depend on the <tt>IRestApiService</tt> and <tt>ICounterStore</tt>. Neither of these seem critical for an adapter bundle<sup>*</sup> and both could both be dropped.
+    
+I just want to note that while this will give the same semantics in the absence of partitions, going forward, we should intend to have this be backed by a consistent datastore that allows for choosing between tradeoffs in the CAP-space.
+    
+<small>* That isn't to say that they aren't useful in the original implementation, but rather that the relevant counter service and REST APIs should be expected from the backing implementation, not the adapter bundle.</small>
+
+
+<b>6. Topology Information</b>
+
+We would need to provide implementations of <tt>getL2DomainId()</tt>, <tt>isAttachmentPointPort()</tt>, <tt>isConsistent()</tt>, <tt>isInSameBroadcastDomain()</tt>. A simple version would return 0 for all calls to <tt>L2DomainId()</tt>, would return true for all calls to <tt>isInSameBroadcastDomain()</tt>, would return true for all calls to <tt>isAttachmentPointPort()</tt> where the port is not connected directly to another switch, and lastly, <tt>isConsistent()</tt> would simply return true if and only if the two attachment points are identical.
+
+These are simple stubs in most cases and only for <tt>isAttachmentPort()</tt> do we need to do any real querying of network state/topology.
+
+We would also need a <tt>topologyChanged()</tt> event which would be called any time a new link is discovered or a link goes away. This should be a simple passthrough to <tt>ITopologyService.setUpdateService()</tt>.
+
+
+<b>7. REST APIs</b>
+
+I'm not sure what the right thing to do is here. On the one hand, I want to keep the REST API calls, on the other hand, my guess is that each of them needs to be hand translated. Maybe that's because I don't fully understand the details of the two REST providers well enough and there's actually a simple way to do it.
+
+
+<b>8. Thread Pools</b>
+
+We should just make a bundle that provides a ThreadPoolService by passing through to Java's ThreadPool implementation for now.
+
+
+<b>9. Flow Reconciliation</b>
+
+Since this is only used to provide context to other modules in <tt>net-virt-platform</tt>, I think we can just ignore it and can provide stubs that do nothing.
+
+
+<b>10. Entity Classification</b>
+
+This can be provided by either DefaultEntityClassifier or AddressSpace. Let's use DefaultEntityClassifier for now. It has no dependencies of it's own, so this is done.
+
+== Relative Difficulty ==
+
+* <b>Some real work:</b> 5, 7
+* <b>Mostly easy work:</b> 2, 3, 4, 6
+* <b>Essentially trivial:</b> 1, 8, 9, 10
+
+Implementing the <tt>IStorageService</tt> adapter (5) is likely to be the most work, followed by providing the REST APIs (7).
+
+Listing the switches (2) should be trivial, but making sure that the <tt>Node</tt> to <tt><tt>IOFSwitch</tt></tt> correspondence is correct might have some pain. Getting <tt>PACKET_IN</tt> subscription (3) working should be trivial, but making sure that the two <tt>PACKET_IN</tt> structures match might be a pain. Subscribing to switch and port up/down notifications (4) should be trivial, but it appears that there isn't currently an interface to listen to them. Providing the various OF island and attachment point features (6) almost belongs in the trivial camp, except for the need to classify all ports as either belonging to internal, switch-switch links or belonging to external switch-host or switch-nonSDN links.
+
+Providing the support for HA role notifications (1), thread pools (8), flow reconciliation (9) and entity classification (10) should be trivial.
