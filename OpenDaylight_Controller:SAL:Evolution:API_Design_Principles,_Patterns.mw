@@ -4,7 +4,7 @@ which could be used in the SAL or modeling any abstract extensible APIs.
 ==Common guidelines==
 
 * '''Wire protocol specific information''' (serialization, serialization constants , TLV identifiers bit masks, field ordering) '''SHOULD NOT''' be part of the '''Service Abstraction Layer'''. 
-* '''APIs''' (interfaces, classes) '''SHOULD supports extensibility''' (via subclassing or other extension patterns). This allows for abstract APIs and also for concrete APIs to coexist in the SAL and to use common infrastructure.
+* '''APIs''' (interfaces, classes) '''SHOULD support extensibility''' (via subclassing or other extension patterns). This allows for abstract APIs and also for concrete APIs to coexist in the SAL and to use common infrastructure.
 
 ==Pattern: Extensible Enumeration==
 
@@ -13,15 +13,14 @@ which for example could represent Ether Type, protocol types and others.
 
 The workflow for API definition is simple:
 
-1. Define a simple interface with the needed functionality.
-2. Declare an enum implementing the interface where the enum constants represent the known values.
-3. (optional) Include a factory method mapping from names to objects implementing the interface. 
+# Define a simple interface with the needed functionality.
+# Declare an enum implementing the interface where the enum constants represent the known values.
+# (optional) Include a factory method mapping from names to objects implementing the interface. 
 
 ====References====
 
 * [http://jtechies.blogspot.com/2012/07/item-34-emulate-extensible-enums-with.html Effective Java, Joshua Bloch, Item:34 Emulate Extensible Enums with Interfaces]
 * [http://blogs.oracle.com/darcy/entry/enums_and_mixins Mixing-in an Enum]
-
 
 == Pattern: Type-Value Pairs ==
 This pattern is suitable for modeling / defining APIs for extensible set of
@@ -101,13 +100,59 @@ protocol specific functionality, interfaces, data) by querying for the extension
 This pattern could be also used as an replacement for the field pattern - we have defined a set of fields provided by extension as separate class or interface,
 the values could be queried by using the extension class.
 
-===Synopsis===
+===Original Synopsis===
 
 <source lang="java">
 public interface A {
    // Ommited for clarity...
   <T> T getExtension(Class<T> extensionType)
 
+}
+</source>
+
+
+===Synopsis: Updated Variation===
+
+<source lang="java">
+public interface Extensible<P> {
+   // Ommited for clarity...
+  <T extends Extension<P>> T getExtension(Class<T> extensionType)
+}
+
+public interface Extension<T> {
+
+}
+</source>
+
+Where:
+* '''Extensible''' is interface which is to be implemented by classes which provides extension support
+** '''P''' - generic argument, usually interface / class which implements
+* '''Extension''' is marker interface (for type-safety reasons) which marks interfaces / classes which are extensions
+** '''T''' - generic argument, pointing to the class / interface to which this extension is associated.
+
+====Usage Example====
+
+<source lang="java">
+public class Node extends Extensible<Node> {
+  // contents ommited
+  // the instatiated version of extension interface isExtension method is
+  
+  @Override
+  <T extends Extension<Node> T getExtension(Class<T> extensionType) {
+    // contents ommited
+  }
+}
+
+public class OpenflowNode extends Extension<Node> {
+   // contents ommited
+}
+</source>
+
+<source lang="java">
+Node node = provider.getNode(); // sample call returning node
+OpenflowNode ofNode = node.getExtension(OpenflowNode.class);
+if(ofNode != null) {
+  // do openflow specific stuff
 }
 </source>
 
