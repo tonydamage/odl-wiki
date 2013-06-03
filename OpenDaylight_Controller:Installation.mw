@@ -1,0 +1,110 @@
+{| align="right" border="1"
+|align="center"|'''OpenDaylight Controller Contents'''
+|-
+|[[OpenDaylight_Controller:Installation|Installation Guide]]<br>[[OpenDaylight_Controller:Programmer_Guide|Programmer Guide]]<br>[[OpenDaylight_Controller:FAQ|FAQ]]<br>[[OpenDaylight Controller:Main|Back to Top]]
+|}
+
+OpenDaylight Controller runs in a JVM. Being a Java application, it can potentially run on any operating system that supports Java. However, for best results we recommend the following:
+* A recent Linux distribution
+* Java Virtual Machine 1.7
+
+'''Note:''' The procedure that follows assumes:
+* You are installing OpenDaylight Controller on your local Linux machine
+* You will use the Mininet VM to create a virtual network 
+OpenDaylight Controller has not been tested in other environments.
+
+=Installing OpenDaylight Controller=
+:1. You have two options for obtaining the OpenDaylight Controller code:
+:* Download and extract the OpenDaylight Controller zip file ([https://jenkins.opendaylight.org/controller/job/controller-nightly/lastSuccessfulBuild/artifact/opendaylight/distribution/opendaylight/target/distribution.opendaylight-build74-2013-06-03_01-36-25-osgipackage.zip|latest night build]). 
+:* Pulling the code [[OpenDaylight Controller:Pulling, Hacking, and Pushing the Code from the CLI|via git]].
+: OpenDaylight Controller is installed in a directory called '''opendaylight'''. In this directory you will see the following files:
+:*'''run.sh''' — launches the OpenDaylight Controller on Linux/Unix systems
+:*'''run.bat''' — launches OpenDaylight Controller on Windows systems
+:*'''version.properties''' — indicates the build version
+:*'''configuration''' — basic initialization files (internal to OpenDaylight Controller)
+:*'''lib''' — Java libraries
+:*'''plugins''' — OpenDaylight Controller's OSGi plugins
+:2. Enter '''./run.sh''' or '''./run.bat''' to launch the OpenDaylight Controller application.
+:3. Navigate to '''http://'''''controller-ip''''':8080''' to open the web interface, then use the following credentials to log in:
+:* User: '''admin'''
+:* Password: '''admin'''
+[[Image:Login.jpg|700px]]
+=Troubleshooting=
+:1. Out of memory error - java.lang.OutOfMemoryError: PermGen space:
+:* Can be resolved by setting maven options: export MAVEN_OPTS="-Xmx512m -XX:MaxPermSize=256m"
+
+=Using Mininet=
+# Download [http://mininet.github.com/download/ Mininet]. OpenDaylight Controller has been tested against the Mininet VM (Option 1). It has not been tested against other Mininet installation options. 
+# Launch the Mininet VM with VirtualBox or another virtualization application. 
+# Log on to the Mininet VM with the following credentials:
+#* user: '''mininet'''
+#* password: '''mininet'''
+# Determine the IP address of the server hosting OpenDaylight Controller, and use it to start a virtual network: '''sudo mn --controller=remote,ip='''''controller-ip''''' --topo tree,3'''. 
+Mininet will connect to OpenDaylight Controller and set up a three-level tree topology.
+ mininet@mininet-vm:~$ '''sudo mn --controller=remote,ip=172.16.102.161 --topo tree,3'''
+ *** Creating network
+ *** Adding controller
+ *** Adding hosts:
+ h1 h2 h3 h4 h5 h6 h7 h8 
+ *** Adding switches:
+ s1 s2 s3 s4 s5 s6 s7 
+ *** Adding links:
+ (h1, s3) (h2, s3) (h3, s4) (h4, s4) (h5, s6) (h6, s6) (h7, s7) (h8, s7) (s1, s2) (s1, s5) (s2, s3) (s2, s4) (s5, s6) (s5, s7) 
+ *** Configuring hosts 
+ h1 h2 h3 h4 h5 h6 h7 h8 
+ *** Starting controller
+ *** Starting 7 switches
+ s1 s2 s3 s4 s5 s6 s7 
+ *** Starting CLI:
+ mininet>
+
+'''Note:''' See the [http://mininet.github.com/walkthrough/ Mininet Walkthrough] for a more detailed explanation of Mininet's configuration options. There is an [http://mininet.github.com/walkthrough/#using-a-remote-controller appendix] that explains how to configure Mininet to use a remote controller.
+
+= Using the Simple Forwarding Application  =
+
+The OpenDaylight Controller includes an application called Simple Forwarding that lets you use the basic services for making forwarding decisions and install flows across all devices on the Openflow network. This application discovers the presence of a host via ARP message and installs dest-only /32 entries across all switches in the network, with the corresponding output ports toward the host. 
+ 
+ 
+:1. With OpenDaylight Controller and Mininet running as described in previous sections, log into the web interface. 
+[[Image:Devices1.jpg|700px]] 
+
+:2. Drag and drop devices to organize the topology into its logical arrangement, then save the configuration.
+
+[[Image:Devices2.jpg|700px]] 
+
+:3. Click the '''Add Gateway IP Address''' button (shown above) and add the IP and subnet of '''10.0.0.254/8'''
+
+[[Image:GatewayIP.jpg|700px]]
+
+:4 Confirm that hosts are now reachable from one another. On the console where Mininet is running, have one host ping another. 
+ mininet> '''h1 ping h7'''
+ PING 10.0.0.7 (10.0.0.7) 56(84) bytes of data.
+ 64 bytes from 10.0.0.7: icmp_req=1 ttl=64 time=1.52 ms
+ 64 bytes from 10.0.0.7: icmp_req=2 ttl=64 time=0.054 ms
+ 64 bytes from 10.0.0.7: icmp_req=3 ttl=64 time=0.060 ms
+ 64 bytes from 10.0.0.7: icmp_req=4 ttl=64 time=0.052 ms
+ --- 10.0.0.7 ping statistics ---
+ 4 packets transmitted, 4 received, 0% packet loss, time 2999ms
+ rtt min/avg/max/mdev = 0.052/0.422/1.523/0.635 ms
+ mininet> 
+
+:5. Click the '''Troubleshooting''' tab and then load the Flow Details for one of the switches. 
+
+[[Image:FlowStatitistics.jpg|700px]] 
+
+:6. View the Port Details.
+
+[[Image:PortStatistics.jpg|700px]] 
+
+:7. On the OSGI console, type '''ss simple'''. You will see that the Simple Forwaarding app is '''ACTIVE'''.
+
+ osgi> '''ss simple'''
+ "Framework is launched."
+ 
+ 
+ id	State       Bundle
+ 45	ACTIVE      org.opendaylight.controller.samples.simpleforwarding_0.4.0.SNAPSHOT
+
+
+
+[[Category:OpenDaylight Controller]]
