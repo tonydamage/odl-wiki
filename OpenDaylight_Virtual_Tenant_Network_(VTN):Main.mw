@@ -18,7 +18,7 @@ The user first defines a VTN. Then, the user maps the VTN to a physical network,
 
 The following table shows the elements which make up the VTN.
 In the VTN, a virtual network is constructed using virtual nodes (vBridge, vRouter) and virtual interfaces and links.
-It is possible to configure a network which has L2 and L3 transfer function, by connecting via the network the virtual interfaces made up by virtual nodes.
+It is possible to configure a network which has L2 and L3 transfer function, by connecting the virtual intrefaces made on virtual nodes via virtual links.
 
 {| class="wikitable"
 !colspan="2"|Name of element
@@ -26,36 +26,36 @@ It is possible to configure a network which has L2 and L3 transfer function, by 
 |-
 |rowspan="5"|Virtual node
 |vBridge
-|The L2 switch function is implemented within the VTN.
+|The logical representation of L2 switch function.
 |-
 |vRouter
-|The L3 switch function is implemented within the VTN.
+|The logical representation of router function.
 |-
 |vTep
-|This is a Virtual node that shows Tunnel End Point on the VTN.
+|The logical representation of Tunnel End Point - TEP.
 |-
 |vTunnel
-|This is a Virtual node that shows Tunnel on the VTN.
+|The logical representation of Tunnel.
 |-
-|vUnknown
-|This is a Virtual node that shows a device which cannot be controlled from SDN Controller.
+|vBypass
+|The logical representation of connectivity between controlled networks.
 |-
 |Virtual interface
-|vInterface
-|The end point on the virtual node which communicates with other virtual nodes.
+|interface
+|The representation of end point on the virtual node.
 |-
 |Virtual Link
 |vLink
-|It is possible for virtual nodes to communicate by connecting virtual interfaces via a virtual link.
+|The logical representation of L1 connectivity between virtual interfaces.
 |}
 
-The following figure shows an example of a constructed virtual network. VRT is defined as the vRouter, BR1 and BR2 are defined as vBridges. vInterfaces of the vRouter and vBridges are connected using vLinks.
+The following figure shows an example of a constructed virtual network. VRT is defined as the vRouter, BR1 and BR2 are defined as vBridges. interfaces of the vRouter and vBridges are connected using vLinks.
 
 [[File:VTN_Construction.jpg|380px]]
 
 == Mapping of Physical Network Resources ==
 
-Map physical network resources to the constructed virtual network. Mapping identifies which virtual network each packet transmitted or received by an OpenFlow switch belongs to, as well as which vInterface in the OpenFlow switch transmits or receives that packet.
+Map physical network resources to the constructed virtual network. Mapping identifies which virtual network each packet transmitted or received by an OpenFlow switch belongs to, as well as which interface in the OpenFlow switch transmits or receives that packet.
 There are two mapping methods. When a packet is received from the OFS, port mapping is first searched for the corresponding mapping definition, then VLAN mapping is searched, and the packet is mapped to the relevant vBridge according to the first matching mapping.
 
 {| class="wikitable" width="850px"
@@ -63,13 +63,15 @@ There are two mapping methods. When a packet is received from the OFS, port mapp
 !Description
 |-
 |Port mapping
-|The OFS physical port is assigned the VLAN ID value of the VLAN tag in the L2 frame to vBridge. 
-This method is used in cases where the connection relationship is known in advance, as when a terminal or a network device outside the OpenFlow network is permanently connected to the OpenFlow network.
-In addition, it is used to map different physical ports to different vBridge when VLAN setting for the OFS physical port is Untagged.
+|Maps physical network resources to an interface of vBridge using Switch ID, Port ID and VLAN ID of the incoming L2 frame. Untagged frame mapping is also supported.
 |-
 |VLAN mapping
-|The VLAN ID value of the VLAN tag in the L2 frame is assigned to vBridge. The OFS physical port which receives the aforementioned packets is automatically mapped to vBridge. A different VLAN ID value can be mapped to each OFS per vBridge.
-This method can be used in cases where the VLAN tag can identify the network to which the packet belongs. It is particularly useful when the point of connection between the terminal and the OpenFlow network dynamically changes. It is possible to reduce the amount of configurations required, in comparison to Port mapping, as it is not necessary to do settings for each physical port.
+|Maps physical network resources to a vBridge using VLAN ID of the incoming L2 frame.
+Maps physical resources of a particular switch to a vBridge using switch ID and VLAN ID of the incoming L2 frame.
+|-
+|MAC mapping
+|Maps physical resources to an interface of vBridge using MAC address of the incoming L2 frame.
+(The initial contribution does not include this method.)
 |}
 
 VTN can learn the terminal information from a terminal that is connected to a switch which is mapped to VTN. Further, it is possible to refer that terminal information on the VTN.
@@ -79,9 +81,9 @@ VTN can learn the terminal information from a terminal that is connected to a sw
 # Aging of terminal information
 #: Terminal information, learned by the VTN, will be maintained until the packets from terminal keep flowing in VTN. If the terminal gets disconnected from the VTN, then the aging timer will start clicking and the terminal information will be maintained till timeout.
 
-The following figure shows an example of mapping. BR1 is mapped to port GBE0/1 of OFS1 by using port mapping. Packets received or transmitted by GBE0/1 of OFS1 on the virtual network are regarded as those from or to BR1 of vBridge. In this example, the Untagged packet transmission/reception is mapped to BR1.
-BR2 is mapped to L2 frames having the VLAN tag whose VLAN ID is 200 by using VLAN mapping.
-Packets having the VLAN ID tag of 200 received or transmitted by the port of any OFS in the network are mapped to the BR2 vBridge. When the SDN Controller receives a frame having the VLAN ID tag of 200, the vBridge is automatically mapped to the port that received the frame. In the figure, port GBE0/2 of OFS2, with the VLAN ID being 200 is automatically mapped to BR2.
+The following figure shows an example of mapping. An interface of BR1 is mapped to port GBE0/1 of OFS1 using port mapping. Packets received from GBE0/1 of OFS1 are regarded as those from the corresponding interface of BR1.
+BR2 is mapped to VLAN 200 using VLAN mapping.
+Packets with VLAN tag 200 received from any ports of any OFSs are regarded as those from an interface of BR2.
 
 [[File:VTN_Mapping.jpg|450px]]
 
@@ -110,8 +112,8 @@ The vRouter transfers IPv4 packets between vBridges. The vRouter supports routin
 
 == Flow Filter Functions ==
 
-Flow Filter function is similar to ACL. It is possible to allow or prohibit communication with only certain kind of packets that meet a particular condition. Also, it can perform a processing called “redirect”, which is different from the existing ACL.
-Flow Filter can be applied to any vInterface on a vNode within VTN, and it is possible to the control the packets that pass vInterface.
+Flow Filter function is similar to ACL. It is possible to allow or prohibit communication with only certain kind of packets that meet a particular condition. Also, it can perform a processing called Redirection - WayPoint routing, which is different from the existing ACL.
+Flow Filter can be applied to any interface of a vNode within VTN, and it is possible to the control the packets that pass interface.
 The match conditions that could be specified in Flow Filter are as follows. It is also possible to specify a combination of multiple conditions.
 
 * Source MAC address
@@ -121,29 +123,30 @@ The match conditions that could be specified in Flow Filter are as follows. It i
 * Source IP address
 * Destination IP address
 * DSCP
-* Protocol
+* IP Protocol
 * TCP/UDP source port
 * TCP/UDP destination port
 * ICMP type
 * ICMP code
 
 The types of Action that can be applied on packets that match the Flow Filter conditions are given in the following table.
-It is possible to make only those packets, which match a particular condition, to pass through a particular server by specifying “redirect” in Action. E.g., path of flow can be changed for each packet sent from a particular terminal, depending upon the destination IP address.
+It is possible to make only those packets, which match a particular condition, to pass through a particular server by specifying Redirection in Action. E.g., path of flow can be changed for each packet sent from a particular terminal, depending upon the destination IP address.
+VLAN priority control and DSCP marking are also supported.
+
 
 {| class="wikitable"
 ! Action
 ! Function
 |-
-| pass
-| Lets the packet pass.
-As options, you can also specify packet transfer priority and DSCP change.
+| Pass
+| Pass particular packets matching the specified conditions.
 |-
-| drop
-| Discards the packet.
+| Drop
+| Discards particular packets matching the specified conditions.
 |-
-| redirect
+| Redirection
 | Redirects the packet to a desired virtual interface.
-As an option, you can have a MAC address converted when the packet is transferred.
+Both Transparent Redirection (not changing MAC address) and Router Redirection (changing MAC address) are supported.
 |}
 
 The following figure ‎shows an example of how the flow filter function works.
@@ -169,9 +172,9 @@ Flow Filter, which is set on the VTN, will be automatically applied on the newly
 
 = Coordination between OpenFlow Network and L2/L3 Network =
 
-It is possible to configure VTN on an environment where there is mix of L2/L3 switches as well. L2/L3 switch will be shown on VTN as vUnknown. Flow Filter or policing cannot be configured for a vUnknown. However, it is possible to treat it as a virtual node inside VTN.
+It is possible to configure VTN on an environment where there is mix of L2/L3 switches as well. L2/L3 switch will be shown on VTN as vBypass. Flow Filter or policing cannot be configured for a vBypass. However, it is possible to treat it as a virtual node inside VTN.
 
-= VTN API =
+= Virtual Tenant Network (VTN) API =
 
 VTN provides Web APIs. They are implemented by REST architecture and provide the access to resources within VTN that are identified by URI. 
 User can perform the operations like GET/PUT/POST/DELETE against the virtual network resources (e.g. vBridge or vRouter) by sending a message to VTN through HTTPS communication in XML or JSON format.
@@ -219,7 +222,7 @@ VTN provides following operations for various network resources.
 | Yes
 | Yes
 |-
-| vUnknown
+| vBypass
 | Yes
 | Yes
 | Yes
