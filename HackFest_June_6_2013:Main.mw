@@ -11,6 +11,32 @@
 
 === Threading Model/Performance ===
 
+''Written up by Colin Dixon based on conversations with Ed Warnicke, Davide Erickson, Chris Price, Bhushan Kanekar and I'm sure others.''
+
+Essentially, there are two models for how you can handle tasks in a system like OpenDaylight:
+# You can have run-to-completion event handling where the thread that receives an event does all of the work to handle the event and then comes back to handle the next event.
+# You can have staged event handling where there is a pool of threads to handle each kind of event and it typically picks up events from one place, processes them and possibly produces events of it's own and puts them in other event queues.
+
+Right now, we mostly have the second solution. For example, the SwitchHandler takes PACKET_IN events (actually switch message events I think) and then hands them off to a queue DataPacketServices in the SAL, that then dequeues the event and calls all of the listeners which in turn can generate PACKET_OUT or flow programming events which are picked up from their respective queues and so on.
+
+The advantage of this approach is that, in theory, the system is always responsive and a given slow module/bundle can't screw over the performance of the whole system. There are several disadvantages though:
+* You have to manually tune the balance of threads at each stage and, to actually get good performance, you'll want do dynamically monitor and tune this to workload which is a pain in the ass.
+* Managing the queues between stages is complicated. Often there is a single lock for the queue and this lock creates tons of contention. Having multiple queues doesn't solve the problem completely either since you have to create a thread that polls all of the queues which is inefficient, destroys processor affinity and can screw up your cache lines.
+* In practice, for most of your modules, they have to get their work done and so even if they're slow, you eventually have to wait for them and starving them of threads is only going to cause the rest of your system to be slowed down to the same rate.
+
+Instead, you can basically have one giant pool of threads and just have them servicing switch events and running them to completion. Since the same pool of threads goes through all of the modules, this is auto-tuning as all threads wind up being able to do all work in all modules/bundles. There are no queues to manage carefully. You still may have to do some locking in some places to order events, but it's a lot less than having a single queue/lock per stage.
+
+The only place this breaks down, is that some events have to be processed on a particular controller instance, for instance the one with the attached switches. To do this, you need to have some queue that enables the transferring of the event from one instance to another. Thus this approach really becomes "have as few stages as possible" and that's one input stage that does all of the work and enqueues outuput actions to be sent to the corresponding switches.
+
+There's also a few timer-based events that get fired and presumably we'll need a way to service northbound events, i.e., REST API calls, but ideally I'd want to have a single pool of threads handling all four sources of events:
+# Timers firing
+# Messages from sockets, i.e., switches
+# New items on queues, i.e., the flow programming queue or packet_out queue
+# REST API calls
+
+I suspect that this is doable in the long run with a framework like Netty, but in the short term, we could have a few different pools of threads which are coarsely tuned and punt further optimization into the future.
+
+As a start, I've pushed a patch which removes the RX queue from DataPacketServices and the patch can be found here: [https://git.opendaylight.org/gerrit/#/c/459/ https://git.opendaylight.org/gerrit/#/c/459/]
 
 === Consistent Data Store ===
 
