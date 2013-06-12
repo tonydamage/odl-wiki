@@ -25,33 +25,33 @@ Hopefully, this will provide at least a sound technical backing for discussions 
 |
 * '''IHostFinder'''
 * IListenDataPacket
-| Handles all ARP traffic: sending ARP requests to find hosts as well as responding to ARP requests from hosts.
+| Component responsible for learning about host location. It achieve to goal by looking at the ARP conversation between an host and the controller. This is an application that show case a possible host tracking mechanism, especially useful in the cases like OpenFlow where the controller can see all the packets if instructed to.
 |-
 | org.opendaylight.controller.clustering.services_implementation.internal
 |
 * '''IClusterContainerServices'''
 * '''IClusterServices'''
 * '''IClusterGlobalServices'''
-|
+| Allow to other components of the controller to allocate/deallocate clustered ConcurrentMap. Also provides a set of utility functions to know about the configuration of the cluster and for interacting with the Java transaction manager
 |-
 | org.opendaylight.controller.clustering.stub.internal
 |
 * '''IClusterContainerServices'''
 * '''IClusterGlobalServices'''
-|
+| Stub version of the cluster manager, to be used mostly in integration tests.
 |-
 | org.opendaylight.controller.configuration.internal
-|
+| 
 * '''IConfigurationService'''
 * '''IConfigurationContainerService'''
 * IConfigurationAware
-|
+| Provide configuration services to the other bundles. Via this bundle the components can manage their configuration need and just worry about the data to be persisted without worrying about location of where the data will be persisted.
 |-
 | org.opendaylight.controller.containermanager.internal
 |
 * '''IContainerManager'''
 * '''IContainer'''
-|
+| Provide the implementation of "default" container for the controller.
 |-
 | org.opendaylight.controller.forwarding.staticrouting.internal
 |
@@ -59,7 +59,7 @@ Hopefully, this will provide at least a sound technical backing for discussions 
 * ICacheUpdateAware
 * IfNewHostNotify
 * IConfigurationContainerAware
-|
+| Provide the necessary hooks to inject in the area controlled by the controller, routes to reach traditional IP networks.
 |-
 | org.opendaylight.controller.forwardingrulesmanager.internal
 |
@@ -70,7 +70,7 @@ Hopefully, this will provide at least a sound technical backing for discussions 
 * ICacheUpdateAware
 * IConfigurationContainerAware
 * IFlowProgrammerListener
-|
+| Manager of all the Forwarding Rules, this component take case of forwarding rules and is the one that manage conflicts between them.
 |-
 | org.opendaylight.controller.hosttracker.internal
 |
@@ -79,7 +79,7 @@ Hopefully, this will provide at least a sound technical backing for discussions 
 * '''IfIptoHost'''
 * IfHostListener
 * ITopologyManagerAware
-|
+| Track the location of the host relatively to the SDN network.
 |-
 | org.opendaylight.controller.protocol_plugin.openflow.internal
 |
@@ -101,18 +101,18 @@ Hopefully, this will provide at least a sound technical backing for discussions 
 * '''IRefreshInternalProvider'''
 * IStatisticsListener
 * ITopologyServiceShimListener
-|
+| Protocol plugin for OpenFlow 1.0. Include the openflowJ library as well the necessary glue logic to adapt to SAL layer along with a discovery mechanism for learning the graph of the OpenFlow network portion.
 |-
 | org.opendaylight.controller.protocol_plugins.stub.internal
 |
 * '''IPluginInReadService'''
-|
+| Sample Protocol plugin
 |-
 | org.opendaylight.controller.routing.dijkstra_implementation.internal
 |
 * ITopologyManagerAware
 * '''IRouting'''
-|
+| Implementation of Dijkstra routing algorithm over the network graph as seen by the topology manager. The component keeps a cache of the topology in order to save on calculation time. Make use of the Jung2 third-party library for the calculation.
 |-
 | org.opendaylight.controller.sal.implementation.internal
 |
@@ -125,25 +125,25 @@ Hopefully, this will provide at least a sound technical backing for discussions 
 * '''IPluginOutFlowProgrammerService'''
 * '''IPluginOutDataPacketService'''
 * '''IDataPacketService'''
-|
+| Implements the services that SAL export to the applications using it as well to the protocol plugins. It essentially implements the necessary logic to mux all the notifications from the protocol plugins toward the applications, and demux the requests from applications sitting on SAL toward the correct protocol plugin.
 |-
 | org.opendaylight.controller.samples.loadbalancer.internal
 |
 * IListenDataPacket
 * '''IConfigManager'''
-|
+| Implementation of a simple load-balancer. This component wants to show case the usage of the functional modules.
 |-
 | org.opendaylight.controller.samples.simpleforwarding.internal
 |
 * IInventoryListener
 * IfNewHostNotify
 * IListenRoutingUpdates
-|
+| Sample implementation of an application simulating a traditional IP network. This component wants to show case the usage of the functional modules.
 |-
 | org.opendaylight.controller.statisticsmanager.internal
 |
 * '''IStatisticsManager'''
-|
+| Component in charge of using the ReadService from SAL, in order to collect several statistics from the SDN network.
 |-
 | org.opendaylight.controller.switchmanager.internal
 |
@@ -151,20 +151,39 @@ Hopefully, this will provide at least a sound technical backing for discussions 
 * '''ISwitchManager'''
 * ICacheUpdateAware
 * IConfigurationContainerAware
-|
+| Component holding the inventory information for all the known nodes in the controller. All the components that wants to have access to let say a port name or node name or any inventory information, will find them via query to this component.
 |-
 | org.opendaylight.controller.topologymanager.internal
 |
 * IListenTopoUpdates
 * '''ITopologyManager'''
 * IConfigurationContainerAware
-|
+| Component holding the whole network graph. Provide notifications on edges updates to who wants to listen about it.
 |-
 | org.opendaylight.controller.usermanager.internal
 |
 * ICacheUpdateAware
 * '''IUserManager'''
 * IConfigurationAware
+| Component taking care of user management. Every component in a need of user authentication/authorization and accounting will use the services of this component.
+|-
+| org.opendaylight.controller.security
+|
+| Fragment of the embedded Tomcat web server, interacting with the usermanager in order to validate the incoming REST/UI calls to be coming from valid users.
+|-
+| org.opendaylight.controller.*.northbound
+|
+| JAXRS implementation of REST API for several modules. There are several component implementing the REST API because each component can be removed or upgraded independent from others.
+|-
+| org.opendaylight.controller.web
+|
+* '''IDaylightWeb'''
+| Host for the root UI as well component in charge of tracking the several pieces of the UI depending on bundles installed on the system.
+|-
+| org.opendaylight.controller.*.web
+|
+* IDaylightWeb
+| Bundles implementing the several pieces of the UI.
 |}
 
 ==Net Virt Platform==
@@ -229,11 +248,10 @@ RewriteServiceImpl
 | org.sdnplatform.hub
 | Hub
 | A packet forwarding module implemented to function like a hub
-|
 |-
 | org.sdnplatform.jython
 | JythonDebugInterface
-|
+| A debug module that launches a Jython debug server.
 |-
 | org.sdnplatform.learningswitch
 | LearningSwitch
@@ -286,17 +304,31 @@ PktInProcessingTime
 | StaticFlowEntryPusher
 * IStaticFlowEntryPusherService - StaticFlowEntryPusher
 | A service that is exposed internally as well as externally via a REST API. It allows for other modules or users to easily insert flows into an OpenFlow network.
-|
 |-
 | org.sdnplatform.storage
 | AbstractStorageSource
 * IStorageSourceService - AbstractStorageSource
-|
+| Abstract platform storage service.   
+|-
+| org.sdnplatform.storage.cassandra
+| CassandraStorageSource
+* IStorageSourceService - CassandraStorageSource
+| Concrete Cassandra-based NoSql storage service (extends NoSqlStorageSource).   
+|-
+| org.sdnplatform.storage.nosql
+| NoSqlStorageSource
+* IStorageSourceService - NoSqlStorageSource
+| Abstract NoSql storage service (extends AbstractStorageSource).   
+|-
+| org.sdnplatform.storage.memory
+| MemoryStorageSource
+* IStorageSourceService - MemoryStorageSource
+| Concrete, memory-based NoSql storage service (extends NoSqlStorageSource).
 |-
 | org.sdnplatform.threadpool
 | ThreadPool
 * IThreadPoolService - ThreadPool
-|
+| Implements platform's thread pooling service. By default it creates an ScheduledExecutorService with 15 threads. The thread pool can be used to schedule commands to run after the caller-specified delay or to be executed periodically.
 |-
 | org.sdnplatform.topology
 | BetterTopologyManager
