@@ -1,70 +1,51 @@
 
 = VTN Manager Implementation =
 
-VTN Manager will be implemented in Java, and consists of OSGi bundles in an OpenDaylight Controller.
+VTN Manager consists of OSGi bundles in an OpenDaylight Controller.
 It provides virtual network functions for VTN Coordinator via REST API.
 
-VTN Manager is developed from scratch to take advantage of functions of the OpenDaylight controller.
 
-[[File:vtn_manager_and_relevant_bundles.png|550px]]
+Any source code of VTN Manager does not exist yet, so we will develop it follwoing Simultaneous Release 2013.
 
-== Development milestone ==
+== Development for the milestone 2 ==
 
-Initial submittal for the following features is slated at Milestone 2.
+We will develop the following features in VTN Manager by the milestone 2.
 
-* VTN multi-tenancy
+* VTN multi tenancy
 * vBridge function
 
-With the above features, OpenDaylight Controller can have the capability to create virtual L2 network, and set up flow entries to OpenFlow switches based on OpenFlow 1.0.
+With the above feature, OpenDaylight Controller will have the capability to create virutal L2 network, install flow entires into OpenFlow switches, and forward packets based on OpenFlow 1.0.
 
-
-=== REST API to be provided ===
+=== Planned REST API ===
 
 * VTN GET/POST/DELETE
 * vBridge GET/POST/DELETE
 * Interface GET/POST/DELETE
 * Port map GET/POST/DELETE
+** Specify a physical port associated with a vBridge interface
 * Vlan map GET/POST/DELETE
 
+=== VTN Manager behavior for vBridge ===
+To realize virtual L2 netowrk, VTN Manger runs as follows.
 
-=== VTN Manager for VTN multi-tenancy ===
-We planed to create a container for each VTN.
-However, it seems that current containermanager in OpenDaylight Controller does not implement container creation function, except default container.
-Therefore, we are planning to create all VTNs and its vNodes in default container at Milestone 2.
-After the implementation plan of containermanager become clear, we will revisit this design.
+* Create MAC Address tables for each vBridge
+* Handle PacketIn events, and forward packets according to the destination MAC address
+** Send PacketOut, and install flow entries into switches
+* Drop packets from a port which is not provisioned to any VTN
 
+To do so, VTN Manager uses services provided by the following OSGi bundles in OpenDaylight Controller.
 
-=== VTN Manager for vBridge ===
-To enable virtual L2 network, VTN Manger has the following functions.
+In the case that existing services are not enough to VTN Manager, we may add some services to them.
 
-* Create MAC address tables per vBridge
-* Receive Packet-In events, send Packet-Out, and set up flow entries to switches based on the destination MAC address
-* Drop packets from a port not VTN provisioned
-
-
-=== Relevant OSGi bundles ===
-VTN Manager uses services provided by the following OSGi bundles in OpenDaylight Controller.
-
-* OSGi bundles to be used as is:
-** Forwarding Rule Manager
-** Routing
-** Container
-** HostTracker
-
-
-* OSGi bundles to be enhanced:
-** ArpHandler
-*** add a service to disable ArpHandler
-
-VTN Manager have to broadcast ARP Request packets only within a configured vBridge.
-However, ArpHandler handles ARP packets depending on subnet infromation registered on ISwitchManager, not on configuration of vBridges.
-In order to keep isolation of vBridges and manage broadcast packets, if a VTN exists in a container, VTN Manager disables ArpHandler in the container.
-
-
-== Specification ==
-The following is the specifications of VTN Manager which we are planning on creating at the milestone 2.
-* [[OpenDaylight_Virtual_Tenant_Network_(VTN):VTN_Manager:Specification|VTN Manager Specifications]]
-** [[OpenDaylight_Virtual_Tenant_Network_(VTN):VTN_Manager:RestApi|REST API specifications]]
-** [[OpenDaylight_Virtual_Tenant_Network_(VTN):VTN_Manager:JavaApi|Java API specifications]]
-
-[[Category:OpenDaylight Virtual Tenant Network]]
+* Forwarding Rule Manager
+* Routing
+* Container
+* HostTracker
+* ArpHandler
+** We will add a service which change behavior of ArpHandler as follows:
+*** Stop ARP Proxy
+**** To keep isolation of vBridges, ARP Request pakcets form a host mapped to a vBridge must not been forwarded to hosts mapped to other vBridges
+**** Therefore, VTN Manager must stop ARP Proxy of ArpHandler
+*** Stop host detection
+**** VTN Manager itself detects hosts
+** If at least one VTN exists in a container, VTN Manager change the behavior of ArpHandler in the container using this service
