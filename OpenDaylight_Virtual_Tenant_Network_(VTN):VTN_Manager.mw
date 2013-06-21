@@ -4,17 +4,18 @@
 VTN Manager consists of OSGi bundles in an OpenDaylight Controller.
 It provides virtual network functions for VTN Coordinator via REST API.
 
+Any source code of VTN Manager does not exist yet, so we plan to develop it following Simultaneous Release 2013.
 
-Any source code of VTN Manager does not exist yet, so we will develop it follwoing Simultaneous Release 2013.
 
 == Development milestone ==
 
 We will develop the following features in VTN Manager by the milestone 2.
 
-* VTN multi tenancy
+* VTN multi-tenancy
 * vBridge function
 
-With the above features, OpenDaylight Controller can have the capability to create virutal L2 network, and set up flow entires to OpenFlow switches based on OpenFlow 1.0.
+With the above features, OpenDaylight Controller can have the capability to create virtual L2 network, and set up flow entries to OpenFlow switches based on OpenFlow 1.0.
+
 
 === REST API to be provided ===
 
@@ -24,12 +25,14 @@ With the above features, OpenDaylight Controller can have the capability to crea
 * Port map GET/POST/DELETE
 * Vlan map GET/POST/DELETE
 
+
 === VTN Manager for vBridge ===
 To enable virtual L2 network, VTN Manger has the following functions.
 
 * Create MAC address tables per vBridge
 * Receive Packet-In events, send Packet-Out, and set up flow entries to switches based on the destination MAC address
 * Drop packets from a port not VTN provisioned
+
 
 === Relation with other OSGi bundles ===
 VTN Manager uses services provided by the following OSGi bundles in OpenDaylight Controller.
@@ -44,3 +47,8 @@ VTN Manager uses services provided by the following OSGi bundles in OpenDaylight
 * OSGi bundles to be enhanced:
 ** ArpHandler
 *** add a service to disable ArpHandler
+
+VTN Manager have to broadcast ARP Request packets only within a configured vBridge.
+However, ArpHandler handles ARP packets depending on subnet infromation registered on ISwitchManager, not on configuration of vBridges.
+Moreover, after ArpHandler handles ARP packets, ARP events are not propagated to other bundles, so VTN Manager can not manage them.
+In order to keep isolation of vBridges and manage broadcast packets, if a VTN exists in a container, VTN Manager disables ArpHandler in the container.
