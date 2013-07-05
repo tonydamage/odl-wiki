@@ -1,0 +1,148 @@
+
+= VTN Manager Specifications =
+
+This page describes the specifications of VTN Manager which is to be implemented in OpenDaylight Controller.
+Further, this document mainly describes the external specifications and it only mentions some key points about the internal specifications.
+
+== OSGi Bundle ==
+
+VTN Manager is constituted of the following OSGi bundle.
+
+:;<div id="bundle.api">vtnmanager</div>
+::
+::*This provides the VTN Manager class which is exposed to external applications.
+::*Source code is kept at '''opendaylight/vtnmanager/api'''.
+::*All the classes are kept in '''org.opendaylight.controller.vtn''' package.
+:;<div id="bundle.implementation">vtnmanager.implementation</div>
+::
+::*This implements the VTN Manager service.
+::*Source is kept at '''opendaylight/vtnmanager/implementation'''.
+::*Classes inside this bundle are not exposed to outside.
+::*All the classes are kept in '''org.opendaylight.controller.vtn.internal''' package.
+:;<div id="bundle.northbound">vtnmanager.northbound</div>
+::
+::*This implements the REST API provided by VTN Manager.
+::*Source is kept at '''opendaylight/northbound/vtnmanager'''.
+::*Classes inside this bundle are not exposed to outside.
+::*All the classes are kept in '''org.opendaylight.controller.vtn.northbound''' package.
+
+== Function overview ==
+
+=== VTN ===
+
+VTN Manager manages the virtual network at '''VTN''' (Virtual Tenant Network) level.
+At least one VTN should be created for setting up virtual network using VTN Manager.
+
+VTN is a virtual network environment that gets created inside the container of OpenDaylight controller.
+Set up virtual network environment inside VTN by configuring virtual network elements (virtual node) like [[#vBridge|vBridge]] in VTN.
+If multiple VTNs are created, then networks inside different VTNs are managed as different individual networks.
+
+=== vBridge ===
+
+'''vBridge''' is a virtual layer 2 switch inside [[#VTN|VTN]], and it represents one virtual broadcast domain.
+Virtual network environment in VTN is enabled when one or more vBridges are created inside VTN, and vBridge and physical network are mapped.
+
+Following functionalities are provided at this point in time for mapping vBridge and physical network.
+
+*[[#VLAN-map|VLAN mapping]]
+*[[#port-map|Port mapping]]
+
+==== <div id="vBridge.state>vBridge status</div> ====
+
+vBridge can have the following internal status.
+
+:;<div id="vBridge.state.UNKNOWN">UNKNOWN</div>
+::This shows the state wherein physical network is not mapped to vBridge.
+::vBridge status will be UNKNOWN if all the following conditions are met.
+:::*[[#VLAN-map|VLAN mapping]] is not configured on vBridge.
+:::*[[#port-map|Port mapping]] is not set for all the enabled [[#vInterface|virtual interfaces]] inside vBridge.
+:;<div id="vBridge.state.DOWN">DOWN</div>
+::This shows the state wherein the physical network mapped to vBridge is not operating correctly.
+::If any of the following conditions are met, then vBridge status will be DOWN.
+::*Physical switch is configured in the [[#VLAN-map|VLAN mapping]] done on vBridge and that physical switch is meeting any one of the following conditions.
+::**Physical switch does not exist.
+::**All the ports of the physical switch are connected to some other physical switch.
+::**Except for the ports that connect two physical switches, no other ports are operational.
+::*One or more than one interface out of the enabled [[#vInterface|virtual interfaces]] inside vBridge is in [[#vInterface.state.DOWN|DOWN]] state.
+::*There is no reachable route available while configuring networks routes mapped to vBridge.
+:;<div id="vBridge.state.UP">UP</div>
+::This shows the state wherein the physical network mapped to the vBridge is operating correctly.
+
+==== <div id="VLAN-map">VLAN mapping</div> ====
+
+'''VLAN mapping''' functionality is used for mapping VLAN network to any specified vBridge.
+It is possible to set one or more than one VLAN mapping to one vBridge.
+
+While configuring VLAN mapping, specify the VLAN ID that is to be mapped to vBridge.
+
+*If '''0''' is set as VLAN ID, then the Ethernet frame that does not have the VLAN tag gets mapped to vBridge.
+**If the physical switch receives an Ethernet frame that does not have VLAN tag, then it is treated as an input against this vBridge.
+**VLAN tag is removed if an Ethernet frame is output to this vBridge.
+*If a value equal to or greater than '''1''' and equal to or less than '''4095''' is specified as VLAN ID, then Ethernet frames that have the same VLAN ID  inside the VLAN tag get mapped to this vBridge.
+**If the physical switch receives an Ethernet frame that has this VLAN ID set inside the VLAN tag, then it is treated as an input against this vBridge.
+**VLAN tag is added and the corresponding VLAN ID is configured when Ethernet frame is output to this vBridge.
+
+Also, it is possible to specify one physical switch for VLAN mapping.
+If the <tt>Node</tt> corresponding to physical switch is specified during VLAN mapping, then only the input and output of that physical switch is mapped to vBridge.
+If a physical switch is not specified, then it will be used for all the physical switches recognized by OpenDaylight controller.
+
+Further, the VLAN ID (including 0) specified during VLAN mapping will be exclusive for that vBridge.
+It is not possible use a VLAN ID that is mapped to a particular vBridge in mapping to another vBridge.
+
+=== <div id="vInterface">Virtual interface</div> ===
+
+'''Virtual interface''' shows the input and output interface that could be set in virtual node of VTN.
+At this point in time, it is possible to set virtual interface to [[#vBridge|vBridge]] alone.
+
+It is possible to dynamically enable or disable virtual interface.
+If a virtual interface is disabled, then all the inputs from that virtual interface will be ignored.
+Also, there will be no output against that virtual interface.
+
+==== <div id="vInterface.state">Virtual interface status</div> ====
+
+Virtual interface can have the following internal status.
+
+:;<div id="vInterface.state.UNKNOWN">UNKNOWN</div>
+:: This is a state wherein other network elements are not mapped to virtual interface.
+:;<div id="vInterface.state.DOWN">DOWN</div>
+:: This is a state wherein the network elements mapped to virtual interface are not operating.
+:;<div id="vInterface.state.UP">UP</div>
+:: This is a state wherein the network elements mapped to virtual interface are operating.
+
+==== vBridge interface status ====
+
+Status of the virtual interface configured in vBridge is decided as follows.
+
+*It will be in [[#vInterface.state.UNKNOWN|UNKNOWN]] state when [[#port-map|Port mapping]] is not set in virtual interface.
+*It will be in [[#vInterface.state.DOWN|DOWN]] state when port of physical switch that is mapped in [[#port-map|Port mapping]] meets any of the following conditions.
+**Port of the physical switch is not operating.
+**Port of the physical switch is connected to another physical switch.
+*It will be in [[#vInterface.state.UP|UP]] state when port of physical switch that is mapped with [[#port-map|Port mapping]] is operating.
+
+Further, state of vBridge interface is set irrespective of whether the interface is enabled or not.
+For example, even if the status of vBridge interface is [[#vInterface.state.UP|UP]], all the input and output against that interface will be ignored if that interface is disabled.
+
+==== <div id="port-map">Port mapping</div> ====
+
+'''Port mapping''' functionality is used to map port of physical switch to [[#vInterface|virtual interface]] of [[#vBridge|vBridge]].
+Only one Port mapping can be set for one virtual interface.
+If you want to map ports of multiple physical switches to one vBridge, then it is necessary to set multiple virtual interfaces in vBridge and configure port mapping against each virtual interface.
+
+While configuring port mapping, specify <tt>NodeConnector</tt> corresponding to the port of physical switch and VLAN ID that is to be mapped.
+
+*If '''0''' is set as VLAN ID, then Ethernet frame that does not have VLAN tag will be mapped to vBridge interface.
+**If the specified port of the physical switch receives an Ethernet frame that does not have VLAN tag, then it will be treated as an input against this vBridge interface.
+**VLAN tag is removed when Ethernet frame is output to this vBridge interface.
+*If a value equal to or greater than '''1''' and equal to or less than '''4095''' is specified as VLAN ID, then Ethernet frame that have the same VLAN ID  inside the VLAN tag get mapped to this vBridge interface.
+**If the specified port of the physical switch receives an Ethernet frame that has this VLAN ID set inside the VLAN tag, then it is treated as an input against this vBridge interface.
+**VLAN tag is added and the corresponding VLAN ID is configured when Ethernet frame is output to this vBridge interface.
+
+Further, the combination of the physical switch port specified during port mapping and VLAN ID (including 0) will be exclusive for that vBridge interface.
+It is not possible to use the combination of a physical switch that is mapped to a particular vBridge interface and VLAN ID for mapping in another vBridge interface.
+
+== Specifications ==
+
+*[[OpenDaylight_Virtual_Tenant_Network_(VTN):VTN_Manager:Specification:RestApi| REST API specifications]]
+*[[OpenDaylight_Virtual_Tenant_Network_(VTN):VTN_Manager:Specification:JavaApi| Java API specifications]]
+
+[[Category:OpenDaylight Virtual Tenant Network]]
