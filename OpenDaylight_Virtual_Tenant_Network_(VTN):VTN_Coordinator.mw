@@ -1,8 +1,97 @@
-= VTN Coordinator Implementation =
+= VTN Coordinator =
+The VTN coordinator realizes Virtual Tenet Network (VTN) provisioning in OpenDaylight Controllers (ODC). In the OpenDaylight architecture VTN Coordinator is part of the network application, orchestration and services layer. It uses OpenDaylight APIs (REST) to construct the virtual network in ODCs. It provides REST APIs for northbound VTN applications and supports virtual networks spanning across multiple ODCs by coordinating across ODCs. 
 
-Please refer the following file which is used in the deep dive on VTN (HackFest June 6).
+= Architecture = 
+'''VTN Coordinator Architecture'''
 
-* [[Media:NEC VTN Implementation 0606.pdf|VTN Implementation]]
+
+[[File:VTN_Coordinator_architecture.PNG]]
+
+= Components =
+'''VTN Coordinator Components'''
+
+:*VTN API    - Web API Module
+:*TC         - Two Phase commit coordinator Module
+:*UPLL       - Virtual Network Provisioning/Monitoring Module
+:*UPPL       - Physical network Provisioning/Monitoring Module
+:*ODC Driver - OpenDaylight controller interface Module
+
+= VTN API =
+The VTN API module provides the north bound REST API interface for VTN applications
+It consists of two subcomponents
+:*Web Server
+:*VTN Service Java API library
+
+'''Web Server'''
+:*Is started via the startup script catalina.sh.
+:*VTN Application sends HTTP request to Web server in XML or JSON format.
+:*Creates a session and acquire a read/write lock.
+:*Invokes the VTN Service Java API corresponding to the specified URI.
+:*Returns the response to the VTN Application.
+
+'''VTN Service Java API library'''
+:*Creates an IPC client session to the lower layer.
+:*Converts the request to IPC framework format.
+:*Invokes the lower layer API (i.e. UPLL API, UPPL API, TC API).
+:*Return the response from the lower layer to the web server
+
+[[File:VTN_API.PNG]]
+
+= Transaction Coordinator (TC) =
+The TC module provides the two phase commit coordination functionality for VTN coordinator components.
+It consists of two subcomponents
+:*Transaction Coordinator (TC)
+:*Transaction Coordinator Library (TCLIB)
+
+'''Transaction Coordinator'''
+:*TC is started from uncd daemon during startup of VTN coordinator.
+:*Responsible for two phase commit operation in VTN
+:*Receives requests from VTN Service during Commit and Audit operations.
+:*Invokes lower layer TCLIB API (i.e. UPLL API, UPPL API or ODC Driver API) via IPC framework.
+
+'''Transaction Coordinator Library'''
+:*TCLIB will be loaded as a module in UPLL , UPPL  and ODC Driver daemon.
+:*Responsible for handling messages to the daemons from TC
+:*The daemons will install their handler with TCLIB, the handlers will be invoked on receiving messages from TC
+
+[[File:TC.PNG]]
+
+= Unified Provider Physical Layer (UPPL) =
+:*UPPL is started from phynwd daemon during startup of VTN coordinator.
+:*Interacts with TC, UPLL and ODC Driver using IPC framework
+:*Receives Controller, Domain and Boundary Create/Update/Delete/Read requests from VTN Services 
+:*Maintains the startup, candidate, and running configurations and state information in an external database
+:*Performs the setup/commit/abort operations as instructed by TC
+:*Connects to southbound controllers via ODC Driver
+:*Constructs physical topology using the notifications (events and alarms) from controller platform. 
+:*Informs UPLL about the controller addition/deletion and operational status changes of Physical topology objects.
+
+[[File:UPPL.PNG]]
+
+= Unified Provider Logical Layer (UPLL) =
+:*UPLL is started from lgcnwd daemon during startup of VTN coordinator.
+:*Interacts with TC, UPPL and ODC Driver using IPC framework.
+:*Receives virtual network configuration Create/Update/Delete/Read requests from VTN Service.
+:*Maintains the startup, candidate, and running configurations and state information in an external database
+:*Performs the setup/commit/abort operations as instructed by TC
+:*Connects to southbound controllers via ODC Driver
+:*Constructs and maintains the virtual network topology using the configuration and notifications (events and alarms) received from controller platforms.
+:*Supports Audit and Import functionality for the virtual network configurations
+
+[[File:UPLL.PNG]]
+
+= OpenDaylight Controller Driver (ODC Driver) =
+:*ODC driver is started during startup of VTN coordinator
+:*Interacts with TC, UPPL and UPLL using the IPC framework.
+:*Setup and monitor controller connections
+:*Translates the provisioning information received from UPLL to corresponding OpenDaylight APIs of the OpenDaylight controller.
+
+= Communication Framework =
+'''Internal communication'''
+:*Proprietary IPC framework
+'''External communication'''
+:*North Bound – REST API
+:*South Bound – OpenDaylight API
 
 
 [[Category:OpenDaylight Virtual Tenant Network]]
