@@ -1,7 +1,7 @@
 
 This page describes the REST APIs provided by VTN Manager.
 
-== Data Format ==
+= Data Format =
 
 REST API of VTN Manager uses [[wikipedia:JSON|JSON]] or [[wikipedia:XML|XML]] while exchanging Struct data with REST client.
 
@@ -15,11 +15,11 @@ REST API of VTN Manager uses [[wikipedia:JSON|JSON]] or [[wikipedia:XML|XML]] wh
 ***Specify '''Application/Xml''' for receiving data in XML format.
 ***JSON format is used if the REST client does not specify '''Accept''' header.
 
-== Data Model ==
+= Data Model =
 
 This section describes the Struct data used in REST API of VTN Manager.
 
-=== VTN Data ===
+== VTN Data ==
 
 This section describes the data showing [[OpenDaylight_Virtual_Tenant_Network_(VTN):VTN_Manager:Specification#VTN|VTN]] information.
 
@@ -31,11 +31,15 @@ This is used for sending VTN information to controller during creation or modifi
 *XML format
 <pre>
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<vtnconf description="Description about VTN 1"/>
-</pre>
+<vtnconf description="Description about VTN 1" idleTimeout="300" 
+         hardTimeout="0"/></pre>
 *JSON format
 <pre>
-{"@description": "Description about VTN 1"}
+{  
+  "@description": "Description about VTN 1",  
+  "@idleTimeout": "300",  
+  "@hardTimeout": "0"  
+}  
 </pre>
 
 Meaning of each attribute is given below.
@@ -44,6 +48,20 @@ Meaning of each attribute is given below.
 ::Specify the string that shows the description of VTN.
 ::*There are no restrictions on the permissible characters or length of the string.
 ::*Can be omitted.
+:;<div id="vtnconf.idleTimeout">idleTimeout</div>
+::Specify in seconds the timeout value you want to set in idle_timeout of flow entries configured by VTN. Flow entries configured by VTN in switch will get deleted if it is not referred for the specified seconds.
+::*Can be omitted.
+::*Allowed range for value is between '''0''' or more and '''65535''' or less.
+::*'''0''' shows infinite time.
+::*If a negative value is specified, then the specified value is ignored and it will be treated as if it is omitted.
+:;<div id="vtnconf.hardTimeout">hardTimeout</div>
+::Specify in seconds the timeout value you want to set in hard_timeout of flow entries configured by VTN. Flow entries configured by VTN in switch will get deleted after the specified time period.
+::*Can be omitted.
+::*Allowed range for value is between '''0''' or more and '''65535''' or less.
+::*'''0''' shows infinite time.
+::*If a negative value is specified, then the specified value is ignored and it will be treated as if it is omitted.
+
+Further, if a value greater than 0 is configured in both '''idleTimeout''' and '''hardTimeout''', then the value specified in '''hardTimeout''' must be greater than the value in '''idleTimeout'''.
 
 === vtn ===
 
@@ -53,11 +71,17 @@ This is used for returning VTN information to REST client.
 *XML format
 <pre>
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<vtn name="vtn_1" description="Description about VTN 1"/>
+<vtn name="vtn_1" description="Description about VTN 1" idleTimeout="300"
+     hardTimeout="0"/>
 </pre>
 *JSON format
 <pre>
-{"@name": "vtn_1", "@description": "Description about VTN 1"}
+{
+  "@name": "vtn_1",
+  "@description": "Description about VTN 1",
+  "@idleTimeout": "300",
+  "@hardTimeout": "0"
+}
 </pre>
 
 Meaning of each attribute is given below.
@@ -67,6 +91,12 @@ Meaning of each attribute is given below.
 :;<div id="vtn.description">description</div>
 ::String showing VTN description gets configured.
 ::*It is omitted if the description is not set.
+:;<div id="vtn.idleTimeout">idleTimeout</div>
+::Seconds configured in idle_timeout of flow entry configured by VTN will get configured.
+::* '''0''' shows infinite time.
+:;<div id="vtn.hardTimeout">hardTimeout</div>
+::Seconds configured in hard_timeout of flow entry configured by VTN will get configured.
+::* '''0''' shows infinite time.
 
 === vtns ===
 
@@ -78,16 +108,26 @@ This is used for returning VTN information list to REST client.
 <pre>
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <vtns>
-  <vtn name="vtn_1" description="Description about VTN 1"/>
-  <vtn name="vtn_2"/>
+  <vtn name="vtn_1" description="Description about VTN 1"
+       idleTimeout="300" hardTimeout="0"/>
+  <vtn name="vtn_2" idleTimeout="600" hardTimeout="1000"/>
 </vtns>
 </pre>
 :*JSON format
 <pre>
 {
   "vtn": [
-    {"@name": "vtn_1", "@description": "Description about VTN 1"},
-    {"@name": "vtn_2"}
+    {
+      "@name": "vtn_1",
+      "@description": "Description about VTN 1",
+      "@idleTimeout": "300",
+      "@hardTimeout": "0"
+    },
+    {
+      "@name": "vtn_2",
+      "@idleTimeout": "600",
+      "@hardTimeout": "1000"
+    }
   ]
 }
 </pre>
@@ -104,7 +144,7 @@ This is used for returning VTN information list to REST client.
 
 '''vtns''' includes 0 or more [[#vtn|vtn]] as child elements.
 
-=== vBridge data ===
+== vBridge data ==
 
 This section describes the data showing [[OpenDaylight_Virtual_Tenant_Network_(VTN):VTN_Manager:Specification#vBridge|vBridge]] information.
 
@@ -116,11 +156,11 @@ This is used for sending vBridge information to controller during creation or mo
 *XML format
 <pre>
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<vbridgeconf description="Description about vBridge 1"/>
+<vbridgeconf description="Description about vBridge 1" ageInterval="600"/>
 </pre>
 *JSON format
 <pre>
-{"@description": "Description about vBridge 1"}
+{"@description": "Description about vBridge 1", "@ageInterval": "600"}
 </pre>
 
 Meaning of each attribute is given below.
@@ -129,6 +169,11 @@ Meaning of each attribute is given below.
 ::Specify the string that describes vBridge.
 ::*There are no restrictions on the permissible characters or length of the string.
 ::*Can be omitted.
+:;<div id="vbridgeconf.ageInterval">ageInterval</div>
+::Specify in seconds the interval of [[OpenDaylight_Virtual_Tenant_Network_(VTN):VTN_Manager:Specification#vBridge.macTable.aging|aging]] for [[OpenDaylight_Virtual_Tenant_Network_(VTN):VTN_Manager:Specification#vBridge.macTable|MAC address table]] in vBridge.
+::* Can be omitted.
+::* Allowed range for value is between '''10''' or more and '''1000000''' or less.
+::* If a negative value is specified, then the specified value is ignored and it will be treated as if it is omitted.
 
 === vbridge ===
 
@@ -138,13 +183,16 @@ This is used to return vBridge information to REST client.
 *XML format
 <pre>
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<vbridge name="vbridge_1" description="Description about vBridge 1" state="-1"/>
+<vbridge name="vbridge_1" description="Description about vBridge 1"
+         ageInterval="600" faults="0" state="-1"/>
 </pre>
 *JSON format
 <pre>
 {
   "@name": "vbridge_1",
   "@description": "Description about vBridge 1",
+  "@ageInterval": "600",
+  "@faults": "0",
   "@state": "-1"
 }
 </pre>
@@ -156,11 +204,17 @@ Meaning of each attribute is given below.
 :;<div id="vbridge.description">description</div>
 ::String showing vBridge description gets configured.
 ::*It is omitted if the description is not set.
+:;<div id="vbridge.ageInterval">ageInterval</div>
+::Seconds that shows the interval of [[OpenDaylight_Virtual_Tenant_Network_(VTN):VTN_Manager:Specification#vBridge.macTable.aging|aging]] for [[OpenDaylight_Virtual_Tenant_Network_(VTN):VTN_Manager:Specification#vBridge.macTable|MAC address table]] in vBridge will get configured.
+:;<div id="vbridge.faults">faults</div>
+::Count of path faults detected inside vBridge gets configured. This shows the number of paths between the switches, constituting a vBridge, that could not be configured by VTN Manager because the paths were broken.
+::* '''0''' gets configured when no path fault has been detected.
+::* Count of path fault is counted for each direction of path. E.g., if switch '''A''' and switch '''B''' are separated, then the path from switch '''A''' to switch '''B''' and path from switch '''B''' to switch '''A''' are treated as different and both are counted.
 :;<div id="vbridge.state">state</div>
 ::Value showing vBridge state gets configured.
-::*'''1''' gets configured when vBridge is in UP state.
-::*'''0''' gets configured when vBridge is in DOWN state.
-::*'''-1''' gets configured when vBridge state is not known.
+::* '''1''' gets configured when vBridge is in [[OpenDaylight_Virtual_Tenant_Network_(VTN):VTN_Manager:Specification#vBridge.state.UP|UP]] state.
+::* '''0''' gets configured when vBridge is in [[OpenDaylight_Virtual_Tenant_Network_(VTN):VTN_Manager:Specification#vBridge.state.DOWN|DOWN]] state.
+::* '''-1''' gets configured when vBridge is in [[OpenDaylight_Virtual_Tenant_Network_(VTN):VTN_Manager:Specification#vBridge.state.UNKNOWN|UNKNOWN]] state.
 
 === vbridges ===
 
@@ -172,16 +226,28 @@ This is used for returning vBridge information list to REST client.
 <pre>
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <vbridges>
-  <vbridge name="vbridge_1" state="-1" description="Description about vBridge 1"/>
-  <vbridge name="vbridge_2" state="1"/>
+  <vbridge name="vbridge_1" description="Description about vBridge 1"
+           ageInterval="600" faults="0" state="-1" />
+  <vbridge name="vbridge_2" ageInterval="1000" faults="2" state="0"/>
 </vbridges>
 </pre>
 :*JSON format
 <pre>
 {
   "vbridge": [
-    {"@name": "vbridge_1","@state": "-1", "@description": "Description about vBridge 1"},
-    {"@name": "vbridge_2","@state": "1"}
+    {
+      "@name": "vbridge_1",
+      "@description": "Description about vBridge 1",
+      "@ageInterval": "600",
+      "@faults": "0",
+      "@state": "-1"
+    },
+    {
+      "@name": "vbridge_2",
+      "@ageInterval": "1000",
+      "@faults": "2",
+      "@state": "0"
+    }
   ]
 }
 </pre>
@@ -198,7 +264,7 @@ This is used for returning vBridge information list to REST client.
 
 '''vbridges''' includes 0 or more [[#vbridge|vbridge]] as child elements.
 
-=== Interface data ===
+== Interface data ==
 
 This section describes the data showing [[OpenDaylight_Virtual_Tenant_Network_(VTN):VTN_Manager:Specification#vInterface|vBridge interface]] information.
 
@@ -236,14 +302,15 @@ This is used for returning vBridge interface information to REST client.
 *XML format
 <pre>
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<interface name="if_1" state="-1" description="Description about IF-1"
-           enabled="true"/>
+<interface name="if_1" state="-1" entityState="-1"
+           description="Description about IF-1" enabled="true"/>
 </pre>
 *JSON format
 <pre>
 {
   "@name": "if_1",
   "@state": "-1",
+  "@entityState": "-1",
   "@description": "Description about IF-1",
   "@enabled": "true"
 }
@@ -261,9 +328,17 @@ Meaning of each attribute is given below.
 ::*'''true''' is configured if it is enabled and '''false''' is configured if it is disabled.
 :;<div id="interface.state">state</div>
 ::Value showing the interface state gets configured.
-::*'''1''' gets configured when interface is in UP state
-::*'''0''' gets configured when interface is in DOWN state.
-::*'''-1''' gets configured when interface state is not known.
+::* '''1''' gets configured when interface is in [[OpenDaylight_Virtual_Tenant_Network_(VTN):VTN_Manager:Specification#vInterface.state.UP|UP]] state.
+::* '''0''' gets configured when interface is in [[OpenDaylight_Virtual_Tenant_Network_(VTN):VTN_Manager:Specification#vInterface.state.DOWN|DOWN]] state.
+::* '''-1''' gets configured when interface is in [[OpenDaylight_Virtual_Tenant_Network_(VTN):VTN_Manager:Specification#vInterface.state.UNKNOWN|UNKNOWN]] state.
+:;<div id="interface.entityState">entityState</div>
+::Status of the network elements mapped to interface gets configured. If [[OpenDaylight_Virtual_Tenant_Network_(VTN):VTN_Manager:Specification#port-map|Port mapping]] is configured on the interface, then the status of the physical port of the mapped switch gets configured.
+::* If the mapped network elements are operating, then '''1''' gets configured.
+::* If the mapped network elements are not operating, then '''0''' gets configured.
+::* If network elements are not mapped to interface, then '''-1''' gets configured.
+ 
+Further, the status of network elements are configured irrespective of whether interface is enabled or not. 
+E.g., even if the interface is disabled, '''1''' will be configured in [[#interface.entityState|entityState]] if the mapped network elements are operating.
 
 === interfaces ===
 
@@ -275,9 +350,9 @@ This is used for returning vBridge interface information list to REST client.
 <pre>
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <interfaces>
-  <interface name="if_1" state="-1" description="Description about IF-1"
-             enabled="true"/>
-  <interface name="if_2" state="0" enabled="false"/>
+  <interface name="if_1" state="-1" entityState="-1"
+             description="Description about IF-1" enabled="true"/>
+  <interface name="if_2" state="0" entityState="1" enabled="false"/>
 </interfaces>
 </pre>
 :*JSON format
@@ -287,12 +362,14 @@ This is used for returning vBridge interface information list to REST client.
     {
       "@name": "if_1",
       "@state": "-1",
+      "@entityState": "-1",
       "@description": "Description about IF-1",
       "@enabled": "true"
     },
     {
       "@name": "if_2",
       "@state": "0",
+      "@entityState": "1",
       "@enabled": "false"
     }
   ]
@@ -311,7 +388,7 @@ This is used for returning vBridge interface information list to REST client.
 
 '''interfaces''' includes 0 or more [[#interface|interface]] as child elements.
 
-=== Port mapping data ===
+== Port mapping data ==
 
 This section describes the data showing [[OpenDaylight_Virtual_Tenant_Network_(VTN):VTN_Manager:Specification#port-map|Port mapping]] information.
 
@@ -445,7 +522,7 @@ Meaning of attributes of the element '''mapped''' is as follows.
 ::String showing the identifier of <tt>NodeConnector</tt> gets configured.
 ::*String representation of port number is configured for OpenFlow switch.
 
-=== VLAN mapping data ===
+== VLAN mapping data ==
 
 This section describes the data showing [[OpenDaylight_Virtual_Tenant_Network_(VTN):VTN_Manager:Specification#VLAN-map|VLAN mapping]] information.
 
@@ -584,11 +661,144 @@ This is used for sending VLAN mapping information list to REST client.
 
 '''vlanmaps''' includes 0 or more [[#vlanmap|vlanmap]] as child elements.
 
-== REST API ==
+== MAC address table data ==
+
+This section describes the data that shows the MAC address information learned in [[OpenDaylight_Virtual_Tenant_Network_(VTN):VTN_Manager:Specification#vBridge.macTable|MAC address table]] of [[OpenDaylight_Virtual_Tenant_Network_(VTN):VTN_Manager:Specification#vBridge|vBridge]].
+
+=== macentry ===
+ 
+'''macentry''' shows the MAC address information learned inside [OpenDaylight_Virtual_Tenant_Network_(VTN):VTN_Manager:Specification#vBridge.macTable|MAC address table]].
+This is used to return MAC address information inside MAC address table to REST client.
+
+:* XML format 
+<pre>
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<macentry address="01:02:03:04:05:06" vlan="0" inetAddress="192.168.10.1">
+  <node type="OF" id="00:00:00:00:00:11:22:33"/>
+  <port type="OF" id="1"/>
+</macentry>
+</pre>
+:* JSON format 
+<pre>
+{ 
+  "@address": "01:02:03:04:05:06", 
+  "@vlan": "0", 
+  "@inetAddress":" 192.168.10.1", 
+  "node": { 
+    "@type":"OF", 
+    "@id":"00:00:00:00:00:11:22:33" 
+  }, 
+  "port": { 
+    "@type":"OF", 
+    "@id":"1" 
+  } 
+} 
+</pre>
+
+Meaning of each attribute is as follows. 
+
+:;<div id="macentry.address">address</div>
+::String showing the learned MAC address gets configured.
+::* String wherein hexadecimal notation of each octet inside MAC address are concatenated by <tt>':'</tt> gets configured.
+:;<div id="macentry.vlan">vlan</div>
+::VLAN ID configured inside the Ethernet frame, where MAC address is detected, gets configured.
+::* '''0''' implies that VLAN tag was not detected.
+:;<div id="macentry.inetAddress">inetAddress</div>
+::String representation of IP address configured in Ethernet frame, where MAC address is detected, gets configured.
+::* It will be omitted if IP address is not detected.
+
+Element '''node''' shows the <tt>Node</tt> information corresponding to switch where MAC address is detected.
+
+Meaning of '''node''' attributes is as follows.
+
+:;<div id="macentry.node.type">type</div>
+::String showing the type of `Node` gets configured.
+::* '''OF''' gets configured for OpenFlow switches.
+:;<div id="macentry.node.id">id</div>
+::String showing the identifier of <tt>Node</tt> gets configured.
+::* String representation of DPID gets configured for OpenFlow switches.
+
+Element '''port''' shows the <tt>NodeConnector</tt> information corresponding to physical port of switch where MAC address is detected.
+
+Meaning of attributes of element '''port''' is as follows.
+
+:;<div id="macentry.connector.type">type</div>
+::String showing the type of <tt>NodeConnector</tt> gets configured.
+::* '''OF''' gets configured for OpenFlow switches.
+:;<div id="macentry.connector.id">id</div>
+::String showing the identifier of <tt>NodeConnector</tt> gets configured.
+::* String representation of port number gets configured for OpenFlow switches.
+
+=== macentries ===
+
+'''macentries''' shows the list of MAC address information learned inside [[OpenDaylight_Virtual_Tenant_Network_(VTN):VTN_Manager:Specification#vBridge.macTable|MAC address table]].
+This is used to return MAC address information list to REST client.
+
+* When child elements are included
+:* XML format
+<pre>
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<macentries>
+  <macentry address="01:02:03:04:05:06" vlan="0" inetAddress="192.168.10.1">
+    <node type="OF" id="00:00:00:00:00:11:22:33"/>
+    <port type="OF" id="1"/>
+  </macentry>
+  <macentry address="11:22:33:44:55:66" vlan="1">
+    <node type="OF" id="00:00:00:00:12:34:56:78"/>
+    <port type="OF" id="2"/>
+  </macentry>
+</macentries>
+</pre>
+:* JSON format
+<pre>
+{
+  "macentry": [
+    {
+      "@address": "01:02:03:04:05:06",
+      "@vlan": "0",
+      "@inetAddress":" 192.168.10.1",
+      "node": {
+        "@type":"OF",
+        "@id":"00:00:00:00:00:11:22:33"
+      },
+      "port": {
+        "@type":"OF",
+        "@id":"1"
+      }
+    },
+    {
+      "@address": "11:22:33:44:55:66",
+      "@vlan": "1",
+      "node": {
+        "@type":"OF",
+        "@id":"00:00:00:00:12:34:56:78"
+      },
+      "port": {
+        "@type":"OF",
+        "@id":"2"
+      }
+    }
+  ]
+}
+</pre>
+* When child elements are not included 
+:* XML format 
+<pre>
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<macentries/>
+</pre>
+:* JSON format
+<pre>
+{} 
+</pre>
+
+'''macentries''' includes 0 or more [[#macentry|macentry]] as child elements.
+
+= REST API =
 
 This section describes the specifications of REST API provided by VTN Manager.
 
-=== VTN related API ===
+== VTN related API ==
 
 This section describes [[OpenDaylight_Virtual_Tenant_Network_(VTN):VTN_Manager:Specification#VTN|VTN]] related REST API.
 
@@ -644,6 +854,8 @@ POST /controller/nb/v2/vtn/{containerName}/vtns/{tenantName}
 Specify [[#vtnconf|vtnconf]] in Request body.
 
 *VTN description is not registered if [[#vtnconf.description|description]] is omitted.
+*If [[#vtnconf.idleTimeout|idleTimeout]] is omitted, it will be treated as if '''300''' is specified in the value.
+*If [[#vtnconf.hardTimeout|hardTimeout]] is omitted, it will be treated as if '''0''' is specified in the value.
 
 ==== Response ====
 
@@ -668,6 +880,7 @@ Following are the main Status Codes returned during error.
 ::
 ::*Specified unsupported data type in '''Content-Type''' header.
 ::*Specified incorrect VTN name in '''tenantName'''.
+::*Specified incorrect value in [[#vtnconf.idleTimeout|idleTimeout]] or [[#vtnconf.hardTimeout|hardTimeout]] of Request body.
 :;500 (Internal Server Error)
 ::Process failed due to internal error of Controller.
 :;503 (Service Unavailable)
@@ -730,6 +943,8 @@ Also, the following query parameter can be specified in URI.
 ::If nothing is specified, then it is treated as '''false'''.
 ::*If '''true''' is specified, then all the attributes related to VTN are modified.
 ::**If [[#vtnconf.description|description]] is omitted, then the description of the specified VTN will get deleted.
+::**If [[#vtnconf.idleTimeout|idleTimeout]] is omitted, it will be treated as if '''300''' is specified in the value.
+::**If [[#vtnconf.hardTimeout|hardTimeout]] is omitted, it will be treated as if '''0''' is specified in the value.
 ::*If '''false''' is specified, then the attributes that are omitted will not be modified.
 
 ==== Response ====
@@ -752,7 +967,9 @@ Main Status Codes returned during error is as follows.
 :;406 (Not Acceptable)
 ::Specified <tt>"default"</tt> in '''containerName''' when a container other than the Default container is present.
 :;415 (Unsupported Media Type)
-::Specified unsupported data type in '''Content-Type''' header.
+::
+::*Specified unsupported data type in '''Content-Type''' header.
+::*Incorrect value is specified in [[#vtnconf.idleTimeout|idleTimeout]] or [[#vtnconf.hardTimeout|hardTimeout]] of Request body.
 :;500 (Internal Server Error)
 ::Process failed due to internal error of Controller.
 :;503 (Service Unavailable)
@@ -795,7 +1012,7 @@ Main Status Codes returned during error is as follows.
 :;503 (Service Unavailable)
 ::Services like VTN Manager etc., that are considered necessary inside controller are not operating.
 
-=== vBridge related API ===
+== vBridge related API ==
 
 This section describes REST APIs related to [[OpenDaylight_Virtual_Tenant_Network_(VTN):VTN_Manager:Specification#vBridge|vBridge]].
 
@@ -855,6 +1072,7 @@ POST /controller/nb/v2/vtn/{containerName}/vtns/{tenantName}/vbridges/{bridgeNam
 [[#vbridgeconf|vbridgeconf]] must be specified in the Request body.
 
 *If [[#vbridgeconf.description|description]] is omitted, then vBridge description is not registered.
+*If [[#vbridgeconf.ageInterval|ageInterval]] is omitted, it will be treated as if '''600''' is specified in the value.
 
 ==== Response ====
 
@@ -881,6 +1099,7 @@ Following are the main Status Codes returned during error.
 ::
 ::*Specified unsupported data type in '''Content-Type''' header.
 ::*Specified incorrect vBridge name in '''bridgeName'''.
+::*Incorrect value is specified in [[#vbridgeconf.ageInterval|ageInterval]] of Request body.
 :;500 (Internal Server Error)
 ::Process failed due to internal error of Controller.
 :;503 (Service Unavailable)
@@ -948,6 +1167,7 @@ Also, the following query parameter can be specified in URI.
 ::If nothing is specified, then it is treated as '''false'''.
 ::*If '''true''' is specified, then all the attributes related to vBridge are modified.
 ::**If [[#vbridgeconf.description|description]] is omitted, then the description of the specified vBridge will get deleted.
+::**If [[#vbridgeconf.ageInterval|ageInterval]] is omitted, it will be treated as if '''600''' is specified in the value.
 ::*If '''false''' is specified, then the attributes that are omitted will not be modified.
 
 ==== Response ====
@@ -971,7 +1191,9 @@ Main Status Codes returned during error is as follows.
 :;406 (Not Acceptable)
 ::Specified <tt>"default"</tt> in '''containerName''' when a container other than the Default container is present.
 :;415 (Unsupported Media Type)
-::Specified unsupported data type in '''Content-Type''' header.
+::
+::*Specified unsupported data type in '''Content-Type''' header.
+::*Incorrect value is specified in [[#vbridgeconf.ageInterval|ageInterval]] of Request body.
 :;500 (Internal Server Error)
 ::Process failed due to internal error of Controller.
 :;503 (Service Unavailable)
@@ -1017,7 +1239,7 @@ Main Status Codes returned during error is as follows.
 :;503 (Service Unavailable)
 ::Services like VTN Manager etc., that are considered necessary inside controller are not operating.
 
-=== vBridge interface related API ===
+== vBridge interface related API ==
 
 This section describes the REST API related to [[OpenDaylight_Virtual_Tenant_Network_(VTN):VTN_Manager:Specification#vInterface|vBridge interface]].
 
@@ -1255,7 +1477,7 @@ Main Status Codes returned during error is as follows.
 :;503 (Service Unavailable)
 ::Services like VTN Manager etc., that are considered necessary inside controller are not operating.
 
-=== Port mapping related API ===
+== Port mapping related API ==
 
 This section describes the REST API related to [[OpenDaylight_Virtual_Tenant_Network_(VTN):VTN_Manager:Specification#port-map|Port mapping]].
 
@@ -1407,7 +1629,7 @@ Main Status Codes returned during error is as follows.
 :;503 (Service Unavailable)
 ::Services like VTN Manager etc., that are considered necessary inside controller are not operating.
 
-=== VLAN mapping related API ===
+== VLAN mapping related API ==
 
 This section describes the REST API related to [[OpenDaylight_Virtual_Tenant_Network_(VTN):VTN_Manager:Specification#VLAN-map|VLAN mapping]].
 
@@ -1584,6 +1806,166 @@ Main Status Codes returned during error is as follows.
 ::*Specified VLAN mapping information does not exist.
 :;406 (Not Acceptable)
 ::Specified <tt>"default"</tt> in '''containerName''' when a container other than the Default container is present.
+:;500 (Internal Server Error)
+::Process failed due to internal error of Controller.
+:;503 (Service Unavailable)
+::Services like VTN Manager etc., that are considered necessary inside controller are not operating.
+
+== MAC address table related API ==
+
+This section describes the REST API related to [[OpenDaylight_Virtual_Tenant_Network_(VTN):VTN_Manager:Specification#vBridge.macTable|MAC address table]] of [[OpenDaylight_Virtual_Tenant_Network_(VTN):VTN_Manager:Specification#vBridge|vBridge]].
+
+=== <div id="REST.macentries.GET">Get MAC address information list</div> ===
+
+It retrieves the MAC address information list learned inside [[OpenDaylight_Virtual_Tenant_Network_(VTN):VTN_Manager:Specification#vBridge.macTable|MAC address table]] of specified [[OpenDaylight_Virtual_Tenant_Network_(VTN):VTN_Manager:Specification#vBridge|vBridge]].
+
+==== Request ====
+<pre>
+GET /controller/nb/v2/vtn/{containerName}/vtns/{tenantName}/vbridges/{bridgeName}/mac
+</pre>
+
+:;containerName
+::Specify Container name.
+:;tenantName
+::Specify VTN name.
+:;bridgeName
+::Specify vBridge name.
+
+==== Response ====
+
+It returns '''200 (OK)''' as Status Code in case of normal end.
+
+* [[#macentries|macentries]] that shows the MAC address information list gets configured in Response body.
+
+It returns Status Code showing error in case of abnormal end.
+Main Status Codes returned during error is as follows.
+
+:;401 (Unauthorized)
+::Authorization error.
+:;404 (Not Found)
+::
+::* Specified container does not exist.
+::* Specified VTN does not exist.
+::* Specified vBridge does not exist.
+:;500 (Internal Server Error)
+::Process failed due to internal error of Controller.
+:;503 (Service Unavailable)
+::Services like VTN Manager etc., that are considered necessary inside controller are not operating.
+
+=== <div id="REST.macentries.DELETE">Flush MAC address table</div> ===
+
+It deletes the entire MAC address information learned inside [[OpenDaylight_Virtual_Tenant_Network_(VTN):VTN_Manager:Specification#vBridge.macTable|MAC address table]] of the specified [[OpenDaylight_Virtual_Tenant_Network_(VTN):VTN_Manager:Specification#vBridge|vBridge]].
+
+==== Request ====
+<pre>
+DELETE /controller/nb/v2/vtn/{containerName}/vtns/{tenantName}/vbridges/{bridgeName}/mac
+</pre>
+
+:;containerName
+::Specify Container name.
+:;tenantName
+::Specify VTN name.
+:;bridgeName
+::Specify vBridge name.
+
+==== Response ====
+
+It returns '''200 (OK)''' as Status Code in case of normal end.
+
+* Response body is not configured.
+
+It returns Status Code showing error in case of abnormal end.
+Main Status Codes returned during error is as follows.
+
+:;401 (Unauthorized)
+::Authorization error.
+:;404 (Not Found)
+::
+::* Specified container does not exist.
+::* Specified VTN does not exist.
+::* Specified vBridge does not exist.
+:;500 (Internal Server Error)
+::Process failed due to internal error of Controller.
+:;503 (Service Unavailable)
+::Services like VTN Manager etc., that are considered necessary inside controller are not operating.
+ 
+=== <div id="REST.macentry.GET">Get MAC address information</div> ===
+
+It retrieves the specific MAC address information learned inside the [[OpenDaylight_Virtual_Tenant_Network_(VTN):VTN_Manager:Specification#vBridge.macTable|MAC address table]] of specified [[OpenDaylight_Virtual_Tenant_Network_(VTN):VTN_Manager:Specification#vBridge|vBridge]].
+
+==== Request ====
+<pre>
+GET /controller/nb/v2/vtn/{containerName}/vtns/{tenantName}/vbridges/{bridgeName}/mac/{macAddr}
+</pre>
+
+:;containerName
+::Specify Container name.
+:;tenantName
+::Specify VTN name.
+:;bridgeName
+::Specify vBridge name.
+:;macAddr
+::Specify the string representation of MAC address.
+::* Specify the string wherein hexadecimal notation of each octet inside MAC address are concatenated by <tt>':'</tt>.
+
+==== Response ====
+
+It returns '''200 (OK)''' as Status Code in case of normal end.
+
+* [[#macentry|macentry]] showing the showing the information of the MAC address specified in '''macAddr''' gets configured in Response body.
+
+It returns Status Code showing error in case of abnormal end.
+Main Status Codes returned during error is as follows.
+
+:;401 (Unauthorized)
+::Authorization error.
+:;404 (Not Found)
+::
+::* Specified container does not exist.
+::* Specified VTN does not exist.
+::* Specified vBridge does not exist.
+::* Specified MAC address is not learned in the MAC address table.
+:;500 (Internal Server Error)
+::Process failed due to internal error of Controller.
+:;503 (Service Unavailable)
+::Services like VTN Manager etc., that are considered necessary inside controller are not operating.
+
+=== <div id="REST.macentry.DELETE">Delete MAC address information</div> ===
+ 
+It deletes a specific MAC address information learned inside [[OpenDaylight_Virtual_Tenant_Network_(VTN):VTN_Manager:Specification#vBridge.macTable|MAC address table]] of the specified [[OpenDaylight_Virtual_Tenant_Network_(VTN):VTN_Manager:Specification#vBridge|vBridge]].
+
+==== Request ====
+<pre>
+DELETE /controller/nb/v2/vtn/{containerName}/vtns/{tenantName}/vbridges/{bridgeName}/mac/{macAddr} 
+</pre>
+
+:;containerName
+::Specify Container name.
+:;tenantName
+::Specify VTN name.
+:;bridgeName
+::Specify vBridge name.
+:;macAddr
+::Specify the string representation of MAC address.
+::* Specify the string wherein hexadecimal notation of each octet inside MAC address are concatenated by <tt>':'</tt>.
+
+==== Response ====
+
+It returns '''200 (OK)''' as Status Code in case of normal end.
+
+* Response body is not configured.
+
+It returns Status Code showing error in case of abnormal end.
+Main Status Codes returned during error is as follows.
+
+:;401 (Unauthorized)
+::Authorization error.
+:;404 (Not Found)
+::
+::* Specified container does not exist.
+::* Specified VTN does not exist.
+::* Specified vBridge does not exist.
+::* Specified MAC address is not learned in the MAC address table.
 :;500 (Internal Server Error)
 ::Process failed due to internal error of Controller.
 :;503 (Service Unavailable)
