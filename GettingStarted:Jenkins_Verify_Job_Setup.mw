@@ -1,79 +1,21 @@
-== Introduction ==
-
-The purpose of the Verify Job is to run on every Gerrit Patchset submitted and automatically carry out the 'Verify' step
-so that the reviewer can be assured that the build continues to work and tests continue to pass and need only focus on 
-reading the code.
-
-== Caveats ==
-'''Note:''' to complete these steps you will need to be a committer on the project for which you are doing it.
-
-'''Note:''' in all examples given below, '''repo_name''' is used a stand in for the repo name of your project and
+Note: to complete these steps you will need to be a committer on the project for which you are doing it.
+Note: in all examples given below, '''repo_name''' is used a stand in for the repo name of your project and
 '''project_name''' is the name of your project. Please substitute appropriately.
 
-== Detailed Steps ==
-
-# Navigate to the Jenkins for your project by going to http://jenkins.opendaylight.org/repo_name/
+# Navigate to the Jenkins for your project by going to http://jenkins.opendaylight.org/${repo_name}/
 # Log in
-#: [[File:Jenkins Verify Job Setup - Log In.jpg|800px]]
 # Click on "New Job"
-#: [[File:Jenkins Verify Job - New Job.jpg|800px]]
-# Name your Job repo_name-verify (examples: controller-verify, vtn-verify, etc).
-#: [[File:Jenkins Verify Job - Job Name.jpg|800px]]
+# Name your Job ${repo_name}-verify (examples: controller-verify, vtn-verify, etc).
 # Select '''Build a maven2/3 project''' as your Job Type and click '''OK'''.
-#: [[File:Jenkins Verify Job - Job Type.jpg|800px]]
 # Enter a Description like "Build OpenDayLight project_name in order to verify a patch submitted to Gerrit"
-#: [[File:Jenkins Verify Job - Description.jpg|800px]]
 # Discard Old Builds
 ## Check "Discard Old Builds"
 ## Select "Log Rotation"
 ## Enter 40 in "Max # of builds to keep"
-##: [[File:Jenkins Verify Job - Discard Old Builds.jpg|800px]]
-## Select "Advanced"
-##: [[File:Discard_builds_advanced.png|800px]]
-## Enter 10 in "Max # of builds to keep with artifacts"
-##: [[File:Discard_builds_10_artifacts.png]]
 # Git Setup
 ## In the "Source Code Management" select "Git"
 ## Enter your repo URL, which should be "ssh://git.opendaylight.org:29418/repo_name.git"
-## Select the Jenkins credentials to use (there should only be one listed)
 ## Click "Advanced"
-##: [[File:Git_setup.png|800px]]
 ## Enter "$GERRIT_REFSPEC" in "Refspec"
-##: [[File:Jenkins Verify Job - Git 2.jpg|800px]]
-## Enter "origin/$GERRIT_BRANCH" into "Branches to Build" <strike>and click "Advanced"</strike>
-##: [[File:Jenkins Verify Job - Git 3.jpg|800px]]
-## Select the Add button next to "Additional Behaviors" and add "Wipte out repository & force clone" and "Strategy for choosing what to build"
-##: [[File:Additional_behaviours.png|800px]]
-## Select "Gerrit Trigger" for "Choosing Strategy"
-##: [[File:Choosing_strategy.png|800px]]
-# Scroll down to Build Trigger
-## Scroll down to "Build Triggers" and select '''only''' "Gerrit event"
-## In the "Gerrit Trigger"-> "Trigger On" section click "Add" and select "Patchset Created"
-##: [[File:Jenkins Verify Job - Gerrit Trigger 1.jpg|800px]]
-## In the "Gerrit Trigger"-> "Trigger On" section click "Add" and select "Draft Published"
-##: [[File:Jenkins Verify Job - Gerrit Trigger 2.jpg|800px]]
-## In the "Gerrit Trigger"-> "Gerrit Project" section select "Path" and enter "repo_name" and the select "Path" again and enter "**".
-##: [[File:Jenkins Job Verify - Gerrit Trigger 3.jpg|800px]]
-# Scroll down to Build
-## Select "Maven Version 3.0.4"
-## Enter your "Root Pom" (for example: opendaylight/distribution/opendaylight/pom.xml in controller)
-## Enter "Goals and Options": "-Dmaven.repo.local=$WORKSPACE/.m2repo -Dorg.ops4j.pax.url.mvn.localRepository=$WORKSPACE/.m2repo clean install"
-## Click "Advanced"
-##: [[File:Jenkins Verify Job - Build 1.jpg|800px]]
-## In "MAVEN_OPTS" enter "-Xmx1024m -XX:MaxPermSize=256m"
-## <strike>Check "Send e-mail for each failed module"</strike> - Newer Jenkins systems may not have this option.
-##: [[File:Jenkins Verify Job - Build 2.jpg|800px]]
-# Scroll down to "Post-Build Actions"
-## Click "Add post-build action" and select "Editable Email Notification"
-##: [[File:Extended email add.png]]
-## Click "Advanced Settings"
-##: [[File:Extended email advanced settings.png|800px]]
-## Click 'Add' and select 'Developers' in the 'Failure - Any' Send To section
-##: [[File:Extended email failure developers.png]]
-## Click 'Add Trigger' and select 'Unstable (Test Failures)'
-##: [[File:Extended mail unstable.png]]
-## Click 'Add' and select 'Recipient List' in the 'Unstable (Test Failures)' Send To section
-##: [[File:Extended email unstable recipienct_list.png]]
-## Click 'Add Trigger' and select 'Fixed'
-##: [[File:Extended email fixed.png]]
-# Click "Save"
+## Enter "origin/$GERRIT_BRANCH" into "Branches to Build" and click "Advanced"
+## Scroll down and click "Wipe out workspace before build"
