@@ -1,0 +1,80 @@
+= Installing VTN Coordinator from source code =
+
+== Prior preparation ==
+:1. Arrange a server where RHEL 6.1 or later is installed.
+
+:2. Install necessary packages. 
+ yum install make glibc-devel gcc gcc-c++ boost-devel openssl-devel java-1.6.0-openjdk-devel \
+     ant perl-ExtUtils-MakeMaker unixODBC-devel perl-Digest-SHA uuid libxslt
+
+:3. Download the following PostgreSQL 9.1 files from http://yum.postgresql.org/9.1/redhat/rhel-6-x86_64/ and install. 
+:* postgresql91-libs-9.1.9-1PGDG.rhel6.x86_64.rpm
+:* postgresql91-9.1.9-1PGDG.rhel6.x86_64.rpm
+:* postgresql91-server-9.1.9-1PGDG.rhel6.x86_64.rpm
+:* postgresql91-contrib-9.1.9-1PGDG.rhel6.x86_64.rpm
+:* postgresql91-odbc-09.00.0310-1PGDG.rhel6.x86_64.rpm
+
+:4. Install Maven.
+:* Download Maven from the following page and install it folloiwng the instruction in the page.
+:** http://maven.apache.org/download.cgi
+
+:5. Install gtest-devel.
+ wget <nowiki>http://dl.fedoraproject.org/pub/epel/6/i386/epel-release-6-8.noarch.rpm</nowiki>
+ rpm -Uvh epel-release-6-8.noarch.rpm
+ yum install gtest-devel
+
+== Build ==
+:1. Download the code from git.
+ git clone ssh://<username>@git.opendaylight.org:29418/vtn.git
+or
+ git clone <nowiki>https://git.opendaylight.org/gerrit/p/vtn.git</nowiki>
+
+:2. Build and install VTN Coordinator.
+ cd vtn
+ mvn -f dist/pom.xml package
+ sudo make install
+
+= Run VTN Coordinator =
+
+== Prior preparation ==
+
+:1. Install Tomcat.
+:* Download the following file.
+:** http://archive.apache.org/dist/tomcat/tomcat-7/v7.0.39/bin/apache-tomcat-7.0.39.tar.gz
+:* Extract under /usr/share/java.
+ tar zxvf apache-tomcat-7.0.39.tar.gz -C /usr/share/java
+
+:2. Carry out Tomcat settings.
+:* Create the following symbolic link.
+ ln -s /usr/local/vtn/tomcat/webapps/vtn-webapi /usr/share/java/apache-tomcat-7.0.39/webapps/vtn-webapi
+:* Add the following to common.loader of /usr/share/java/apache-tomcat-7.0.39/conf/catalina.properties.
+ /usr/local/vtn/tomcat/lib,/usr/local/vtn/tomcat/lib/*.jar
+:* Add the following to shared.loader of /usr/share/java/apache-tomcat-7.0.39/conf/catalina.properties.
+ /usr/local/vtn/tomcat/shared/lib/*.jar
+:* Add the following to <Server> of /usr/share/java/apache-tomcat-7.0.39/conf/server.xml.
+ <Listener className="org.opendaylight.vtn.tomcat.server.StateListener" />
+
+:3. Set up the DB.
+ /usr/local/vtn/sbin/db_setup
+
+== Start ==
+:1. Start VTN Coordinator and Tomcat.
+ /usr/local/vtn/bin/vtn_start
+ /usr/share/java/apache-tomcat-7.0.39/bin/catalina.sh start
+
+:2. Execute the following commands while stopping.
+ /usr/share/java/apache-tomcat-7.0.39/bin/catalina.sh stop
+ /usr/local/vtn/bin/vtn_stop
+
+== WebAPI ==
+* Carry out VTN settings with WebAPI.
+* VTN Coordinator version information will be displayed if following command is executed when VTN has started successfully.
+ $ curl -X GET -H 'content-type: application/json' -H 'username: admin' -H 'password: adminpass' -H 'ipaddr:127.0.0.1' <nowiki>http://127.0.0.1:8080/vtn-webapi/api_version.json</nowiki>
+ {"api_version":{"version":"V1.0"}}
+
+'''Note:''' At this time, you cannot create virtual network using OpenDaylight Controller.
+The current VTN Coordinator does not include ODC Driver which is a driver component to communicate with OpenDaylight Controller.
+In addition OpenDaylight Controller does not yet have [[OpenDaylight_Virtual_Tenant_Network_(VTN):VTN_Manager| VTN Manager]] which provides virtual network functions as OSGi bundles in OpenDaylight Controller.
+Please see [[OpenDaylight_Virtual_Tenant_Network_(VTN):Release_Plan| the release plan of VTN Project]].
+
+[[Category:OpenDaylight Virtual Tenant Network]]
