@@ -1,0 +1,62 @@
+= Installing VTN Manager from source code =
+
+== Prior preparation ==
+
+* Install OpenDaylight Controller.
+** See [[OpenDaylight_Controller:Installation|Controller's Installation Guide]].
+
+== Build ==
+
+:1. Download the code from the Git repository of VTN Project.
+ git clone ssh://<username>@git.opendaylight.org:29418/vtn.git
+or
+ git clone <nowiki>https://git.opendaylight.org/gerrit/p/vtn.git</nowiki>
+
+:2. Build the code of VTN Manager.
+ cd vtn
+ mvn -f manager/dist/pom.xml install
+
+:3. Delete unused plugins in the plugin directory of the controller.
+:* arphandler
+:* simpleforwarding
+:* loadbalancer
+ cd ${CONTROLLER_DIR}/opendaylight/distribution/opendaylight/target/distribution.opendaylight-<version>-osgipackage/opendaylight/plugins
+ rm org.opendaylight.controller.arphandler-<version>.jar
+ rm org.opendaylight.controller.samples.simpleforwarding-<version>.jar
+ rm org.opendaylight.controller.samples.loadbalancer-<version>.jar
+ rm org.opendaylight.controller.samples.loadbalancer.northbound-<version>.jar
+
+:4. Copy OSGi bundles of VTN Manager to the plugin directory of the controller.
+ cp ${VTN_DIR}/manager/dist/target/distribution.vtn-manager-<version>-osgipackage/opendaylight/plugins/*.jar ./
+
+= Run the Controller with VTN Manager =
+On Linux/Unix systems, execute run.sh.
+ cd ${CONTROLLER_DIR}/opendaylight/distribution/opendaylight/target/distribution.opendaylight-<version>-osgipackage/opendaylight/
+ ./run.sh
+
+Please see [[OpenDaylight_Controller:Installation|Controller's Installation Guide]] for more information.
+
+== REST API ==
+
+VTN Manager provides REST API for virtual network functions.
+
+Please check [[OpenDaylight_Virtual_Tenant_Network_(VTN):VTN_Manager:RestApi|the VTN Manager's REST API specification page]] for detailed information.
+
+Here is an example of how to create a virtual tenant network.
+
+ curl --user "admin":"admin" -H "Accept: application/json" -H \
+ "Content-type: application/json" -X POST \
+ http://localhost:8080/controller/nb/v2/vtn/default/vtns/Tenant1 \
+ -d '{"@description": "My First Virtual Tenant Network"}'
+
+You can check the list of all tenants by executing the following command.
+
+ curl --user "admin":"admin" -H "Accept: application/json" -H \
+ "Content-type: application/json" -X GET \
+ http://localhost:8080/controller/nb/v2/vtn/default/vtns
+
+Please check [[Media:NEC_VTN_Demo_0722.pdf|the slides]] we used to demonstrate VTN Manager at Hackfest July 22.
+
+I believe that [[Media:NEC_VTN_Demo_0722.pdf|the slides]] helps you understand what VTN Manager brings to you.
+
+[[Category:OpenDaylight Virtual Tenant Network]]
