@@ -1,0 +1,181 @@
+== Prerequisites ==
+* Maven 3
+
+== Project Configuration ==
+To configure your project to generate transfer object and interfaces from YANG
+start with editing your projects pom.xml.
+
+You need to add Opendaylight SNAPSHOT repository for snapshot releases (currently only
+snapshots are available).
+
+=== Repositories ===
+
+You need to add following plugin repositories for plugin:
+
+
+    <pluginRepositories>
+        <pluginRepository>
+            <id>opendaylight-release</id>
+            <name>opendaylight-release</name>
+            <url>http://nexus.opendaylight.org/content/repositories/opendaylight.release/</url>
+        </pluginRepository>
+        <!-- OpenDayLight Snapshot artifact -->
+        <pluginRepository>
+            <id>opendaylight-snapshot</id>
+            <name>opendaylight-snapshot</name>
+            <url>http://nexus.opendaylight.org/content/repositories/opendaylight.snapshot/</url>
+        </pluginRepository>
+    </pluginRepositories>
+
+And following repositories for required dependencies
+
+    <repositories>
+        <repository>
+            <id>opendaylight-release</id>
+            <name>opendaylight-release</name>
+            <url>http://nexus.opendaylight.org/content/repositories/opendaylight.release/</url>
+        </repository>
+        <!-- OpenDayLight Snapshot artifact -->
+        <repository>
+            <id>opendaylight-snapshot</id>
+            <name>opendaylight-snapshot</name>
+            <url>http://nexus.opendaylight.org/content/repositories/opendaylight.snapshot/</url>
+        </repository>
+    </repositories>
+
+=== Configuring Plugin ===
+
+You need also add yang-maven-plugin to your eclipse configuration
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.opendaylight.yangtools</groupId>
+                <artifactId>yang-maven-plugin</artifactId>
+                <version>0.5.6-SNAPSHOT</version>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>generate-sources</goal>
+                        </goals>
+                        <configuration>
+                            <yangFilesRootDir>src/main/yang</yangFilesRootDir>
+                            <codeGenerators>
+                                <generator>
+                                    <codeGeneratorClass>
+                                        org.opendaylight.yangtools.maven.sal.api.gen.plugin.CodeGeneratorImpl
+                                    </codeGeneratorClass>
+                                    <outputBaseDir>
+                                        target/generated-sources/sal
+                                    </outputBaseDir>
+                                </generator>
+                            </codeGenerators>
+                            <inspectDependencies>true</inspectDependencies>
+                        </configuration>
+                    </execution>
+                </executions>
+                <dependencies>
+                    <dependency>
+                        <groupId>org.opendaylight.yangtools</groupId>
+                        <artifactId>maven-sal-api-gen-plugin</artifactId>
+                        <version>0.5.6-SNAPSHOT</version>
+                        <type>jar</type>
+                    </dependency>
+                </dependencies>
+            </plugin>
+        </plugins>
+    </build>
+
+=== Required Dependencies ===
+The generated APIs refers to common supertypes defined in org.opendaylight.yangtools:yang-binding and 
+org.opendaylight.yangtools:yang-common projects.
+
+You need to add these as dependencies to your project:
+
+    <dependencies>
+        <dependency>
+            <groupId>org.opendaylight.yangtools</groupId>
+            <artifactId>yang-binding</artifactId>
+            <version>0.5.6-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>org.opendaylight.yangtools</groupId>
+            <artifactId>yang-common</artifactId>
+            <version>0.5.6-SNAPSHOT</version>
+        </dependency>
+    </dependencies>
+
+== Building ==
+
+The code is generated in generate-sources phase. To generate code run following command on your project:
+
+   mvn generate-sources
+
+== Eclipse Integration (m2e) ==
+=== Warnings by m2e ===
+
+If you are using Eclipse you may want to add following snippet to your pom.xml to supress warning from m2e:
+    <build>
+        <pluginManagement>
+            <plugins>
+                <!--This plugin's configuration is used to store Eclipse 
+                    m2e settings only. It has no influence on the Maven build itself. -->
+                <plugin>
+                    <groupId>org.eclipse.m2e</groupId>
+                    <artifactId>lifecycle-mapping</artifactId>
+                    <version>1.0.0</version>
+                    <configuration>
+                        <lifecycleMappingMetadata>
+                            <pluginExecutions>
+                                <pluginExecution>
+                                    <pluginExecutionFilter>
+                                        <groupId>
+                                            org.opendaylight.controller
+                                        </groupId>
+                                        <artifactId>
+                                            yang-maven-plugin
+                                        </artifactId>
+                                        <versionRange>
+                                            [0.5,)
+                                        </versionRange>
+                                        <goals>
+                                            <goal>
+                                                generate-sources
+                                            </goal>
+                                        </goals>
+                                    </pluginExecutionFilter>
+                                    <action>
+                                        <ignore></ignore>
+                                    </action>
+                                </pluginExecution>
+                            </pluginExecutions>
+                        </lifecycleMappingMetadata>
+                    </configuration>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+    </build>
+
+=== Source folder discovery ===
+
+If the generated files are not imported in the eclipse you may want to add mojo-build-helper-plugin
+to your build.
+
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>build-helper-maven-plugin</artifactId>
+                <version>1.7</version>
+                <executions>
+                    <execution>
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>add-source</goal>
+                        </goals>
+                        <configuration>
+                            <sources>
+                                &lt;source>target/generated-sources/sal&lt;/source>
+                            </sources>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
