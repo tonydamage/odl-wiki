@@ -2,6 +2,7 @@
 
 * http://mininet.org - virtual network, based on ubuntu, using openvswitch driver
 * http://openvswitch.org - driver for virtual openflow switch
+* '''OFS''' = openflow switch specification
 
 == Usage ==
 The easiest way to setup a virtual network of openflow switches is to run mininet virtual machine (based on ubuntu). When logged in the mininet VM various topologies of virtual network could be instantiated and also connected to controller.
@@ -16,3 +17,88 @@ The easiest way to setup a virtual network of openflow switches is to run minine
  pingall
  # open xterm to host h1 (see topology)
  xterm h1
+
+== Versions and features ==
+Currently available there is VM of mininet-2.0.0, which contains openvswitch driver 1.3.4, fully supporting OFS-1.0.
+
+At http://openvswitch.org there is already version 1.10.0 released, providing experimental support of OFS-1.3.
+
+== Update openvswitch driver HOWTO ==
+If you have mininet-2.0.0 already running, please proceed to Stage 2.
+
+=== Stage 1 ===
+
+* download mininet image 2.0.0 (https://github.com/downloads/mininet/mininet/mininet-2.0.0-113012-amd64-ovf.zip)
+* the image is in vmware format I guess, but can by simply imported into virtualbox
+* start mininet-2.0.0, login as mininet, password mininet
+
+=== Stage 2 ===
+
+* uninstall packages openvswitch-common and openvswitch-switch (there should be version 1.4.3 officially in ubuntu repo, so in case of emergency these can be always installed again)
+* download latest release of openvswitch: http://openvswitch.org/releases/openvswitch-1.10.0.tar.gz
+* there are install howtos, take a look at INSTALL.Debian
+* there are some new packages to be installed (apt-get install build-essential fakeroot)
+* run dpkg-checkbuilddeps to check, if all dependencies are installed
+* here comes the long step 4. from INSTALL.Debian
+* if everything compiled successfully, you should have these deb files in parent folder:
+
+ openvswitch-common_1.10.0-1_amd64.deb
+ openvswitch-controller_1.10.0-1_amd64.deb
+ openvswitch-datapath-dkms_1.10.0-1_all.deb
+ openvswitch-datapath-source_1.10.0-1_all.deb
+ openvswitch-dbg_1.10.0-1_amd64.deb
+ openvswitch-ipsec_1.10.0-1_amd64.deb
+ openvswitch-pki_1.10.0-1_all.deb
+ openvswitch-switch_1.10.0-1_amd64.deb
+ openvswitch-test_1.10.0-1_all.deb
+ ovsdbmonitor_1.10.0-1_all.deb
+ python-openvswitch_1.10.0-1_all.deb
+
+* now install fresh openvswitch driver
+ dpkg -i openvswitch-common_1.10.0-1_amd64.deb
+ dpkg -i openvswitch-switch_1.10.0-1_amd64.deb
+* now mininet should be using openvswitch 1.10.0, this can be simply tested by running ODL-controller and let mininet to connect to it.
+* to use OF-1.3 following parameter has to be passed to openvswitch startup command:
+ protocols=OpenFlow13
+
+=== Stage 3 ===
+I made following change to node.py file (mininet python class, be sure to modify the distributed file, not the one in /home/mininet/mininet/...) in order to control the protocol version using cmd parameter:
+
+<pre>
+--- ../mininet/build/lib.linux-x86_64-2.7/mininet/node.py       2012-11-30 22:30:07.000000000 -0800
++++ /usr/local/lib/python2.7/dist-packages/mininet-2.0.0-py2.7.egg/mininet/node.py      2013-07-25 05:40:26.179978120 -0700
+@@ -901,6 +904,11 @@
+            failMode: controller loss behavior (secure|open)"""
+         Switch.__init__( self, name, **params )
+         self.failMode = failMode
++        protKey = 'protocols'
++        if self.params and protKey in self.params:
++            print 'have protocol params!'
++            self.opts += protKey + '=' + self.params[protKey]
++
+ 
+     @classmethod
+     def setup( cls ):
+@@ -955,8 +964,9 @@
+         # Annoyingly, --if-exists option seems not to work
+         self.cmd( 'ovs-vsctl del-br', self )
+         self.cmd( 'ovs-vsctl add-br', self )
++        print 'OVSswitch opts: ',self.opts
+         self.cmd( 'ovs-vsctl -- set Bridge', self,
+-                  'other_config:datapath-id=' + self.dpid )
++                  self.opts+' other_config:datapath-id=' + self.dpid )
+         self.cmd( 'ovs-vsctl set-fail-mode', self, self.failMode )
+         for intf in self.intfList():
+             if not intf.IP():
+</pre>
+
+=== Start and test modified mininet ===
+The mn session can now be started:
+ sudo mn --topo single,3  --controller 'remote,ip=<your controller IP>' --switch ovsk<span style="color: green;">,protocols=OpenFlow<b>10</b></span>
+or
+ sudo mn --topo single,3  --controller 'remote,ip=<your controller IP>' --switch ovsk<span style="color: green;">,protocols=OpenFlow<b>13</b></span>
+
+To test the version of used protocol by switch "s1":
+
+ ovs-ofctl -O OpenFlow10 show s1
+ ovs-ofctl -O OpenFlow13 show s1
