@@ -95,7 +95,7 @@ YANG <code>typedef</code> statement is mapped to JAVA class. If <code>typedef</c
 |-
 ! Substatement!! How si argument mapped to JAVA
 |-
-| <code>type</code>|| is mapped as class attribute
+| <code>[[#Type's substatement|type]]</code>|| is mapped as class attribute
 |-
 | <code>descripton</code> || isn't mapped
 |-
@@ -105,7 +105,7 @@ YANG <code>typedef</code> statement is mapped to JAVA class. If <code>typedef</c
 |}
 {| class="wikitable"
 
-
+=== Type's substatement ===
 Simple values of type argument
 {| class="wikitable"
 |-
@@ -123,7 +123,7 @@ Simple values of type argument
 |- 
 | int64  || Long
 |-
-| string  || String
+| [[#String's substatement|string]]  || String
 |- 
 | decimal64  || Double
 |- 
@@ -144,9 +144,9 @@ Complex values of type argument
 |-
 ! Type's substatement!! Mapped to JAVA
 |-
-| [[#Enumeration substatement|enumeration]]  || ??
+| [[#Enumeration's substatement|enumeration]]  || ??
 |- 
-| bits  || ??
+| [[#Bits's substatement|bits]]  || ??
 |- 
 | leafref  || ??
 |- 
@@ -158,9 +158,154 @@ Complex values of type argument
 |}
 
 
-String substatement
-Enumeration substatement 
-Bits substatement
+==== String's substatement ====
+==== Enumeration's substatement ====
+The YANG <code>enumeration</code> type has to contain some <code>enum</code> substatements. Enumeration is mapped as JAVA <code>enum</code> type (standalone class) and every YANG <code>enum</code> subelement is mapped to JAVA <code>enum</code>'s predefined values.<br />
+<table border="1">
+<tr>
+    <th>YANG</th>
+    <th>JAVA</th>    
+</tr>
+<tr>
+    <td>
+    <source>
+typedef typedef-enumeration {
+    type enumeration {
+        enum enum1 {
+            description "enum1 description";
+            value 18;
+        }
+        enum enum2 {
+            value 16;
+        }
+        enum enum3 {
+        }    		
+    }
+}       </source>
+    </td>
+    <td>
+    <source lang="java">
+public enum TypedefEnumeration {
+    Enum1(0),
+    Enum2(1),
+    Enum3(2);
+
+    int value;
+
+    private TypedefEnumeration(int value) {
+        this.value = value;
+    }
+}
+    </source>    
+    </td>
+</tr>
+</table>
+==== Bits's substatement ====
+The YANG <code>bits</code> type has to contain some <code>bit</code> substatements. YANG <code>Bits</code> is mapped to JAVA class (standalone class) and every YANG <code>bits</code> subelement is mapped to class boolean attributes.<br />
+<table border="1">
+<tr>
+    <th>YANG</th>
+    <th>JAVA</th>
+    <th>JAVA overriden methods</th>
+</tr>
+<tr>
+    <td>
+    <source>
+typedef typedef-bits {
+    type bits {
+        bit first-bit {
+            description "first-bit description";
+            position 15;
+        }
+        bit second-bit; 
+    }
+} 
+    </source>
+    </td>
+    <td>
+    <source lang="java">
+public class TypedefBits {
+
+    private Boolean firstBit;
+    private Boolean secondBit;
+
+    public TypedefBits() {
+        super();
+    }
+
+    public Boolean getFirstBit() {
+        return firstBit;
+    }
+    
+    public void setFirstBit(Boolean firstBit) {
+        this.firstBit = firstBit;
+    }
+    
+    public Boolean getSecondBit() {
+        return secondBit;
+    }
+    
+    public void setSecondBit(Boolean secondBit) {
+        this.secondBit = secondBit;
+    }
+}
+    </source>    
+    </td>
+    <td>
+    <source lang="java">
+    @Override
+    public int hashCode() {
+        final int prime = 31;
+        int result = 1;
+        result = prime * result + ((firstBit == null) ? 0 : firstBit.hashCode());
+        result = prime * result + ((secondBit == null) ? 0 : secondBit.hashCode());
+        return result;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        TypedefBits other = (TypedefBits) obj;
+        if (firstBit == null) {
+            if (other.firstBit != null) {
+                return false;
+            }
+        } else if(!firstBit.equals(other.firstBit)) {
+            return false;
+        }
+        if (secondBit == null) {
+            if (other.secondBit != null) {
+                return false;
+            }
+        } else if(!secondBit.equals(other.secondBit)) {
+            return false;
+        }
+        return true;
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder builder = new StringBuilder();
+        builder.append("TypedefBits [firstBit=");
+        builder.append(firstBit);
+        builder.append(", secondBit=");
+        builder.append(secondBit);
+        builder.append("]");
+        return builder.toString();
+    }
+    </source>
+    </td>
+</tr>
+
+</table>
 
 == Container ==
 == Leaf ==
