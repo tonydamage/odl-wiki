@@ -690,10 +690,9 @@ Specify following values in argument.
 ==== Instance method ====
 
 ===== <div id="VInterfaceConfig.getDescription">getDescription()</div> =====
-{{{
-#!java
+<pre>
 public String getDescription()
-}}}
+</pre>
 
 It returns description of [[OpenDaylight_Virtual_Tenant_Network_(VTN):VTN_Manager:Specification#vInterface|virtual interface]] configured in VInterfaceConfig object.
 It returns <tt>null</tt> if description is not set.
@@ -792,7 +791,6 @@ It returns the state of [[OpenDaylight_Virtual_Tenant_Network_(VTN):VTN_Manager:
 
 ===== <div id="VInterface.getEntityState ">getEntityState()</div> =====
 <pre>
-#java
 public VNodeState getEntityState()
 </pre>
 
@@ -1291,9 +1289,9 @@ VTN Manager passes the MAC address information inside MAC address table to other
 
 ==== Constructor ====
 
-===== <div id="MacAddressEntry:DataLinkAddress-short-NodeConnector-InetAddress:">MacAddressEntry</div> =====
+===== <div id="MacAddressEntry:DataLinkAddress-short-NodeConnector-Set:InetAddress:">MacAddressEntry</div> =====
 <pre>
-public MacAddressEntry(DataLinkAddress addr, short vlan, NodeConnector nc, InetAddress[] ipaddrs)
+public MacAddressEntry(DataLinkAddress addr, short vlan, NodeConnector nc, Set<InetAddress> ipaddrs)
 </pre>
 
 It shows the MacAddressEntry  object that shows the MAC address information.
@@ -1308,8 +1306,9 @@ It shows the MacAddressEntry  object that shows the MAC address information.
 ::Specify the [[#NodeConnector|NodeConnector]] object corresponding to the physical port of the switch where MAC address is detected.
 ::*<tt>null</tt> must not be specified. Behavior is not defined if <tt>null</tt> is specified.
 :;ipaddrs
-::Specify the InetAddress  object that shows the IP address configured in Ethernet frame where MAC address is detected.
-::*Specify <tt>null</tt> if IP header is not present in the Ethernet frame.
+::Specify a set of InetAddress object that shows the IP address configured in Ethernet frame where MAC address is detected.
+::* If multiple IP addresses corresponding to MAC address are detected, then specify the set that includes all the detected IP addresses.
+::* If no IP address is detected, specify <tt>null</tt> or empty set. 
 
 ==== Instance method ====
 
@@ -1338,12 +1337,12 @@ It returns the [[#NodeConnector|NodeConnector]] object corresponding to the phys
 
 ===== <div id="MacAddressEntry.getInetAddresses">getInetAddresses()</div> =====
 <pre>
-public InetAddress[] getInetAddresses()
+public Set<InetAddress> getInetAddresses()
 </pre>
 
-It returns the InetAddress  object that shows the IP address configured in Ethernet frame where MAC address is detected.
-
-It returns <tt>null</tt> if IP header is not configured in the Ethernet frame where MAC address is detected.
+It returns the set of InetAddress object that shows the IP address configured in Ethernet frame where MAC address is detected.
+* If multiple IP addresses corresponding to MAC address are detected, then it returns the set that includes all the detected IP addresses.
+* If no IP address is detected, then it returns an empty set.
 
 ===== <div id="MacAddressEntry.equals">equals(Object)</div> =====
 <pre>
@@ -1358,7 +1357,7 @@ It returns true only if all the following conditions are met.
 *Values stored inside <u>o</u> are equal to the values in own object.
 **[[#DataLinkAddress|DataLinkAddress]] object corresponding to the MAC address
 **[[#NodeConnector|NodeConnector]] object corresponding to the physical port of the switch
-**InetAddress  object that shows the IP address corresponding to MAC address
+**Array of InetAddress object that shows the IP address list corresponding to MAC address
 
 ===== <div id="MacAddressEntry.hashCode">hashCode()</div> =====
 <pre>
@@ -1556,7 +1555,7 @@ Specify the following values in argument.
 ::**VTN description will be deleted if <tt>null</tt> is configured against the same.
 ::**idle_timeout  of Flow entry will be treated as '''300'''  if no value is configured for seconds.
 ::**hard_timeout of Flow entry will be treated as '''0'''  if no value is configured for seconds.
-::*If false is specified, then attributes specified with <tt>null</tt> will not be modified.
+::*If false is specified, then attributes with no value configured will not be modified.
 
 In case of normal end, it returns [[#Status|Status]] wherein '''[[#StatusCode|StatusCode]].SUCCESS''' is configured.
 
@@ -1702,7 +1701,7 @@ Specify the following values in argument.
 ::*All the attributes related to vBridge are modified if '''true''' is specified.
 ::**vBridge description will be deleted if <tt>null</tt> is configured against the same.
 ::**[[OpenDaylight_Virtual_Tenant_Network_(VTN):VTN_Manager:Specification#vBridge.macTable.aging|Aging]] interval for [[OpenDaylight_Virtual_Tenant_Network_(VTN):VTN_Manager:Specification#vBridge.macTable|MAC address table]] will be treated as '''600''' if it is not configured.
-::*If false is specified, then attributes specified with <tt>null</tt> will not be modified.
+::*If false is specified, then attributes with no value configured will not be modified.
 
 In case of normal end, it returns [[#Status|Status]] wherein '''[[#StatusCode|StatusCode]].SUCCESS''' is configured.
 
@@ -2043,9 +2042,9 @@ VLAN network specified in <u>vlconf</u> will get mapped to vBridge specified in 
 **If a value between '''1''' or more and '''4095''' or less is configured, then the Ethernet frames that have this VLAN ID configured will get mapped to vBridge.
 **If '''0''' is configured, untagged Ethernet frames will get mapped to vBridge.
 
-In case of normal end, it returns [[#Status|Status]] wherein '''[[#StatusCode|StatusCode]].SUCCESS''' is configured.
+In case of normal end, it returns the [[#VlanMap|VlanMap]] object that shows the information for VLAN mapping that was configured.
 
-In case of abnormal end, it returns the Status showing error cause.
+In case of abnormal end, [[#VTNException|VTNException]] that includes the [[#Status|Status]] showing error cause is thrown.
 Following are the main StatusCode configured in Status.
 
 :;StatusCode.BADREQUEST
@@ -2094,8 +2093,6 @@ Following are the main StatusCode configured in Status.
 === API for ARP transmission ===
 
 This section describes the APIs provided for sending ARP request to Broadcast domains that correspond to [[OpenDaylight_Virtual_Tenant_Network_(VTN):VTN_Manager:Specification#vBridge|vBridge]].
-
-If method of IHostFinder service provided by arphandler is called and virtual network of VTN is operating inside that container, then arphandler will send ARP request by using the APIs described in this section.
 
 ==== <div id="IVTNManager.findHost:InetAddress-Set_VBridgePath">findHost(InetAddress, Set<VBridgePath>)</div> ====
 <pre>
@@ -2433,5 +2430,48 @@ Value returned by IVTNManager.isActive() at that point in time gets specified in
 That is, '''true''' gets specified if the virtual network of VTN Manager is operating, and '''false''' gets specified if it is not operating.
 
 Further, if you register in VTN Manager the listener where IVTNModeListener is implemented, then this method is called for notifying the operation mode, at that point in time, to listener.
+
+ 
+=== IHostFinder ===
+ 
+[[#IHostFinder|IHostFinder]] provides the functionality for sending ARP request to search the host information.
+
+Normally this service is provided by [[OpenDaylight_Virtual_Tenant_Network_(VTN):VTN_Manager:Specification#arphandler|arphandler]].
+However, since it is necessary to uninstall arphandler for running VTN Manager, instead this service is provided by VTN Manager.
+
+==== <div id="IHostFinder.find:InetAddress">find(InetAddress)</div> ====
+<pre>
+public void find(InetAddress networkAddress);
+</pre>
+
+It sends Broadcast ARP request for searching the host that has the specified IP address.
+
+Specify in <u>networkAddress</u> the InetAddress  object that shows the IP address that you want to search.
+Further, it will return without doing anything if <tt>null</tt> or IPv6 is specified in <u>networkAddress</u>.
+
+The behavior of this method will vary depending upon whether [[OpenDaylight_Virtual_Tenant_Network_(VTN):VTN_Manager:Specification#VTN|VTN]] is present inside the container or not.
+
+:;If VTN is present inside the Container
+::It will behave exactly as the same method provided by [[OpenDaylight_Virtual_Tenant_Network_(VTN):VTN_Manager:Specification#arphandler|arphandler]].
+::* Only when the subnet information that includes <u>networkAddress</u> is registered, ARP request is sent to the port of the switch defined by that subnet information.
+:;If VTN is not present inside the Container
+::ARP request is sent to all the [[OpenDaylight_Virtual_Tenant_Network_(VTN):VTN_Manager:Specification#vBridge|vBridge]] present inside Container.
+
+==== <div id="IHostFinder.probe:HostNodeConnector">probe(HostNodeConnector)</div> ====
+<pre>
+public void probe(HostNodeConnector host);
+</pre>
+
+It sends Unicast ARP request for confirming the presence of specified host.
+
+Specify in <u>host</u> the [[#HostNodeConnector|HostNodeConnector]] object corresponding to the target host. Further, it returns without doing anything if <tt>null</tt> is specified.
+
+The behavior of this method will vary depending upon whether [[OpenDaylight_Virtual_Tenant_Network_(VTN):VTN_Manager:Specification#VTN|VTN]] is present inside the container or not.
+
+:;If VTN is present inside the Container
+::It will behave exactly as the same method provided by [[OpenDaylight_Virtual_Tenant_Network_(VTN):VTN_Manager:Specification#arphandler|arphandler]].
+::* Only when the subnet information that includes IP address of <u>host</u> is registered, ARP request is sent to port of the physical switch corresponding to [[#NodeConnector|NodeConnector]] configured in the <u>host</u>.
+:;If VTN is not present inside the Container
+::It carries out the same process as [[#IVTNManager|IVTNManager]].[[#IVTNManager.probeHost:HostNodeConnector|probeHost]](<u>host</u>).
 
 [[Category:OpenDaylight Virtual Tenant Network]]
