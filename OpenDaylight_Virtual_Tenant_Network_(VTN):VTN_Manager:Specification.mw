@@ -237,6 +237,8 @@ VTN Manager uses the following OSGi services provided by OpenDaylight controller
 ::This is used to determine the route between switches.
 :;IfHostListener
 ::This is used to notify the host information detected inside [[#vBridge|vBridge]] to hosttracker.
+:;IfIptoHost
+::This is used to refer the host information maintained in hosttracker.
 
 Further, VTN Manager registers the following OSGi listener services.
 
@@ -255,6 +257,8 @@ Further, VTN Manager registers the following OSGi listener services.
 ::* This OSGi listener service is registered only by the VTN Manager inside default container. VTN Manager inside the default container will get disabled if container other than the Default container is created. 
 :;IListenRoutingUpdates
 ::This is used to detect completion of route calculation between switches.
+:;IHostFinder
+::This provides IHostFinder service instead of [[#arphandler|arphandler]].
 
 == Limitations ==
 
@@ -265,29 +269,40 @@ If you set the switch to proactive mode, the virtual network environment built b
 
 === Subnet ===
 
-VTN Manager functions without using any of the subnet information set in OpenDaylight controller.
+If [[#VTN|VTN]] is present inside the container, then VTN Manager functions without using any of the subnet information set in OpenDaylight controller.
 While sending broadcast packets like ARP request, the broadcast domain is decided by the settings of [[#vBridge|vBridge]]. 
+
+If VTN is not present inside the Container, it refers the subnet information for providing exactly the same functionalities as arphandler.
 
 === arphandler ===
 
-If [[#VTN|VTN]] is created in container by VTN Manager, the following functionalities of the arphandler inside that container will become disabled.
+Following functionalities implemented in arphandler are inconsistent with the functionalities of VTN Manager. Thus arphandler and VTN Manager cannot co-exist.
 
 :;New host detection
-::If arphandler receives ARP or IP packets, it will notify host information to hosttracker only when the host IP address is included in the subnet information set in OpenDaylight controller. Due to the fact that subnet settings by OpenDaylight controller is inconsistent with broadcast domain settings by [[#vBridge|vBridge]], new host detection with arphandler is disabled in containers having VTN.
-::* VTN Manager will do the new host detection notification for hosttracker. 
+::If arphandler receives ARP or IP packets, it will notify host information to hosttracker only when the host IP address is included in the subnet information set in OpenDaylight controller. Subnet settings by OpenDaylight controller is inconsistent with broadcast domain settings by [[#vBridge|vBridge]].
 :;ARP proxy
-::If arphandler detects ARP request, irrespective of whether packets can actually reach the hosts, it will instead send the ARP response if the target is a known host. Since this operation is inconsistent with broadcast domain settings by vBridge, ARP proxy functionality by arphandler is disabled in containers having VTN.
-::* ARP packets are forwarded as per flow entry registered by VTN Manager according to [[#vBridge|vBridge]] settings. 
-::* The ARP packets between hosts isolated by vBridge setting are not forwarded. 
+::If arphandler detects ARP request, irrespective of whether packets can actually reach the hosts, it will instead send the ARP response if the target is a known host. This operation is inconsistent with broadcast domain settings by vBridge.
 
-The '''IHostFinder''' service offered by ArpHandler will run even if VTN exists in same container. 
-The following methods of arphandler will send ARP request via VTN Manager when VTN is present in the same container.
+Thus arphandler must be uninstalled for installing VTN Manager in OpenDaylight controller.
+
+Functionalities that are being provided by arphandler will be provided by VTN Manager.
+
+* New host detection notification to hosttracker will be done by VTN Manager.
+* VTN Manager will provide the '''IHostFinder''' service.
 <pre>
 public void find(InetAddress networkAddress);
 public void probe(HostNodeConnector host);
 </pre>
+* ARP packet forwarding will be done by VTN Manager.
 
-However, since ARP request is sent as per the vBridge settings in container,　it is not possible to detect host on physical network not mapped to vBridge.
+However, the operation will be different depending upon whether the VTN is present or not inside the container.
+
+* If VTN is not present inside the Container, then VTN Manager will behave exactly like arphandler.
+** If IP address of received ARP request is included in the registered subnet, then VTN Manager will instead send the ARP response.
+* If VTN is present inside the Container, then ARP packets are forwarded according to the [[#vBridge|vBridge]] settings.
+** ARP packets are not forwarded between the hosts that are isolated due to vBridge settings.
+** If the method defined in '''IHostFinder''' service is called, then ARP request will be sent according to the vBridge settings.
+*** Hosts operating on physical networks that are not mapped to vBridge cannot be detected.
 
 === Applications for setting Flow entry ===
 
