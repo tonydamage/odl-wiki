@@ -1,4 +1,3 @@
-= Overview =
 = YANG to JAVA mapping =
 == Package name ==
 The package name consists from following parts:
@@ -29,6 +28,65 @@ Package name will be
 <font color="red">org.opendaylight.yang.gen.v</font color><font color="green">1</font color><font color="blue">.urn:2:case#module</font color><font color="violet">.rev201379</font color><br /> 
 and after replacing digits and JAVA keywords<br />
 <font color="red">org.opendaylight.yang.gen.v</font color><font color="green">1</font color><font color="blue">.urn._2._case.module</font color><font color="violet">.rev201379</font color><br />
+=== Other package names ===
+In some cases there are generated also additional packages. It happens in cases where the superior YANG elements contain specific subordinate YANG elements (see table below).<br />
+
+{| class="wikitable"
+|-
+! Superior element !! Subordinate element
+|-
+| list || list, container, choice
+|-
+| container || list, container, choice
+|-
+| choice || leaf, list, leaf-list, container, case
+|-
+| case || list, container, choice
+|-
+| rpc.input
+rpc.output 
+|| list, container, <small>(choice isn't supported)</small>
+|-
+| notification || list, container, <small>(choice isn't supported)</small>
+|-
+| augment || list, container, choice, case
+|}
+In this case the subordinate elements aren't mapped only to JAVA getter methods in the interface of superior element but there are also generated packages which names consist of superior element package name + superior element name.<br />
+''In example YANG model suppose that <code>container</code> element '''cont''' is direct subelement of module''<br /><br />
+<font face="Courier">
+container <font color="red">'''cont'''</font color> { <br />
+&nbsp;&nbsp;container <font color="green">'''cont-inner</font color> {<br /> 
+&nbsp;&nbsp;}<br />
+&nbsp;&nbsp;list <font color="green">'''outter-list'''</font color> {<br />
+&nbsp;&nbsp;&nbsp;&nbsp;list list-in-list {<br />
+&nbsp;&nbsp;&nbsp;&nbsp;}<br />
+&nbsp;&nbsp;}<br />
+}<br />
+</font face> 
+''Container <font color="red">'''cont'''</font color> is the superior element for the subordinate elements <font color="green">'''cont-inner'''</font color> and <font color="green">'''outter-list'''</font color>.<br />
+
+JAVA code will be generated in following structure:<br />
+*org.opendaylight.yang.gen.v1.urn.module.rev201379 - package contains element which are subordinate of module
+** Cont.java
+*org.opendaylight.yang.gen.v1.urn.module.rev201379.'''<font color="red">cont</font color>''' - '' package contains subordinate elements of '''cont''' container element''
+** ContInner.java
+** OutterList.java
+<br />
+<font face="Courier">
+container cont { <br />
+&nbsp;&nbsp;container cont-inner {<br /> 
+&nbsp;&nbsp;}<br />
+&nbsp;&nbsp;list <font color="red">'''outter-list'''</font color> {<br />
+&nbsp;&nbsp;&nbsp;&nbsp;list <font color="green">'''list-in-list</font color>''' {<br />
+&nbsp;&nbsp;&nbsp;&nbsp;}<br />
+&nbsp;&nbsp;}<br />
+}<br /><br />
+</font face>
+''list <font color="red">'''outter-list'''</font color> is superior element for subordinate element <font color="green">'''list-in-list'''</font color> ''
+
+JAVA code will be generated in following structure:<br />
+*org.opendaylight.yang.gen.v1.urn.module.rev201379.'''<font color="red">cont</font color>.<font color="green">outter.list</font color>''' - '' package contains subordinate elements of '''outter-list''' list element''
+** ListInList.java
 
 == Class and interface name ==
 Some YANG elements are mapped to JAVA classes and interfaces. The name of YANG element may contain various characters which aren't permitted in JAVA class names. Firstly whitespaces are trimmed from YANG name. Next characters '''space, -, _''' are deleted and subsequent letter is capitalized. At the end first letter is capitalized.
@@ -40,6 +98,18 @@ is mapped to<br />
 <code>
 ExampleNameWithoutCapitalization
 </code>
+
+== Getters and setters name ==
+In some cases are YANG elements generated as getter or setter methods. This methods are created through class <code>'''MethodSignatureBuilder'''</code><br />
+The process for getter is:<br />
+* name of YANG element is converted to JAVA class name style
+* the word <code>get</code> is added as preffix
+* return type of the getter method is set to element's <code>type</code> substatement value
+<br />The process for setter is:<br />
+* name of YANG element is converted to JAVA class name style
+* word <code>set</code> is added as preffix
+* input parameter name is set to element's name converted to JAVA parameter style
+* return parameter is set to void
 
 == Module ==
 YANG module is converted to JAVA as two JAVA classes. Each of the class is in the separate JAVA file. The names of JAVA files are composed as follows:<br />
@@ -554,14 +624,534 @@ public interface Cont extends DataObject, Augmentable<Cont> {
 </table>
 
 == Leaf ==
+<!-------------------- LEAF ------------------------->
+Each <code>leaf</code> has to contain at least one <code>type</code> substatement. The <code>leaf</code> is mapped to getter method of superior element with return type equal to <code>type</code> substatement value.<br />
+''Example of leaf mapping at model level:<br />''
+<table border="1">
+<tr>
+    <th>YANG</th>
+    <th>JAVA</th>
+</tr>
+<tr>
+    <td>
+    <source>
+module module {
+    
+    namespace "urn:module";
+    prefix "sbd";
+
+    organization "OPEN DAYLIGHT";
+    contact "http://www.whatever.com/";    
+
+    revision 2013-07-09 {
+        
+    }
+    leaf lf {
+        type string;				
+    }     
+}
+    </source>
+    </td>
+    <td>
+    <source lang="java">
+package org.opendaylight.yang.gen.v1.urn.module.rev201379;
+public interface ModuleData {
+    String getLf();
+}
+    </source>    
+    </td>
+</tr>
+</table>
+''Example of leaf mapping at container level:<br />''
+<table border="1">
+<tr>
+    <th>YANG</th>
+    <th>JAVA</th>
+</tr>
+<tr>
+    <td>
+    <source>
+container cont {
+  leaf lf {
+    type string;				
+  }
+}
+    </source>
+    </td>
+    <td>
+    <source lang="java">
+public interface Cont extends DataObject, Augmentable<Cont> {
+    String getLf();
+}
+    </source>    
+    </td>
+</tr>
+</table>
+
 == Leaf-list ==
+<!-------------------- LEAF-LIST ------------------------->
+Each <code>leaf-list</code> has to contain one type substatement. The <code>leaf-list</code> is mapped to getter method of superior element with return type equal to <code>List</code> of <code>type</code> substatement value.<br />
+''Example of mapping of <code>leaf-list</code>.''<br />
+<table border="1">
+<tr>
+    <th>YANG</th>
+    <th>JAVA</th>
+</tr>
+<tr>
+    <td>
+    <source>
+container cont {
+    leaf-list lf-lst {
+        type typedef-union;
+    }
+}
+    </source>
+    </td>
+    <td>
+    <source lang="java">
+public interface Cont extends DataObject, Augmentable<Cont> {
+    List<TypedefUnion> getLfLst();
+}
+    </source>    
+    </td>
+</tr>
+</table>
+''<small>YANG <code>typedef-union</code> and JAVA <code>TypedefUnion</code> are the same as in [[#Union's substatement type|union type]].''</small><br />
+
 == List ==
-== Choice ==
+<!-------------------- LIST ------------------------->
+YANG <code>list</code> element is mapped to JAVA interface. In superior element is generated as getter method with return type <code>List</code> of generated interfaces.<br />
+Mapping of list substatement to JAVA:<br />
+{| class="wikitable"
+|-
+! Substatement !! Mapping to JAVA
+|-
+| key || class
+|-
+|}
+''Example of list mapping. '''outter-list''' is mapped to JAVA interface '''OutterList''' and in '''Cont''' interface (superior of '''OutterList''') contains getter method with return type List<'''OutterList'''>  ''
+<table border="1">
+<tr>
+    <th>YANG</th>
+    <th>JAVA</th>
+    <th>JAVA overriden Object methods</th>
+</tr>
+<tr>
+    <td>
+<source>
+container cont {
+  list outter-list {
+    leaf leaf-in-list {
+      type uint64;                
+    }
+    leaf-list leaf-list-in-list {
+      type string;                
+    }
+    list list-in-list {
+      leaf-list inner-leaf-list {
+        type int16;
+      }
+    }
+  }
+}
+</source>
+    </td>
+    <td>
+ListInList.java    
+    <source lang="java">
+package org.opendaylight.yang.gen.v1.urn.module.rev201379.cont.outter.list;
+
+import org.opendaylight.yangtools.yang.binding.DataObject;
+import org.opendaylight.yangtools.yang.binding.Augmentable;
+import java.util.List;
+
+public interface ListInList extends DataObject, Augmentable<ListInList> {
+
+    List<Short> getInnerLeafList();
+}
+    </source>    
+OutterListKey.java
+    <source lang="java">
+package org.opendaylight.yang.gen.v1.urn.module.rev201379.cont;
+
+import org.opendaylight.yang.gen.v1.urn.module.rev201379.cont.OutterListKey;
+import java.math.BigInteger;
+
+public class OutterListKey {
+
+    private BigInteger LeafInList;
+
+    public OutterListKey(BigInteger LeafInList) {
+        super();
+        this.LeafInList = LeafInList;
+    }
+
+    public BigInteger getLeafInList() {
+        return LeafInList;
+    }
+}
+    </source>    
+OutterList.java    
+    <source lang="java">
+package org.opendaylight.yang.gen.v1.urn.module.rev201379.cont;
+
+import org.opendaylight.yangtools.yang.binding.DataObject;
+import org.opendaylight.yangtools.yang.binding.Augmentable;
+import java.util.List;
+import org.opendaylight.yang.gen.v1.urn.module.rev201379.cont.outter.list.ListInList;
+
+public interface OutterList extends DataObject, Augmentable<OutterList> {
+
+    List<String> getLeafListInList();
+    
+    List<ListInList> getListInList();
+    
+    /*
+    Returns Primary Key of Yang List Type
+    */
+    OutterListKey getOutterListKey();
+
+}
+</source>    
+Cont.java
+<source lang="java">
+package org.opendaylight.yang.gen.v1.urn.module.rev201379;
+
+
+import org.opendaylight.yangtools.yang.binding.DataObject;
+import org.opendaylight.yangtools.yang.binding.Augmentable;
+import java.util.List;
+import org.opendaylight.yang.gen.v1.urn.module.rev201379.cont.OutterList;
+
+public interface Cont extends DataObject, Augmentable<Cont> {
+
+    List<OutterList> getOutterList();
+
+}
+</source>
+      
+    </td>
+    <td>
+for OutterListKey.java
+    <source lang="java">
+@Override
+public int hashCode() {
+    final int prime = 31;
+    int result = 1;
+    result = prime * result + ((LeafInList == null) ? 0 : LeafInList.hashCode());
+    return result;
+}
+
+@Override
+public boolean equals(Object obj) {
+    if (this == obj) {
+        return true;
+    }
+    if (obj == null) {
+        return false;
+    }
+    if (getClass() != obj.getClass()) {
+        return false;
+    }
+    OutterListKey other = (OutterListKey) obj;
+    if (LeafInList == null) {
+        if (other.LeafInList != null) {
+            return false;
+        }
+    } else if(!LeafInList.equals(other.LeafInList)) {
+        return false;
+    }
+    return true;
+}
+
+@Override
+public String toString() {
+    StringBuilder builder = new StringBuilder();
+    builder.append("OutterListKey [LeafInList=");
+    builder.append(LeafInList);
+    builder.append("]");
+    return builder.toString();
+}
+    </source>
+    </td>
+</tr>
+</table>
+
+== Choice and case ==
+<!-------------------- CHOICE AND CASE ------------------------->
+<code>Choice</code> element is mapped similarly as <code>list</code> element. It means that is mapped to interface (marker interface) and in the superior element is created getter method with the return type <code>List</code> of this marker interfaces.<br />
+<code>Case</code> substatements are mapped to the JAVA interfaces which extend mentioned marker interface.<br />
+'''Example of choice mapping:'''
+<table border="1">
+<tr>
+    <th>YANG</th>
+    <th>JAVA</th>
+</tr>
+<tr>
+    <td>
+    <source>
+container cont {
+    choice choice-test {
+        case case1 {
+        }
+        case case2 {
+        }
+    }
+}
+    </source>
+    </td>
+    <td>
+Case1.java
+    <source lang="java">
+package org.opendaylight.yang.gen.v1.urn.module.rev201379.cont.choice.test;
+
+import org.opendaylight.yangtools.yang.binding.DataObject;
+import org.opendaylight.yangtools.yang.binding.Augmentable;
+import org.opendaylight.yang.gen.v1.urn.module.rev201379.cont.ChoiceTest;
+
+public interface Case1 extends DataObject, Augmentable<Case1>, ChoiceTest {
+}
+    </source>    
+Case2.java
+    <source lang="java">
+package org.opendaylight.yang.gen.v1.urn.module.rev201379.cont.choice.test;
+
+import org.opendaylight.yangtools.yang.binding.DataObject;
+import org.opendaylight.yangtools.yang.binding.Augmentable;
+import org.opendaylight.yang.gen.v1.urn.module.rev201379.cont.ChoiceTest;
+
+public interface Case2 extends DataObject, Augmentable<Case2>, ChoiceTest {
+}
+    </source>
+ChoiceTest.java
+    <source lang="java">
+package org.opendaylight.yang.gen.v1.urn.module.rev201379.cont;
+
+import org.opendaylight.yangtools.yang.binding.DataObject;
+
+public interface ChoiceTest extends DataObject {
+}
+    </source>
+Cont.java
+    <source lang="java">
+package org.opendaylight.yang.gen.v1.urn.module.rev201379;
+
+import org.opendaylight.yangtools.yang.binding.DataObject;
+import org.opendaylight.yangtools.yang.binding.Augmentable;
+import org.opendaylight.yang.gen.v1.urn.module.rev201379.cont.ChoiceTest;
+
+public interface Cont extends DataObject, Augmentable<Cont> {
+
+    ChoiceTest getChoiceTest();
+
+}
+    </source>
+
+
+    </td>
+</tr>
+</table>
+
 == Grouping and uses ==
+<!-------------------- GROUPING AND USES ------------------------->
+<code>Grouping</code> is mapped to JAVA interface. <code>Uses</code> used in some element (using of concrete grouping) are mapped as extension of interface for this element with the interface which represents grouping.<br />
+''Example of grouping and uses mapping.''<br />
+<table border="1">
+<tr>
+    <th>YANG</th>
+    <th>JAVA</th>
+</tr>
+<tr>
+    <td>
+    <source>
+grouping grp {
+    
+}
+
+container cont {
+    uses grp;
+}
+    </source>
+    </td>
+    <td>
+Cont.java
+    <source lang="java">
+package org.opendaylight.yang.gen.v1.urn.module.rev201379;
+
+import org.opendaylight.yangtools.yang.binding.DataObject;
+import org.opendaylight.yangtools.yang.binding.Augmentable;
+
+public interface Cont extends DataObject, Augmentable<Cont>, Grp {
+}
+    </source>    
+Grp.java
+    <source lang="java">
+package org.opendaylight.yang.gen.v1.urn.module.rev201379;
+
+import org.opendaylight.yangtools.yang.binding.DataObject;
+
+public interface Grp extends DataObject {
+}
+    </source>    
+    </td>
+</tr>
+</table>
+
 == Rpc ==
+<!-------------------- RPC ------------------------->
+<code>Rpc</code> is mapped to JAVA as method of class <code>'''ModuleService.java'''</code>.<br />
+Rpc's substatement are mapped as follows:
+{| class="wikitable"
+|-
+! Rpc substatement !! mapped to JAVA
+|-
+| input || interface
+|-
+| output || interface
+|}
+''Example of rpc mapping:'' 
+<table border="1">
+<tr>
+    <th>YANG</th>
+    <th>JAVA</th>
+</tr>
+<tr>
+    <td>
+    <source>
+rpc rpc-test1 {
+    output {
+        leaf lf-output {
+            type string;
+        }
+    }
+    input {
+        leaf lf-input {
+            type string;
+        }        
+    }
+}
+    </source>
+    </td>
+    <td>
+ModuleService.java
+    <source lang="java">
+package org.opendaylight.yang.gen.v1.urn.module.rev201379;
+
+import java.util.concurrent.Future;
+import org.opendaylight.yangtools.yang.common.RpcResult;
+
+public interface ModuleService {
+
+    Future<RpcResult<RpcTest1Output>> rpcTest1(RpcTest1Input input);
+
+}
+    </source>    
+RpcTest1Input.java
+    <source lang="java">
+package org.opendaylight.yang.gen.v1.urn.module.rev201379;
+
+public interface RpcTest1Input {
+
+    String getLfInput();
+
+}
+    </source>    
+RpcTest1Output.java
+    <source lang="java">
+package org.opendaylight.yang.gen.v1.urn.module.rev201379;
+
+public interface RpcTest1Output {
+
+    String getLfOutput();
+
+}
+    </source>    
+
+    </td>
+</tr>
+</table>
+
 == Notification ==
+<!-------------------- NOTIFICATION ------------------------->
+<code>Notification</code> is mapped to the JAVA interface which extends Notification interface.<br />
+''Example of notification mapping:''
+<table border="1">
+<tr>
+    <th>YANG</th>
+    <th>JAVA</th>
+</tr>
+<tr>
+    <td>
+    <source>
+	notification notif {
+	}
+    </source>
+    </td>
+    <td>
+    <source lang="java">
+package org.opendaylight.yang.gen.v1.urn.module.rev201379;
+
+
+import org.opendaylight.yangtools.yang.binding.DataObject;
+import org.opendaylight.yangtools.yang.binding.Augmentable;
+import org.opendaylight.yangtools.yang.binding.Notification;
+
+public interface Notif extends DataObject, Augmentable<Notif>, Notification {
+}
+    </source>    
+    </td>
+</tr>
+</table>
+
 == Augment ==
+<!-------------------- AUGMENT ------------------------->
+<code>Augment</code> is mapped to the JAVA interface. The interface starts with the same name as the name of augmented interface. The suffix is order number of  augmenting interface. The augmenting interface also extends <code>Augmentation<></code> with actual type parameter equal to augmented interface.<br />
+''Example of augment mapping. In this example is augmented interface <code>Cont</code> so whole parametrized type is <code>Augmentation<Cont></code>.'' <br />
+<table border="1">
+<tr>
+    <th>YANG</th>
+    <th>JAVA</th>
+</tr>
+<tr>
+    <td>
+    <source>
+container cont {
+}         
+
+augment "/cont" {
+}
+    </source>
+    </td>
+    <td>
+
+Cont.java
+    <source lang="java">
+package org.opendaylight.yang.gen.v1.urn.module.rev201379;
+
+import org.opendaylight.yangtools.yang.binding.DataObject;
+import org.opendaylight.yangtools.yang.binding.Augmentable;
+
+public interface Cont extends DataObject, Augmentable<Cont> {
+
+}
+   </source>
+Cont1.java
+    <source lang="java">
+package org.opendaylight.yang.gen.v1.urn.module.rev201379;
+
+import org.opendaylight.yangtools.yang.binding.DataObject;
+import org.opendaylight.yangtools.yang.binding.Augmentation;
+
+public interface Cont1 extends DataObject, Augmentation<Cont> {
+
+}
+    </source>    
+    </td>
+</tr>
+</table>
+
 == Identity ==
+<!-------------------- IDENTITY ------------------------->
 The purpose of the identity statement is “to define a new globally unique, abstract, and untyped identity “. YANG substatement base „takes as an argument a string that is the name of existing identity, from which the new identity is derived.1“ Therefore the identity statement is mapped to JAVA abstract class and base substatement is mapped as extends JAVA keyword. The identity name is translated to class name.
 
 <table border="1">
