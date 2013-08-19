@@ -1,0 +1,182 @@
+== High Availability / Clustering == 
+
+Open Daylight Controller supports a Cluster based High Availability model. Several instances of the Open Daylight Controller forms a Controller Cluster and it act as one logical controller. 
+This Clustering model provides both High Availability and horizontal scaling. More information on HA / Clustering architecture can be found @
+
+This document covers the implementation details. 
+Controller's Clustering implementation can be divided into 5 major topics :
+
+# Clustering Services
+# State Synchronization
+# Cluster-Wide Event Synchronization
+# Connection Manager
+# Transactions
+
+
+=== 1. Clustering Services ===
+Clustering / High Availability is not a feature. Rather it is part of the Controller Infrastructure which provides all the necessary Clustering services
+to all the Functional components of the controller and the Applications that make use of these functional components. 
+The OSGi bundle named clustering.services provides the all the necessary APIs needed to implement Clustering / High Availability.
+The corresponding implementation bundle, clustering.services-implementation, uses Infinispan framework to honor the supported clustering APIs.
+Specifically, we currently use the stable 5.3.0 version of Infinispan.
+
+Why Infinispan ? :  Infinispan is an extremely scalable, highly available key/value NoSQL datastore and distributed data grid platform written in Java.  
+The purpose of Infinispan is to expose a data structure that is highly concurrent, designed ground-up to make the most of modern multi-processor/multi-core 
+architectures while at the same time providing distributed cache capabilities. 
+
+At its core Infinispan exposes a Cache interface which extends java.util.Map.  Hence all the Caching services provided by the Clustering Services are
+based on Key/Value pair and any Data that needs cluster-wide synchronization will have to be declared as ConcurrentMap. 
+
+Infinispan uses jgroups as its core for reliable messaging and Cluster formation. The infinispan-config.xml can be used to configure Infinispan 
+functionalities and jgroups.xml can be used to configure the Jgroups messaging.
+
+For the first Simultaneous Release, the Infinispan will be configured to be in Distributed mode and Synchornous communication.
+    <!-- Configure a synchronous replication cache -->
+    <clustering mode="replication">
+      <sync/>
+    </clustering>
+Transaction processing is handled by the JBOSS Transaction project (narayana-jta 4.17.7).
+
+=== 2. State Synchronization ===
+State Synchronization is the basic service provided by Clustering Services, which other functional modules and
+applications can make use of. It is centered around the concept of Cache which is nothing more than a data structure that exposes a java.util.concurrent.ConcurrentMap 
+on each node of the cluster but whatever is inserted in any node gets automatically replicated in every other node of the cluster. Given a Cache is a cluster wide data structure, 
+the locking problem is very important, the implementation underneath this interface ensure locking is only done in such a way that writer block only writer accessing the same key, so no global locking over the whole datastucture is held.
+In order to take advantage of this service, it's necessary that the data structure that need to be replicated cluster wide are organized as ConcurrentMap which means they should be organized as an association of Key, Value pairs.
+
+A key must be unique in the Cache and can be constituted by any object, which:
+* 	Implements java.io.Serializable interface 
+* 	Need to override the method public int hashcode() inherited by java.lang.Object such that the objects can be spread efficiently in different buckets. 
+* 	Need to override the method public boolean equals(Object o) inherited by java.lang.Object such that two objects of same type can be assumed to be equal based on the content of the Object itself. 
+
+A value can be constituted by any object which: 
+* 	Implements java.io.Serializable interface 
+* Given value and key can be as complex as it gets, certain care should be taken care in order to make sure the system works properly in particular: 
+:* 	the key or value being complex object can change their internal state, in that case to make sure the cache stays update a put operation need to be performed every time such state change happens. In case of a value change, that is sufficient to overwrite the previous value, in case of key state change, that may cause changes in the equals condition, if that is the case the previous key value (which probably at this point is useless) must be removed to avoid having unneeded entries. 
+:* 	if the key or value objects have huge internal states, even a slight modification of the state, will cause the whole object state to be serialized and sent over, that has a network cost, so try to keep lean the objects that are synched over. 
+:* 	If the key or value object contains fields that have only local significance on a node rather in the cluster, those fields should be 
+:either:
+:	
+::	replaced by an equivalent field with global significance
+::       made transient in Java, in this way the marshaling code, will skip it, however somehow that field need to be created on the other side upon unmarshaling, for this two alternatives are proposed:
+:	
+::# 	Use Custom Serialization protocol, which means that the object that implement the java.io.Serializable interface must implement two private methods private void writeObject(ObjectOutputStream out) and private void readObject(ObjectInputStream in) in the readObject called by the deserialization phase the local significant fiels should be reconstructed, refer to this article in the section "Customize the Default Protocol" for more details. 
+::#	On receiving updates on the cache key/value change on the remote nodes (see later how to get notifications) reconstruct the member 
+:with local significance.
+
+APIs
+The APIs exposed by IClusterServices to provide state Synchronization are:	
+* createCache: create a cache with provided properties, a cache must be "created" on every node before each node can see it, however once created it gets a bulk sync of the state shared in the cluster.
+* 	getCache: retrieve a java.util.concurrent.ConcurrentMap interface reference that is useful to manipulate the content of the data structure. If the cache is first not created this will return a null reference.
+* 	destroyCache: destroy cluster wide a cache, USE CAREFULLY!
+* 	existCache: check for the exisistance of a cache
+* 	getCacheList: get the list of the currently known caches in a slice.	
+*       getCacheProperties: get the properties of an existing cache, useful for debugging mostly.
+
+Since all the Controllers in a Cluster are active and Applications (embedded or via REST-API) can operate on any of the Controller, care must be taken to make sure a Cache is not inadvertently overwritten by 
+a peer Controller. Hence, as a general rule of Thumb, since all the Controller, avoid using the put() api. Rather, use putIfAbsent() and replace() APIs as seen appropriate in your situation.
+Sample (only the relevant piece of code) from Connection Manager's AbstractScheme.java's putNodeToController() method :
+            if (nodeConnections.putIfAbsent(node, newControllers) != null) {
+                if (isConnectionAllowed(node)) {
+                    if (!nodeConnections.replace(node, oldControllers, newControllers)) {
+                        return putNodeToController(node, controller);
+                    }
+                }
+            }
+
+=== 3. Cluster-Wide Event Synchronization ===
+From a programming standpoint, the State Synchronization proved by Infinispan is as simple as calling a put() or remove() api & Infinispan does the synchronization transparently.
+But there are many cases in which either, the Controller would need to know if there is change in state of a particular Cache or a controller would have to send a message to another Controller.
+These these 2 scenarios, we can make use of the Event synchronization APIs provided by Clustering Services.
+
+The ICacheUpdateAware interface has APIs that allow to know when a state change happens in any of the Cache & this can be seen effectively as a Event sync.
+1. entryCreated  : Invoked when a new entry is created in the cache
+2. entryUpdated : Invoked when an entry is updated in the cache
+3. entryDeleted : Invoked when an entry is deleted from the cache
+
+These are Per-Cache APIs and hence the bundles that are interested in listening to these cache updates must register its interest via the "cache names" property in the Activator .
+Example (from connection manager) :
+
+        if (imp.equals(ConnectionManager.class)) {
+            Dictionary<String, Object> props = new Hashtable<String, Object>();
+            Set<String> propSet = new HashSet<String>();
+            for (ConnectionMgmtScheme scheme:ConnectionMgmtScheme.values()) {
+                propSet.add("connectionmanager."+scheme.name()+".nodeconnections");
+            }
+            props.put("cachenames", propSet);
+            c.setInterface(new String[] { IConnectionManager.class.getName(),
+                                          IConnectionListener.class.getName(),
+                                          ICoordinatorChangeAware.class.getName(),
+                                          IListenInventoryUpdates.class.getName(),
+                                          ICacheUpdateAware.class.getName()},
+                                          props);
+
+With the above interest, whenever any of the cache with the name : "connectionmanager.<SCHEME_NAME>.nodeconnections" changes, ConnectionManager's
+(which implements ICacheUpdateAware) callback functions (entryCreated, entryUpdated & entryDeleted) will be invoked.
+
+=== 4. Connection Manager ===
+Clusterning Service's State Synchronization as explained above, makes sure that all the controllers in the cluster operate on the same data/cache/state.
+Also all the controllers are Active & applications can run on any of the controllers. When it comes to the South-bound, the same holds true.
+Similarly, any controller in the cluster can talk to any device/service using the south-bound plugin.  This calls for appropriate High-Availability / Redundancy/ Clustering
+feature from the South-bound device/service. Also, there can be assumptions from the South-bound devices/services regarding the HA support provided by the Controller.
+The Connection Manager is a service that provides services using configurable scheme based on the deployment scenario.
+This provides a few simple APIs in to connect (or accept connection) and disconnect from the Node.
+It also provides APIs for the applications / south-bound plugins / other functional modules to check if a device is connected to a Controller or not.
+
+Connection manager internally uses the Clustering Service's State Synchronization and Transactions to make sure its states are Consistent and fully synchronized in order
+to provide accurate Connection Manager services. 
+
+At the time of writing, Connection Manager provides 2 configurable schemes :
+# SINGLE_CONTROLLER : All the Devices will be connected to only one controller.  
+# ANY_CONTROLLER_ONE_MASTER : Any Device can connect to any controller. But only one Master.
+
+By default, it operates in the ANY_CONTROLLER_ONE_MASTER scheme.
+Connection Manager handles various scenarios such as Controller going down event and switches the Master Controller appropriately
+and throws relevant events for functional modules to handle the change in role/master.
+
+This is currently implemented and working with the OpenFlow 1.0 & OVSDB plugin.
+
+IPluginInConnectionService : Throws events towards the protocol-plugins to 
+# connect : Connect to a given device (This is not implemented for OpenFlow plugin). OVSDB plugin makes use of it.
+# disconnect : Disconnects the controller from a device.
+# notifyClusterViewChanged : Event to suggest that the the Cluster Composition has changed.(addition / deletion of controller in a cluster).
+# notifyNodeDisconnectFromMaster : Event to notify that a Node has disconnected from its Master.
+
+IConnectionManager : Provides APIs for protocol plugins (and other functional modules) to make use of.
+
+# isLocal : Checks if a device is connected to this controller.
+# getLocalNodes : Returns all the locally connected Devices
+# getNodes : Returns all the controllers and the devices connected to them.
+
+=== 5. Transactions ===
+In order to support transactionality the javax.transaction model of operation is used as contract between the clustering services module and the users of it. In a nutshell the API provided to support transactionality are the following:
+	•	tbegin: start a new transaction associated with the current thread of execution, we can have one transaction for each thread of execution. The transaction will affect only the data structure that are marked as transactional, as well all the HW programming orders that done through clustering services. The transaction will cover all the modifications that are done in the SAME thread, modifications spanning multiple threads cannot be supported because the transaction is associated with a thread of execution.
+	•	tcommit:Commit an open transaction, this will commit the change in SW as well all the HW orders that are associated with the same transaction. If any of the modification cannot happen, the application will get an exception, refer to the javadoc for the several exceptions that can be raised.
+	•	trollback:Rollback a transaction, undoing both the modification to the SW data structure allocated as Cache with Clustering services as well all the HW orders done via clustering services.
+	•	tgetTransaction: Get a descriptior of the current outstanding transaction. This is a utility function.
+
+Sample (only the relevant piece of code) from Connection Manager's AbstractScheme.java's putNodeToController() method :
+
+        try {
+            clusterServices.tbegin();
+            if (nodeConnections.putIfAbsent(node, newControllers) != null) {
+                if (isConnectionAllowed(node)) {
+                    if (!nodeConnections.replace(node, oldControllers, newControllers)) {
+                        clusterServices.trollback();
+                        try {
+                            Thread.sleep(100);
+                        } catch ( InterruptedException e) {}
+                        return putNodeToController(node, controller);
+                    }
+                } else {
+                    clusterServices.trollback();
+                    return new Status(StatusCode.CONFLICT);
+                }
+            }
+            clusterServices.tcommit();
+        } catch (Exception e) {
+            try {
+                clusterServices.trollback();
+            } catch (Exception e1) { }
+            return new Status(StatusCode.INTERNALERROR);
+        }
