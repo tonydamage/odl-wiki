@@ -1,0 +1,28 @@
+== Description == 
+
+Currently OpenDaylight has clustering for ephemeral data using Infinispan via the Clustering Services API.
+Date stored through the Clustering Services API is replicated throughout the cluster, and so will survive loss
+of a particular controller node, but will *not* currently survive the entire controller cluster being brought down.
+
+There are some kinds of data (configuration being one example) that need to be durable across the entire cluster
+being brought down and then back up again.  In order to achieve this we are looking at:
+
+# Using [https://docs.jboss.org/author/display/ISPN/Cache+Loaders+and+Stores CacheStores] behind Infinispan to selectively persist
+data marked as durable
+## One possibility would be to use the [https://docs.jboss.org/author/display/ISPN/Cache+Loaders+and+Stores#CacheLoadersandStores-Cassandracacheloader CasandraCacheStore]
+## Whichever CacheStore is chosen, we should look at being able to 'embed' it as a bundle so as to simplify deployment scenarios (ie... one should not have to install a separate persistence app, it should come as part of the controller).
+## It should be possible for folks to configure the controller to use a different ClusterStore than the default one chosen.
+# Enhancing clustering services to allow users to indicate a cache is durable, and thus should be backed with a CacheStore.
+
+== Deliverables ==
+
+# Persistent store bundle (containing whatever persistent store is chosen)
+# Changes to configure Infinispan to use the ClusterStore when needed
+# Changes to Clustering Services API to allow designation of some data as durable.
+
+== Pointers ==
+
+It appears that Cassandra can be [http://prettyprint.me/prettyprint.me/2010/02/14/running-cassandra-as-an-embedded-service/index.html embedded], thus it should be possible to embed it as an 
+OSGI bundle.  Other options for making use of Cassandra as a persistent store with zero additional deployment activity could also be explored.
+
+== Notes ==
