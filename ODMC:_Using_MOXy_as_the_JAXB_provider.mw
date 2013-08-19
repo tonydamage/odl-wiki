@@ -1,0 +1,9 @@
+
+Here's how the oDMC went about using MOXy as the JAXB provider:
+
+# Include a jaxb.properties file in the same directory as the classes that need to use MOXy.  The contents of the jaxb.properties file is the following:<pre>javax.xml.bind.context.factory=org.eclipse.persistence.jaxb.JAXBContextFactory</pre>
+# Add an override of the getSingleton() method to the Activator class of the Tomcat servlet. In this override allocate a new MOXyJsonProvider instance and configure it:<blockquote>        MOXyJsonProvider moxyJsonProvider = new MOXyJsonProvider();<br/><br/>        moxyJsonProvider.setAttributePrefix("@");<br/>        moxyJsonProvider.setFormattedOutput(true);<br/>        moxyJsonProvider.setIncludeRoot(false);            // use Annotation<br/>        moxyJsonProvider.setMarshalEmptyCollections(true); // handle lists properly<br/>        moxyJsonProvider.setValueWrapper("$");<br/><br/>        Map<String, String> namespacePrefixMapper = new HashMap<String, String>(1);<br/>        namespacePrefixMapper.put("router", "router");<br/>        namespacePrefixMapper.put("provider", "provider");<br/>        moxyJsonProvider.setNamespacePrefixMapper(namespacePrefixMapper);<br/>        moxyJsonProvider.setNamespaceSeparator(':');<br/><br/>        HashSet<Object> set = new HashSet<Object>(1);<br/>        set.add(moxyJsonProvider);</blockquote>
+# For the oDMC, MOXy is dependent on the following artifacts, (YMMV):
+#* org.eclipse.persistence.core
+#* org.eclipse.persistence.antlr
+#* org.eclipse.persistence.moxy
