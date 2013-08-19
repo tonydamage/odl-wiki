@@ -1,0 +1,78 @@
+'''Note: This document is work in progress, parts of it may be changed, because it depends on API contracts, which are to be frozen by [[Simultaneous Release:Simultaneous Release Plan 2013|M4 Milestone]]'''
+
+Southbound controller plugin is a functional component which provides an 
+abstraction of network devices functionality, normalization of their APIs to
+common contracts, handles session and connections to them. In general development process consists of following steps:
+
+1. '''Definition of YANG models''' (API contracts) - for Model-Driven SAL, the API contracts are defined by YANG models and Java interfaces generated for these models. In this steps developers selects existing models which he wants to comfort to, writes own models or augment (extend) existing one.
+
+2. '''Code Generation''' - Java Interfaces, implementation of Transfer Objects and mapping to Binding-Independent form is generated for the plugin. this phase requires proper configuration of Maven build and YANG Maven Tools.
+
+3. '''Implementation of plugin''' - Actual implementation of plugin functionality and plugin components.
+
+The order of steps is not definitive and it is up to developer to find out the workflow which suits him best. 
+See also Best Practices for additional information.
+
+== Definition of YANG models ==
+
+In this step developer selects existing models, writes own models or augment
+existing ones, which are provided by controller or other plugins. The partial
+list of available models could be found at [[YANG Tools:Available Models]].
+
+The mapping of YANG to Java is documented at [[Yang Tools:YANG to Java Mapping]].
+This mapping provides an overview how YANG is mapped to Java.
+
+In general there are multiple approaches how to model functionality of Southbound Plugin:
+
+1. Using RPCs and Notifications
+2. Using Configuration Data Description
+3. Using Runtime Data Description
+4. Combined
+
+=== RPCs ===
+
+RPCs are used to model functionality which could be invoked by consumers (applications) which uses Southbound Plugin.
+RPCs are suitable to model any functionality, but usually are used to model functionality which could not be abstracted
+as configuration data - such as PacketOut, initiating a new session to device (controller-to-device session), etc.
+
+
+=== Notifications ===
+
+Notifications are used to model events originating in network device or southbound plugin which are exposed to consumers to 
+listen on. 
+
+=== Configuration Data ===
+
+=== Runtime Data ===
+
+
+=== Modeling Best Practices ===
+
+* Always try to reuse existing models and types provided by these models. See [[YANG Tools:Available Models]] or others if there is not a model which could provide you with data structures and types you need.
+
+== Code Generation ==
+
+Artefacts generated at compile time:
+
+* Service interfaces
+* Transfer Object interfaces
+* Builders for Transfer Objects and immutable versions of transfer objects
+
+== Implementation ==
+
+In this step developer implements intended functionality of southbound plugin using generated artefacts.
+
+=== Best Practices ===
+
+
+* Service interface contract requires you to return Future object (to make it obvious that call may be asynchronous), but it is not specified how this Future is implemented. Consider using existing implementations provided by JDK
+or Google Guava. Implement your own Future only if necessary.
+
+* DO NOT implement transfer object interfaces unless necessary. Prefer using already generated builders and immutable versions. If you decided to implement transfer objects, make sure that instances exposed outside plugin are immutable.
+
+
+==== Recommended Third-party Libraries for implementation ====
+
+==== SLF4J ====
+==== Google Guava ====
+==== Netty.io ====
