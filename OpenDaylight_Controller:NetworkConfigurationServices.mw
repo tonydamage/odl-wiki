@@ -55,6 +55,24 @@ This addPort SAL call is directed to appropriate South-Bound protocol Plugin wit
 
 Example : '''ovsdb''' project introduces a southbound protocol plugin that implements '''IPluginInBridgeDomainConfigService'''. Following is a sample piece of code from '''ConfigurationService.java addPort()''' function :
 
+    @Override
+    public Status addPort(Node node, String bridgeIdentifier, String portIdentifier, Map<ConfigConstants, Object> configs) {
+      ...
+      ...
+        Map<String, Object> portRow = new HashMap<String, Object>();
+        portRow.put("name", portIdentifier);
+        String portType = null;
+        if (configs != null) {
+            portType = (String)configs.get(ConfigConstants.TYPE);
+            if (portType != null && portType.equalsIgnoreCase(OvsdbType.PortType.VLAN.name())) {
+                try {
+                portRow.put("tag", Integer.parseInt((String)configs.get(ConfigConstants.VLAN)));
+                } catch (Exception e) {
+                }
+            }
+        }
+       ...
+       ...
        InsertRequest addIntfRequest = new InsertRequest("insert", "Interface", newInterface, interfaceRow);
        Object[] params = {"Open_vSwitch", mutateBridgeRequest, addIntfRequest, addPortRequest};
        OvsdbMessage msg = new OvsdbMessage("transact", params);
