@@ -12,42 +12,6 @@
 
 [[File:Openflow_Protocol_Library.pdf]]
 
-[[File:OpenFlow_Protocol_Library_-_Project_documentation.pdf]]
-
-==Model Documentation==
-{| class="wikitable"
-|-
-! Model !! Documentation
-|-
-| openflow-action.yang || [https://jenkins.opendaylight.org/openflowjava/job/openflowjava-verify/ws/openflow-protocol-api/target/site/restconf/openflow-action.html openflow-action]
-|-
-| openflow-augments.yang || [https://jenkins.opendaylight.org/openflowjava/job/openflowjava-verify/ws/openflow-protocol-api/target/site/restconf/openflow-augments.html openflow-augments]
-|-
-| openflow-extensible-match.yang || [https://jenkins.opendaylight.org/openflowjava/job/openflowjava-verify/ws/openflow-protocol-api/target/site/restconf/openflow-extensible-match.html openflow-extensible-match]
-|-
-| openflow-instruction.html || [https://jenkins.opendaylight.org/openflowjava/job/openflowjava-verify/ws/openflow-protocol-api/target/site/restconf/openflow-instruction.html openflow-instruction]
-|-
-| openflow-protocol.yang || [https://jenkins.opendaylight.org/openflowjava/job/openflowjava-verify/ws/openflow-protocol-api/target/site/restconf/openflow-protocol.html openflow-protocol]
-|-
-| openflow-types.yang || [https://jenkins.opendaylight.org/openflowjava/job/openflowjava-verify/ws/openflow-protocol-api/target/site/restconf/openflow-types.html openflow-types]
-|-
-| system-notifications.yang || [https://jenkins.opendaylight.org/openflowjava/job/openflowjava-verify/ws/openflow-protocol-api/target/site/restconf/system-notifications.html system-notifications]
-|}
-
-==Javadoc Documentation==
-{| class="wikitable"
-|-
-! Project !! Documentation
-|-
-| openflow-api || [https://jenkins.opendaylight.org/openflowjava/job/openflowjava-merge/org.opendaylight.openflowjava$openflow-protocol-api/ws/target/apidocs/index.html Api-Javadoc]
-|-
-| openflow-impl || [https://jenkins.opendaylight.org/openflowjava/job/openflowjava-merge/org.opendaylight.openflowjava$openflow-protocol-impl/ws/target/apidocs/index.html Impl-Javadoc]
-|-
-| openflow-spi || [https://jenkins.opendaylight.org/openflowjava/job/openflowjava-merge/org.opendaylight.openflowjava$openflow-protocol-spi/ws/target/apidocs/index.html Spi-Javadoc]
-|-
-| simple-client || [https://jenkins.opendaylight.org/openflowjava/job/openflowjava-merge/org.opendaylight.openflowjava$simple-client/ws/target/apidocs/index.html Simple-Client-Javadoc]
-|}
-
 ===Common principles===
 
 * Serialization (message coding / decoding) logic is separated from implementation of transfer objects.
@@ -69,10 +33,8 @@ The following YANG modules are defined:
 * openflow-types - defines common Openflow specific types
 * openflow-instruction - defines base Openflow instructions
 * openflow-action - defines base Openflow actions
-* openflow-augments - defines object augmentations
 * openflow-extensible-match - defines Openflow OXM match
 * openflow-protocol - defines Openflow Protocol messages
-* system-notifications - defines system notification objects
  
 This modules also reuse types from following YANG modules:
 * ietf-inet-types - IP adresses, IP prefixes, IP-protocol related types
@@ -80,7 +42,7 @@ This modules also reuse types from following YANG modules:
  
 The use of predefined types is to make APIs contracts more 
 safe, better readable and documented (using MacAddress instead 
-of byte array...)
+of byte array...) 
 
 ==== Pipeline Factory====
 
@@ -115,52 +77,6 @@ serializers and deserializers for additional
 match fields, instructions, actions and
 messages which could be added by third-party 
 bundle.
-
-=== Integration with Plugin ===
-{| class="wikitable"
-|-
-| '''Plugin'''
-| '''SwitchConnectorHandler'''
-* onSwitchConnected(''ConnectionAdapter'') [4]
-:: <code>connectionAdapter.setMessageListener(ofProtocolListener)</code> [5]
-:: <code>connectionAdapter.setSystemListener(systemListener)</code> [5]
-* accept(''InetAddress'')
-:: //policy logic
-----
-'''OFProtocolListener'''
-* onHelloMessage(message)
-* ...
-----
-'''SystemListener'''
-* onDisconnectEvent(event)
-----
-call particular rpc method on particular instance of ''ConnectionAdapter'' to send message to particular switch [6][7]
-|-
-| '''Library'''
-| '''SwitchConnectionProvider'''
-* config() [1]
-* startup() [2]
-* shutdown() [8]
-* setSwitchConnectionHandler(''SwitchConnectionHandler'') [1]
-----
-'''ConnectionAdapter''' extends OFProtocolService
-* disconnect()
-* sendMessage() -- via RPC (OFProtocolService)
-* isAlive()
-* setOFProtocolListener(''OFProtocolListener'') -- place to send message notifications
-call ''OFProtocolListener'' when a message arrives  [6][7]
-|}
-
-
-==== Connection workflow ====
-# @Plugin: config, set ''SwitchConnectionHandler''
-# @Plugin: startup()
-# new switch connects to netty layer
-# @Library: onSwitchConnected(new ''ConnectionAdapter''...)
-# @Plugin: setMessageListener(); setSystemListener();
-# @both: send/receive Hello  (handshake)
-# @both: do some switch exercise
-# @Plugin: shutdown
 
 = Testing =
 * [[Openflow Protocol Library:Testing]]
