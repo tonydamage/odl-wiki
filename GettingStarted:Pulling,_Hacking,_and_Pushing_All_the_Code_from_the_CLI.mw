@@ -8,7 +8,8 @@ code from each of them.
 While you can pull code anonymously, if you want to push it (or edit the wiki) you will need to [https://identity.opendaylight.org/carbon/user-registration/index.jsp?region=region1&item=user_registration_menu get an account].
 
 == Gerrit Setup ==
-Code reviews are enabled through Gerrit. [[OpenDaylight Controller:Gerrit Setup|Set up Gerrit]] for use.
+Code reviews are enabled through Gerrit. [[OpenDaylight Controller:Gerrit Setup|Set up Gerrit]] for use if you wish to use ssh.  If you
+wish to use https, [[OpenDaylight Controller:Setting up HTTP in Gerrit|Set up Gerrit to use HTTPS]].
 
 Note: You will need to perform the [[OpenDaylight Controller:Gerrit Setup|Gerrit Setup]] before you can access git via
 ssh as described below.
@@ -28,6 +29,12 @@ Each line does three things:
 # Setup the Gerrit ChangeId commit hook
 # Setup pushes to go back to HEAD:refs/for/master as Gerrit requires
 
+You have two choices for your method of engagement, you can use:
+# ssh on port 29418 (blocked by some firewalls) 
+# https
+
+=== Pull code via ssh ===
+
 <pre>
 git clone ssh://${ODL_USERNAME}@git.opendaylight.org:29418/affinity.git;(cd affinity; scp -p -P 29418 ${ODL_USERNAME}@git.opendaylight.org:hooks/commit-msg .git/hooks/;chmod 755 .git/hooks/commit-msg;git config remote.origin.push HEAD:refs/for/master)
 git clone ssh://${ODL_USERNAME}@git.opendaylight.org:29418/bgpcep.git;(cd bgpcep; scp -p -P 29418 ${ODL_USERNAME}@git.opendaylight.org:hooks/commit-msg .git/hooks/;chmod 755 .git/hooks/commit-msg;git config remote.origin.push HEAD:refs/for/master)
@@ -42,6 +49,22 @@ git clone ssh://${ODL_USERNAME}@git.opendaylight.org:29418/vtn.git;(cd vtn; scp 
 git clone ssh://${ODL_USERNAME}@git.opendaylight.org:29418/yangtools.git;(cd yangtools; scp -p -P 29418 ${ODL_USERNAME}@git.opendaylight.org:hooks/commit-msg .git/hooks/;chmod 755 .git/hooks/commit-msg;git config remote.origin.push HEAD:refs/for/master)
 </pre>
 
+=== Pull code with https ===
+
+<pre>
+git clone https://git.opendaylight.org/gerrit/p/affinity.git;(cd affinity; curl -o .git/hooks/commit-msg https://git.opendaylight.org/gerrit/tools/hooks/commit-msg;chmod 755 .git/hooks/commit-msg;git config remote.origin.push HEAD:refs/for/master)
+git clone https://git.opendaylight.org/gerrit/p/bgpcep.git;(cd bgpcep; curl -o .git/hooks/commit-msg https://git.opendaylight.org/gerrit/tools/hooks/commit-msg;chmod 755 .git/hooks/commit-msg;git config remote.origin.push HEAD:refs/for/master)
+git clone https://git.opendaylight.org/gerrit/p/controller.git;(cd controller; curl -o .git/hooks/commit-msg https://git.opendaylight.org/gerrit/tools/hooks/commit-msg;chmod 755 .git/hooks/commit-msg;git config remote.origin.push HEAD:refs/for/master)
+git clone https://git.opendaylight.org/gerrit/p/defense4all.git;(cd defense4all; curl -o .git/hooks/commit-msg https://git.opendaylight.org/gerrit/tools/hooks/commit-msg;chmod 755 .git/hooks/commit-msg;git config remote.origin.push HEAD:refs/for/master)
+git clone https://git.opendaylight.org/gerrit/p/lispflowmapping.git;(cd lispflowmapping; curl -o .git/hooks/commit-msg https://git.opendaylight.org/gerrit/tools/hooks/commit-msg;chmod 755 .git/hooks/commit-msg;git config remote.origin.push HEAD:refs/for/master)
+git clone https://git.opendaylight.org/gerrit/p/opendove.git;(cd opendove; curl -o .git/hooks/commit-msg https://git.opendaylight.org/gerrit/tools/hooks/commit-msg;chmod 755 .git/hooks/commit-msg;git config remote.origin.push HEAD:refs/for/master)
+git clone https://git.opendaylight.org/gerrit/p/openflowjava.git;(cd openflowjava; curl -o .git/hooks/commit-msg https://git.opendaylight.org/gerrit/tools/hooks/commit-msg;chmod 755 .git/hooks/commit-msg;git config remote.origin.push HEAD:refs/for/master)
+git clone https://git.opendaylight.org/gerrit/p/openflowplugin.git;(cd  ; curl -o .git/hooks/commit-msg https://git.opendaylight.org/gerrit/tools/hooks/commit-msg;chmod 755 .git/hooks/commit-msg;git config remote.origin.push HEAD:refs/for/master)
+git clone https://git.opendaylight.org/gerrit/p/ovsdb.git;(cd ovsdb; curl -o .git/hooks/commit-msg https://git.opendaylight.org/gerrit/tools/hooks/commit-msg;chmod 755 .git/hooks/commit-msg;git config remote.origin.push HEAD:refs/for/master)
+git clone https://git.opendaylight.org/gerrit/p/vtn.git;(cd vtn; curl -o .git/hooks/commit-msg https://git.opendaylight.org/gerrit/tools/hooks/commit-msg;chmod 755 .git/hooks/commit-msg;git config remote.origin.push HEAD:refs/for/master)
+git clone https://git.opendaylight.org/gerrit/p/yangtools.git;(cd yangtools; curl -o .git/hooks/commit-msg https://git.opendaylight.org/gerrit/tools/hooks/commit-msg;chmod 755 .git/hooks/commit-msg;git config remote.origin.push HEAD:refs/for/master)
+</pre>
+
 == Hack the Code ==
 
 === Pull a topic branch ===
@@ -54,6 +77,11 @@ git checkout -b <name of your topic>
 
 
 === Build the code ===
+
+You are going to want to increase the memory available to maven, the settings on the Jenkins build server are:
+<pre>
+export MAVEN_OPTS="-Xmx1024m -XX:MaxPermSize=256m"
+</pre>
 
 Below is the top level build line for each project:
 
@@ -180,7 +208,7 @@ Once your code has been reviewed and submitted by a committer it will be merged 
 
 [[File:Gerrit Merged.jpg|700px]]
 
-== Ammending your Commit ==
+== Amending your Commit ==
 If you wish to 'amend' your commit and push a new PatchSet to your existing Gerrit, you can make your changes, add them, and run:
 
 <pre>
