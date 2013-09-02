@@ -1,0 +1,189 @@
+== Intro ==
+
+OpenDaylight has currently 12 projects, each with their own repo.  This page tries to give you a quick start guide to pulling, hacking, and pushing the 
+code from each of them.
+
+== Make sure you have an account ==
+
+While you can pull code anonymously, if you want to push it (or edit the wiki) you will need to [https://identity.opendaylight.org/carbon/user-registration/index.jsp?region=region1&item=user_registration_menu get an account].
+
+== Gerrit Setup ==
+Code reviews are enabled through Gerrit. [[OpenDaylight Controller:Gerrit Setup|Set up Gerrit]] for use.
+
+Note: You will need to perform the [[OpenDaylight Controller:Gerrit Setup|Gerrit Setup]] before you can access git via
+ssh as described below.
+
+== Pull code via git CLI ==
+Pull the code by cloning the controller repository.
+
+First, all the lines below use the $ODL_USERNAME environment variable, so your life will be *way* easier of you set it with:
+
+<pre>
+export ODL_USERNAME=<username for the account you created at OpenDaylight>
+</pre>
+
+Then you will want to check out the code from each of the repos for each project.  You can, of course select any one of the following lines if you are only looking for one project.
+Each line does three things:
+# Clone the git repo
+# Setup the Gerrit ChangeId commit hook
+# Setup pushes to go back to HEAD:refs/for/master as Gerrit requires
+
+<pre>
+git clone ssh://${ODL_USERNAME}@git.opendaylight.org:29418/affinity.git;(cd affinity; scp -p -P 29418 ${ODL_USERNAME}@git.opendaylight.org:hooks/commit-msg .git/hooks/;chmod 755 .git/hooks/commit-msg;git config remote.origin.push HEAD:refs/for/master)
+git clone ssh://${ODL_USERNAME}@git.opendaylight.org:29418/bgpcep.git;(cd bgpcep; scp -p -P 29418 ${ODL_USERNAME}@git.opendaylight.org:hooks/commit-msg .git/hooks/;chmod 755 .git/hooks/commit-msg;git config remote.origin.push HEAD:refs/for/master)
+git clone ssh://${ODL_USERNAME}@git.opendaylight.org:29418/controller.git;(cd controller; scp -p -P 29418 ${ODL_USERNAME}@git.opendaylight.org:hooks/commit-msg .git/hooks/;chmod 755 .git/hooks/commit-msg;git config remote.origin.push HEAD:refs/for/master)
+git clone ssh://${ODL_USERNAME}@git.opendaylight.org:29418/defense4all.git;(cd defense4all; scp -p -P 29418 ${ODL_USERNAME}@git.opendaylight.org:hooks/commit-msg .git/hooks/;chmod 755 .git/hooks/commit-msg;git config remote.origin.push HEAD:refs/for/master)
+git clone ssh://${ODL_USERNAME}@git.opendaylight.org:29418/lispflowmapping.git;(cd lispflowmapping; scp -p -P 29418 ${ODL_USERNAME}@git.opendaylight.org:hooks/commit-msg .git/hooks/;chmod 755 .git/hooks/commit-msg;git config remote.origin.push HEAD:refs/for/master)
+git clone ssh://${ODL_USERNAME}@git.opendaylight.org:29418/opendove.git;(cd opendove; scp -p -P 29418 ${ODL_USERNAME}@git.opendaylight.org:hooks/commit-msg .git/hooks/;chmod 755 .git/hooks/commit-msg;git config remote.origin.push HEAD:refs/for/master)
+git clone ssh://${ODL_USERNAME}@git.opendaylight.org:29418/openflowjava.git;(cd openflowjava; scp -p -P 29418 ${ODL_USERNAME}@git.opendaylight.org:hooks/commit-msg .git/hooks/;chmod 755 .git/hooks/commit-msg;git config remote.origin.push HEAD:refs/for/master)
+git clone ssh://${ODL_USERNAME}@git.opendaylight.org:29418/openflowplugin.git;(cd  ; scp -p -P 29418 ${ODL_USERNAME}@git.opendaylight.org:hooks/commit-msg .git/hooks/;chmod 755 .git/hooks/commit-msg;git config remote.origin.push HEAD:refs/for/master)
+git clone ssh://${ODL_USERNAME}@git.opendaylight.org:29418/ovsdb.git;(cd ovsdb; scp -p -P 29418 ${ODL_USERNAME}@git.opendaylight.org:hooks/commit-msg .git/hooks/;chmod 755 .git/hooks/commit-msg;git config remote.origin.push HEAD:refs/for/master)
+git clone ssh://${ODL_USERNAME}@git.opendaylight.org:29418/vtn.git;(cd vtn; scp -p -P 29418 ${ODL_USERNAME}@git.opendaylight.org:hooks/commit-msg .git/hooks/;chmod 755 .git/hooks/commit-msg;git config remote.origin.push HEAD:refs/for/master)
+git clone ssh://${ODL_USERNAME}@git.opendaylight.org:29418/yangtools.git;(cd yangtools; scp -p -P 29418 ${ODL_USERNAME}@git.opendaylight.org:hooks/commit-msg .git/hooks/;chmod 755 .git/hooks/commit-msg;git config remote.origin.push HEAD:refs/for/master)
+</pre>
+
+== Hack the Code ==
+
+=== Pull a topic branch ===
+
+Your life will be much much happier if you pull topic branch before you start hacking :)
+
+<pre>
+git checkout -b <name of your topic>
+</pre>
+
+
+=== Build the code ===
+
+Below is the top level build line for each project:
+
+<pre>
+(cd affinity;mvn clean install)
+(cd bgpcep;mvn clean install)
+(cd controller;mvn clean install)
+# Need a line for Defense4All
+(cd lispflowmapping/distribution;mvn clean install)
+# Need a line for OpenDove
+(cd openflowjava;mvn clean install)
+# Need a line for OpenFlow Plugin
+(cd ovsdb/commons/parent;mvn clean install)
+(cd vtn;mvn clean install)
+(cd yangtools;mvn clean install)
+</pre>
+
+=== Run the controller ===
+
+<pre>
+cd controller/target/distribution.opendaylight-0.1.0-SNAPSHOT-osgipackage/opendaylight/
+./run.sh
+</pre>
+
+And point your browser at http://localhost:8080/
+
+[[File:OpenDaylight - Login.jpg]]
+
+There is much much more complete documentation on running the controller in the [[OpenDaylight Controller:Installation|Installation Guide]].
+
+=== Pushing your changes ===
+== Commit the code via git CLI ==
+Note: To be accepted, all code must come with a [http://elinux.org/Developer_Certificate_Of_Origin  developer certificate of origin] as expressed by having a Signed-off-by.
+This means that you are asserting that you have made the change and you understand that the work was done as part of an open-source license. 
+
+<pre>
+Developer's Certificate of Origin 1.1
+
+        By making a contribution to this project, I certify that:
+
+        (a) The contribution was created in whole or in part by me and I
+            have the right to submit it under the open source license
+            indicated in the file; or
+
+        (b) The contribution is based upon previous work that, to the best
+            of my knowledge, is covered under an appropriate open source
+            license and I have the right under that license to submit that
+            work with modifications, whether created in whole or in part
+            by me, under the same open source license (unless I am
+            permitted to submit under a different license), as indicated
+            in the file; or
+
+        (c) The contribution was provided directly to me by some other
+            person who certified (a), (b) or (c) and I have not modified
+            it.
+
+        (d) I understand and agree that this project and the contribution
+            are public and that a record of the contribution (including all
+            personal information I submit with it, including my sign-off) is
+            maintained indefinitely and may be redistributed consistent with
+            this project or the open source license(s) involved.
+</pre>
+
+Mechanically you do it this way
+<pre>
+git commit --signoff
+</pre>
+
+or in a shorter version:
+<pre>
+git commit -s
+</pre>
+
+You will be prompted for a commit message, and if you are fixing a buzilla bug, you can add that to your commit message as well and it will get linked from the Gerrit:
+
+<pre>
+Fix for bug 2.
+
+Signed-off-by: Ed Warnicke <eaw@cisco.com>
+
+# Please enter the commit message for your changes. Lines starting
+# with '#' will be ignored, and an empty message aborts the commit.
+# On branch master
+# Changes to be committed:
+#   (use "git reset HEAD <file>..." to unstage)
+#
+#       modified:   README
+#
+</pre>
+
+== Pull the code changes via git CLI ==
+Use git pull to get the latest changes from the remote repository
+<pre>
+git pull 
+</pre>
+
+== Push the code via git CLI ==
+Use git push to push your changes back to the remote repository.
+
+<pre>
+git push
+</pre>
+
+You will get a message pointing you to your gerrit request like:
+
+<pre>
+remote: Resolving deltas: 100% (2/2)
+remote: Processing changes: new: 1, refs: 1, done    
+remote: 
+remote: New Changes:
+remote:   http://git.opendaylight.org/gerrit/64
+remote: 
+</pre>
+
+== Seeing your change in Gerrit ==
+
+Follow the link you got above to see your commit in Gerrit:
+
+[[File:Gerrit Code Review.jpg|700px]]
+
+Note the Jenkins Controller User has verified your code, and at the bottom is a link to the Jenkins build.
+
+Once your code has been reviewed and submitted by a committer it will be merged into the authoritative repo, which would look like this:
+
+[[File:Gerrit Merged.jpg|700px]]
+
+== Ammending your Commit ==
+If you wish to 'amend' your commit and push a new PatchSet to your existing Gerrit, you can make your changes, add them, and run:
+
+<pre>
+git commit --amend
+git push
+</pre>
