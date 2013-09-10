@@ -1,23 +1,60 @@
-
-The VTN API module provides the north bound REST API interface for VTN applications
+= VTN API =
+The VTN API module is a sub component of the VTN coordinator and provides the north bound REST API interface for VTN applications
 It consists of two subcomponents
 :*Web Server
 :*VTN Service Java API library
 
-'''Web Server'''
+== Block Diagram  ==
+
+[[File:VTN_API.PNG]]
+
+== Web Server ==
+The Web Server module handles the REST APIs received from the VTN applications. 
+It translates the REST APIs to the appropriate Java APIs.
+
+The main functions of this module are
 :*Is started via the startup script catalina.sh.
 :*VTN Application sends HTTP request to Web server in XML or JSON format.
 :*Creates a session and acquire a read/write lock.
 :*Invokes the VTN Service Java API corresponding to the specified URI.
 :*Returns the response to the VTN Application.
 
-'''VTN Service Java API library'''
+== VTN Service ==
+The VTN Service provides the Java API library to communicate with the lower layer modules in the VTN Coordinator.
+
+The main functions of this library are
 :*Creates an IPC client session to the lower layer.
 :*Converts the request to IPC framework format.
 :*Invokes the lower layer API (i.e. UPLL API, UPPL API, TC API).
 :*Return the response from the lower layer to the web server
 
+== Class Details ==
 
-[[File:VTN_API.PNG]]
+=== Web Server ===
+
+{| class="wikitable"
+|-
+! Class Name !! Description
+|-
+| InitManager || It is a Singleton class for executing the acquisition of configuration information from properties file, log initialization, initialization of VTN Service Java API. 
+Executed by init() of VtnServiceWebAPIServlet.
+
+|-
+| ConfigurationManager || Class to maintain the configuration information acquired from properties file.
+|-
+| VtnServiceCommonUtil || Utility class.
+|-
+| VtnServiceWebUtil || Utility class.
+|-
+| VtnServiceWebAPIServlet || Receives HTTP request from VTN Application and calls the method of corresponding VtnServiceWebAPIHandler. 
+Inherits class HttpServlet, and overrides doGet(), doPut(), doDelete(), doPost(). 
+|-
+| VtnServiceWebAPIHandler || Creates JsonObject(com.google.gson) from HTTP request, and calls method of corresponding VtnServiceWebAPIController.
+|-
+| VtnServiceWebAPIController || Creates RestResource() class and calls UPLL API/UPPL API through Java API. 
+At the time of calling UPLL API/UPPL API, performs the creation/deletion of session, acquisition/release of configuration mode, acquisition/release of read lock by TC API through Java API. 
+|-
+| DataConverter || Class to covert from HTTP request to JsonObject and from JsonXML to JSON. 
+|}
 
 [[Category:OpenDaylight Virtual Tenant Network]]
