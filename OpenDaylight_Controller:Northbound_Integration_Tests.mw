@@ -69,12 +69,37 @@ To read the result, create a JSON object out of the resulting string.
    Assert.assertEquals(subnet1, json.getString("@subnet"));
 </source>
 
-
-
-
-
-'''Sending GET Requests'''
-
 '''Sending POST Requests'''
+
+When sending POST requests, change the request method to POST
+  <source>
+    connection.setRequestMethod("POST");
+  </source>
+
+If the request requires data in the request body, write the object string into the connection's output stream.
+<source>
+  //building request body for inserting a static route
+ String requestBody = "{\"name\":\"" + name1 + "\", \"prefix\":\"" + prefix1 + "\", \"nextHop\":\"" + nextHop1
+                + "\"}";
+
+  ...  //build a connection like before
+
+ //now add the request body
+  Assert.assertEquals(201, httpResponseCode.intValue());
+  connection.setDoOutput(true);
+  OutputStreamWriter wr = new OutputStreamWriter(connection.getOutputStream());
+  wr.write(body);
+  wr.flush();
+
+  //send request, get result, and verify that it receives successful response code.
+  connection.connect();
+  httpResponseCode = connection.getResponseCode();
+  Assert.assertEquals(201, httpResponseCode.intValue());
+
+
+
+
+
+
 
 '''Reading Results'''
