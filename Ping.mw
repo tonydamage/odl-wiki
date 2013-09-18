@@ -1,4 +1,9 @@
+In this example we use MD-SAL to implement a simple TCP ping plugin that can be used to check reachability of IP addresses. First we will define the ping model with Yang, then implement the simple plugin and service for ping and finally define REST API interface to initiate the ping through northbound interface.
+
 ==== Yang definition for ping ====
+
+First we need to create the Yang project that can generate Java APIs from Yang model files. Easiest way to do this is to add the new model together with existing models in 'yang-prototype/sal/model'. This way we can reuse the pom.xml from other models. To create the ping Yang project run the following commands after you have the ODL controller code checked out.
+
 <pre>
 cd controller/opendaylight/sal/yang-prototype/sal/model/
 mkdir model-ping
@@ -6,7 +11,11 @@ cd model-ping/
 mkdir -p src/main/yang
 </pre>
 
+We create the 'ping.yang' into the correct directory.
+
  vi src/main/yang/ping.yang
+
+In the ping Yang module we define a singel RPC call to initiate the ping request. This call takes an IPv4 address as an input variable. For IPv4 address we have imported the 'ietf-inet-types' module. We also define simple output for the RPC call that is returned to the caller.
 
 <pre>
 module ping {
@@ -46,7 +55,11 @@ module ping {
 }
 </pre>
 
+We need to create the pom.xml file for the project.
+
  vi pom.xml
+
+When using the 'model-parent' the pom.xml can be really simple.
 
 <pre>
 <?xml version="1.0" encoding="UTF-8"?>
@@ -64,8 +77,12 @@ module ping {
 </project>
 </pre>
 
+Now compile and generate the APIs and the bundle.
+
  mvn clean install
 
+Copy the bundle into the plugins directory of compiled ODL controller in order to run it.
+ 
 <pre>
 cp target/model-ping-1.0-SNAPSHOT.jar ../../../../../distribution/opendaylight/target/\
 distribution.opendaylight-0.1.0-SNAPSHOT-osgipackage/opendaylight/plugins/\
