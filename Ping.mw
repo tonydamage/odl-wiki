@@ -90,15 +90,20 @@ org.opendaylight.controller.model.model-ping-1.0-SNAPSHOT.jar
 </pre>
 
 ==== Ping plugin ====
+
+Next we define a project that provides the ping plugin service. We create this project into 'controller/opendaylight' directory. 
+
 <pre>
-cd ../../../../../
-mkdir ping
-cd ping
-mkdir -p plugin/src/main/java/org/opendaylight/controller/ping/plugin/internal
-cd plugin
+cd controller/opendaylight
+mkdir -p ping/plugin/src/main/java/org/opendaylight/controller/ping/plugin/internal
+cd ping/plugin
 </pre>
 
+The new project needs a pom.xml that defines dependencies.
+
  vi pom.xml
+
+In the pom.xml we have defined dependency to the Yang model previously created and imported 'org.opendaylight.yang.gen.v1.urn.opendaylight.ping.rev130911' package. Also 'org.opendaylight.yang.gen.v1.urn.ietf.params.xml.ns.yang.ietf.inet.types.rev100924' is needed for IPv4 address definition.
 
 <pre>
 <?xml version="1.0" encoding="UTF-8"?>
@@ -185,7 +190,11 @@ cd plugin
 </project>
 </pre>
 
+Create the implementation of the ping into correct directory.
+
  vi src/main/java/org/opendaylight/controller/ping/plugin/internal/PingImpl.java
+
+The ping implementation uses 'InetAddress.isReachable(timeout)' to check if given address is reachable or not. The listed class implements the 'PingService' interface from Yang model. This adds the defines RPC method sendEcho into the class. The RPC method takes 'SendEchoInput' (IPv4 address) in as a parameter and returns 'SendEchoOutput' (result enumeration). Result is returned in output format of ping Yang model 'EchoResult.Reachable' or 'EchoResult.Unreachable'. If an error happens 'EchoResult.Error' is returned.
 
 <pre>
 package org.opendaylight.controller.ping.plugin.internal;
@@ -242,7 +251,11 @@ public class PingImpl implements PingService {
 }
 </pre>
 
+We need to create a provider class that initiates the plugin service when bundle is loaded in OSGi framework.
+
  vi src/main/java/org/opendaylight/controller/ping/plugin/internal/PingProvider.java
+
+This class is called as it is defined as bundle activator in the project pom.xml file. This class needs to extend the 'AbstractBindingAwareProvider' interface and from that the method 'onSessionInitiated' is the most important one in our example. When this is called by the OSGi framework we can register our plugin service as one of the OSGi services. After this the service can be found by other bundles.
 
 <pre>
 package org.opendaylight.controller.ping.plugin.internal;
@@ -290,7 +303,11 @@ public class PingProvider extends AbstractBindingAwareProvider {
 }
 </pre>
 
+Compile the project.
+
  mvn clean install
+
+Copy the resulting bundle into the plugin folder of the run environment.
 
 <pre>
 cp target/ping.plugin-0.4.0-SNAPSHOT.jar ../../distribution/opendaylight/target/\
