@@ -506,16 +506,22 @@ cp target/ping.service-1.0-SNAPSHOT.jar ../../distribution/opendaylight/target/\
 </pre>
 
 ==== Ping northbound ====
+To use the Ping service and plugin we implement northbound REST API. This project is created into 'controller/opendaylight/ping' directory.
+
 <pre>
-cd ..
+cd controller/opendaylight/ping
 mkdir -p northbound/src/main/java/org/opendaylight/controller/ping/northbound
 mkdir -p northbound/src/main/resources/META-INF
 mkdir -p northbound/src/main/resources/WEB-INF
 cd northbound
 </pre>
 
+Create the pom.xml for this project.
+
  vi pom.xml
 
+We need to import the Ping service package (exported by Ping service project). In addition we need to specify Web service dependenty things e.g. 'Web-ContextPath'. In this example we want to use HTTP PUT method to send ping request through URI http://localhost:8080/controller/nb/v2/ping/{ipAddress} therefore the root is defined as '/controller/nb/v2'.
+ 
 <pre>
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -609,7 +615,11 @@ cd northbound
 </project>
 </pre>
 
-vi enunciate.xml
+Create enunciate.xml file.
+
+ vi enunciate.xml
+
+This file defines the REST API.
 
 <pre>
 <?xml version="1.0"?>
@@ -626,7 +636,15 @@ vi enunciate.xml
 </enunciate>
 </pre>
 
- vi northbound/src/main/java/org/opendaylight/controller/ping/northbound/PingNorthboundRSApplication.java
+Then we create web.xml.
+ vi src/main/resources/WEB-INF/web.xml
+
+<pre>
+</pre>
+
+ vi src/main/java/org/opendaylight/controller/ping/northbound/PingNorthboundRSApplication.java
+
+This file adds the 'PingNorthbound' as a Web service application. To it is called when REST calls to a specific URI are coming in.
 
 <pre>
 package org.opendaylight.controller.ping.northbound;
@@ -646,7 +664,11 @@ public class PingNorthboundRSApplication extends Application {
 }
 </pre>
 
+Create the northbound implementation.
+
  vi northbound/src/main/java/org/opendaylight/controller/ping/northbound/PingNorthbound.java
+
+PIng northbound defines on method 'ping' that is called when the specified URI path (@Path("/ping/{ipAddress}")) within ODL controller is called with HTTP PUT. The method the looks up the Ping service interface and calls 'pingDestination' method. It constructs the HTTP response based on the return value. 
 
 <pre>
 package org.opendaylight.controller.ping.northbound;
@@ -660,7 +682,6 @@ import org.codehaus.enunciate.jaxrs.ResponseCode;
 import org.codehaus.enunciate.jaxrs.StatusCodes;
 import org.opendaylight.controller.ping.service.api.PingServiceAPI;
 import org.opendaylight.controller.sal.utils.ServiceHelper;
-import org.opendaylight.yang.gen.v1.urn.ietf.params.xml.ns.yang.ietf.inet.types.rev100924.Ipv4Address;
 
 @Path("/")
 public class PingNorthbound {
@@ -671,11 +692,18 @@ public class PingNorthbound {
     @PUT
     @StatusCodes({
         @ResponseCode(code = 200, condition = "Destination reachable"),
+        @ResponseCode(code = 503, condition = "Internal error"),
         @ResponseCode(code = 503, condition = "Destination unreachable") })
     public Response ping(@PathParam(value = "ipAddress") String ipAddress) {
         PingServiceAPI ping = (PingServiceAPI) ServiceHelper.getGlobalInstance(
                 PingServiceAPI.class, this);
-        if (ping.pingDestination(new Ipv4Address(ipAddress)))
+        if (ping == null) {
+
+            /* Ping service not found. */
+            return Response.ok(new String("No ping service")).status(500)
+                    .build();
+        }
+        if (ping.pingDestination(ipAddress))
             return Response.ok(new String(ipAddress + " - rachable")).build();
 
         return Response.ok(new String(ipAddress + " - unrachable")).status(503)
@@ -684,7 +712,11 @@ public class PingNorthbound {
 }
 </pre>
 
+Compile the Ping northbound.
+
  mvn clean install
+
+Copy Ping northbound bundle to ODL controller plugins.
 
 <pre>
 cp target/ping.northbound-1.0-SNAPSHOT.jar ../../distribution/opendaylight/target/\
