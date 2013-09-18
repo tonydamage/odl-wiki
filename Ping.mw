@@ -320,12 +320,16 @@ cp target/ping.plugin-0.4.0-SNAPSHOT.jar ../../distribution/opendaylight/target/
 </pre>
 
 ==== Ping service ====
+In this example we use Ping service in between the Ping northbound and Ping plugin. This way the northbound doesn't need to be dependent on the Yang model. We create the Ping service project in to the 'controller/opendaylight/ping' directory. 
+
 <pre>
-cd ..
+cd controller/opendaylight/ping
 mkdir -p service/src/main/java/org/opendaylight/controller/ping/service/api
 mkdir -p service/src/main/java/org/opendaylight/controller/ping/service/impl
 cd service
 </pre>
+
+Once again we need a pom.xml fro hte new project. In the pom.xml file we define the bundle activator and axport the service interface so other bundles can use it (e.g. Ping northbound). 
 
  vi pom.xml
 
@@ -389,21 +393,35 @@ cd service
 </project>
 </pre>
 
+We the define the Ping service interface.
+
  vi src/main/java/java/org/opendaylight/controller/ping/service/api/PingServiceAPI.java
+
+The Ping service interface is a simple interface that takes the destination address as String and returns boolean based on whether the address is reachable or not.
 
 <pre>
 package org.opendaylight.controller.ping.service.api;
 
-import org.opendaylight.yang.gen.v1.urn.ietf.params.xml.ns.yang.ietf.inet.types.rev100924.Ipv4Address;
 
 public interface PingServiceAPI {
 
-    boolean pingDestination(Ipv4Address destination);
+    /**
+     * pingDestination
+     * 
+     * @param address An IPv4 address to be pinged
+     * @return True if address is reachable, false if address is unreachable or error occurs.
+     */
+    boolean pingDestination(String address);
 }
+
 </pre>
+
+We then implement the Ping service.
 
  vi src/main/java/java/org/opendaylight/controller/ping/service/impl/PingServiceImpl.java
 
+This class extends 'AbstractBindingAwareConsumer' this provides callbacks from OSGi framework when bundle is started. In 'onSessionInitialized' method the 'ConsumerContext' is stored for later use and in 'startImpl' the service interface provided by this class is registered. The implemented interface method 'pingDestination' takes in the address as a String. It will first look for the Ping RPC service defined in the Yang. If found the method will create the Ipv4Address build the 'SendEchoInput' and call 'sendEcho' in the Ping plugin. The resulting 'SendEchoOutput' is mapped to boolean value for caller.
+ 
 <pre>
 package org.opendaylight.controller.ping.service.impl;
 
@@ -422,7 +440,7 @@ import org.osgi.framework.BundleActivator;
 import org.osgi.framework.BundleContext;
 
 public class PingServiceImpl extends AbstractBindingAwareConsumer implements
-BundleActivator, BindingAwareConsumer, PingServiceAPI {
+        BundleActivator, BindingAwareConsumer, PingServiceAPI {
 
     private PingService ping;
     private ConsumerContext session;
@@ -438,10 +456,18 @@ BundleActivator, BindingAwareConsumer, PingServiceAPI {
     }
 
     @Override
-    public boolean pingDestination(Ipv4Address destination) {
+    public boolean pingDestination(String address) {
 
-        if (ping == null)
+        if (ping == null) {
             ping = this.session.getRpcService(PingService.class);
+            if (ping == null) {
+
+                /* No ping service found. */
+                return false;
+            }
+        }
+
+        Ipv4Address destination = new Ipv4Address(address);
 
         SendEchoInputBuilder ib = new SendEchoInputBuilder();
         ib.setDestination(destination);
@@ -465,7 +491,11 @@ BundleActivator, BindingAwareConsumer, PingServiceAPI {
 }
 </pre>
 
+Compile the Ping service.
+
  mvn clean install
+
+Copy the resulting bundle to ODL plugin directory.
 
 <pre>
 cp target/ping.service-1.0-SNAPSHOT.jar ../../distribution/opendaylight/target/\
