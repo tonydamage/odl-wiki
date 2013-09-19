@@ -16,7 +16,9 @@ Each method returns java.concurrent.Future object with RpcResult object.
 
 Listener interfaces are to be implemented by applications if they desire to listen on notificafions (events) or callbacks provided by implementations. 
 
-== Models replicating HARD&nbsp;SAL<br>  ==
+== Migrating from HARD SAL ==
+
+=== Models replicating HARD SAL functionality ===
 
 Functionality of existing SAL is provided via models and their respective APIs in following artifacts: 
 
@@ -25,7 +27,7 @@ Functionality of existing SAL is provided via models and their respective APIs i
 *'''model-flow-service '''- maven artefact containing flow service model 
 *'''model-flow-statistics''' - maven artefact containing flow statistics model
 
-=== model-inventory  ===
+==== model-inventory ====
 
 Inventory model defines base concepts as: 
 
@@ -34,22 +36,88 @@ Inventory model defines base concepts as:
 *'''NodeConnector''' - Represents node connector (e.g. interface or port) and its attributes. 
 *'''NodeConnectorRef''' - reference to the node connector. Designed to be used to reference node connector, without exposing internal structures. Semanticly similar to the NodeConnector class in HARD SAL.
 
-=== model-flow-base  ===
+==== model-flow-base ====
 
 Defines base concepts related to the flow-capable devices such as: 
 
 *'''Flow '''- Base flow definition 
 *'''Match''' - Aggragate Match structure containing fields for base match types separated by layer information 
-*'''EthernetMatch''' - Layer2 match, similar to NW_SRC and NW_DST match fields 
-*'''VlanMatch''' 
-*'''Layer3Match''' - Layer 3 match, could be Ipv4Match, Ipv6Match or ArpMatch 
-*'''Layer4Match''' - Layer 4 match, could be TcpMatch, UdpMatch or SctpMatch 
+** '''EthernetMatch''' - Layer2 match, similar to NW_SRC and NW_DST match fields 
+**'''VlanMatch''' 
+**'''Layer3Match''' - Layer 3 match, could be Ipv4Match, Ipv6Match or ArpMatch 
+**'''Layer4Match''' - Layer 4 match, could be TcpMatch, UdpMatch or SctpMatch 
 *'''Action''' and subactions 
 *'''Group'''
 
-=== model-flow-service  ===
+==== model-flow-service  ====
 
 Defines service interfaces, events and listener interfaces which are to be consumed by applications using MD-SAL and flow-capable nodes. 
 
 *'''SalFlowService '''- interface used to set up the flow, update flow or delete flow on node 
 *'''SalFlowListener '''- listener interface which could be implemented by application to receive events on flow changes
+
+Additional models are contributed on daily basis
+
+=== Different approach to services ===
+
+Current HARD SAL services usually provides 2 versions of same method one is '''asynchronous''', second is '''synchronous'''
+Service model APIs provides only asynchronous APIs, but returns a java.concurrent.Future which allows caller to block, until
+call is processed and result object is available.
+
+With this approach we do not preclude synchronous approach to applications, but we promote asynchronous approach. Also this allows
+for same API definition for both approaches.
+
+=== Initialization of application ===
+
+In principle initialization of applications is same as for existing SAL, client 
+applications have to subclass '''AbstractBindingAwareConsumer''' Activator which takes care of base initialization.
+Applications are required to implement ''onSessionInitialized'' method which is used by activation procedure to pass
+'''ConsumerContext'''. You also need to specify your implementation as a bundle activator in bundle manifest.
+
+
+
+      @Override
+      public void onSessionInitialized(ConsumerContext session) {
+          this.session = session;          
+      }
+
+==== ConsumerContext ====
+
+ConsumerContext is interface for interactions between applications and MD-SAL. Most used functionality of '''ConsumerContext'''
+is to request SAL Services such as '''NotificationService''' and MD-SAL implementations of model services such as '''SALFlowService'''
+or similar.
+
+===== Notification Example =====
+
+'''NotificationService''' provides functionality to register listeners for any notification type provided by any plugin registered to MD-SAL. 
+
+      @Override
+      public void onSessionInitialized(ConsumerContext session) {
+          this.session = session;
+          NotificationService notificationService = session.getSALService(NotificationService.class);
+          notificationService.addNotificationListener(FlowAdded.class, new NotificationListener<FlowAdded>() {
+              @Override
+              public void onNotification(FlowAdded notification) {
+                  log.info("FlowAdded: {} ",notification.getCookie());
+              }
+          });
+      }
+
+===== SalFlowService Example =====
+
+     public void addFlows() throws Exception {
+          SalFlowService flowProgrammer = session.getRpcService(SalFlowService.class); // gets a MD-SAL implementation of SALFlowService 
+          AddFlowInput flow = generateFlow(); // generates flow
+          Future<RpcResult<Void>> resultFuture = flowProgrammer.addFlow(flow); // we invokes addFlow operation
+          RpcResult<Void> result = resultFuture.get(); // We block until the processing of addFlow is done and result is provided
+          log.info("Result status: {}", result.isSuccessful() );
+     }
+
+==== Simple example with application, custom model and provider
+
+We provided a toaster sample - model of programmable toaster, sample application using MD-SAL APIs and sample southbound plugin
+implementing toaster as part of the controller.
+
+The toaster sample could be found in controller.git under folder:
+
+     opendaylight/sal/yang-prototype/sal/samples
