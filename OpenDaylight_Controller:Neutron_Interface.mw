@@ -26,3 +26,20 @@ A single java package: org.opendaylight.controller.networkconfig.neutron.northbo
 
 === JAXB provider ===
 The Neutron interface bundles use MOXy as the JAXB implementation/provider.  For more details on how, see [[ODMC: Using MOXy as the JAXB provider]]
+
+== INeutron*Aware interfaces ==
+Other bundles can register services by implemented the INeutron*Aware interface (replace * with each of the base Neutron object types: Network, Subnet, Port, Router, and FloatingIP).  Each interface definition contains six methods signatures (note: the router interface contains two additional method signatures for add and remove interface operations).  The signatures break down into the following table:
+{| class="wikitable"
+|-
+! API Operation !! Can Method !! Do Method
+|-
+| Create|| canCreate* || neutron*Created
+|-
+| Update || canUpdate* || neutron*Updated
+|-
+| Delete || canDelete* || neutron*Deleted
+|}
+
+The northbound class for a particular Neutron object first calls the "Can" method for that operation on each registered service and expects and integer value to be returned.  This return value is interpreted as an HTTP service code.  If a service can honor the request, it returns a value from 200-299.  If the service returns some other value, that value is returned to the client and the operation is not completed.  This allows services to return specific status codes beyond those documented in the Neutron API.
+
+Once all registered services confirm that an proposed operation is supported, the NB class completes the operation via the appropriate CRUD interface and then calls the "Do" method for that operation for each registered service so that service can take appropriate action for the just completed operation.
