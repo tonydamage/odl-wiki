@@ -1,3 +1,4 @@
+
 = Conceptual Changes  =
 
 The Model-Driven SAL (MD-SAL) is model-agnostic. it can support any device and/or service models and is not limited to flow-capable device and service models only, as it is the case with the existing API-Driven SAL (AD-SAL). 
@@ -16,9 +17,11 @@ Each generated method returns a ''java.concurrent.Future'' object containing an 
 
 Listener interfaces are provides by the MD-SAL. They are used by applications that wish to receive Notifications (events) or RPC callbacks defined in YANG models and provided by implementations. 
 
-= Migrating from HARD SAL =
 
-== Models replicating the AD-SAL Functionality ==
+
+= Migrating Plugins and Applications from the AD-SAL =
+
+== Models that Replicate the AD-SAL Functionality ==
 
 The functionality of the existing AD-SAL is provided via models and their respective generated APIs in the following artifacts: 
 
@@ -41,9 +44,9 @@ The inventory model defines base concepts, such as:
 Defines base concepts related to the flow-capable devices such as: 
 
 *'''Flow '''- Base flow definition 
-*'''Match''' - Aggragate Match structure containing fields for base match types separated by layer information 
+*'''Match''' - Aggragate Match structure containing fields for base match types, separated by layer information 
 ** '''EthernetMatch''' - Layer2 match, similar to NW_SRC and NW_DST match fields 
-**'''VlanMatch''' 
+**'''VlanMatch''' - 
 **'''Layer3Match''' - Layer 3 match, could be Ipv4Match, Ipv6Match or ArpMatch 
 **'''Layer4Match''' - Layer 4 match, could be TcpMatch, UdpMatch or SctpMatch 
 *'''Action''' and subactions 
@@ -53,43 +56,35 @@ Defines base concepts related to the flow-capable devices such as:
 
 Defines service interfaces, events and listener interfaces which are to be consumed by applications using MD-SAL and flow-capable nodes. 
 
-*'''SalFlowService '''- interface used to set up the flow, update flow or delete flow on node 
-*'''SalFlowListener '''- listener interface which could be implemented by application to receive events on flow changes
+*'''SalFlowService '''- interface used to set up a flow, update a flow, or delete a flow on a node 
+*'''SalFlowListener '''- listener interface which can be implemented by applications to receive flow change events
 
 Additional models are contributed on daily basis
 
-== Different approach to services ==
 
-Current HARD SAL services usually provides 2 versions of same method one is '''asynchronous''', second is '''synchronous'''
-Service model APIs provides only asynchronous APIs, but returns a java.concurrent.Future which allows caller to block, until
-call is processed and result object is available.
+== MD-SAL Approach to Services ==
 
-With this approach we do not preclude synchronous approach to applications, but we promote asynchronous approach. Also this allows
-for same API definition for both approaches.
-
-== Initialization of application ==
-
-In principle initialization of applications is same as for existing SAL, client 
-applications have to subclass '''AbstractBindingAwareConsumer''' Activator which takes care of base initialization.
-Applications are required to implement ''onSessionInitialized'' method which is used by activation procedure to pass
-'''ConsumerContext'''. You also need to specify your implementation as a bundle activator in bundle manifest.
+The existing AD-SAL services usually provides both '''asynchronous''' and '''synchronous''' versions of the same API method. in the MD-SAL, Service model APIs only provide asynchronous APIs, but they return a 'java.concurrent.Future' object, which allows a caller to block until the call is processed and a result object is available. With this approach the MD-SAL does not preclude synchronous applications, but it promotes the asynchronous approach to application design. Moreover, the same API definition can be used for both approaches.
 
 
+== Application Initialization  ==
+
+In principle, the initialization of applications is the same as for the existing AD-SAL: client applications have to subclass the '''AbstractBindingAwareConsumer''' Activator, which takes care of the basic initialization. Applications are required to implement the ''onSessionInitialized'' method which is used by the activation procedure to pass the '''ConsumerContext'''. Application implementations also need to be specified as bundle activators in their respective bundle manifests.
 
       @Override
       public void onSessionInitialized(ConsumerContext session) {
           this.session = session;          
       }
 
+
 === ConsumerContext ===
 
-ConsumerContext is interface for interactions between applications and MD-SAL. Most used functionality of '''ConsumerContext'''
-is to request SAL Services such as '''NotificationService''' and MD-SAL implementations of model services such as '''SALFlowService'''
-or similar.
+'''ConsumerContext''' is an interface for interactions between applications and the MD-SAL. The most frequently used functionality of the '''ConsumerContext''' API is to request SAL Services, such as the '''NotificationService''' or MD-SAL implementations of modeled services, such as '''SALFlowService'''.
 
-==== Notification Example ====
 
-'''NotificationService''' provides functionality to register listeners for any notification type provided by any plugin registered to MD-SAL. 
+=== Notification Example ===
+
+'The ''NotificationService''' API provides functionality to register listeners for any notification type provided by any plugin registered with the MD-SAL. 
 
       @Override
       public void onSessionInitialized(ConsumerContext session) {
@@ -103,7 +98,8 @@ or similar.
           });
       }
 
-==== SalFlowService Example ====
+
+=== SalFlowService Example ===
 
      public void addFlows() throws Exception {
           SalFlowService flowProgrammer = session.getRpcService(SalFlowService.class); // gets a MD-SAL implementation of SALFlowService 
@@ -113,11 +109,10 @@ or similar.
           log.info("Result status: {}", result.isSuccessful() );
      }
 
-==== Simple example with application, custom model and provider ====
 
-We provided a toaster sample - model of programmable toaster, sample application using MD-SAL APIs and sample southbound plugin
-implementing toaster as part of the controller.
 
-The toaster sample could be found in controller.git under folder:
+= A Simple Complete Example =
 
-     opendaylight/sal/yang-prototype/sal/samples
+We provided a simple complete example of a model, a service provider (toaster) and a service consumer in the toaster sample. It provides the model of a programmable toaster, a sample consumer application that uses MD-SAL APIs, a sample southbound plugin (a service provider) that implements toaster, and a unit test suite.
+
+The toaster example is in '''controller.git''' under  '''opendaylight/sal/yang-prototype/sal/samples'''.
