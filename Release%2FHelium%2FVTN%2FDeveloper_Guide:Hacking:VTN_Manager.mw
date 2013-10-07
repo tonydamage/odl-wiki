@@ -69,7 +69,7 @@ I believe that [[Media:NEC_VTN_Demo_0722.pdf|the slides]] helps you understand w
 Please refer to the information of [[OpenDaylight_Controller:Installation#Using_Mininet|Controller's Installation Guide]].
 
 === Multiple Clusters of Controllers ===
-To run multiple clusters of OpenDaylight Controllers under VTN Coordinator, you can use the following script for Mininet.
+To run multiple clusters of OpenDaylight Controllers under VTN Coordinator, you can use the following script (multitree.py) for Mininet.
 
 The script run six OpenFlow switches.
 Three of them will connect a OpenDaylight Controller, and the other three switches will connect the other controller.
@@ -78,5 +78,116 @@ Three of them will connect a OpenDaylight Controller, and the other three switch
 # Edit "ControllerAddress" in the script for your environment.
 # Execute the script.
  % sudo python multitree.py
+
+'''multitree.py'''
+<source lang="python">
+#!/usr/bin/python
+
+"""
+Run Mininet network using tree topology per remote controller.
+"""
+
+from mininet.cli import CLI
+from mininet.log import info, setLogLevel
+from mininet.net import Mininet
+from mininet.node import Host, OVSKernelSwitch, RemoteController
+from mininet.topo import Topo
+
+TreeDepth = 2
+FanOut = 2
+ControllerAddress = ["192.168.0.180", "192.168.0.181"]
+
+class MultiTreeTopo(Topo):
+    """Topology for multiple tree network using remote controllers.
+    A tree network is assigned to a remote controller."""
+
+    def __init__(self):
+        Topo.__init__(self)
+
+        self.hostSize = 1
+        self.switchSize = 1
+        self.treeSwitches = []
+
+        prev = None
+        for cidx in range(len(ControllerAddress)):
+            switches = []
+            self.treeSwitches.append(switches)
+            root = self.addTree(switches, TreeDepth, FanOut)
+            if prev:
+                self.addLink(prev, root)
+            prev = root
+
+    def addTree(self, switches, depth, fanout):
+        """Add a tree node."""
+        if depth > 0:
+            node = self.addSwitch('s%u' % self.switchSize)
+            self.switchSize += 1
+            switches.append(node)
+            for i in range(fanout):
+                child = self.addTree(switches, depth - 1, fanout)
+                self.addLink(node, child)
+        else:
+            node = self.addHost('h%u' % self.hostSize)
+            self.hostSize += 1
+
+        return node
+
+    def start(self, net):
+        """Start all controllers and switches in the network."""
+
+        cidx = 0
+        for c in net.controllers:
+            info("*** Starting controller: %s\n" % c)
+            info("    + Starting switches ... ")
+            switches = self.treeSwitches[cidx]
+            for sname in switches:
+                s = net.getNodeByName(sname)
+                info(" %s" % s)
+                s.start([c])
+            cidx += 1
+            info("\n")
+
+        self.treeSwitches = None
+
+class MultiTreeNet(Mininet):
+    """Mininet network environment with multiple tree network using remote
+    controllers."""
+
+    def __init__(self, **args):
+        args['topo'] = MultiTreeTopo()
+        args['switch'] = OVSKernelSwitch
+        args['controller'] = RemoteController
+        args['build'] = False
+        Mininet.__init__(self, **args)
+
+        idx = 1
+        for addr in ControllerAddress:
+            name = 'c%d' % idx
+            info('*** Creating remote controller: %s (%s)\n' % (name, addr))
+            self.addController(name, ip=addr, port=6633)
+            idx = idx + 1
+
+    def start(self):
+        "Start controller and switches."
+        if not self.built:
+            self.build()
+
+        self.topo.start(self)
+
+if __name__ == '__main__':
+    setLogLevel('info')  # for CLI output
+    net = MultiTreeNet()
+    net.build()
+
+    print "*** Starting network"
+    net.start()
+
+    print "*** Running CLI"
+    CLI(net)
+
+    print "*** Stopping network"
+    net.stop()
+
+</source>
 
 [[Category:OpenDaylight Virtual Tenant Network]]
