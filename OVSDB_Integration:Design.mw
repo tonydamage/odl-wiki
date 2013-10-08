@@ -11,18 +11,15 @@ A simple and concise overview of OVSDB can be found at http://networkstatic.net/
 
 This document covers the architecture and design of OVSDB plugin in the OpenDaylight project.<br />
 
-=== # Bird's eye view on OpenDaylight Controller Architecture ===
-<br />
-OpenDaylight controller platform is designed as a highly modular and plugin based middleware that<br />
-serves various network applications on variety of use-cases. The modularity is achieved through <br />
-Java OSGi framework. The controller is made up of many Java OSGi bundles that work together to<br />
-provide the needed controller functionalities. The bundles are categorized into roughly :<br />
+=== Bird's eye view on OpenDaylight Controller Architecture ===
+OpenDaylight controller platform is designed as a highly modular and plugin based middleware that serves various network applications on variety of use-cases. The modularity is achieved through Java OSGi framework. The controller is made up of many Java OSGi bundles that work together to provide the needed controller functionalities.<br/>
+The bundles are categorized into roughly :<br />
 # Network Service Functional Modules (such as Topology Manager, Inventory Manager, Forwarding Rules Manager,...)
 # NorthBound API Modules (such as Topology APIs, Bridge Domain APIs, Neutron APIs, Connection Manager APIs, ...)
 # Service Abstraction Layer(SAL)- (Inventory Services, DataPath Services, Topology Services, Network Config,...)
 # SouthBound Plugins (OpenFlow Plugin, OVSDB Plugin, OpenDove Plugin,...)
 # Application Modules (Simple Forwarding, Load Balancer)
-
+<br/>
 <pre>
               +--------------+--------------+-----------+
               |  Connection  |Network Config|  Neutron  |
@@ -61,40 +58,27 @@ provide the needed controller functionalities. The bundles are categorized into 
               +-----------------------------------------+
 </pre>
 
-Each layer of the Controller architecture perform specified tasks and hence aids in 
-modularity. While Northbound API layer addresses all the REST-Based Application needs,
-SAL layer takes care of abstracting the SouthBound plugin Protocol Specifics from the
-Network Service Functions.
+Each layer of the Controller architecture perform specified tasks and hence aids in modularity. <br />
+While Northbound API layer addresses all the REST-Based Application needs, SAL layer takes care of abstracting the SouthBound plugin Protocol Specifics from the Network Service Functions.<br />
+<br />
+Each of the SouthBound Plugins would serve different purposes (some may overlap).<br />
+For example, OpenFlow plugin might serve the Data-Plane needs of a OVS element while the OVSDB plugin can serve the management plane needs of the same OVS element.<br />
+As the Openflow Plugin talk OpenFlow protocol with the OVS element, the OVSDB plugin will use OVSDB schema over JSON-RPC transport.<br />
+<br />
+The rest of the document will cover the OVSDB SouthBound plugin design and architecture.<br />
 
-Each of the SouthBound Plugins would serve different purposes (some may overlap).
-For example, OpenFlow plugin might serve the Data-Plane needs of a OVS element
-while the OVSDB plugin can serve the management plane needs of the same OVS element.
-As the Openflow Plugin talk OpenFlow protocol with the OVS element, the OVSDB plugin
-will use OVSDB schema over JSON-RPC transport.
+# === OVSDB Southbound plugin===
 
-The rest of the document will cover the OVSDB SouthBound plugin design and architecture.
+Before diving into the OVSDB SouthBound Plugin design, how can we not give a commentary on the OVSDB Protocol. 
 
-# OVSDB Southbound plugin
-
-Before diving into the OVSDB SouthBound Plugin design, how can we not give a commentary 
-on the OVSDB Protocol. 
-
-The [OVSDB draft] (http://tools.ietf.org/html/draft-pfaff-ovsdb-proto-02) and the [Schema]
-definitions (http://openvswitch.org/ovs-vswitchd.conf.db.5.pdf) gives all the theoritical
-info one would expect to know with regards to OVSDB. Stating the obvious, the [OVSDB Draft]
-is sufficiently generic that lays the ground work on Wire Protocol and Database Operations,
-and the [Schema] actually covers (currently) 13 OVS tables - With an eye for 
-future schema expansion for OVS and by other vendors on their properitery implementations.
-True to its name, it is a Database records Transport protocol using JSON RPC1.0.
-The authors of these 2 documents have done proper justice to this subject. 
-But, you are up for a roller-coaster ride when you try it hands on. 
-Take a peek @ a "transact" message and you would know what I mean :-)
-It is nothing like your traditional Protocols that networking engineers are used to. 
-Again, http://networkstatic.net/getting-started-ovsdb/ gives a more practical look at the 
-protocol structure.
-
-The OpenDaylight's OVSDB Southbound plugin is made up of one or more OSGi bundles addressing
-these services / functionalities :
+The [OVSDB draft] (http://tools.ietf.org/html/draft-pfaff-ovsdb-proto-02) and the [Schema] definitions (http://openvswitch.org/ovs-vswitchd.conf.db.5.pdf) gives all the theoritical info one would expect to know with regards to OVSDB. <br />
+Stating the obvious, the [OVSDB Draft] is sufficiently generic that lays the ground work on Wire Protocol and Database Operations,
+and the [Schema] actually covers (currently) 13 OVS tables - With an eye for future schema expansion for OVS and by other vendors on their properitery implementations.<br />
+True to its name, it is a Database records Transport protocol using JSON RPC1.0. The authors of these 2 documents have done proper justice to this subject. <br />
+But, you are up for a roller-coaster ride when you try it hands on. Take a peek @ a "transact" message and you would know what I mean :-) <br />
+It is nothing like your traditional Protocols that networking engineers are used to. Again, http://networkstatic.net/getting-started-ovsdb/ gives a more practical look at the protocol structure.<br />
+<br />
+The OpenDaylight's OVSDB Southbound plugin is made up of one or more OSGi bundles addressing these services / functionalities :<br />
 
 * Connection Service - Based on Netty
 * Network Configuration Service
