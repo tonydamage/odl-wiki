@@ -1,4 +1,3 @@
-
 ==OpenDaylight OVSDB SouthBound Plugin Architecture and Design==
 
 OpenVSwitch (OVS) has got the collective nod from the industry as the unofficial standard for Virtual Switching in the Open hypervisor based solutions.<br/> 
@@ -11,7 +10,7 @@ A simple and concise overview of OVSDB can be found at http://networkstatic.net/
 
 This document covers the architecture and design of OVSDB plugin in the OpenDaylight project.<br />
 
-== Bird's eye view on OpenDaylight Controller Architecture ==
+==Bird's eye view on OpenDaylight Controller Architecture==
 OpenDaylight controller platform is designed as a highly modular and plugin based middleware that serves various network applications on variety of use-cases. The modularity is achieved through Java OSGi framework. The controller is made up of many Java OSGi bundles that work together to provide the needed controller functionalities.<br/>
 The bundles are categorized into roughly :<br />
 # Network Service Functional Modules (such as Topology Manager, Inventory Manager, Forwarding Rules Manager,...)
@@ -67,7 +66,7 @@ As the Openflow Plugin talk OpenFlow protocol with the OVS element, the OVSDB pl
 <br />
 The rest of the document will cover the OVSDB SouthBound plugin design and architecture.<br />
 
-== OVSDB Southbound plugin ==
+==OVSDB Southbound plugin==
 
 Before diving into the OVSDB SouthBound Plugin design, how can we not give a commentary on the OVSDB Protocol. 
 
@@ -88,17 +87,17 @@ The OpenDaylight's OVSDB Southbound plugin is made up of one or more OSGi bundle
 * OVSDB to OpenFlow plugin mapping service
 * Inventory Service
 
-:# Connection Service
+===Connection Service===
 
 One of the primary services that most of the southbound plugins provide to Opendaylight's SAL
 and NSF is Connection Service. It provides the protocol specific connectivity to network element
 and supports the connectivity management services as specified by OpenDaylight Connection Manager.
 This includes :
-
-1. Connect to a specified element given IP-address, L4-port and other connectivity options (such as authentication,...)
-2. Disconnect from an element
-3. Handle Cluster Mode change notifications to support in OpenDaylight's Clustering/High-Availability feature
-
+<br/>
+# Connect to a specified element given IP-address, L4-port and other connectivity options (such as authentication,...)
+# Disconnect from an element
+# Handle Cluster Mode change notifications to support in OpenDaylight's Clustering/High-Availability feature
+<br/>
 By default, the ovsdb-server process running on the hypervisor listens on TCP port 6632 (ofcourse this is configurable).
 The Connection Service takes in the connectivity parameters from the connection manager including the IP-address and TCP-Port
 to connect with. Due to the many benefits it provides, Connection Service will use Netty framework (http://netty.io/) for
@@ -122,8 +121,8 @@ much needed abstraction on the pipelining. With this Channel Pipelining and the 
 process gets much more streamlined and well understood. Also, makes it easier to replace or manipulate the pipeline functions in
 a more controlled fashion. More on this in later sections.
 
-2.2 Network Configuration Service
-    -----------------------------
+===Network Configuration Service===
+
 The goal of OpenDaylight's Network Configuration umbrella of Services is to provide complete Management Plane solutions needed
 in order to successfully install, configure and deploy various SDN based Network Services. These are generic services which 
 can be implemented in part or full by any South-Bound Protocol Plugin. The South-Bound plugins can be those new network 
@@ -134,20 +133,21 @@ https://wiki.opendaylight.org/view/OpenDaylight_Controller:NetworkConfigurationS
 
 The current default OVSDB Schema's support the Layer2 Bridge Domain services as defined in the Networkconfig.bridgedomain component.
 
-1. Create Bridge Domain : createBridgeDomain(Node node, String bridgeIdentifier, Map<ConfigConstants, Object> params)
-2. Delete Bridge Domain : deleteBridgeDomain(Node node, String bridgeIdentifier)
-3. Add configurations to a Bridge Domain : addBridgeDomainConfig(Node node, String bridgeIdentifier, Map<ConfigConstants, Object> params)
-4. Delete Bridge Domain Configuration : removeBridgeDomainConfig(Node node, String bridgeIdentifier, Map<ConfigConstants, Object> params)
-5. Associate a port to a Bridge Domain : addPort(Node node, String bridgeIdentifier, String portIdentifier, Map<ConfigConstants, Object> params);
-6. Disassociate a port from a Bridge Domain : deletePort(Node node, String bridgeIdentifier, String portIdentifier)
-7. Add configurations to a Node Connector / Port : addPortConfig(Node node, String bridgeIdentifier, String portIdentifier, Map<ConfigConstants, Object> params)
-8. Remove configurations from a Node Connector : removePortConfig(Node node, String bridgeIdentifier, String portIdentifier, Map<ConfigConstants, Object> params) 
+# Create Bridge Domain : createBridgeDomain(Node node, String bridgeIdentifier, Map<ConfigConstants, Object> params)
+# Delete Bridge Domain : deleteBridgeDomain(Node node, String bridgeIdentifier)
+# Add configurations to a Bridge Domain : addBridgeDomainConfig(Node node, String bridgeIdentifier, Map<ConfigConstants, Object> params)
+# Delete Bridge Domain Configuration : removeBridgeDomainConfig(Node node, String bridgeIdentifier, Map<ConfigConstants, Object> params)
+# Associate a port to a Bridge Domain : addPort(Node node, String bridgeIdentifier, String portIdentifier, Map<ConfigConstants, Object> params);
+# Disassociate a port from a Bridge Domain : deletePort(Node node, String bridgeIdentifier, String portIdentifier)
+# Add configurations to a Node Connector / Port : addPortConfig(Node node, String bridgeIdentifier, String portIdentifier, Map<ConfigConstants, Object> params)
+# Remove configurations from a Node Connector : removePortConfig(Node node, String bridgeIdentifier, String portIdentifier, Map<ConfigConstants, Object> params) 
 
 The above services are defined as generalized entities in SAL in order to ensure it fits with all relevant SouthBound Plugins equally.
 Hence the OVSDB plugin must derive appropriate specific configurations from a generalized request.
 For example : addPort() or addPortConfig() SAL service call above takes in a params option which is a Map structure with a Constant Key.
 These ConfigConstants are defined in SAL networkconfiguration service :
 
+<syntaxhighlight lang="java">
 public enum ConfigConstants {
     TYPE("type"),
     VLAN("Vlan"),
@@ -160,15 +160,18 @@ public enum ConfigConstants {
     MGMT("Management"),
     CUSTOM("Custom Configurations");
 }
-
+</syntaxhighlight>
 These are mapped to the appropriate OVSDB configurations. 
 So, if the request is to create a VXLAN tunnel with src-ip=x.x.x.x, dst-ip=y.y.y.y, then the params Map structure may contain :
+
+<syntaxhighlight lang="java">
 {
 TYPE = "tunnel",
 TUNNEL_TYPE = "vxlan",
 SOURCE_IP="x.x.x.x",
 DEST_IP="y.y.y.y"
 }
+</syntaxhighlight>
 
 The above params definition is just an example and this will be expanding based on various supported northbound APIs and the
 Network Service Functions supported in the OpenDaylight Controller platform.
@@ -176,8 +179,7 @@ Network Service Functions supported in the OpenDaylight Controller platform.
 Please note that all of the APIs take in the Node parameter which is the Node value returned by the connect() method explained in
 Connection Service in Section 2.1.
 
-2.3 Bidirectional JSON-RPC Library
-    ------------------------------
+===Bidirectional JSON-RPC Library===
 After various attempts with existing & available json-rpc libraries, the OpenDaylight OVSDB project decided to design and implement
 a Bidirectional JSON-RPC library (mainly due to the various limitations in the existing open-source alternatives). 
 Due to the nature of the library, it is very easy to design it as a module that manages the Netty connection towards the Element.
@@ -192,8 +194,7 @@ etc... and provide a simple and cleaner objects for others in the pipeline to wo
 At the time of this writing, we have a better understanding on the demarshalling piece of the puzzle. 
 Our understanding on the marshalling is still evolving and this section will be updated based on the research.
 
-2.4 OVSDB Schema definitions and Object mappers
-    -------------------------------------------
+===OVSDB Schema definitions and Object mappers===
 OVSDB Schema definitions and Object Mapping layer sits right above the JSON-RPC library which will map between the generic JSON objects
 to OVSDB schema POJOs (Plain Old Java Object) and vice-versa. There is a value in providing this abstraction rather than having the POJO 
 object mapping done on the JSON-RPC library. This helps in evolving independently. 
@@ -203,8 +204,7 @@ Configuration Service and Tunnel management.
 It is worth to note here that the JSON semantics of these OVSDB schema is quite complex and IMHO unneccesarily convoluted
 (though we appreciate the intention of keeping it as generic as possible).
 
-2.5 Overlay Tunnel Management
-    -------------------------
+===Overlay Tunnel Management===
 Network Virtualization using OVS is achieved through Overlay Tunnels. The actual Type of the Tunnel (GRE, VXLAN, STT) is of a different
 topic. The differences between these Tunnel Types are mostly on the Encapsulation and differences in the configuration. But can be 
 treated uniformly for the sake of this document.
@@ -215,8 +215,7 @@ Overlays with the help of underlay orchestration.
 
 This is an evolving topic and more information will be added once the use-cases are nailed down.
 
-2.6 OVSDB to OpenFlow plugin mapping service
-    ----------------------------------------
+===OVSDB to OpenFlow plugin mapping service===
 As explored in Section 2.1, the ConnectionService's connect() would result in a Node that represents a ovsdb-server.
 The CreateBridgeDomain() Configuration on the above Node (as defined in Section 2.2) would result in creating a OVS bridge.
 This OVS Bridge is an OpenFlow Agent for OpenDaylight's OpenFlow plugin with its own Node represented as (example) OF|xxxx.yyyy.zzzz.
@@ -228,14 +227,12 @@ Without such mapping, it wouuld be extremely difficult or very artificial for th
 This Mapping Service provided by OVSDB plugin would essentially help in providing much more value added services to the orchestration
 layers that sit on top of the Northbound APIs (such as OpenStack).
 
-2.7 Inventory Service
-    -----------------
+===Inventory Service===
 Inventory Service provides a simple database of all the Nodes managed and maintained by the OVSDB plugin on a given Controller.
 For optimization purposes, it can also provide enhanced services to the OVSDB to OpenFlow mapping service by maintaining the
 {OVSDB_NODE + BRIDGE_IDENTFIER} <---> {OF_NODE} mapping because of the static nature of this operation.
 
 
-3.0 What next ?
-    -----------
+==What next==
 Again, stating the obvious, this is just a start and will act as a platform for a rich open-source based Network Virtualization 
 services using OVS and other OpenDaylight projects.
