@@ -114,9 +114,9 @@ public class FooImpl implements Foo {
                 <configuration>
                     <instructions>
                         <Bundle-Name>${project.groupId}.${project.artifactId}</Bundle-Name>
-                        <Private-Package>
-                            org.opendaylight.controller.config.demo.*
-                        </Private-Package>
+                        <Export-Package>
+                            org.opendaylight.controller.config.demo,
+                        </Export-Package>
                     </instructions>
                 </configuration>
             </plugin>
@@ -189,49 +189,50 @@ module config-demo-impl {
         description
             "Initial revision";
     }
-                                                                        ----- module foo-impl ----- /
-    // Module implementing foo service                                                              /
-    identity foo-impl {                                                                             /
-        base config:module-type;                                                                    /
-        config:provided-service demo:foo;                                                           /
-        config:java-name-prefix FooImpl;                                                            /
-    }                                                                                               /
-                                                                                                    /
-    // Configuration for foo-impl module                                                            /
-    augment "/config:modules/config:module/config:configuration" {                                  /
-        case foo-impl {                                                                             /
-            when "/config:modules/config:module/config:type = 'foo-impl'";                          /
-                                                                                                    /
-            leaf str-attribute {                                                                    /
-                type string;                                                                        /
-            }                                                                                       /
-                                                                                                    /
-            leaf int-attribute {                                                                    /
-                type int32;                                                                         /
-            }                                                                                       /
-                                                                                                    /
-            // Dependency on bar service instance                                                   /
-            container testing-dep {                                                                 /
-                uses config:service-ref {                                                           /
-                    refine type {                                                                   /
-                        mandatory true;                                                             /
-                        config:required-identity demo:bar;                                          /
-                    }                                                                               /
-                }                                                                                   /
-            }                                                                                       /
-                                                                                                    /
-        }                                                                                           /
-    }                                                                                               /
-                                                                                                    /
-    // Runtime state definition for foo-impl module                                                 /
-    augment "/config:modules/config:module/config:state" {                                          /
-        case foo-impl {                                                                             /
-            when "/config:modules/config:module/config:type = 'foo-impl'";                          /
-                                                                                                    /
-                                                                                                    /
-        }                                                                                           /
-    }                                                                                               /
-                                                                                         ---------- /
+                                                                      //----- module foo-impl ----- //
+    // Module implementing foo service                                                              //
+    identity foo-impl {                                                                             //
+        base config:module-type;                                                                    //
+        config:provided-service demo:foo;                                                           //
+        config:java-name-prefix FooImpl;                                                            //
+    }                                                                                               //
+                                                                                                    //
+    // Configuration for foo-impl module                                                            //
+    augment "/config:modules/config:module/config:configuration" {                                  //
+        case foo-impl {                                                                             //
+            when "/config:modules/config:module/config:type = 'foo-impl'";                          //
+                                                                                                    //
+            leaf str-attribute {                                                                    //
+                type string;                                                                        //
+            }                                                                                       //
+                                                                                                    //
+            leaf int-attribute {                                                                    //
+                type int32;                                                                         //
+            }                                                                                       //
+                                                                                                    //
+                                                                                                    //
+            // Dependency on bar service instance                                                   //
+            container bar-dependency {                                                              //
+                uses config:service-ref {                                                           //
+                    refine type {                                                                   //
+                        mandatory true;                                                             //
+                        config:required-identity demo:bar;                                          //
+                    }                                                                               //
+                }                                                                                   //
+            }                                                                                       //
+                                                                                                    //
+        }                                                                                           //
+    }                                                                                               //
+                                                                                                    //
+    // Runtime state definition for foo-impl module                                                 //
+    augment "/config:modules/config:module/config:state" {                                          //
+        case foo-impl {                                                                             //
+            when "/config:modules/config:module/config:type = 'foo-impl'";                          //
+                                                                                                    //
+                                                                                                    //
+        }                                                                                           //
+    }                                                                                               //
+                                                                                      // ---------- //
     // Module implementing bar service
     identity bar-impl {
         base config:module-type;
@@ -313,11 +314,11 @@ Now we need to add yang-maven-plugin to our pom.xml. This plugin will process ya
     </dependencies>
 </plugin>
 </source>
-Important configuration for the plugin is: source folder with yang files, output folder for generated files and mapping between yang namespaces and java packages (Inspect dependencies must be set to true ). This plugin is backed by artifact yang-jmx-generator-plugin and its class org.opendaylight.controller.config.yangjmxgenerator.plugin.JMXGenerator is responsible for the code generation. This artifact is part of the configuration subsystem. </br>
+Important configuration for the plugin is: output folder for generated files and mapping between yang namespaces and java packages (Inspect dependencies must be set to true ). The default location for yang files is under src/main/yang folder. This plugin is backed by artifact yang-jmx-generator-plugin and its class org.opendaylight.controller.config.yangjmxgenerator.plugin.JMXGenerator is responsible for the code generation. This artifact is part of the configuration subsystem. <br/>
 
 In addition to yang-maven-plugin, it is neccessary to add build-helper-maven-plugin in order to add generated sources to the build process:
 
-<plugin>
+ <plugin>
     <groupId>org.codehaus.mojo</groupId>
     <artifactId>build-helper-maven-plugin</artifactId>
     <version>1.8</version>
@@ -330,12 +331,12 @@ In addition to yang-maven-plugin, it is neccessary to add build-helper-maven-plu
             </goals>
             <configuration>
                 <sources>
-                   &lt;source>"${project.build.directory}/generated-sources/config&lt;/source>;
+                   &lt;source>${project.build.directory}/generated-sources/config&lt;/source>;
                 </sources>
             </configuration>
         </execution>
     </executions>
-</plugin>
+ </plugin>
 
 Earlier, we imported config yang module in our yang files. In order to acquire this yang module, we need to add dependency to the pom file:
 <source lang='xml'>
@@ -348,4 +349,67 @@ Earlier, we imported config yang module in our yang files. In order to acquire t
 
 We are ready to run '''mvn clean install'''.
 === Modifying generated sources ===
+Now we can see a bunch of new source files divided into 2 groups. First group is located under ${project.build.directory}/generated-sources/config directory, which we specified in yang-maven-plugin's configuration. The second group is located under src/main/java directory. Both groups then define package org.opendaylight.controller.config.yang.config.demo.impl. The first group contains code that should not be edited in any way, since this code can be regenerated by the plugin if neccessary. The code that needs to be edited belongs to the second group and is located under src/main/java. <br/>
+Generated source files:
+* src/main/java/BarImplModule
+* src/main/java/BarImplModuleFactory
+* src/main/java/FooImplModule
+* src/main/java/FooImplModuleFactory
+==== BarImplModule ====
+We will start by modifying BarImplModule. You can see 2 constructors (not interesting at all) and 2 generated methods:
+<source lang='java'>
+    @Override
+    public void validate(){
+        super.validate();
+        // Add custom validation for module attributes here.
+    }
+
+    @Override
+    public java.lang.AutoCloseable createInstance() {
+        //TODO:implement
+        throw new java.lang.UnsupportedOperationException("Unimplemented stub method");
+    }
+</source>
+
+In '''validate''', you can specify and validation for config attributes e.g.:
+<source lang='java'>
+    @Override
+    public void validate(){
+        super.validate();  
+        Preconditions.checkNotNull(getDtoAttribute());
+        Preconditions.checkNotNull(getDtoAttribute().getBoolAttribute());
+        Preconditions.checkNotNull(getDtoAttribute().getIntAttribute());
+        Preconditions.checkNotNull(getDtoAttribute().getIntAttribute2());
+        Preconditions.checkState(getDtoAttribute().getIntAttribute() > 55);
+        Preconditions.checkState(getDtoAttribute().getIntAttribute() > getDtoAttribute().getIntAttribute2());
+    }
+</source>
+
+and in '''createInstance''' you need to create new instance of the bar service => Bar interface e.g.:
+<source lang='java'>
+        @Override
+    public java.lang.AutoCloseable createInstance() {
+        return new BarImpl(getDtoAttribute().getIntAttribute(), getDtoAttribute().getIntAttribute2(), getDtoAttribute()
+                .getBoolAttribute());
+    }
+</source>
+A few notes: 
+* createInstance returns AutoCloseable so the returned type needs to implement it (you can make BarImpl implement AutoCloseable or create a Wrapper class around BarImpl instance that implements AutoCloseable or even extend BarImpl class and make it implement it),
+* you can access all configuration attributes via getter methods, 
+* in config-demo-impl.yang, we defined bar-impl's configuration as a container dto-attribute and the code generator create a transfer object DtoAttribute that you can access via getDtoAttribute() method and retrieve configuration data from it. You can even add new constructor to BarImpl that takes this transfer object and reduce the amount of arguments.
+
+// TODO mention canReuse and reuse methods
+
+==== FooImplModule ====
+We will not add any custom validation in this module.
+// TODO mention super.validate
+The '''createInstance''' method will look like:
+<source lang='java'>
+    @Override
+    public java.lang.AutoCloseable createInstance() {
+        return new FooImpl(getStrAttribute(), getIntAttribute(), getBarDependencyDependency());
+    }
+</source>
+=== Verifying modules ===
+To verify the modules, we need to make config-demo part of the build process by adding it to the top level pom: 
 == Notes ==
