@@ -165,6 +165,187 @@ module config-demo {
 As you can see, the config yang module needs to be imported in order to define services. There are 2 services defined and these services correspond to Java interfaces Foo and Bar (specified by config:java-class extension).
 * config-demo-impl.yang
 <source>
+module config-demo-impl {
 
+    yang-version 1;
+    namespace "urn:opendaylight:params:xml:ns:yang:controller:config:demo:impl";
+    prefix "demo-impl";
+
+    // Dependency on service definition for config-demo
+    /* Service definitions could be also located in this yang file or even
+     * in a separate maven project that is marked as maven dependency
+     */
+    import config-demo { prefix demo; revision-date 2013-10-14;}
+
+    // Dependencies on config subsystem definition
+    import config { prefix config; revision-date 2013-04-05; }
+    import rpc-context { prefix rpcx; revision-date 2013-06-17; }
+
+
+    description
+        "Service implementation for config-demo";
+
+    revision "2013-10-14" {
+        description
+            "Initial revision";
+    }
+                                                                        ----- module foo-impl ----- /
+    // Module implementing foo service                                                              /
+    identity foo-impl {                                                                             /
+        base config:module-type;                                                                    /
+        config:provided-service demo:foo;                                                           /
+        config:java-name-prefix FooImpl;                                                            /
+    }                                                                                               /
+                                                                                                    /
+    // Configuration for foo-impl module                                                            /
+    augment "/config:modules/config:module/config:configuration" {                                  /
+        case foo-impl {                                                                             /
+            when "/config:modules/config:module/config:type = 'foo-impl'";                          /
+                                                                                                    /
+            leaf str-attribute {                                                                    /
+                type string;                                                                        /
+            }                                                                                       /
+                                                                                                    /
+            leaf int-attribute {                                                                    /
+                type int32;                                                                         /
+            }                                                                                       /
+                                                                                                    /
+            // Dependency on bar service instance                                                   /
+            container testing-dep {                                                                 /
+                uses config:service-ref {                                                           /
+                    refine type {                                                                   /
+                        mandatory true;                                                             /
+                        config:required-identity demo:bar;                                          /
+                    }                                                                               /
+                }                                                                                   /
+            }                                                                                       /
+                                                                                                    /
+        }                                                                                           /
+    }                                                                                               /
+                                                                                                    /
+    // Runtime state definition for foo-impl module                                                 /
+    augment "/config:modules/config:module/config:state" {                                          /
+        case foo-impl {                                                                             /
+            when "/config:modules/config:module/config:type = 'foo-impl'";                          /
+                                                                                                    /
+                                                                                                    /
+        }                                                                                           /
+    }                                                                                               /
+                                                                                         ---------- /
+    // Module implementing bar service
+    identity bar-impl {
+        base config:module-type;
+        config:provided-service demo:foo;
+        config:java-name-prefix BarImpl;
+    }
+
+    augment "/config:modules/config:module/config:configuration" {
+        case bar-impl {
+            when "/config:modules/config:module/config:type = 'bar-impl'";
+
+            container dto-attribute {
+                leaf int-attribute {
+                    type int32;
+                }
+
+                leaf int-attribute2 {
+                    type int32;
+                }
+
+                leaf bool-attribute {
+                    type boolean;
+                }
+            }
+
+        }
+    }
+
+    augment "/config:modules/config:module/config:state" {
+        case bar-impl {
+            when "/config:modules/config:module/config:type = 'bar-impl'";
+
+        }
+    }
+
+}
 </source>
+Again, config yang module as well as config-demo yang module need to be imported. There are 2 modules defined: foo-impl and bar-impl and their configuration (defined in augment "/config:modules/config:module/config:configuration" block) corresponds to the configuration of FooImpl and BarImpl Java classes. If we take a look at FooImpl.java's constructor, we can see that the configuration of foo-impl module defines similar 3 attributes. We will use these arguments to instantiate the FooImpl class. We placed these yang files under src/main/yang folder. </br>
+
+// TODO add runtime data
+
+=== Updating maven configuration in pom.xml ===
+Now we need to add yang-maven-plugin to our pom.xml. This plugin will process yang files and generate configuration code for the defined modules. Plugin's configuration:
+<source lang='xml'>
+<plugin>
+<plugin>
+    <groupId>org.opendaylight.yangtools</groupId>
+    <artifactId>yang-maven-plugin</artifactId>
+    <version>0.5.8</version>
+    <executions>
+        <execution>
+            <goals>
+                <goal>generate-sources</goal>
+            </goals>
+            <configuration>
+                <codeGenerators>
+                    <generator>
+                        <codeGeneratorClass>
+                            org.opendaylight.controller.config.yangjmxgenerator.plugin.JMXGenerator
+                        </codeGeneratorClass>
+                        <outputBaseDir>${project.build.directory}/generated-sources/config</outputBaseDir>
+                        <additionalConfiguration>
+                            <namespaceToPackage1>
+                                urn:opendaylight:params:xml:ns:yang:controller==org.opendaylight.controller.config.yang
+                            </namespaceToPackage1>
+                        </additionalConfiguration>
+                    </generator>
+                </codeGenerators>
+                <inspectDependencies>true</inspectDependencies>
+            </configuration>
+        </execution>
+    </executions>
+    <dependencies>
+        <dependency>
+            <groupId>org.opendaylight.controller</groupId>
+            <artifactId>yang-jmx-generator-plugin</artifactId>
+            <version>0.2.1-SNAPSHOT</version>
+        </dependency>
+    </dependencies>
+</plugin>
+</source>
+Important configuration for the plugin is: source folder with yang files, output folder for generated files and mapping between yang namespaces and java packages (Inspect dependencies must be set to true ). This plugin is backed by artifact yang-jmx-generator-plugin and its class org.opendaylight.controller.config.yangjmxgenerator.plugin.JMXGenerator is responsible for the code generation. This artifact is part of the configuration subsystem. </br>
+
+In addition to yang-maven-plugin, it is neccessary to add build-helper-maven-plugin in order to add generated sources to the build process:
+
+<plugin>
+    <groupId>org.codehaus.mojo</groupId>
+    <artifactId>build-helper-maven-plugin</artifactId>
+    <version>1.8</version>
+    <executions>
+        <execution>
+            <id>add-source</id>
+            <phase>generate-sources</phase>
+            <goals>
+                <goal>add-source</goal>
+            </goals>
+            <configuration>
+                <sources>
+                   &lt;source>"${project.build.directory}/generated-sources/config&lt;/source>;
+                </sources>
+            </configuration>
+        </execution>
+    </executions>
+</plugin>
+
+Earlier, we imported config yang module in our yang files. In order to acquire this yang module, we need to add dependency to the pom file:
+<source lang='xml'>
+<dependency>
+    <groupId>org.opendaylight.controller</groupId>
+    <artifactId>config-api</artifactId>
+    <version>0.2.1-SNAPSHOT</version>
+</dependency>
+</source>
+
+We are ready to run '''mvn clean install'''.
+=== Modifying generated sources ===
 == Notes ==
