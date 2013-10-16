@@ -6,11 +6,76 @@ Configuration subsystem.
 '''Service''' represents public API, which is used to access module instances (similar to interface in Java). Any module can implement or provide multiple services.<br />
 '''Configuration''' application state represented by modules definition, properties and relations among them.
 
+==Motivation==
+Common way for application configuration is usage of configuration files (i.e. xml or properties files). However they are easy to use fro small scale applications, they offer only limited possibilities in case of fast growing and multi-module applications. Static config files become vast, non-transparent and inconsistent. For highly dynamic and long living environments is proper configuration essential requirement. The OSGi framework, provides configuration service (Config Admin), allows runtime module configuration, but still lack of validation process - new module configuration can negatively affect other modules, also does not solve problems of change's atomicity.
+
+==Configuration and Transaction process==
+'''Configuration''' operation consists of three states. '''Proposed''' configuration is created and it's target is to replace old configuration. It needs to be validated firstly. If it passes successfully, it's state will be changed to '''validated'''. Now configuration can be '''committed''' and affected modules reconfigured.<br />
+In fact each configuration is wrapped into the '''transaction'''. Once the transaction is created, it can be '''configured''', user is either able to abort the transaction during this stage. After the transaction configuration is done, it is committed to '''validation''' stage. Here the validation is invoked. If validation fail, transaction can be reconfigured. On success, '''second phase commit''' is called. In the case that commit is successful, transaction is in last stage - '''committed'''. After that, desired modules are reconfigured. If second phase commit fails, it means that transaction is '''unhealthy''' - new instance creation failed. Thereafter, application can stay in inconsistent state.
+
+===Validation===
+To secure consistency, conflict avoidance and safety of new configuration, validation process is absolutely needed. Usually, validation check input parameters of new configuration and mainly verify module-specific relations. Validation procedure results in decision of proposed configuration healthy.
+
+===Dependency resolver===
+Since dependencies between modules can exist, change of one module configuration can affect others state. Therefore it is needed to verify whether dependent modules can be resolved. It acts likewise dependency injectors - dependency tree is build.
+
+==APIs and SPIs==
+In this section configuration system APIs and SPIs will be briefly described.
+
+===SPIs===
+'''Module'''
+org.opendaylight.controller.config.spi.Module is common interface for all modules - each module must implement it. Module is designated to hold configuration attributes, validate them and create instance of service based on the attributes. This instance must implement AutoCloseable interface, due to resources clean up. If module was created from already running instance, it contains and old instance of module. Module can implement multiple services. if module depends on other modules, setters need to be annotated with @RequireInterface.
+
+'''Module creation'''
+Firstly, module needs to be '''configured''' - set all required attributes. Thereafter module is moved to '''commit''' stage, where validation is performed. If fails - module can reconfigured, otherwise new instance is '''created''' or old instance is reconfigured.
+
+'''ModuleFactory'''
+org.opendaylight.controller.config.spi.ModuleFactory interface must be implemented by each module factory. Module factory can create new module instance in two ways - from existing module instance or pure new instance. Module factory implementation must have globally unique name.
+
+===APIs===
+'''ConfigRegistry'''<br />
+represents functionality provided by configuration transaction (create, destroy module, validate, abort transaction).
+
+'''ConfigTransactionController'''<br />
+represents functionality for manipulating with configuration transactions (begin, commit config ).
+
+'''RuntimeBeanRegistratorAwareConfiBean'''<br />
+module implementing this interface will recieve RuntimeBeanRegistrator before getInstance is invoked.
+
+===Runtime API===
+
+'''RuntimeBean'''<br />
+common interface for all runtime beans.
+
+'''RootRuntimeBeanRegistrator'''<br />
+represents functionality for root runtime bean registration, which subsequently allows hierarchical registrations.
+
+'''HierarchicalRuntimeBeanRegistration'''<br />
+represents functionality for runtime bean registration and unreregistration from hierarchy.
+
+===JMX API===
+JMX API is purposed as a transition between Client API and JMX platform.
+
+'''ConfigTransactionControllerMXBean'''<br /> 
+extends ConfigTransactionController, executed by Jolokia clients on configuration transaction.
+
+'''ConfigRegistryMXBean'''<br />
+represents entry point of configuration management for MXBeans.
+
+===Object names===
+Object Name is pattern used in JMX to locate JMX beans. It consists of domain and key properties (at least one key-value pair). Domain is defined as "org.opendaylight.controller". The only mandatory property is "type".
+
+==Use case scenarios==
+===Successful commit scenario===
+1.) User create transaction calling creteTransaction() method on ConfigRegistry.
+2.) ConfigRegisty create transaction controllerand register and register this as new bean.
+3.) Runtime configurationis copied to 
+
 == Example ==
-In this example, we will create a maven project that will provide 2 modules each implementing one service. We will design a sipmle configuration as well as runtime data for each module using yang. <br />
+In this example, we will create a maven project that will provide 2 modules each implementing one service. We will design a simple configuration as well as runtime data for each module using yang. <br />
 
 === Sample maven project ===
-For this demo, we created a sample maven project called config-demo. This project contains 2 Java interfaces: Foo and Bar with one default implementation per interface: FooImpl and BarImpl. Bar is the producer in our example and produces integers when method getNextEvent() is called. Foo is the consumer and its implementation depends on a Bar instance. Both implemetations require some configuration that is injected via constructors. <br/> 
+For this demo, we created a sample maven project called config-demo. This project contains 2 Java interfaces: Foo and Bar with one default implementation per interface: FooImpl and BarImpl. Bar is the producer in our example and produces integers when method getNextEvent() is called. Foo is the consumer and its implementation depends on a Bar instance. Both implementations require some configuration that is injected via constructors. <br/> 
 * Bar.java:
 <source lang="java">
 package org.opendaylight.controller.config.demo;
