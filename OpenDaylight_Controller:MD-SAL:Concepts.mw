@@ -1,6 +1,3 @@
-MD-SAL is set of model-driven infrastructure services which uses YANG as their modeling language. 
-
-
 == RPC ==
 
 In YANG, RPCs (Remote Procedure Calls) are used to model any procedure call implemented by a Provider (Server), which exposes functionality to Consumers (Clients).
@@ -9,23 +6,17 @@ In the MD-SAL terminology, the term 'RPC' is used to define the input and output
 
 In context of the MD-SAL, there are three types of RPCs (RPC services):
 
-* [[OpenDaylight Controller:MD-SAL:Service Types#Global Service|Global]] - one service instance (implementation) per controller container / mount point
-* [[OpenDaylight Controller:MD-SAL:Service Types#Routed Service|Routed]] - multiple service instances (implementations) per controller container / mount point
-* [[OpenDaylight Controller:MD-SAL:Service Types#Mounted Service|Mounted]] - multiple service instances, uniquely identified in the yang data tree.
+* [[OpenDaylight Controller:MD-SAL:Service Types#Global Service|Global]] - one instance (implementation) per container / mount point
+* [[OpenDaylight Controller:MD-SAL:Service Types#Routed Service|Routed]] - multiple instances (implementations) per container / mount point
+* [[OpenDaylight Controller:MD-SAL:Service Types#Mounted Service|Mounted]] - multiple instances, uniquelly identified in data tree.
 
 == Instance Identifier ==
 
-The Instance Identifier is a unique identifier of an element (location) in the yang data tree; basically it is the '''path''' to the node that uniquely identifies all the node's parent nodes. For unique identification of list elements it is required to specify key values as well.
+Instance Identifier is unique identifier of element (location) in data tree, basically it is '''path''' to the node (uniquelly idenfies all parent nodes). In case of list elements it is also require to specify key values for list items to uniquely identify item.
 
-MD-SAL currently provides three different APIs to access data in the common data store:
-
-* Binding APIs (Java generated DTOs)
-* DOM APIs
-* [[OpenDaylight_Controller:MD-SAL:Restconf|HTTP Restconf APIs]]
- 
 === Example ===
 
-Consider the following simple YANG model for inventory:
+Assume we have simple model YANG model for inventory:
 
 <pre>module inventory {
     namespace &quot;urn:opendaylight:inventory&quot;;
@@ -45,36 +36,33 @@ And having one instance of node with name ''foo'';
 Lets asume we want to create instance identifier for node foo, in following bindings/ formats:
 
 <ul>
-<li><p><b>YANG / XML / XPath version</b></p>
+<li><p>YANG / XML / XPath version</p>
 <pre>/inv:nodes/inv:node[id=&quot;foo&quot;]</pre></li>
-<li><p><b>Binding Independent version (yang-data-api)</b></p>
+<li><p>Binding Independent version (yang-data-api)</p>
 <pre>import org.opendaylight.yang.common.QName;
 import org.opendaylight.yang.data.api.InstanceIdentifier;
+import org.opendaylight.yang.data
 
-QName nodes = QName.create(&quot;urn:opendaylight:inventory&quot;,&quot;2013-06-07&quot;,&quot;nodes&quot;);
-QName node = QName.create(&quot;urn:opendaylight:inventory&quot;,&quot;2013-06-07&quot;,&quot;node&quot;);
-QName idName = QName.create(&quot;urn:opendaylight:inventory&quot;,&quot;2013-06-07&quot;,&quot;id&quot;);
+QName nodes = new QName(&quot;urn:opendaylight:inventory&quot;,&quot;2013-06-07&quot;,&quot;nodes&quot;);
+QName node = new QName(&quot;urn:opendaylight:inventory&quot;,&quot;2013-06-07&quot;,&quot;nodes&quot;);
+QName node = new QName(&quot;urn:opendaylight:inventory&quot;,&quot;2013-06-07&quot;,&quot;id&quot;);
+HashMap&lt;QName,Object&gt; nodeFields =  new HashMap&lt;&gt;();
+nodeField.put(idName,&quot;foo&quot;);
 InstanceIdentifier = InstanceIdentifier.builder()
     .node(nodes)
-    .nodeWithKey(node,idName,&quot;foo&quot;)
+    .node(node,nodeFields)
     .toInstance();</pre>
 <p>'''Note:''' Last call ''toInstance()'' does not return an instance of node, but Java version of Instance identifier which uniquely identifies node &quot;foo&quot;;</p></li>
 
-<li><p><b>Binding-Aware version (generated APIs)</b></p>
+<li><p>Binding-Aware version (generated APIs)</p>
 <pre>import org.opendaylight.yang.gen.urn.opendaylight.inventory.rev130607.Nodes;
 import org.opendaylight.yang.gen.urn.opendaylight.inventory.rev130607.nodes.Node;
 import org.opendaylight.yang.gen.urn.opendaylight.inventory.rev130607.nodes.NodeKey;
 
 import org.opendaylight.yangtools.yang.binding.InstanceIdentifier;
 
-InstanceIdentifier&lt;Node&gt; identifier = InstanceIdentifier.builder(Nodes.class).child(Node.class,new NodeKey(&quot;foo&quot;)).toInstance();
-</pre>
-<p>'''Note:''' Last call ''toInstance()'' does not return an instance of node, but Java version of Instance identifier of Instance identifier which uniquely identifies node &quot;foo&quot;;</p>
-</li>
-<li><p>'''HTTP Restconf APIs'''</p></li>
-<pre>
-http://localhost:8080/restconf/config/inventory:nodes/node/foo
-</pre>
-<p>'''Note:''' We assume that HTTP APIs are exposed on localhost, port 8080</p>
-</li>
-</ul>
+InstanceIdentifier&lt;Node&gt; identifier = InstanceIdentifier.builder()
+      .node(Nodes.class)
+      .node(Node.class,new NodeKey(&quot;foo&quot;))
+      .toInstance();</pre>
+<p>'''Note:''' Last call ''toInstance()'' does not return an instance of node, but Java version of Instance identifier of Instance identifier which uniquely identifies node &quot;foo&quot;;</p></li></ul>
