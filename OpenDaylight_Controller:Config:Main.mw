@@ -11,7 +11,12 @@ Common way for application configuration is usage of configuration files (i.e. x
 
 ==Configuration and Transaction process==
 '''Configuration''' operation consists of three states. '''Proposed''' configuration is created and it's target is to replace old configuration. It needs to be validated firstly. If it passes successfully, it's state will be changed to '''validated'''. Now configuration can be '''committed''' and affected modules reconfigured.<br />
-In fact each configuration is wrapped into the '''transaction'''. Once the transaction is created, it can be '''configured''', user is either able to abort the transaction during this stage. After the transaction configuration is done, it is committed to '''validation''' stage. Here the validation is invoked. If validation fail, transaction can be reconfigured. On success, '''second phase commit''' is called. In the case that commit is successful, transaction is in last stage - '''committed'''. After that, desired modules are reconfigured. If second phase commit fails, it means that transaction is '''unhealthy''' - new instance creation failed. Thereafter, application can stay in inconsistent state.
+In fact each configuration is wrapped into the '''transaction'''. Once the transaction is created, it can be '''configured''', user is either able to '''abort''' the transaction during this stage. After the transaction configuration is done, it is committed to '''validation''' stage. Here the validation is invoked. If validation fail, transaction can be reconfigured. On success, '''second phase commit''' is called. In the case that commit is successful, transaction is in last stage - '''committed'''. After that, desired modules are reconfigured. If second phase commit fails, it means that transaction is '''unhealthy''' - new instance creation failed. Thereafter, application can stay in inconsistent state.
+
+<gallery>
+File:Configuration.jpg|Configuration states
+File:Transaction.jpg|Transaction states
+</gallery>
 
 ===Validation===
 To secure consistency, conflict avoidance and safety of new configuration, validation process is absolutely needed. Usually, validation check input parameters of new configuration and mainly verify module-specific relations. Validation procedure results in decision of proposed configuration healthy.
@@ -66,18 +71,25 @@ represents entry point of configuration management for MXBeans.
 Object Name is pattern used in JMX to locate JMX beans. It consists of domain and key properties (at least one key-value pair). Domain is defined as "org.opendaylight.controller". The only mandatory property is "type".
 
 ==Use case scenarios==
+Few samples of successful and unsuccessful transactions scenarios.
 ===Successful commit scenario===
 # User create transaction calling creteTransaction() method on ConfigRegistry.
-# ConfigRegisty create transaction controllerand register and register this as new bean.
-# Runtime configurationis copied to the transaction. User can create modules and set their attributes.
-# Transaction is to be commited.
-# Validation process is to be performed.
+# ConfigRegisty create transaction controller and registers the transaction as new bean.
+# Runtime configurationis are copied to the transaction. User can create modules and set their attributes.
+# Configuration transaction is to be commited.
+# Validation process is performed.
 # After successful validation, second phase commit begins.
 # Modules proposed to be destroyed are destroyed - their service instances are closed.
 # Runtime beans are set to registrator
 # Transaction controller invoke method getInstance on each module
 # Transaction is committed and resources are closed or released.
 
+===Validation failure scenario===
+Transaction is same as previous case until validation process. 
+#If validation fails (i.e. illegal input attributes values or dependecy resolver failure), ValidationException is thrown and exposed to user.
+#User can decide to reconfigure transaction and commit again or abort current transaction.
+#On aborted transaction, TransactionController and JMXRegistrator are properly closed.
+#Unregistration event is send to ConfigRegistry.
 
 == Example ==
 In this example, we will create a maven project that will provide 2 modules each implementing one service. We will design a simple configuration as well as runtime data for each module using yang. <br />
