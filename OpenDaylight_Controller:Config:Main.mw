@@ -75,8 +75,8 @@ Few samples of successful and unsuccessful transactions scenarios.
 ===Successful commit scenario===
 # User create transaction calling creteTransaction() method on ConfigRegistry.
 # ConfigRegisty create transaction controller and registers the transaction as new bean.
-# Runtime configurationis are copied to the transaction. User can create modules and set their attributes.
-# Configuration transaction is to be commited.
+# Runtime configurations are copied to the transaction. User can create modules and set their attributes.
+# Configuration transaction is to be committed.
 # Validation process is performed.
 # After successful validation, second phase commit begins.
 # Modules proposed to be destroyed are destroyed - their service instances are closed.
@@ -86,10 +86,74 @@ Few samples of successful and unsuccessful transactions scenarios.
 
 ===Validation failure scenario===
 Transaction is same as previous case until validation process. 
-#If validation fails (i.e. illegal input attributes values or dependecy resolver failure), ValidationException is thrown and exposed to user.
-#User can decide to reconfigure transaction and commit again or abort current transaction.
-#On aborted transaction, TransactionController and JMXRegistrator are properly closed.
-#Unregistration event is send to ConfigRegistry.
+# If validation fails (i.e. illegal input attributes values or dependency resolver failure), ValidationException is thrown and exposed to user.
+# User can decide to reconfigure transaction and commit again or abort current transaction.
+# On aborted transaction, TransactionController and JMXRegistrator are properly closed.
+# Unregistration event is send to ConfigRegistry.
+
+==Yang to Java code generator==
+Above-mentioned modules and services can be generated from YANG models, using yang-tools and yang-jmx-generator.
+
+===Service interfaces generating===
+Service interfaces (SI) are generated from YANG "service-type". Each SI must be defined as "identity" with "base" statement  set to "config:service-type" or another SI. It is because service must have globally unique name.<br /> 
+Each SI must be annotated with @ServiceInterfaceAnnotation and must extend AbstractServiceInterface.
+
+*Example YANG module representing service interface
+<source>
+module config-test {
+    yang-version 1;
+    namespace "urn:opendaylight:params:xml:ns:yang:controller:test";
+    prefix "test";
+
+    import config { prefix config; revision-date 2013-04-05; }
+
+    description
+        "Testing API";
+
+    revision "2013-06-13" {
+        description
+            "Initial revision";
+    }
+
+    identity testing {
+        description
+            "Test api";
+
+        base "config:service-type";
+        config:java-class "java.lang.AutoCloseable";
+    }
+}
+</source>
+
+"description" node of identity is generated as javadoc in service interface.<br />
+"config:java-class" is generated as '''ServiceInterfaceAnnotation''', it specifies java claases/interfaces in "osgiRegistrationTypes" parameter. Module implementing this service interface must instantiate a java object, that can be cast to any of java types defined in "osgiRegistrationTypes".<br />
+
+*Generated java source file - AutoCloseableServiceInterface
+<source lang='java'>
+package %prefix%.test;
+
+/**
+* Test api
+*/
+@org.opendaylight.controller.config.api.annotations.Description(value = "Test api")
+@org.opendaylight.controller.config.api.annotations.ServiceInterfaceAnnotation(value = "testing", osgiRegistrationType = java.lang.AutoCloseable.class)
+public interface AutoCloseableServiceInterface extends org.opendaylight.controller.config.api.annotations.AbstractServiceInterface
+{
+
+}
+</source>
+
+
+===Module stubs generating===
+Modules are constructed during configuration transaction. Module implements ModuleMXBean interface, which represents getters and setters for attributes that will be exposed to configuration registry via JMX. Attributes can simple types and composite types too.<br />
+Each ModuleMXBean must be defined in yang as "identity" with base statement set to "config:module-type". But not only ModuleMXBeans are generated, but also ModuleFactory and Module stubs. Both are firstly generated as abstract classes with full functionality and then their implementation, which are allowed to be modified by user, are generated only once.
+
+===Runtime beans generating===
+Runtime JMX beans are purposed to be the auditors - capture data about the running module instances. Module can have zero or more runtime beans. Runtime beans are hierarchically ordered - root runtime bean has 1:1 mapping with the module instance. Each runtime bean must be uniquely identified. <br />
+All runtime beans must be defined in same structure as configuration beans. Root runtime bean can defined in "running-data" container - leaves represents attributes. Child runtime beans must be defined as container/list inside of "running-data", they can form hierarchy.
+
+===RPCs===
+Method calls in yang must be specified as top level element. The context, where an RPC operation exits must be defined in RPC definition itself and in runtime bean that provide method implementation.
 
 == Example ==
 In this example, we will create a maven project that will provide 2 modules each implementing one service. We will design a simple configuration as well as runtime data for each module using yang. <br />
@@ -435,14 +499,76 @@ Earlier, we imported config yang module in our yang files. In order to acquire t
 </source>
 
 We are ready to run '''mvn clean install'''.
-=== Modifying generated sources ===
+
+===Generated java files===
 Now we can see a bunch of new source files divided into 2 groups. First group is located under ${project.build.directory}/generated-sources/config directory, which we specified in yang-maven-plugin's configuration. The second group is located under src/main/java directory. Both groups then define package org.opendaylight.controller.config.yang.config.demo.impl. The first group contains code that should not be edited in any way, since this code can be regenerated by the plugin if neccessary. The code that needs to be edited belongs to the second group and is located under src/main/java. <br/>
+
+==== Generated config source files examples====
+* BarImplModuleMXBean.java
+<source lang='java'>
+public interface BarImplModuleMXBean
+{
+    public org.opendaylight.controller.config.yang.config.demo.impl.DtoAttribute getDtoAttribute();
+
+    public void setDtoAttribute(org.opendaylight.controller.config.yang.config.demo.impl.DtoAttribute dtoAttribute);
+
+}
+</source>
+BarImplModuleMXBean interface represents getter and setter for dtoAttribute that will be exported to configuration registry via JMX. Attribute was defined in yang model - in this case it is composite type which was converted to OpenType.
+*Attribute definition from config-demo-impl.yang
+<source lang='java'>
+    
+    // Module implementing bar service
+    identity bar-impl {
+        base config:module-type;
+        config:provided-service demo:foo;
+        config:java-name-prefix BarImpl;
+    }
+
+    augment "/config:modules/config:module/config:configuration" {
+        case bar-impl {
+            when "/config:modules/config:module/config:type = 'bar-impl'";
+
+            container dto-attribute {
+                leaf int-attribute {
+                    type int32;
+                }
+
+                leaf int-attribute2 {
+                    type int32;
+                }
+
+                leaf bool-attribute {
+                    type boolean;
+                }
+            }
+
+        }
+    }
+</source>
+From container dto-attribute, DtoAttribute java file was generated. Class contains plain constructor, getters and setters for attributes defined as container leaves.<br />
+Not only ModuleMXBean is generated from this module definition, but also BarImplModuleFactory and BarImplModule stubs are generated (in fact AbstractBarImplModuleFactory and AbstractBarImplModule are generated too).
+
+* AbstractBarImplModule.java
+This abstract class is almost fully generated, only method validate() has empty body and method createInstance() is abstract. Both methods must be implemented by user, we will show it later. AbstractBarImplModule implements it's ModuleMXBean, Module, RuntimeBeanRegistratorAwareModule and dependent service interface as defined in yang. Moreover class contains two types of constructors - one for module created from old module instance and the second for module creation from scratch.
+
+* AbstractBarImplModuleFactory.java
+Unlike AbstractModule, AbstractFactory is fully generated, but still abstract class. The factory is responsible for module instances creation, provides two type of instantiateModule methods for both module constructor types. It implements ModuleFactory interface.
+
+Next we will create runtime bean for FooImplModule. Runtime beans are designated to capture data about running module.
+* Add runtime bean definition to config-demo-impl.yang
+<source lang='java'>
+
+</source>
+
+==== Modifying generated sources ====
 Generated source files:
 * src/main/java/BarImplModule
 * src/main/java/BarImplModuleFactory
 * src/main/java/FooImplModule
 * src/main/java/FooImplModuleFactory
-==== BarImplModule ====
+
+'''BarImplModule'''<br />
 We will start by modifying BarImplModule. You can see 2 constructors (not interesting at all) and 2 generated methods:
 <source lang='java'>
     @Override
@@ -487,7 +613,7 @@ A few notes:
 
 // TODO mention canReuse and reuse methods
 
-==== FooImplModule ====
+'''FooImplModule'''<br />
 We will not add any custom validation in this module.
 // TODO mention super.validate
 The '''createInstance''' method will look like:
@@ -500,3 +626,5 @@ The '''createInstance''' method will look like:
 === Verifying modules ===
 To verify the modules, we need to make config-demo part of the build process by adding it to the top level pom: 
 == Notes ==
+
+== FAQ ==
