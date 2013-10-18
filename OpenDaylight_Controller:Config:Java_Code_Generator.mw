@@ -1,0 +1,61 @@
+=YANG to Java code generator=
+
+==Service interfaces generating==
+Service interfaces (SI) are generated from YANG "service-type". Each SI must be defined as "identity" with "base" statement  set to "config:service-type" or another SI. It is because service must have globally unique name.<br /> 
+Each SI must be annotated with @ServiceInterfaceAnnotation and must extend AbstractServiceInterface.
+
+*Example YANG module representing service interface
+<source>
+module config-test {
+    yang-version 1;
+    namespace "urn:opendaylight:params:xml:ns:yang:controller:test";
+    prefix "test";
+
+    import config { prefix config; revision-date 2013-04-05; }
+
+    description
+        "Testing API";
+
+    revision "2013-06-13" {
+        description
+            "Initial revision";
+    }
+
+    identity testing {
+        description
+            "Test api";
+
+        base "config:service-type";
+        config:java-class "java.lang.AutoCloseable";
+    }
+}
+</source>
+
+"description" node of identity is generated as javadoc in service interface.<br />
+"config:java-class" is generated as '''ServiceInterfaceAnnotation''', it specifies java classes/interfaces in "osgiRegistrationTypes" parameter. Module implementing this service interface must instantiate a java object, that can be cast to any of java types defined in "osgiRegistrationTypes".<br />
+
+*Generated java source file - AutoCloseableServiceInterface
+<source lang='java'>
+package %prefix%.test;
+
+/**
+* Test api
+*/
+@org.opendaylight.controller.config.api.annotations.Description(value = "Test api")
+@org.opendaylight.controller.config.api.annotations.ServiceInterfaceAnnotation(value = "testing", osgiRegistrationType = java.lang.AutoCloseable.class)
+public interface AutoCloseableServiceInterface extends org.opendaylight.controller.config.api.annotations.AbstractServiceInterface
+{
+
+}
+</source>
+
+==Module stubs generating==
+Modules are constructed during configuration transaction. Module implements ModuleMXBean interface, which represents getters and setters for attributes that will be exposed to configuration registry via JMX. Attributes can simple types and composite types too.<br />
+Each ModuleMXBean must be defined in yang as "identity" with base statement set to "config:module-type". But not only ModuleMXBeans are generated, but also ModuleFactory and Module stubs. Both are firstly generated as abstract classes with full functionality and then their implementation, which are allowed to be modified by user, are generated only once.
+
+==Runtime beans generating==
+Runtime JMX beans are purposed to be the auditors - capture data about the running module instances. Module can have zero or more runtime beans. Runtime beans are hierarchically ordered. Each runtime bean must be uniquely identified. <br />
+//TODO how runtime beans are defined?
+
+==RPCs==
+Method calls in yang must be specified as top level element. The context, where an RPC operation exits must be defined in RPC definition itself and in runtime bean that provide method implementation.
