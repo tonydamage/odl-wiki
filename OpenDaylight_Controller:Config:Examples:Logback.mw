@@ -13,6 +13,7 @@ Logback module is defined as identity with base "config:module-type", it does no
         config:java-name-prefix Logback;
     }
 </source>
+
 Next logback module attributes are defined in "/config:modules/config:module/config:configuration" augment as snippet bellow shows.
 <source>
     augment "/config:modules/config:module/config:configuration" {
@@ -40,9 +41,57 @@ Next logback module attributes are defined in "/config:modules/config:module/con
             ...
 </source>
 Now LogbackModule and LogbackModuleFactory can be generated - in fact there will be generated three java files related to this module. By the augment definition, TypeObjects are generated too (i.e. ConsoleAppenderTO). It is a regular java class with getters and setters for arguments defined as leaves.
-'''LogbackModuleMXBean''' is interface containing getters and setters for attributes defined in configuration augment.<br />
-'''AbstractLogbackModule''' is abstract java class, it implements Module, RuntimeBeanRegistratorAwareModule and LogbackModuleMXBean. It contains almost all functionality, expect of validate and createInstance methods.
-'''AbstractLogbackModuleFactory'''
+* '''LogbackModuleMXBean''' is interface containing getters and setters for attributes defined in configuration augment.<br />
+* '''AbstractLogbackModule''' is abstract java class, it implements Module, RuntimeBeanRegistratorAwareModule and LogbackModuleMXBean. It contains almost all functionality, expect of validate and createInstance methods.
+* '''AbstractLogbackModuleFactory''' is abstract java class responsible for creating modules instances. It implements ModuleFactory interface.
+* '''LogbackModule''' class extends AbstractLogbackModule. It is located on different place (source/main/java) and can is modified by user, so that abstract method is implemented and validate method is overridden.
+* '''LogbackModuleFactory''' class extends AbstractLogbackModuleFactory and override it's instantiateModule methods.
+
+Next, runtime bean is defined in "/config:modules/config:module/config:state" augment
+<source>
+    augment "/config:modules/config:module/config:state" {
+        case logback {
+            when "/config:modules/config:module/config:type = 'logback'";
+
+            rpcx:rpc-context-instance "logback-rpc";
+
+            list status {
+                config:java-name-prefix StatusTO;
+
+                leaf level {
+                    type string;
+                }
+
+                leaf message {
+                    type string;
+                }
+
+                leaf date {
+                    type uint32;
+                }
+            }
+        }
+    }
+</source>
+Generator plugin creates another bunch of java files.
+* '''LogbackRuntimeMXBean''' is interface extending RuntimeBean. It contains getter method for argument defined in augment.
+* '''LogbackRuntimeRegistrator''' class serves as registrator for runtime beans.
+* '''LogbackRuntimeRegistration''' class serves as registration ticket, instance is returned after registration.
+
+Logging config also defines logback-rpc with reset method. It is also defined in state augment, due to context.
+<source>
+    identity logback-rpc;
+    rpc reset {
+        input {
+            uses rpcx:rpc-context-ref {
+                refine context-instance {
+                    rpcx:rpc-context-instance logback-rpc;
+                }
+            }
+        }
+    }
+</source>
+Reset method is defined in LogbackRuntimeMXBean interface.
 
 = Sample maven project =
 In this example, we will create a maven project that will provide 2 modules each implementing one service. We will design a simple configuration as well as runtime data for each module using yang. <br />
