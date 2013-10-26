@@ -1,7 +1,10 @@
 = Base Edition =
-* Prerequisites
+==Prerequisites==
 ** Start mininet (i.e. mininet> sudo mn --controller=remote,ip=10.125.136.52 --topo tree,2)
+** Start Opendaylight Controller at 10.125.136.52 , and make sure mininet has all switches connected to the controller.
+** Run the test tool (TODO: Provide automatic test tool).
 
+==Test Content==
 * Switch Manager (Handles SB devices Information)
 ** list all nodes and their properties (i.e. GET http://10.125.136.52:8080/controller/nb/v2/switchmanager/default/nodes)
 ** add property "description" to a node (i.e. PUT http://10.125.136.52:8080/controller/nb/v2/switchmanager/default/node/OF/00:00:00:00:00:00:00:01/property/description/Switch1) and list again
@@ -16,7 +19,11 @@
 ** remove user Link (i.e. DELETE http://10.125.136.52:8080/controller/nb/v2/topology/default/userLink/link1), list again and get topology
 
 * Forwarding Rules Manager (Installs Flows on SB devices) 
-** add/show/remove Flow 
+** add flow1 (i.e. http://10.125.136.52:8080/controller/nb/v2/flowprogrammer/default/node/OF/00:00:00:00:00:00:00:02/staticFlow/flow1 with body text)
+** add flow2 (i.e. http://10.125.136.52:8080/controller/nb/v2/flowprogrammer/default/node/OF/00:00:00:00:00:00:00:02/staticFlow/flow2 with body text) 
+** add static arp for h2 on mininet (i.e. mininet> h1 arp -s h2 52:2a:e7:ca:3e:6c)
+** add static arp for h1 on mininet (i.e. mininet> h2 arp -s h1 8e:ad:13:44:4d:8c)
+** ping on mininet (i.e. mininet> h1 ping -c 3 h2), verify it works
 
 * Host Tracker (Tracks connected hosts) and Simple Forwarding (creates flows for connected hosts)
 ** add static host1 (i.e. PUT http://10.125.136.52:8080/controller/nb/v2/hosttracker/default/address/10.0.0.1 with body text)
@@ -39,24 +46,30 @@
 ** remove subnet gateway (i.e. DELETE http://10.125.136.52:8080/controller/nb/v2/subnetservice/default/subnet/test)
 ** list subnets (i.e. GET http://10.125.136.52:8080/controller/nb/v2/subnetservice/default/subnets)
 
-* Forwarding Manager (Installs Routes on SB devices)
-** add/show/remove Static Route
-
 * Statistics Manager (Collects Statistics information) 
-** show port stats 
-** show flow stats 
-** show table stats 
+** show port stats (i.e. GET http://10.125.136.52:8080/controller/nb/v2/statistics/default/port)
+** show flow stats (i.e. GET http://10.125.136.52:8080/controller/nb/v2/statistics/default/flow)
+** show table stats (i.e. GET http://10.125.136.52:8080/controller/nb/v2/statistics/default/table)
+
+* Forwarding Manager (Installs Routes on SB devices) 
+** show  static route (i.e. GET http://10.125.136.52:8080/controller/nb/v2/staticroute/default/routes)
+** add  static route (i.e. PUT http://10.125.136.52:8080/controller/nb/v2/staticroute/default/route/test + route body) + show  static route 
+** remove static route (i.e. DELETE http://10.125.136.52:8080/controller/nb/v2/staticroute/default/route/test)  + show  static route 
 
 * Container Manager (Manages Network Slicing) 
-** add container + show container 
-** add Node Connector + show Node Connector
-** add Flow Specs + show Flow Specs
-** remove Flow Specs + show Flow Specs
-** remove node connector
-** remove container + show container 
+** show containers (i.e. GET http://10.125.136.52:8080/controller/nb/v2/containermanager/containers)
+** add container (i.e. PUT http://10.125.136.52:8080/controller/nb/v2/containermanager/container/test) + show container
+** remove container (i.e. PUT http://10.125.136.52:8080/controller/nb/v2/containermanager/container/test) + show container
+** show Node Connectors (i.e. PUT http://10.125.136.52:8080/controller/nb/v2/containermanager/container/default/nodeconnectors)
+** add Node Connector (i.e. PUT http://10.125.136.52:8080/controller/nb/v2/containermanager/container/default/nodeconnector/test) + show node connector
+** remove node connector (i.e. DELETE http://10.125.136.52:8080/controller/nb/v2/containermanager/container/default/nodeconnector/test) + show node connector
+** show Flow Specs (i.e. PUT http://10.125.136.52:8080/controller/nb/v2/containermanager/container/default/flowspecs)
+** add Flow Specs (i.e. PUT http://10.125.136.52:8080/controller/nb/v2/containermanager/container/default/flowspec/test) + show flow specs
+** remove Flow Specs (i.e. DELETE http://10.125.136.52:8080/controller/nb/v2/containermanager/container/default/flowspec/test) + show flow specs
 
 * Clustering Manager (Manages shared cache across controller instances) 
 
-* OpenFlow Plugin 
+* OpenFlow Plugin
+** Test OF commands: create/delete flow, get statistics, etc.
 
 * Netconf Plugin
