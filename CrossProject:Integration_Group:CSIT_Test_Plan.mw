@@ -1,0 +1,74 @@
+= Base Edition =
+==Prerequisites==
+** Start mininet (i.e. mininet> sudo mn --controller=remote,ip=10.125.136.52 --topo tree,2)
+** Start Opendaylight Controller at 10.125.136.52 , and make sure mininet has all switches connected to the controller.
+** Run the test tool (TODO: Provide automatic test tool).
+
+==Test Content==
+* Switch Manager (Handles SB devices Information)
+** list all nodes and their properties (i.e. GET http://10.125.136.52:8080/controller/nb/v2/switchmanager/default/nodes)
+** add property "description" to a node (i.e. PUT http://10.125.136.52:8080/controller/nb/v2/switchmanager/default/node/OF/00:00:00:00:00:00:00:01/property/description/Switch1) and list again
+** list all connectors and properties for a node (i.e. GET http://10.125.136.52:8080/controller/nb/v2/switchmanager/default/node/OF/00:00:00:00:00:00:00:01)
+** add property "bandwidth" to a node connector (i.e. PUT http://10.125.136.52:8080/controller/nb/v2/switchmanager/default/nodeconnector/OF/00:00:00:00:00:00:00:01/OF/2/property/bandwidth/1000) and list again
+** save configuration (i.e. POST http://10.125.136.52:8080/controller/nb/v2/switchmanager/default/save)
+
+* Topology Manager (Builds network topology) 
+** show Topology (i.e. GET http://10.125.136.52:8080/controller/nb/v2/topology/default)
+** list user links (i.e. GET http://10.125.136.52:8080/controller/nb/v2/topology/default/userLinks)
+** add user Link (i.e. PUT http://10.125.136.52:8080/controller/nb/v2/topology/default/userLink/link1 with body text), list again and get topology
+** remove user Link (i.e. DELETE http://10.125.136.52:8080/controller/nb/v2/topology/default/userLink/link1), list again and get topology
+
+* Forwarding Rules Manager (Installs Flows on SB devices) 
+** add/show/remove Flow 
+
+* Host Tracker (Tracks connected hosts) and Simple Forwarding (creates flows for connected hosts)
+** add static host1 (i.e. PUT http://10.125.136.52:8080/controller/nb/v2/hosttracker/default/address/10.0.0.1 with body text)
+** add static host4 (i.e. PUT http://10.125.136.52:8080/controller/nb/v2/hosttracker/default/address/10.0.0.4 with body text)
+** list hosts (i.e. GET http://10.125.136.52:8080/controller/nb/v2/hosttracker/default/hosts/active)
+** add static arp for h4 on mininet (i.e. mininet> h1 arp -s h4 5e:bf:79:84:10:a6)
+** add static arp for h1 on mininet (i.e. mininet> h4 arp -s h1 8e:ad:13:44:4d:8c)
+** ping on mininet (i.e. mininet> h1 ping -c 3 h4), verify it works
+** remove static arp for h4 on mininet (i.e. mininet> h1 arp -d h4)
+** remove static arp for h1 on mininet (i.e. mininet> h4 arp -d h1)
+** remove static host1 (i.e. DELETE http://10.125.136.52:8080/controller/nb/v2/hosttracker/default/address/10.0.0.1)
+** remove static host4 (i.e. DELETE http://10.125.136.52:8080/controller/nb/v2/hosttracker/default/address/10.0.0.4)
+** list hosts (i.e. GET http://10.125.136.52:8080/controller/nb/v2/hosttracker/default/hosts/active)
+
+* ARP Handler (Handles ARP messages)
+** add subnet gateway (i.e. PUT http://10.125.136.52:8080/controller/nb/v2/subnetservice/default/subnet/test with body text) and list again
+** list subnets (i.e. GET http://10.125.136.52:8080/controller/nb/v2/subnetservice/default/subnets)
+** ping on mininet (i.e. mininet> h1 ping -c 3 h4), verify it works
+** show hosts (i.e. GET http://10.125.136.52:8080/controller/nb/v2/hosttracker/default/hosts/active)
+** remove subnet gateway (i.e. DELETE http://10.125.136.52:8080/controller/nb/v2/subnetservice/default/subnet/test)
+** list subnets (i.e. GET http://10.125.136.52:8080/controller/nb/v2/subnetservice/default/subnets)
+
+* Statistics Manager (Collects Statistics information) 
+** show port stats (i.e. GET http://10.125.136.52:8080/controller/nb/v2/statistics/default/port)
+** show flow stats (i.e. GET http://10.125.136.52:8080/controller/nb/v2/statistics/default/flow)
+** show table stats (i.e. GET http://10.125.136.52:8080/controller/nb/v2/statistics/default/table)
+
+* Forwarding Rules Manager (Installs Flows on SB devices) 
+** add/show/remove Flow 
+
+* Forwarding Manager (Installs Routes on SB devices) 
+** show  static route (i.e. GET http://10.125.136.52:8080/controller/nb/v2/staticroute/default/routes)
+** add  static route (i.e. PUT http://10.125.136.52:8080/controller/nb/v2/staticroute/default/route/test + route body) + show  static route 
+** remove static route (i.e. DELETE http://10.125.136.52:8080/controller/nb/v2/staticroute/default/route/test)  + show  static route 
+
+* Container Manager (Manages Network Slicing) 
+** show containers (i.e. GET http://10.125.136.52:8080/controller/nb/v2/containermanager/containers)
+** add container (i.e. PUT http://10.125.136.52:8080/controller/nb/v2/containermanager/container/test) + show container
+** remove container (i.e. PUT http://10.125.136.52:8080/controller/nb/v2/containermanager/container/test) + show container
+** show Node Connectors (i.e. PUT http://10.125.136.52:8080/controller/nb/v2/containermanager/container/default/nodeconnectors)
+** add Node Connector (i.e. PUT http://10.125.136.52:8080/controller/nb/v2/containermanager/container/default/nodeconnector/test) + show Node Connector
+** remove node connector (i.e. DELETE http://10.125.136.52:8080/controller/nb/v2/containermanager/container/default/nodeconnector/test) + show Node Connector
+** show Flow Specs (i.e. PUT http://10.125.136.52:8080/controller/nb/v2/containermanager/container/default/flowspecs)
+** add Flow Specs (i.e. PUT http://10.125.136.52:8080/controller/nb/v2/containermanager/container/default/flowspec/test) + show Flow Specs
+** remove Flow Specs (i.e. DELETE http://10.125.136.52:8080/controller/nb/v2/containermanager/container/default/flowspec/test) + show Flow Specs
+
+* Clustering Manager (Manages shared cache across controller instances) 
+
+* OpenFlow Plugin
+** Test OF commands: create/delete flow, get statistics, etc.
+
+* Netconf Plugin
