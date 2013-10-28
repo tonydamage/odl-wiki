@@ -33,10 +33,18 @@ Next step is to push changes to gerrit using:
 
 Now gerrit will assign this push as next patch-set to the last push (with the same change-id).
 
-== Another scenario ==
+== Another scenario 1 ==
 It might happen, that there are already some more local commits made on the branch. In case these commits are intended as next independent push it is easier to checkout the pushed state:
  git fetch https://git.opendaylight.org/gerrit/controller refs/changes/.../2 && git checkout -b topicAgain FETCH_HEAD
-And here make the fix and replay the easy scenario.
+And here make the fix and replay the easy scenario. Optionally delete the branch <tt>git branch -d topicAgain</tt>.
+
+== Another scenario 2 ==
+It might happen, that there are already some more local commits made on the branch. Some of them is intended to fix the push and some of them are independent. What can be done here is to isolate the fixes into new branch and squash them together with the original commit:
+ git checkout -b topicFixOnly
+ # the number after HEAD~ is the amount of local commits we want take back and start the rebase. 
+ # In rebase controll message the alien commit lines should be deleted and fix commit lines should be squashed to the original commit (the one we are fixing) using prefix "s"
+ git rebase -i HEAD~4
+And here all should be ready for push - perhaps the presence of change-id might be checked using <tt>git log -n 2</tt>. If missing, use <tt>git commit --amend</tt>. Finally replay the easy scenario.
 
 = Best practices =
 To avoid complications, please consider these:
