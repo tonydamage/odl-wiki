@@ -126,15 +126,13 @@ Response should looks like:
 We are sure Jolokia is working.
 
 * To configure Logback, first, we need to create configuration transaction. ConfigResgistryModule offers operation beginConfig(), to invoke it:
-<source>
-curl -X POST -H "Content-Type: application/json" -d 
-'{"type":"exec","mbean":"org.opendaylight.controller:type=ConfigRegistry","arguments":[],"operation":"beginConfig"}'
-http://localhost:8080/controller/nb/v2/jolokia --user admin:admin
+<source enclose="div">
+curl -X POST -H "Content-Type: application/json" -d '{"type":"exec","mbean":"org.opendaylight.controller:type=ConfigRegistry","arguments":[],"operation":"beginConfig"}' http://localhost:8080/controller/nb/v2/jolokia --user admin:admin
 </source>
 Configuration transaction was created, received response:
 <source>
 {
-    "timestamp": 1382429350,
+    "timestamp": 1383034210,
     "status": 200,
     "request": {
         "operation": "beginConfig",
@@ -142,25 +140,23 @@ Configuration transaction was created, received response:
         "type": "exec"
     },
     "value": {
-        "objectName": "org.opendaylight.controller:TransactionName=ConfigTransaction-0-1,type=ConfigTransaction"
+        "objectName": "org.opendaylight.controller:TransactionName=ConfigTransaction-1-2,type=ConfigTransaction"
     }
 }
 </source>
 
-* Next we need to create module bean to be configured. In created ConfigTransaction call createModule method, module identifier is '''logback''' and name must be '''singleton''' as we want to have only one instance of Logback configuration.
-<source>
-curl -X POST -H "Content-Type: application/json" 
--d '{"type":"exec","mbean":"org.opendaylight.controller:TransactionName=ConfigTransaction-0-1,type=ConfigTransaction","arguments":["logback","singleton"],"operation":"createModule"}' 
-http://localhost:8080/controller/nb/v2/jolokia --user admin:admin
+* At this stage transaction can be aborted, but we want to create module bean to be configured. In created ConfigTransaction call createModule method, module identifier is '''logback''' and name must be '''singleton''' as we want to have only one instance of Logback configuration.
+<source enclose="div">
+curl -X POST -H "Content-Type: application/json" -d '{"type":"exec","mbean":"org.opendaylight.controller:TransactionName=ConfigTransaction-1-2,type=ConfigTransaction","arguments":["logback","singleton"],"operation":"createModule"}' http://localhost:8080/controller/nb/v2/jolokia --user admin:admin
 </source>
 LogbackModule bean was created, see returned response:
 <source>
 {
-    "timestamp": 1382430092,
+    "timestamp": 1383034580,
     "status": 200,
     "request": {
         "operation": "createModule",
-        "mbean": "org.opendaylight.controller:TransactionName=ConfigTransaction-0-1,type=ConfigTransaction",
+        "mbean": "org.opendaylight.controller:TransactionName=ConfigTransaction-1-2,type=ConfigTransaction",
         "arguments": [
             "logback",
             "singleton"
@@ -168,37 +164,31 @@ LogbackModule bean was created, see returned response:
         "type": "exec"
     },
     "value": {
-        "objectName": "org.opendaylight.controller:TransactionName=ConfigTransaction-0-1,instanceName=singleton,moduleFactoryName=logback,type=Module"
+        "objectName": "org.opendaylight.controller:TransactionName=ConfigTransaction-1-2,instanceName=singleton,moduleFactoryName=logback,type=Module"
     }
 }
 </source>
 
 *Configuration bean attributes are set to values obtained from loggers configuration, with which the server was started. To see attributes, request:
-<source>
-curl -X POST -H "Content-Type: application/json" -d '{"type":"read", 
-"mbean":"org.opendaylight.controller:instanceName=singleton,TransactionName=ConfigTransaction-0-1,type=Module,moduleFactoryName=logback"}' 
-http://localhost:8080/controller/nb/v2/jolokia --user admin:admin
+<source enclose="div">
+curl -X POST -H "Content-Type: application/json" -d '{"type":"read", "mbean":"org.opendaylight.controller:instanceName=singleton,TransactionName=ConfigTransaction-1-2,type=Module,moduleFactoryName=logback"}' http://localhost:8080/controller/nb/v2/jolokia --user admin:admin
 </source>
 In response body, value contains all attributes (CompositeData) and it's nested attributes values.
 
 *Now we can commit proposed configuration
-<source>
-curl -X POST -H "Content-Type: application/json" 
--d '{"type":"exec","mbean":"org.opendaylight.controller:type=ConfigRegistry","arguments":
-["org.opendaylight.controller:instanceName=singleton,TransactionName=ConfigTransaction-
-0-1,type=Module,moduleFactoryName=logback"],"operation":"commitConfig"}' 
-http://localhost:8080/controller/nb/v2/jolokia --user admin:admin
+<source enclose="div">
+curl -X POST -H "Content-Type: application/json" -d '{"type":"exec","mbean":"org.opendaylight.controller:type=ConfigRegistry","arguments":["org.opendaylight.controller:instanceName=singleton,TransactionName=ConfigTransaction-1-2,type=Module,moduleFactoryName=logback"],"operation":"commitConfig"}' http://localhost:8080/controller/nb/v2/jolokia --user admin:admin
 </source>
 Configuration was successfully validated and committed and module instance created.
 <source>
 {
-    "timestamp": 1382442419,
+    "timestamp": 1383034793,
     "status": 200,
     "request": {
         "operation": "commitConfig",
         "mbean": "org.opendaylight.controller:type=ConfigRegistry",
         "arguments": [
-            "org.opendaylight.controller:instanceName=singleton,TransactionName=ConfigTransaction-0-1,type=Module,moduleFactoryName=logback"
+            "org.opendaylight.controller:instanceName=singleton,TransactionName=ConfigTransaction-1-2,type=Module,moduleFactoryName=logback"
         ],
         "type": "exec"
     },
@@ -215,30 +205,42 @@ Configuration was successfully validated and committed and module instance creat
 </source>
 
 * Runtime bean was registered and can provide status information of configuration and rpc operation '''reset'''. To see status, try it by requesting:
-<source>
-curl -X POST -H "Content-Type: application/json" -d '{"type":"read","mbean":"org.opendaylight.controller:instanceName=singleton,type=RuntimeBean,moduleFactoryName=logback"}' 
-http://localhost:8080/controller/nb/v2/jolokia --user admin:admin
+<source enclose="div">
+curl -X POST -H "Content-Type: application/json" -d '{"type":"read","mbean":"org.opendaylight.controller:instanceName=singleton,type=RuntimeBean,moduleFactoryName=logback"}' http://localhost:8080/controller/nb/v2/jolokia --user admin:admin
 </source>
-Whole logback status is in response body.
+Whole logback status is in the response body.
 
 *To invoke rpc method '''reset''':
-<source>
-curl -X POST -H "Content-Type: application/json" -d '{"type":"exec", 
-"mbean":"org.opendaylight.controller:instanceName=singleton,type=RuntimeBean,moduleFactoryName=logback", 
-"operation":"reset","arguments":[]}' 
-http://localhost:8080/controller/nb/v2/jolokia --user admin:admin
+<source enclose="div">
+curl -X POST -H "Content-Type: application/json" -d '{"type":"exec",
+"mbean":"org.opendaylight.controller:instanceName=singleton,type=RuntimeBean,moduleFactoryName=logback",
+"operation":"reset","arguments":[]}' http://localhost:8080/controller/nb/v2/jolokia --user admin:admin
 </source>
+Get answer:
+<source>
+{
+    "timestamp": 1383035001,
+    "status": 200,
+    "request": {
+        "operation": "reset",
+        "mbean": "org.opendaylight.controller:instanceName=singleton,moduleFactoryName=logback,type=RuntimeBean",
+        "type": "exec"
+    },
+    "value": null
+}
+</source>
+
 Now if look at the runtime bean status attribute, it will be empty:
 <source>
 {
-    "timestamp": 1382443911,
+    "timestamp": 1383035126,
     "status": 200,
     "request": {
         "mbean": "org.opendaylight.controller:instanceName=singleton,moduleFactoryName=logback,type=RuntimeBean",
         "type": "read"
     },
     "value": {
-        "Status": []
+        "StatusTO": []
     }
 }
 </source>
