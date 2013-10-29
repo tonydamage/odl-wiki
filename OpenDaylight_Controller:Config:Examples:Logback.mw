@@ -95,7 +95,7 @@ rpc reset {
 </source>
 Reset method is defined in LogbackRuntimeMXBean interface.
 
-== Logback configuration ==
+== Logback configuration - Jolokia ==
 Now try to create configuration on running OSGi server. We will use '''Jolokia''' (http://www.jolokia.org/) as a JMX-HTTP bridge, which listen at http://localhost:8080/controller/nb/v2/jolokia and '''culr''' to request over HTTP.
 
 * Start up controller. Find more here: https://wiki.opendaylight.org/view/OpenDaylight_Controller:Pulling,_Hacking,_and_Pushing_the_Code_from_the_CLI
@@ -244,6 +244,133 @@ Now if look at the runtime bean status attribute, it will be empty:
     }
 }
 </source>
+
+== Logback configuration - Netconf ==
+In this case, we will use NETCONF RPCs to configure logback. Netconf server is listening at port 8383. To communicate over TCP, telnet will be used.
+More about NETCONF - http://tools.ietf.org/html/rfc6241 and it's implementation is a part of the Controller - netconf-subsystem. Netconf's RPCs are pure XMLs and operations are mapped to JMX's operations. 
+
+* Again need to start server, same as above.
+
+* Open terminal and connect to server:
+<source>
+telnet localhost 8383
+</source>
+
+* Hello message from server was received, it contains server's capabilities and session-id. To establish connection client need to send hello message, to do so type:
+<syntaxhighlight lang="xml">
+<hello xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+    <capabilities>
+        <capability>urn:ietf:params:netconf:base:1.0</capability>
+    </capabilities>
+</hello>
+]]>]]>
+</syntaxhighlight>
+
+*Now, connection is created, client and server can communicate together. To see running modules and services, send RPC to server:
+<syntaxhighlight lang="xml">
+<rpc id="a" a="64" xmlnx="a:b:c:d" xmlns="urn:ietf:params:xml:ns:netconf:base:1.0" message-id="101">
+    <get-config>
+        <source>
+            <running/>
+        </source>
+    </get-config>
+</rpc>
+]]>]]>
+</syntaxhighlight>
+
+* To configure logback, first need to create configuration transaction and create configuration module. It can be done in one step (in client point of view):
+<syntaxhighlight lang="xml">
+<rpc message-id="a" a="64" xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+    <edit-config>
+        <target>
+            <candidate/>
+        </target>
+        <default-operation>merge</default-operation>
+        <config>
+            <modules xmlns="urn:opendaylight:params:xml:ns:yang:controller:config">
+                <module>
+                    <name>singleton</name>
+                    <type xmlns:logging="urn:opendaylight:params:xml:ns:yang:controller:logback:config">
+                        logging:logback
+                    </type>
+                </module>
+            </modules>
+        </config>
+    </edit-config>
+</rpc>
+]]>]]>
+</syntaxhighlight>
+If everihing alright, client receive positive response:
+<syntaxhighlight lang="xml">
+<rpc-reply xmlns="urn:ietf:params:xml:ns:netconf:base:1.0" message-id="101">
+<ok/>
+</rpc-reply>
+]]>]]>
+</syntaxhighlight>
+
+* Logback configuration bean attributes contains values loaded from now running Logback configuration. Request server with RPC:
+<syntaxhighlight lang="xml">
+<rpc id="a" a="64" xmlnx="a:b:c:d" xmlns="urn:ietf:params:xml:ns:netconf:base:1.0" message-id="101">
+    <get-config>
+        <source>
+            <candidate/>
+        </source>
+    </get-config>
+</rpc>
+]]>]]>
+</syntaxhighlight>
+
+* Reply includes whole configuration as the server was started with. Assume that, we want to change RollingFileAppender named opendaylight.log attributes - maxFileSize, filename, and maxHistory (TimeBasedRollingPolicy's attribute). Propose configuration:
+<syntaxhighlight lang="xml">
+<rpc message-id="a" a="64" xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+    <edit-config>
+        <target>
+            <candidate/>
+        </target>
+        <default-operation>merge</default-operation>
+        <config>
+            <modules xmlns="urn:opendaylight:params:xml:ns:yang:controller:config">
+                <module>
+                    <name>singleton</name>
+                    <type xmlns:logging="urn:opendaylight:params:xml:ns:yang:controller:logback:config">
+                        logging:logback
+                    </type>
+		    <rolling-appenders xmlns="urn:opendaylight:params:xml:ns:yang:controller:logback:config">
+			<append>true</append>
+			<max-file-size>5MB</max-file-size>
+			<file-name>logs/opendaylight-new.log</file-name>
+			<name>opendaylight.log</name>
+			<file-name-pattern>logs/opendaylight.%d.log.zip</file-name-pattern>
+			<encoder-pattern>%date{"yyyy-MM-dd HH:mm:ss.SSS z"} [%thread] %-5level %logger{35} - %msg%n</encoder-pattern>
+			<clean-history-on-start>false</clean-history-on-start>
+			<max-history>7</max-history>
+			<rolling-policy-type>TimeBasedRollingPolicy</rolling-policy-type>
+		    </rolling-appenders>
+                </module>
+            </modules>
+        </config>
+    </edit-config>
+</rpc>
+]]>]]>
+</syntaxhighlight>
+This configuration is merged with the module configuration proposed before. If it passes through validation process successfully, "ok" reply is will be received.
+
+* Now we are ready to commit configuration bean:
+<syntaxhighlight lang="xml">
+<rpc xmlns="urn:ietf:params:xml:ns:netconf:base:1.0" message-id="101">
+    <commit></commit>
+</rpc>
+]]>]]>
+</syntaxhighlight>
+On succes, ok message obtained and logback configuration is set. As an evidence, take look into logs directory to find new log file named opendaylight-new.log
+
+* Correctly close session with session-id :
+<syntaxhighlight lang="xml">
+<rpc message-id="2" xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+    <close-session xmlns="urn:ietf:params:xml:ns:netconf:base:1.0"/>
+</rpc>
+]]>]]>
+</syntaxhighlight>
 
 = Sample maven project =
 In this example, we will create a maven project that will provide 2 modules each implementing one service. We will design a simple configuration as well as runtime data for each module using yang. <br />
