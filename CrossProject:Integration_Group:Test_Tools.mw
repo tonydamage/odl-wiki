@@ -1,13 +1,153 @@
 == Introduction ==
 Test Tools area is created with the aim of building the framework required for system test development and execution.
 
-== Test Tools ==
+== OpenDaylight Lab at Ericsson ==
+The framework for Continuous System Integration Test will be hosted in existing OpenDaylight servers, in the meantime Ericsson offers a test environment that can be used for:
 
-* [[CrossProject:Integration_Group:Test_Lab|Open Test Lab]]
-* [[CrossProject:Integration_Group:ODL_Test_Lab|OpenDaylight Open Test Lab]]
-* [[CrossProject:Integration_Group:CSIT_Test_Tools|CSIT Test Tools]]
-* [[CrossProject:Integration_Group:Robot_Framework|Robot Framework]]
-* [[CrossProject:Integration_Group:TestON_Framework|TestON Framework]]
-* [[CrossProject:Integration_Group:Jenkins|Jenkins Integration]]
+* Get familiar with controller (DUT)
+* Evaluate test tools
+* Debug system test code
+
+This is current Lab topology:
+
+[[File:Lab_Topology.JPG]]
+
+=== Lab Access ===
+
+Lab access is provided through SSH server with public key authentication. Please follow the steps bellow:
+* Generate a public key in the SSH client and mail it to luis.gomez@ericsson.com along with your username.
+* Once the key gets provisioned in the SSH server, do: '''ssh username@server2.verkstad.net (129.192.170.80)'''. In case of authentication problems please contact luis.gomez@ericsson.com
+* The SSH server allows SSH forwarding (SSH tunnels) so you can configure a many as you need (example to forward VNC: ssh -L 15900:10.125.136.37:5900 alias@server2.verkstad.net)
+* Before start using the Lab, please BOOK the time [[CrossProject:Integration_Group:Lab_Schedule|'''here''']].
+* The VM images have 2 intefaces: one for operation (external access) and one for traffic. Please use the second for doing test.
+
+=== Test VMs ===
+Following VMs are already available:
+
+* Test Tools image
+** Purpose: install/evaluate '''test tools'''
+** System: CentOS 6.4 (64 bits), 2 Cores, 4 GB RAM, 40 GB HDD
+** Interfaces: 10.125.136.37/28 for operation and 10.125.136.51/28 for traffic
+** Applications: Firefox REST client
+** Access: SSH or VNC to 10.125.136.37 (odluser/odluser1)
+
+* Controller image
+** Purpose: run '''controller''' (DUT)
+** System: CentOS 6.4 (64 bits), 2 Cores, 4 GB RAM, 10 GB HDD
+** Interfaces: 10.125.136.38/28 for operation and 10.125.136.52/28 for traffic
+** Applications: OpenDaylight controller
+** Access: SSH to 10.125.136.38 (odluser/odluser1)
+
+* Mininet image
+** Purpose: simulate '''OF switches'''
+** System: Ubuntu 13.04 (64 bits), 1 Core, 1 GB RAM, 10 GB HDD
+** Interfaces: 10.125.136.39/28 for operation and 10.125.136.53/28 for traffic
+** Applications: Mininet
+** Access: SSH to 10.125.136.39 (mininet/mininet)
+
+* OFSwitch image (not used yet)
+** Purpose: simulate OF 1.3 switches
+** System: CentOS 6.4 (64 bits), 1 Core, 1 GB RAM, 10 GB HDD
+** Interfaces: 10.125.136.40/28 for operation and 10.125.136.54/28 for traffic
+** Applications: LINC Switch
+** Access: SSH to 10.125.136.40 (odluser/odluser1)
+
+=== Lab walkthrough ===
+It is very recommended to follow this walkthrough first time you connect to the Lab so that you get familiar with the environment. <br/><br/>
+
+1) Set up OpenDaylight controller: <br/><br/>
+
+Login into the controller VM (odluser/odluser1):
+<pre>[user@SDC-SSH ~]$ ssh odluser@10.125.136.38
+odluser@10.125.136.38's password: 
+Last login: Fri Oct 18 17:39:47 2013 from ec-centos.ericsson-magic.net
+</pre>
+
+Download latest controller project OSGi package (if not there yet):
+<pre>$ cd controller-project/
+$ wget 'https://jenkins.opendaylight.org/controller/job/controller-merge/lastSuccessfulBuild/artifact/opendaylight/distribution/
+opendaylight/target/distribution.opendaylight-osgipackage.zip'
+$ unzip -o distribution.opendaylight-osgipackage.zip</pre>
+
+You can optionally download latest controller base edition (if not there yet):
+<pre>$ cd controller-base/
+$ wget 'https://jenkins.opendaylight.org/integration/job/integration-merge/lastSuccessfulBuild/org.opendaylight.integration$
+distributions-base/artifact/org.opendaylight.integration/distributions-base/0.1.0-SNAPSHOT/distributions-base-0.1.0-SNAPSHOT-osgipackage.zip'
+$ unzip -o distributions-base-0.1.0-SNAPSHOT-osgipackage.zip </pre>
+
+Run the controller as root (odluser1):
+<pre>$ cd ~odluser/controller-base/opendaylight/
+$ sudo ./run.sh </pre>
+
+Check controller is running:
+<pre>osgi> ss
+"Framework is launched."
+
+
+id      State       Bundle
+0       ACTIVE      org.eclipse.osgi_3.8.1.v20120830-144521
+1       ACTIVE      org.apache.felix.fileinstall_3.1.6
+2       ACTIVE      org.eclipse.jdt.core.compiler.batch_3.8.0.I20120518-2145
+3       ACTIVE      org.eclipse.equinox.ds_1.4.0.v20120522-1841
+4       ACTIVE      org.eclipse.equinox.util_1.0.400.v20120522-2049
+5       ACTIVE      org.eclipse.osgi.services_3.3.100.v20120522-1822
+6       ACTIVE      org.eclipse.equinox.console_1.0.0.v20120522-1841
+7       ACTIVE      slf4j.api_1.7.2
+8       ACTIVE      ch.qos.logback.classic_1.0.9
+9       ACTIVE      ch.qos.logback.core_1.0.9
+10      ACTIVE      org.opendaylight.controller.logging.bridge_0.4.1.SNAPSHOT
+11      ACTIVE      com.sun.jersey.core_1.17.0
+12      ACTIVE      com.sun.jersey.json_1.17.0
+13      ACTIVE      com.sun.jersey.jersey-server_1.17.0
+</pre>
+
+2) Set up Mininet: <br/><br/>
+
+Login into the mininet VM (mininet/mininet):
+<pre>[user@SDC-SSH ~]$ ssh mininet@10.125.136.39
+mininet@10.125.136.39's password: 
+Welcome to Ubuntu 13.04 (GNU/Linux 3.8.0-19-generic x86_64)
+
+ * Documentation:  https://help.ubuntu.com/
+Last login: Sun Oct 20 19:04:15 2013 from 10.126.64.44</pre>
+
+Launch mininet OF switch simulation:
+<pre>mininet@mininet-vm:~$ sudo mn --controller=remote,ip=10.125.136.52 --topo tree,3
+*** Creating network
+*** Adding controller
+*** Adding hosts:
+h1 h2 h3 h4 h5 h6 h7 h8 
+*** Adding switches:
+s1 s2 s3 s4 s5 s6 s7 
+*** Adding links:
+(h1, s3) (h2, s3) (h3, s4) (h4, s4) (h5, s6) (h6, s6) (h7, s7) (h8, s7) (s1, s2) (s1, s5) (s2, s3) (s2, s4) (s5, s6) (s5, s7) 
+*** Configuring hosts
+h1 h2 h3 h4 h5 h6 h7 h8 
+*** Starting controller
+*** Starting 7 switches
+s1 s2 s3 s4 s5 s6 s7 
+*** Starting CLI:
+</pre>
+
+3) Check controller from Test Tools: <br/><br/>
+
+On local computer, start SSH connection with SSH forwarding for Test Tools VNC service (TCP 5900):
+<pre>[user@laptop ~]$ ssh -L 25900:10.125.136.37:5900 user@server2.verkstad.net</pre>
+
+Open VNC on local computer, use loopback IP and local port configured on last step:
+
+[[File:VNC_Auth.JPG]] <br/><br/>
+
+Once connected to GNOME desktop, launch Firefox and open OpenDaylight GUI at http://10.125.136.52:8080:
+
+[[File:ODL_GUI.JPG|600px]] <br/><br/>
+
+Login into OpenDaylight GUI (admin/admin) and check the OF switch topology:
+
+[[File:ODL_Topology.JPG|600px]] <br/><br/>
+
+Finally open the REST client in Firefox (small red square icon on top right corner) and do a GET for the topology:
+
+[[File:ODL_REST.JPG|600px]] <br/><br/>
 
 [[Category:Integration Group]]
