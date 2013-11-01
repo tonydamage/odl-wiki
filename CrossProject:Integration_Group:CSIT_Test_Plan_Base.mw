@@ -9,71 +9,24 @@
 * Run the test tool (TODO: Provide automatic test tool).
 
 ==Test Content==
-* Switch Manager (Handles SB devices Information)
-** list all nodes and their properties (i.e. GET http://10.125.136.52:8080/controller/nb/v2/switchmanager/default/nodes)
-** add property "description" to SW2 (i.e. PUT http://10.125.136.52:8080/controller/nb/v2/switchmanager/default/node/OF/00:00:00:00:00:00:00:02/property/description/Switch2) and list nodes
-** remove SW2 property "description" to a node (i.e. DELETE http://10.125.136.52:8080/controller/nb/v2/switchmanager/default/node/OF/00:00:00:00:00:00:00:02/property/description) and list nodes
-** list all connectors and properties for SW2 (i.e. GET http://10.125.136.52:8080/controller/nb/v2/switchmanager/default/node/OF/00:00:00:00:00:00:00:02)
-** add property "bandwidth" to a SW2 connector (i.e. PUT http://10.125.136.52:8080/controller/nb/v2/switchmanager/default/nodeconnector/OF/00:00:00:00:00:00:00:02/OF/2/property/bandwidth/1000) and list SW2 connectors
-** remove property "bandwidth" to a SW2 connector (i.e. DELETE http://10.125.136.52:8080/controller/nb/v2/switchmanager/default/nodeconnector/OF/00:00:00:00:00:00:00:02/OF/2/property/bandwidth) and list SW2 connectors
-
-* Topology Manager (Builds network topology) 
-** show topology (i.e. GET http://10.125.136.52:8080/controller/nb/v2/topology/default)
-** list userlinks (i.e. GET http://10.125.136.52:8080/controller/nb/v2/topology/default/userLinks)
-** add userlink (i.e. PUT http://10.125.136.52:8080/controller/nb/v2/topology/default/userLink/link1 + [[CrossProject:Integration_Group:REST_Body#UserLink_Body|userlink body]]), list userlinks and get topology
-** remove userlink (i.e. DELETE http://10.125.136.52:8080/controller/nb/v2/topology/default/userLink/link1), list userlinks and get topology
-
-* Forwarding Rules Manager 1 (Installs Flows on SB devices) 
-** list flows (i.e. GET http://10.125.136.52:8080/controller/nb/v2/flowprogrammer/default) 
-** add flow1 to reach host1 (i.e. PUT http://10.125.136.52:8080/controller/nb/v2/flowprogrammer/default/node/OF/00:00:00:00:00:00:00:02/staticFlow/flow1 + [[CrossProject:Integration_Group:REST_Body#Flow1_Body|flow1 body]]) and list flows
-** add flow2 to reach host2 (i.e. PUT http://10.125.136.52:8080/controller/nb/v2/flowprogrammer/default/node/OF/00:00:00:00:00:00:00:02/staticFlow/flow2 + [[CrossProject:Integration_Group:REST_Body#Flow2_Body|flow2 body]]) and list flows
-** add static arp for h2 on mininet (i.e. mininet> h1 arp -s h2 52:2a:e7:ca:3e:6c) (h2 MAC address: mininet> h2 ifconfig)
-** add static arp for h1 on mininet (i.e. mininet> h2 arp -s h1 8e:ad:13:44:4d:8c) (h1 MAC address: mininet> h1 ifconfig)
-
-* Statistics Manager (Collects Statistics information) 
-** ping on mininet (i.e. mininet> h1 ping -c 3 h2), verify it works
-** show flow stats (i.e. GET http://10.125.136.52:8080/controller/nb/v2/statistics/default/flow) and check packet count=3
-** show port stats (i.e. GET http://10.125.136.52:8080/controller/nb/v2/statistics/default/port) and check packet count for h1,h2 ports has increased in 3
-** show table stats (i.e. GET http://10.125.136.52:8080/controller/nb/v2/statistics/default/table) and check lookup count for Switch2 has increased in 6
-
-* Configuration (Handles controller configuration)
-** save configuration (i.e. POST http://10.125.136.52:8080/controller/nb/v2/switchmanager/default/save)
-** restart controller
-** list flows after controller restart (i.e. GET http://10.125.136.52:8080/controller/nb/v2/flowprogrammer/default)
-** show flow stats after controller restart (i.e. GET http://10.125.136.52:8080/controller/nb/v2/statistics/default/flow)
-
-* Forwarding Rules Manager 2 (Removes Flows on SB devices) 
-** remove static arp for h2 on mininet (i.e. mininet> h1 arp -d h2)
-** remove static arp for h1 on mininet (i.e. mininet> h2 arp -d h1)
-** remove flow1 (i.e. DELETE http://10.125.136.52:8080/controller/nb/v2/flowprogrammer/default/node/OF/00:00:00:00:00:00:00:02/staticFlow/flow1) and list flows
-** remove flow2 (i.e. DELETE http://10.125.136.52:8080/controller/nb/v2/flowprogrammer/default/node/OF/00:00:00:00:00:00:00:02/staticFlow/flow2) and list flows
-
-* Host Tracker (Tracks connected hosts) and Simple Forwarding (creates flows for connected hosts)
-** list hosts (i.e. GET http://10.125.136.52:8080/controller/nb/v2/hosttracker/default/hosts/active)
-** add static host1 (i.e. PUT http://10.125.136.52:8080/controller/nb/v2/hosttracker/default/address/10.0.0.1 + [[CrossProject:Integration_Group:REST_Body#Host1_Body|host1 body]]) and list hosts
-** add static host4 (i.e. PUT http://10.125.136.52:8080/controller/nb/v2/hosttracker/default/address/10.0.0.4 + [[CrossProject:Integration_Group:REST_Body#Host4_Body|host4 body]]) and list hosts
-** add static arp for h4 on mininet (i.e. mininet> h1 arp -s h4 5e:bf:79:84:10:a6) (h4 MAC address: mininet> h4 ifconfig)
-** add static arp for h1 on mininet (i.e. mininet> h4 arp -s h1 8e:ad:13:44:4d:8c) (h1 MAC address: mininet> h1 ifconfig)
-** ping on mininet (i.e. mininet> h1 ping -c 3 h4), verify it works
-** remove static arp for h4 on mininet (i.e. mininet> h1 arp -d h4)
-** remove static arp for h1 on mininet (i.e. mininet> h4 arp -d h1)
-** remove static host1 (i.e. DELETE http://10.125.136.52:8080/controller/nb/v2/hosttracker/default/address/10.0.0.1) and list hosts
-** remove static host4 (i.e. DELETE http://10.125.136.52:8080/controller/nb/v2/hosttracker/default/address/10.0.0.4) and list hosts
-
 * ARP Handler (Handles ARP messages)
 ** list subnets (i.e. GET http://10.125.136.52:8080/controller/nb/v2/subnetservice/default/subnets)
 ** add subnet gateway (i.e. PUT http://10.125.136.52:8080/controller/nb/v2/subnetservice/default/subnet/test + [[CrossProject:Integration_Group:REST_Body#Subnet_Body|subnet body]]) and list subnets
 ** ping on mininet (i.e. mininet> h1 ping -c 3 h4), verify it works
 ** list hosts (i.e. GET http://10.125.136.52:8080/controller/nb/v2/hosttracker/default/hosts/active), check h1 and h4
 
-* Forwarding Manager (Installs Route and tracks next-hop) 
-** list static routes (i.e. GET http://10.125.136.52:8080/controller/nb/v2/staticroute/default/routes)
-** add static route with next-hop h2 (i.e. PUT http://10.125.136.52:8080/controller/nb/v2/staticroute/default/route/route1 + [[CrossProject:Integration_Group:REST_Body#Route_Body|route body]]) and list routes
-** list hosts (i.e. GET http://10.125.136.52:8080/controller/nb/v2/hosttracker/default/hosts/active), check h2
-
 * Clear all
 ** remove static route (i.e. DELETE http://10.125.136.52:8080/controller/nb/v2/staticroute/default/route/route1) and list routes
 ** remove subnet gateway (i.e. DELETE http://10.125.136.52:8080/controller/nb/v2/subnetservice/default/subnet/test) and list subnets
+
+* Clustering Manager (Manages shared cache across controller instances) 
+** Will be added later
+
+* Configuration (Handles controller configuration)
+** save configuration (i.e. POST http://10.125.136.52:8080/controller/nb/v2/switchmanager/default/save)
+** restart controller
+** list flows after controller restart (i.e. GET http://10.125.136.52:8080/controller/nb/v2/flowprogrammer/default)
+** show flow stats after controller restart (i.e. GET http://10.125.136.52:8080/controller/nb/v2/statistics/default/flow)
 
 * Container Manager (Manages Network Slicing) 
 ** list containers (i.e. GET http://10.125.136.52:8080/controller/nb/v2/containermanager/containers)
@@ -96,13 +49,60 @@
 ** remove container cont1 (i.e. PUT http://10.125.136.52:8080/controller/nb/v2/containermanager/container/cont1) and list containers
 ** remove container cont2 (i.e. PUT http://10.125.136.52:8080/controller/nb/v2/containermanager/container/cont2) and list containers
 
-* Clustering Manager (Manages shared cache across controller instances) 
+* Forwarding Manager (Installs Route and tracks next-hop) 
+** list static routes (i.e. GET http://10.125.136.52:8080/controller/nb/v2/staticroute/default/routes)
+** add static route with next-hop h2 (i.e. PUT http://10.125.136.52:8080/controller/nb/v2/staticroute/default/route/route1 + [[CrossProject:Integration_Group:REST_Body#Route_Body|route body]]) and list routes
+** list hosts (i.e. GET http://10.125.136.52:8080/controller/nb/v2/hosttracker/default/hosts/active), check h2
+
+* Forwarding Rules Manager 1 (Installs Flows on SB devices) 
+** list flows (i.e. GET http://10.125.136.52:8080/controller/nb/v2/flowprogrammer/default) 
+** add flow1 to reach host1 (i.e. PUT http://10.125.136.52:8080/controller/nb/v2/flowprogrammer/default/node/OF/00:00:00:00:00:00:00:02/staticFlow/flow1 + [[CrossProject:Integration_Group:REST_Body#Flow1_Body|flow1 body]]) and list flows
+** add flow2 to reach host2 (i.e. PUT http://10.125.136.52:8080/controller/nb/v2/flowprogrammer/default/node/OF/00:00:00:00:00:00:00:02/staticFlow/flow2 + [[CrossProject:Integration_Group:REST_Body#Flow2_Body|flow2 body]]) and list flows
+** add static arp for h2 on mininet (i.e. mininet> h1 arp -s h2 52:2a:e7:ca:3e:6c) (h2 MAC address: mininet> h2 ifconfig)
+** add static arp for h1 on mininet (i.e. mininet> h2 arp -s h1 8e:ad:13:44:4d:8c) (h1 MAC address: mininet> h1 ifconfig)
+
+* Forwarding Rules Manager 2 (Removes Flows on SB devices) 
+** remove static arp for h2 on mininet (i.e. mininet> h1 arp -d h2)
+** remove static arp for h1 on mininet (i.e. mininet> h2 arp -d h1)
+** remove flow1 (i.e. DELETE http://10.125.136.52:8080/controller/nb/v2/flowprogrammer/default/node/OF/00:00:00:00:00:00:00:02/staticFlow/flow1) and list flows
+** remove flow2 (i.e. DELETE http://10.125.136.52:8080/controller/nb/v2/flowprogrammer/default/node/OF/00:00:00:00:00:00:00:02/staticFlow/flow2) and list flows
+
+* Host Tracker (Tracks connected hosts) and Simple Forwarding (creates flows for connected hosts)
+** list hosts (i.e. GET http://10.125.136.52:8080/controller/nb/v2/hosttracker/default/hosts/active)
+** add static host1 (i.e. PUT http://10.125.136.52:8080/controller/nb/v2/hosttracker/default/address/10.0.0.1 + [[CrossProject:Integration_Group:REST_Body#Host1_Body|host1 body]]) and list hosts
+** add static host4 (i.e. PUT http://10.125.136.52:8080/controller/nb/v2/hosttracker/default/address/10.0.0.4 + [[CrossProject:Integration_Group:REST_Body#Host4_Body|host4 body]]) and list hosts
+** add static arp for h4 on mininet (i.e. mininet> h1 arp -s h4 5e:bf:79:84:10:a6) (h4 MAC address: mininet> h4 ifconfig)
+** add static arp for h1 on mininet (i.e. mininet> h4 arp -s h1 8e:ad:13:44:4d:8c) (h1 MAC address: mininet> h1 ifconfig)
+** ping on mininet (i.e. mininet> h1 ping -c 3 h4), verify it works
+** remove static arp for h4 on mininet (i.e. mininet> h1 arp -d h4)
+** remove static arp for h1 on mininet (i.e. mininet> h4 arp -d h1)
+** remove static host1 (i.e. DELETE http://10.125.136.52:8080/controller/nb/v2/hosttracker/default/address/10.0.0.1) and list hosts
+** remove static host4 (i.e. DELETE http://10.125.136.52:8080/controller/nb/v2/hosttracker/default/address/10.0.0.4) and list hosts
+
+* Netconf Plugin
 ** Will be added later
 
 * OpenFlow 1.3 Plugin
 ** Will be added later
 
-* Netconf Plugin
-** Will be added later
+* Statistics Manager (Collects Statistics information) 
+** ping on mininet (i.e. mininet> h1 ping -c 3 h2), verify it works
+** show flow stats (i.e. GET http://10.125.136.52:8080/controller/nb/v2/statistics/default/flow) and check packet count=3
+** show port stats (i.e. GET http://10.125.136.52:8080/controller/nb/v2/statistics/default/port) and check packet count for h1,h2 ports has increased in 3
+** show table stats (i.e. GET http://10.125.136.52:8080/controller/nb/v2/statistics/default/table) and check lookup count for Switch2 has increased in 6
+
+* Switch Manager (Handles SB devices Information)
+** list all nodes and their properties (i.e. GET http://10.125.136.52:8080/controller/nb/v2/switchmanager/default/nodes)
+** add property "description" to SW2 (i.e. PUT http://10.125.136.52:8080/controller/nb/v2/switchmanager/default/node/OF/00:00:00:00:00:00:00:02/property/description/Switch2) and list nodes
+** remove SW2 property "description" to a node (i.e. DELETE http://10.125.136.52:8080/controller/nb/v2/switchmanager/default/node/OF/00:00:00:00:00:00:00:02/property/description) and list nodes
+** list all connectors and properties for SW2 (i.e. GET http://10.125.136.52:8080/controller/nb/v2/switchmanager/default/node/OF/00:00:00:00:00:00:00:02)
+** add property "bandwidth" to a SW2 connector (i.e. PUT http://10.125.136.52:8080/controller/nb/v2/switchmanager/default/nodeconnector/OF/00:00:00:00:00:00:00:02/OF/2/property/bandwidth/1000) and list SW2 connectors
+** remove property "bandwidth" to a SW2 connector (i.e. DELETE http://10.125.136.52:8080/controller/nb/v2/switchmanager/default/nodeconnector/OF/00:00:00:00:00:00:00:02/OF/2/property/bandwidth) and list SW2 connectors
+
+* Topology Manager (Builds network topology) 
+** show topology (i.e. GET http://10.125.136.52:8080/controller/nb/v2/topology/default)
+** list userlinks (i.e. GET http://10.125.136.52:8080/controller/nb/v2/topology/default/userLinks)
+** add userlink (i.e. PUT http://10.125.136.52:8080/controller/nb/v2/topology/default/userLink/link1 + [[CrossProject:Integration_Group:REST_Body#UserLink_Body|userlink body]]), list userlinks and get topology
+** remove userlink (i.e. DELETE http://10.125.136.52:8080/controller/nb/v2/topology/default/userLink/link1), list userlinks and get topology
 
 [[Category:Integration Group]]
