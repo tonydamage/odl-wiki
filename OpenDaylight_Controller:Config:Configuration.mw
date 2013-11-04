@@ -14,10 +14,10 @@ To secure consistency and safety of new configuration and to avoid conflicts, th
 ==Dependency Resolver==
 Since there can be dependencies between modules, a change of a module's configuration can affect the state of other modules. Therefore, we need to verify whether dependencies on other modules can be resolved. The Dependency Resolver acts similar to dependency injectors - basically, a dependency tree is built.
 
-=APIs and SPIs=
+==APIs and SPIs==
 In this section configuration system APIs and SPIs will be briefly described.
 
-==SPIs==
+===SPIs===
 '''Module'''
 org.opendaylight.controller.config.spi.Module is common interface for all modules - each module must implement it. Module is designated to hold configuration attributes, validate them and create instance of service based on the attributes. This instance must implement AutoCloseable interface, due to resources clean up. If module was created from already running instance, it contains and old instance of module. Module can implement multiple services. if module depends on other modules, setters need to be annotated with @RequireInterface.
 
@@ -27,7 +27,7 @@ Firstly, module needs to be '''configured''' - set all required attributes. Ther
 '''ModuleFactory'''
 org.opendaylight.controller.config.spi.ModuleFactory interface must be implemented by each module factory. Module factory can create new module instance in two ways - from existing module instance or pure new instance. Also can return default modules - useful for populating registry with already existing configuration. Module factory implementation must have globally unique name.
 
-==APIs==
+===APIs===
 '''ConfigRegistry'''<br />
 represents functionality provided by configuration transaction (create, destroy module, validate, abort transaction).
 
@@ -37,7 +37,7 @@ represents functionality for manipulating with configuration transactions (begin
 '''RuntimeBeanRegistratorAwareConfiBean'''<br />
 module implementing this interface will recieve RuntimeBeanRegistrator before getInstance is invoked.
 
-==Runtime APIs==
+===Runtime APIs===
 
 '''RuntimeBean'''<br />
 common interface for all runtime beans.
@@ -48,7 +48,7 @@ represents functionality for root runtime bean registration, which subsequently 
 '''HierarchicalRuntimeBeanRegistration'''<br />
 represents functionality for runtime bean registration and unreregistration from hierarchy.
 
-==JMX APIs==
+===JMX APIs===
 JMX API is purposed as a transition between Client API and JMX platform.
 
 '''ConfigTransactionControllerMXBean'''<br /> 
@@ -57,12 +57,12 @@ extends ConfigTransactionController, executed by Jolokia clients on configuratio
 '''ConfigRegistryMXBean'''<br />
 represents entry point of configuration management for MXBeans.
 
-==Object names==
+===Object names===
 Object Name is pattern used in JMX to locate JMX beans. It consists of domain and key properties (at least one key-value pair). Domain is defined as "org.opendaylight.controller". The only mandatory property is "type".
 
-=Use case scenarios=
+==Use case scenarios==
 Few samples of successful and unsuccessful transactions scenarios.
-==Successful commit scenario==
+===Successful commit scenario===
 # User create transaction calling creteTransaction() method on ConfigRegistry.
 # ConfigRegisty create transaction controller and registers the transaction as new bean.
 # Runtime configurations are copied to the transaction. User can create modules and set their attributes.
@@ -74,9 +74,11 @@ Few samples of successful and unsuccessful transactions scenarios.
 # Transaction controller invoke method getInstance on each module
 # Transaction is committed and resources are closed or released.
 
-==Validation failure scenario==
+===Validation failure scenario===
 Transaction is same as previous case until validation process. 
 # If validation fails (i.e. illegal input attributes values or dependency resolver failure), ValidationException is thrown and exposed to user.
 # User can decide to reconfigure transaction and commit again or abort current transaction.
 # On aborted transaction, TransactionController and JMXRegistrator are properly closed.
 # Unregistration event is send to ConfigRegistry.
+
+= Configuration persister =
