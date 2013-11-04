@@ -1,165 +1,83 @@
-== Maintainer ==
-Carol Sanders (carol.sanders@brocade.com)
+'''How To Access Robot Framework'''
 
-== Introduction ==
+Robot Framework is a Keyword Driven automation framework using Python or Java as it's backend. Test cases are automated by writing steps using Robot framework keywords.
 
-Robot Framework is a Keyword Driven automation framework using Python or Java as it's back end. Test cases are automated by writing steps using Robot framework keywords.
-
-Robot Framework is a Python-based, extensible keyword-driven test automation framework for end-to-end acceptance testing and acceptance-test-driven development (ATDD). It can be used for testing distributed, heterogeneous applications, where verification requires touching several technologies and interfaces.
+Robot Framework is a Python-based, extensible keyword-driven test automation framework for end-to-end acceptance testing and acceptance-test-driven development (ATDD). 
+It can be used for testing distributed, heterogeneous applications, where verification requires touching several technologies and interfaces.
 
     Enables easy-to-use tabular syntax for creating test cases in a uniform way.
     Provides ability to create reusable higher-level keywords from the existing keywords.
     Provides easy-to-read result reports and logs in HTML format.
     Is platform and application independent.
-    Provides a simple library API for creating customized test libraries which can be implemented with either Python or Java.
-    Provides a command line interface and XML based output files for integration into existing build infrastructure 
-    (continuous integration systems).
+    Provides a simple library API for creating customized test libraries which can be implemented natively with either Python or Java.
+    Provides a command line interface and XML based output files for integration into existing build infrastructure (continuous integration systems).
     Provides support for Selenium for web testing, Java GUI testing, running processes, Telnet, SSH, and so on.
     Supports creating data-driven test cases.
     Has built-in support for variables, practical particularly for testing in different environments.
     Provides tagging to categorize and select test cases to be executed.
-    Enables easy integration with source control: test suites are just files and directories whos version can be designated with the
-    production code.
-    Provides test-case and test-suite -level setup and tear down.
+    Enables easy integration with source control: test suites are just files and directories that can be versioned with the production code.
+    Provides test-case and test-suite -level setup and teardown.
     The modular architecture supports creating tests even for applications with several diverse interfaces. 
 
-== Install Robot Framework == 
+<big>'''Test Case Organization'''</big> 
 
-Just follow the instructions in [[CrossProject:Integration_Group:Create_System_Test_Environment| Create System Test Environment]] wiki or download a [[CrossProject:Integration_Group:Test_VMs|Test VM]]
+'''Test Suite'''
 
-== Test Case Organization == 
+Collections of test cases are called test suites in Robot Framework. Every input file which contains test cases forms a test suite. 
+It is possible to organize test cases hierarchically by placing test case files into directories and these directories into other directories. 
+All these directories automatically create higher level test suites that get their names from directory names. Since test suites are just files and directories, 
+they are trivially placed into any version control system. 
 
-Collections of test cases are called test suites in Robot Framework. Every input file which contains test cases forms a test suite. It is possible to organize test cases hierarchically by placing test case files into directories and these directories into other directories. All these directories automatically create higher level test suites that get their names from directory names. Since test suites are just files and directories, 
-they are trivially placed into any version control system.
+<big>'''Using Robot Framework at Ericsson Lab'''</big>
+1. Connect to the Lab at Ericsson using access instructions https://wiki.opendaylight.org/view/CrossProject:Integration_Group:Test_Lab
+2. Conect to odl-test-tools 10.125.136.37 
+             username: odluser,  password: odluser1
+3. CD to public_html. Here is the current working directory for robot test case files. 
+4. Create a directory in which you run your Robot test case /test siute file as to not write over others' output files created after each run.
+5. To run your test case created as a .txt or .html use the following command example:
+       pybot SimpleTest.txt  where:  pybot runs test case files written to use Python keywords. 
+                                     SimpleTest.txt is the name of your test case file.
+6. Test Run Results 
+    Files output.xml, log.html, and report.html are created each time you run a test case. 
+    These files are stored in the current directory from where you run your test case file.
+7. Viewing results
+     Files in ~olduser/public_html are accessible via browser but you will have to configure an ssh tunnel to browse to http://10.125.136.37/~odluser/
+     Test run results are also directed to standard out when run on the cli directly.
+          
+'''Example Test Run'''
 
-=== Test Repository ===
+odluser@odl-test-tools:~/public_html/Tunnels/GRE$ pybot -T -b GREtunnels-debug GREtunnels.txt
+==============================================================================
+GREtunnels                                                                    
+==============================================================================
+GRE Tunnel Functionnal Test                                           | PASS |
+------------------------------------------------------------------------------
+Verify Build Version                                                  | PASS |
+------------------------------------------------------------------------------
+Configure Commands Test                                               | PASS |
+------------------------------------------------------------------------------
+Show Commands Test                                                    | FAIL |
+'tun0@lo: <POINTOPOINT,NOARP,UP,LOWER_UP> mtu 65508 qdisc noqueue state UP group default 
+    link/gre 101.0.0.2 peer 101.0.0.1
+    inet 201.0.0.2/24 brd 201.0.0.255 scope global tun0
+       valid_lft forever preferred_lft forever
+    inet6 fe80::200:5efe:6500:2/64 scope link 
+       valid_lft forever preferred_lft forever
+    Description: VR test tunnel
 
-* We use [[CrossProject:Integration_Group:Testopia|Testopia]] for test documentation and report and GIT/Gerrit for test code management
-* Robot test suites for Continuous System Integration Test (CSIT) are stored in our Integration GIT under /test/csit/suites
-* We have suites for several distributions like Base, Base with -of13 option, Virtualization or Service Provider. Every suite matches a Testopia Test Plan
-* Under each main suite folder we have sub-suites that can run independently to test an specific controller functions like AD-SAL NSF, MD-SAL NSF, AD-SAL Apps, OVSDB or VTN. Every sub-suite matches a Testopia Category
-* Finally under every sub-suite we find the test files named “module.txt” (like “030__topology_manager.txt”).  Each test file is in charge of testing a particular component or feature in Opendaylight like Topology Manager, Switch Manager, Flow Programmer, etc… Every file here matches a Testopia Test Case
-
-=== Test Order ===
-
-* Test case order makes sense as we prefer to start testing from bottom to top, from base features to more advanced features
-* Order is implemented by adding "XXX__" at the beginning of a filename or folder like: “030__topology_manager.txt”, “040__forwarding_rules_manager.txt”, etc... The "XXX__" will be used for test execution and will be neglected for anything else like reporting.
-
-=== Test Pre-conditions ===
-
-Test pre-conditions (and post-conditions) are written in the "__init__.txt" file in the test suite folders. So far the most typical pre-condition is to start mininet VM with topology=tree,2 which creates 3 OF switches: 
-
-* SW1 with 2 ports: 1,2 that connects to SW2 and SW3
-* SW2 with 3 ports: 1 to host1 (10.0.0.1), 2 to host2 (10.0.0.2) and 3 to SW1
-* SW3 with 3 ports: 1 to host3 (10.0.0.3), 2 to host4 (10.0.0.4) and 3 to SW1
-
-=== How to use Mininet from Robot ===
-
-Robot connects to mininet VM during test setup phase (__init__.txt). After that mininet shell (mininet>) is available for system test. Use Write and Read keywords from SSHLibrary like in the example below to control Mininet VM. Please do not forget to clear any mininet configuration and also clear output buffer (use Read) for next test file to run clean.
-
-<pre>
-*** Settings ***
-Library     SSHLibrary
-
-*** Keywords ***
-My test case  
-    Write    h1 ifconfig
-    Sleep    2
-    ${buffer}=     Read
-</pre>
-
-=== Robot Test File example ===
-
-<pre>
-[odluser@odl-test-tools base]$ cat 035__forwarding_manager.txt 
-*** Settings ***
-Documentation     Test suite for the forwarding manager module.
-Suite Setup       Create Session   session   http://${CONTROLLER}:8080   auth=${AUTH}   headers=${HEADERS}
-Suite Teardown    Delete All Sessions
-Library           SSHLibrary
-Library           Collections
-Library           ../../libraries/RequestsLibrary.py
-Library           ../../libraries/Common.py
-Variables         ../../variables/Variables.py
-
-*** Variables ***
-${name}           test_route1
-${key}            staticRoute
-${REST_CONTEXT}    /controller/nb/v2/staticroute
-
-*** Test Cases ***
-Add a static route
-    [Documentation]    Add a static route, list to validate the result.
-    [Tags]    add
-    ${body}    Create Dictionary    name    ${name}    prefix    192.168.1.0/24    nextHop
-    ...    10.0.0.2
-    ${resp}    Put    session    ${REST_CONTEXT}/${CONTAINER}/route/${name}    data=${body}
-    Should Be Equal As Strings    ${resp.status_code}    201    Response status code error
-    ${resp}    Get    session    ${REST_CONTEXT}/${CONTAINER}/routes
-    Should Be Equal As Strings    ${resp.status_code}    200    Response status code error
-    ${result}    To JSON    ${resp.content}
-    ${content}    Get From Dictionary    ${result}    ${key}
-    List Should Contain Value    ${content}    ${body}
-    Sleep    2
-Remove a static route
-    [Documentation]    Remove a static route, list to validate the result.
-    [Tags]    remove
-    ${body}    Create Dictionary    name    ${name}    prefix    192.168.1.0/24    nextHop
-    ...    10.0.0.2
-    ${resp}    Delete    session    ${REST_CONTEXT}/${CONTAINER}/route/${name}
-    Should Be Equal As Strings    ${resp.status_code}    204    Response status code error
-    ${resp}    Get    session    ${REST_CONTEXT}/${CONTAINER}/routes
-    Should Be Equal As Strings    ${resp.status_code}    200    Response status code error
-    ${result}    To JSON    ${resp.content}
-    ${content}    Get From Dictionary    ${result}    ${key}
-    List Should Not Contain Value    ${content}    ${body}
-Remove flows
-    [Documentation]    Remove flows generated by simple fwd
-    [Tags]   Get
-    Write   dpctl del-flows
-    Sleep   1
-    Read
-</pre>
-
-== Execute Robot Suite ==
-
-System test is invoked using a command like: 
-<pre>
-pybot -v CONTROLLER:<Controller IP> -v MININET:<Mininet IP> -v MININET_USER:<Mininet_Username> -v USER_HOME:<Robot User Home path> <Robot Suite path>
-</pre>
-
-Where:
-* ${CONTROLLER}= Controller IP
-* ${MININET}= Mininet IP
-* ${MININET_USER}= Mininet Username
-* ${USER_HOME}= Robot User Home path
-
-The above global variables can be used in any test case.
-
-Examples:
-
-Run system test for base edition when controller and mininet are in the same VM:
-<pre>
-odluser@odl-vm:~\> pybot -v CONTROLLER:127.0.0.1 -v MININET:127.0.0.1 -v USER_HOME:$HOME -v MININET_USER:$USER $HOME/integration/test/csit/suites/base/
-</pre>
-
-Run system test for base edition AD-SAL NSF when controller and mininet are in different VM:
-<pre>
-odluser@odl-vm:~\> pybot -v CONTROLLER:192.168.1.1 -v MININET:192.168.1.2 -v USER_HOME:$HOME -v MININET_USER:$USER $HOME/integration/test/csit/suites/base/010__AD_SAL_NSF
-</pre>
-
-'''IMPORTANT''': In case of different VMs for controller and mininet, you have to use interface IPs instead of loopback IPs like example above
-
-== Robot IDE ==
-We strongly recommend to use Robot IDE (or RIDE) to create, edit, debug Robot test cases. Check link below to install RIDE in your environment.
-
-* [https://code.google.com/p/robotframework-ride/ RIDE]
-
-== Robot Links ==
-
-* [http://robotframework.googlecode.com/hg/doc/userguide/RobotFrameworkUserGuide.html?r=2.8.1 Robot user guide]
-* [[File:Robot-Tutorial.ppt]]
-* [https://docs.google.com/spreadsheet/ccc?key=0AoYIvwUEF-qYdGl4LTFEU3otMl9MVl9sdmUxbXZOVmc&usp=sharing Test Repository sheet]
-* [[CrossProject:Integration Group:CSIT Test Tools: Robot Based| CSIT Robot based Test Tool]]
-
-[[Category:Integration Group]]
+    RX:  bytes    packets     errors    dropped    overrun      mcast
+         59220        705          0          0          0          0
+    TX:  bytes    packets     errors    dropped    carrier collisions
+         45120        705          0          0          0          0
+vyatta@GREvr-r2:~$' contains 'tun0'
+------------------------------------------------------------------------------
+Logout of Host                                                        | PASS |
+------------------------------------------------------------------------------
+GREtunnels                                                            | FAIL |
+5 critical tests, 4 passed, 1 failed
+5 tests total, 4 passed, 1 failed
+==============================================================================
+Debug:   /home/carolsand/public_html/Tunnels/GRE/GREtunnels-debug-20131104-112845.txt
+Output:  /home/carolsand/public_html/Tunnels/GRE/output-20131104-112845.xml
+Log:     /home/carolsand/public_html/Tunnels/GRE/log-20131104-112845.html
+Report:  /home/carolsand/public_html/Tunnels/GRE/report-20131104-112845.html
