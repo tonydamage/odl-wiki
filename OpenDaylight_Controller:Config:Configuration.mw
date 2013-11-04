@@ -1,6 +1,7 @@
 =Configuration and Transaction=
-'''Configuration''' operation consists of three states. '''Proposed''' configuration is created and it's target is to replace old configuration. It needs to be validated firstly. If it passes successfully, it's state will be changed to '''validated'''. Now configuration can be '''committed''' and affected modules reconfigured.<br />
-In fact each configuration is wrapped into the '''transaction'''. Once the transaction is created, it can be '''configured''', user is either able to '''abort''' the transaction during this stage. After the transaction configuration is done, it is committed to '''validation''' stage. Here the validation is invoked. If validation fail, transaction can be reconfigured. On success, '''second phase commit''' is called. In the case that commit is successful, transaction is in last stage - '''committed'''. After that, desired modules are reconfigured. If second phase commit fails, it means that transaction is '''unhealthy''' - new instance creation failed. Thereafter, application can stay in inconsistent state.
+The '''Configuration''' operation has three stages. First, a '''Proposed''' configuration is created; its target is to replace the old configuration. Second, the Proposed configuration must be validated before it can be committed. If it passes validation successfully, the Proposed configuration's state will be changed to '''Validated'''. Finally, a Validated configuration can be '''Committed''' and the affected modules can be reconfigured.
+
+In fact, each configuration operation is wrapped in a '''transaction'''. Once a transaction is created, it can be '''configured''', i.e. a user can '''abort''' the transaction during this stage. After the transaction configuration is done, it is committed to the '''validation''' stage. In this stage the validation procedures are invoked. If one or more validations fail, the transaction can be reconfigured. On success, the '''second phase commit''' is invoked. If this commit is successful, the transaction enters the last stage - '''committed'''. After that, the desired modules are reconfigured. If the second phase commit fails, it means that the transaction is '''unhealthy''' - basically, a new configuration instance creation failed, and the application can be in an inconsistent state.
 
 <gallery>
 File:Configuration.jpg|Configuration states
@@ -8,10 +9,10 @@ File:Transaction.jpg|Transaction states
 </gallery>
 
 ==Validation==
-To secure consistency, conflict avoidance and safety of new configuration, validation process is absolutely needed. Usually, validation check input parameters of new configuration and mainly verify module-specific relations. Validation procedure results in decision of proposed configuration healthy.
+To secure consistency and safety of new configuration and to avoid conflicts, the configuration validation process is necessary. Usually, validation checks input parameters of a new configuration and mostly verifies module-specific relationships. The validation procedure results in a decision whether the proposed configuration is healthy.
 
-==Dependency resolver==
-Since dependencies between modules can exist, change of one module configuration can affect others state. Therefore it is needed to verify whether dependent modules can be resolved. It acts likewise dependency injectors - dependency tree is build.
+==Dependency Resolver==
+Since there can be dependencies between modules, a change of a module's configuration can affect the state of other modules. Therefore, we need to verify whether dependencies on other modules can be resolved. The Dependency Resolver acts similar to dependency injectors - basically, a dependency tree is built.
 
 =APIs and SPIs=
 In this section configuration system APIs and SPIs will be briefly described.
@@ -21,10 +22,10 @@ In this section configuration system APIs and SPIs will be briefly described.
 org.opendaylight.controller.config.spi.Module is common interface for all modules - each module must implement it. Module is designated to hold configuration attributes, validate them and create instance of service based on the attributes. This instance must implement AutoCloseable interface, due to resources clean up. If module was created from already running instance, it contains and old instance of module. Module can implement multiple services. if module depends on other modules, setters need to be annotated with @RequireInterface.
 
 '''Module creation'''
-Firstly, module needs to be '''configured''' - set all required attributes. Thereafter module is moved to '''commit''' stage, where validation is performed. If fails - module can reconfigured, otherwise new instance is '''created''' or old instance is reconfigured.
+Firstly, module needs to be '''configured''' - set all required attributes. Thereafter module is moved to '''commit''' stage, where validation is performed. If fails - module's attributes can be reconfigured, otherwise new instance is '''created''' or old instance is reconfigured.
 
 '''ModuleFactory'''
-org.opendaylight.controller.config.spi.ModuleFactory interface must be implemented by each module factory. Module factory can create new module instance in two ways - from existing module instance or pure new instance. Module factory implementation must have globally unique name.
+org.opendaylight.controller.config.spi.ModuleFactory interface must be implemented by each module factory. Module factory can create new module instance in two ways - from existing module instance or pure new instance. Also can return default modules - useful for populating registry with already existing configuration. Module factory implementation must have globally unique name.
 
 ==APIs==
 '''ConfigRegistry'''<br />
