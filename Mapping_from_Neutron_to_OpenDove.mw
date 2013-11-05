@@ -41,22 +41,24 @@ If this parameter is false (i.e. if domains are not being separated), then there
 
 If domains are being separated (i.e. that parameter is true), then OpenDove uses delayed binding to only create the domain/network/subnet when a port request is received for a tenant on that shared network as that operations is essentially a commitment to use the resources provided by the shared network. 
 
-so at least for the mapping to opendove, we maintain that many-to-one mapping in Hydrogen. In Helium, if/when there is an ODL CLI, that will be revisited
-anyway, in OpenDove we have the concepts of both dedicated and shared subnets.
-the difference is that a dedicated subnet is only used by the overlay
-while a shared subnet is used by both the overlay and the underlay
-and this lets us approximate the concept of the shared Neutron network
-by using a shared subnet when mapping the Neutron subnet associated with a shared Neutron network
-but it is an approximation and the semantics are different
-otherwise, it's pretty much a one-to-one mapping, along with the case that for a subnet on a router:external network, we don't create an OpenDove subnet object, we just cache the information for later 
-Ports are a little tricky in that the oDMC itself doesn't track endpoints, but leaves that to other components of the OpenDOVE system
-so we track ports for two reasons: one is the delayed binding case stated above
-== ermagan [~vermagan@nat/cisco/x-xmavqgwesocpgjqj] has joined
-regXboi
-and the other is so that we can map a portUUID to a VNID so that an opendove switch handles an attached VM correctly.
-(actually there is a third reason)
+== Subnets ==
 
-we also need to track them so that we can handle neutron router interface attachments/detachments properly 
+The main difference between Neutron subnets and OpenDove subnets is that in Neutron,
+the mapping between subnet and network is many-to-one (within a tenant), while in OpenDove, it is many-to-many.  So for the Hydrogen release, that  many-to-one mapping in maintained via the OpenDove mapping. In Helium, if/when there is an ODL CLI, this will be revisited.
+
+In addition, as mentioned above, in OpenDove we have the concepts of both
+dedicated and shared subnets.  The difference between the two concepts is that a dedicated subnet is only used by the overlay while a shared subnet is used by both
+the overlay and the underlay.  This lets us approximate the concept of the shared Neutron network by using a shared subnet when mapping the Neutron subnet associated with a shared Neutron network. It should be noted that this is an approximation as the semantics are different.
+
+Lastly, for a subnet on a router:external network, no OpenDove subnet object is created, but rather the subnet information is cached for use later.
+
+== Ports ==
+
+Ports are a little tricky in that the oDMC itself doesn't track endpoints or ports, but leaves that to other components of the OpenDOVE system.  Therefore, the oDMC
+pays attention to Neutron port operations for three reasons:
+
+#the delayed binding case stated above
+#so that we can map a portUUID to a VNID so that an opendove switch handles an attached VM correctly#so that we can handle neutron router interface attachments/detachments properly 
 we'll quickly talk about router objects because we track those for handling neutron router interfaces attach/detach operations, which is where the interesting stuff happens
 beyond that, there is not mapping done for a router operation
 
