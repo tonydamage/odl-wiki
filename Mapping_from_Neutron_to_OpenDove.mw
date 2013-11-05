@@ -37,7 +37,7 @@ For a Neutron network that is decorated as "router:external" it represents a net
 
 The mapping of shared Neutron networks is controlled by the OpenDoveNeutronControlBlock support object.  This includes a parameter for controlling "domain separation".
 
-If this parameter is false (i.e. if domains are not being separated), then there is a special "shared domain" and "shared network" created and the neutron network is mapped to that.
+If this parameter is false (i.e. if domains are not being separated), then there is a special "shared domain" and "shared network" created and the neutron network is mapped to that.  This includes assigning an oDGW to the network to allow traffic to flow cross domain
 
 If domains are being separated (i.e. that parameter is true), then OpenDove uses delayed binding to only create the domain/network/subnet when a port request is received for a tenant on that shared network as that operations is essentially a commitment to use the resources provided by the shared network. 
 
@@ -57,7 +57,7 @@ Lastly, for a subnet on a router:external network, no OpenDove subnet object is 
 Ports are a little tricky in that the oDMC itself doesn't track endpoints or ports, but leaves that to other components of the OpenDOVE system.  Therefore, the oDMC
 pays attention to Neutron port operations for three reasons:
 
-#the delayed binding case stated above
+#the delayed binding case stated above (which also includes assigning an oDGW to the network to allow traffic to flow across domains)
 #so that a portUUID may be mapped to a VNID (OpenDove Virtual Network Identifier) so that an OpenDove switch handles an attached VM correctly
 #so that neutron router interface attachments/detachments can be handled properly
 
@@ -66,28 +66,22 @@ pays attention to Neutron port operations for three reasons:
 Pure router objects are not mapped, but rather tracked for handling neutron router interfaces attach/detach operations
 
 === Router Interface Attachments ===
-ok, now for the fun part - router interface attachments
-regXboi
-which spin out both opendove policies as well as oDGW snat pools
-regXboi
-In neutron, the router object has the semantic of providing connectivity between all of its attached interfaces.
-regXboi
-so on each interface attach operation, we first look at the associated port and network that is being attached
-regXboi
-and then depending on whether it is "router:external" or not, we handle setting up opendove objects for all the other interfaces that were previously attached
-regXboi
-obviously, this means we don't start doing anything until the second interface is attached.
-regXboi
-when we do a pairwise compare of the interfaces, if both are internal, then we create opendove policies to allow traffic to flow between the opendove virtual networks that were created for those neutron networks
-regXboi
-if one interface is external, then we create first (if necessary) find available oEGWs to associate with the internal opendove network, then (if necessary) assign an external IP to the oDGW from the external subnet space
-regXboi
-and then lastly, create an SNAT pool for the oDGW to use for that internal network
-regXboi
-the size of the SNAT pool and the number of oDGWs used for each network are determined by other parameters of the OpenDoveNeutronControlBlock 
 
-ok, last is floatingip
-regXboi
-neutron floating ips are used to provide dnat services for the neutron router model
-regXboi
-so that is pretty much a direct map to the opendove external forwarding rule for an oDGW
+Neutron router interface attachment operations get mapped into both OpenDove policies as well as oDGW SNAT pools.
+In neutron, the router object has the semantic of providing connectivity between all of its attached interfaces.
+So on each interface attach operation, OpenDove first looks at the associated port and network that is being attached
+and then performs a mapping operation for each previously attached interface.  (Obviously, this means nothing happens
+until the second interface is attached).
+
+If both interfaces are internal, then OpenDove policies to allow traffic to flow between the OpenDove virtual networks
+that were created for those neutron networks *if the networks are in the same domain*.  Cross-domain traffic in Hydrogen is transported via oDGWs.
+
+If one interface is external, then we first (if necessary) find available oEGWs to associate with the internal OpenDove network,
+then (if necessary) assign an external IP to the oDGW from the external subnet space, and then lastly, create an
+SNAT pool for the oDGW to use for that internal network.
+
+The size of the SNAT pool and the number of oDGWs used for each network are determined by other Parameters of the OpenDoveNeutronControlBlock 
+
+== Floating IPs ==
+Neutron floating IPs are used to provide DNAT services for the Neutron router model
+and that is pretty much a direct map to an OpenDove external forwarding rule for an oDGW.
