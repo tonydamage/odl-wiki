@@ -1,13 +1,5 @@
 
-=== Pre-Requisite Environment ===
-
-See the OVSDB YouTube Channel for getting started videos and other tutorials:
-
-* [[https://wiki.opendaylight.org/view/OVSDB_Integration:Design|OVSDB Integration Architecture]]
-* [http://www.youtube.com/channel/UCMYntfZ255XGgYFrxCNcAzA OpenDaylight OVSDB YouTube Channel]
-* [http://networkstatic.net/installing-mininet-opendaylight-open-vswitch/ Preparing the OVSDB Development Environment]
-
-== OVSDB Overview ==
+===THIS IS A DRAFT DOCUMENT. ACTIVE WORK IN PROGRESS.===
 
 The OVSDB protocol uses JSON/RPC calls to manipulate a physical or virtual switch that has OVSDB attached to it.
 nearly all vendors support OVSDB in various hardware platforms. The OpenDaylight controller uses our native OVSDB implementation to manipulate the Open vSwitch database. Mininet is a great tool for students, researchers and devlopers alike. A critical component of Mininet is Open vSwitch(OVS) datapath running. This is a vanilla OVS implementation. Among other things, it differetiates from vanilla OVS by using namespaces to emulates an L3 host endpoint for reachability testing. This is an actual virtual namespace container so it is possible to run services for test/dev needs.
@@ -23,69 +15,11 @@ This tutorial is for developers, those learning the OpenDaylight controller or j
 
 == Clone the OVSDB Repo and Insert into Controller ==
 
-
-Pull the entire controller first and then clone the OVSDB directory:
-
-<pre>git clone https://git.opendaylight.org/gerrit/p/controller.git
-cd controller
+<pre>git clone https://git.opendaylight.org/gerrit/p/ovsdb.git
+cd ovsdb/ovsdb
 mvn clean install
-cd opendaylight
-git clone https://git.opendaylight.org/gerrit/p/ovsdb.git
-cd ovsdb/neutron
-mvn clean install
-cp target/ovsdb*jar ../../distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/plugins/
-cd ../northbound/ovsdb/
-mvn clean install
-cp target/ovsdb*jar ../../../distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/plugins/
-cd ../../ovsdb
-mvn clean install
-cp target/ovsdb*jar ../../distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/plugins/
-cd ..
+cp target/ovsdb-0.5.0-SNAPSHOT.jar ../../distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/plugins/ 
 ../../distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/run.sh</pre>
-
-or you can use this script after the controller is built.
-
-<pre>git clone https://git.opendaylight.org/gerrit/p/controller.git
-cd controller
-mvn clean install
-cd opendaylight
-git clone https://git.opendaylight.org/gerrit/p/ovsdb.git
-cd ovsdb</pre>
-Once completed with the controller build, paste the following lame little script into your console. If it is the first time you may need to adjust the sleep values or run by hand depending on the amount of artifacts requiring download. Again, this is for dev. We will crank out better installers as time permits.
-<pre> touch makemvn.sh
-echo '#!/bin/bash
-cd neutron
-echo "Refreshing ovsdb/neutron.."
-pwd
-mvn clean install
-sleep 40
-cp target/ovsdb*jar ../../distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/plugins/
-cd ../northbound/ovsdb/
-echo "Refreshing northbound/ovsdb.. "
-pwd
-mvn clean install
-sleep 40
-cp target/ovsdb*jar ../../../distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/plugins/
-cd ../../ovsdb
-echo "Refreshing ovsdb/ovsdb.."
-pwd
-mvn clean install
-sleep 40
-cp target/ovsdb*jar ../../distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/plugins/
-cd ..
-echo "done!"
-pwd' > makemvn.sh
-chmod +x makemvn.sh
-. ./makemvn.sh</pre>
-
-Finally if you only want to run the distribution with OVSDB integrated clone the following and build either the "Base" or "Virtualization" directories.
-<pre>git clone https://git.opendaylight.org/gerrit/integration
-#Choose your build base or virtualization be
- changing to those directories and run:
-integration/distributions/ {base or virtualization} 
-mvn clean install
-cd integration/distributions/virtualization/target/generated-resources/opendaylight
-./run.sh</pre>
 
 == Download Mininet ==
 
@@ -93,9 +27,6 @@ cd integration/distributions/virtualization/target/generated-resources/opendayli
 [http://mininet.org/download/ Mininet.org]
 *VirtualBox is free if you need a hypervisor to run the Mininet image. There are various disk image formats available for most popular platforms.
 [https://www.virtualbox.org/wiki/Downloads VirtualBox.org]
-We recommend using Postman for making API calls as you can download the same APIs we are using.
-
-[https://www.getpostman.com/collections/6a477a38d322b573719d Postman OVSDB API call for importation (updated 11/24)]
 
 == Setting up the OVS Manager ==
 
@@ -116,7 +47,7 @@ This configuration in the OVS client will appear as follows:
 2. ''Active Manager'' - The OVS element can be set to attach to an active Daylight management controller. In this model, the controller is listening on a specified port. The IANA registered port for OVS is 6640.
 <pre>sudo ovs-vsctl set-manager tcp:192.168.254.128:6640</pre>
 
-After the host is connected to the controller. The OVS configuration will reflect the established connection with a boolean value in the "Manager" table in the "is_connected" column of "true".
+After the host is connected to the controller. The OVS configuration will reflect the established connection with a bolean value in the "Manager" table in the "is_connected" column of "true".
 
 <pre>root@mininet-vm:~# ovs-vsctl show
 987c42d0-eab0-43d9-a32b-4246973706c2
@@ -145,9 +76,9 @@ You should now see a topology of two hosts in the OF controller like so:
 
 == Enable OpenDaylight Forwarding ==
 
-Next enable a dynamic forwarding app such as the one in the ODL controller. Point your browser at http://127.0.0.1:8080 (or any bound address). Below the the topology in the picture above is the "Add Gateway IP Address" button. Click that an add 10.0.0.254/24 into the configuration. 
+Next enable a dynamic forwarding app such as the one in the ODL controller. Point your browser at http://127.0.0.1:8080http://127.0.0.1:8080 (or any bound address). Below the the topology in the picture above is the "Add Gateway IP Address" button. Click that an add 10.0.0.254/24 into the configuration. 
 
-*''Warning'' this will proxy all ARP requests that it receives so ensure it is not configured to answer for a production network that falls into the network address range of the IP prefix entered.
+*''Warning'' this will proxy all ARP requests that it receives so ensure it is not confugred to answer for a production network that falls into the network address range of the IP prefix entered.
 <br />
 
 
@@ -157,17 +88,17 @@ Next enable a dynamic forwarding app such as the one in the ODL controller. Poin
 
 * After you define the gateway proxy address, you should then be able to ping between host 1 and host 2 using:
 
-<pre>pingall</pre> 
+<pre>pingall 
 Or 
-<pre>pingpair h1 h2</pre>
+pingpair h1 h2</pre>
 
 * Output should resemble the following:
 
-<pre>mininet> pingall
-Ping: testing ping reachability
+</pre>mininet> pingall
+ Ping: testing ping reachability
 h1 -> h2 
 h2 -> h1 
-Results: 0% dropped (0/2 lost)</pre>
+ Results: 0% dropped (0/2 lost)</pre>
 
 More examples on the simple forwarding application here [[OpenDaylight_Controller:Installation#Using_the_Simple_Forwarding_Application|Using the OpenDaylight Simple Forwarding Application]]
 
@@ -254,7 +185,7 @@ getBridgeDomains "OVS|MINI1"</pre>
 
 <pre>ovsconnect <ConnectionName> <ip-address>                        - Connect to OVSDB\n");
 addBridge <Node> <BridgeName>                                   - Add Bridge\n");
-getBridgeDomains <Node>                                         - Get Bridges\n");
+getBridgeDomains                                                - Get Bridges\n");
 addPort <Node> <BridgeName> <PortName> <type> <options pairs>   - Add Port\n");
 delPort <Node> <BridgeName> <PortName>                          - Delete Port\n");
 addPortVlan <Node> <BridgeName> <PortName> <vlan>               - Add Port, Vlan\n");
