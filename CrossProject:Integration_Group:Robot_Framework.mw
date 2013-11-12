@@ -33,43 +33,44 @@ they are trivially placed into any version control system.
 2. Conect to odl-test-tools 10.125.136.37 (username: odluser,  password: odluser1)
     ssh odluser@10.125.136.37
 3. CD to public_html. Here is the current working directory for robot test case files.
-    [odluser@odl-test-tools ~] cd public_html
-4. Create a directory in which you run your Robot test case / test suite file as to not write over others' output files created after each run.
-    [odluser@odl-test-tools public_html]$ mkdir CSIT
-    [odluser@odl-test-tools public_html]$ cd CSIT
+    [odluser@odl-test-tools ~] cd public_html/CSIT
+4. Create a directory in which you run your Robot test suite file where XX is the run order number and <test suite> is the module name you are writing the test.
+    [odluser@odl-test-tools public_html]$ mkdir XX__<test suite>
+    [odluser@odl-test-tools public_html]$ cd XX__<test suite>
 5. Create a Robot text file using library keywords. Libraries are normaly well documented in www.
-
-   [odluser@odl-test-tools CSIT]$ cat SimpleTest.txt
+   [odluser@odl-test-tools CSIT]$ cd 02__Topology_Manager/
+   [odluser@odl-test-tools 02__Topology_Manager]$ cat test.txt
    *** Settings ***
    Library       Collections
    Library       RequestsLibrary
    *** Testcases ***
    Get Topology
-       ${auth}=    Create List    admin    admin
-       ${headers}=    Create Dictionary    Content-Type   application/json
-       Create Session    controller   http://10.125.136.52:8080    headers=${headers}   auth=${auth} 
-       ${resp}=    Get    controller    /controller/nb/v2/topology/default 
-       Should Be Equal As Strings    ${resp.status_code}    200
-       ${jsondata}=  To Json  ${resp.content}
-       Log    ${jsondata}
-
-
+    ${nodeconn1}=  Set Variable  {"type":"OF","node":{"type":"OF","id":"00:00:00:00:00:00:00:01"},"id":"2"}
+    ${nodeconn2}=  Set Variable  {"type":"OF","node":{"type":"OF","id":"00:00:00:00:00:00:00:02"},"id":"2"}
+    ${auth}=    Create List    admin    admin
+    ${headers}=    Create Dictionary    Content-Type   application/json
+    Create Session    controller   http://10.125.136.52:8080    headers=${headers}   auth=${auth} 
+    ${resp}=    Get    controller    /controller/nb/v2/topology/default 
+    Should Be Equal As Strings    ${resp.status_code}    200
+    Log    ${resp.content}
+    Should Contain X Times  ${resp.content}   ${nodeconn1}   2
+    Should Contain X Times  ${resp.content}   ${nodeconn2}   2
 6. To run your test case created as a .txt or .html use the following command example:
-    [odluser@odl-test-tools CSIT]$ pybot SimpleTest.txt
-    ==============================================================================
-    SimpleTest                                                                    
-    ==============================================================================
-    Get Topology                                                          | PASS |
-    ------------------------------------------------------------------------------
-    SimpleTest                                                            | PASS |
-    1 critical test, 1 passed, 0 failed
-    1 test total, 1 passed, 0 failed
-    ==============================================================================
-    Output:  /home/odluser/public_html/CSIT/output.xml
-    Log:     /home/odluser/public_html/CSIT/log.html
-    Report:  /home/odluser/public_html/CSIT/report.html
+   [odluser@odl-test-tools 02__Topology_Manager]$ pybot test.txt 
+   ==============================================================================
+   Test                                                                          
+   ==============================================================================
+   Get Topology                                                          | PASS |
+   ------------------------------------------------------------------------------
+   Test                                                                  | PASS |
+   1 critical test, 1 passed, 0 failed
+   1 test total, 1 passed, 0 failed
+   ==============================================================================
+   Output:  /home/odluser/public_html/CSIT/02__Topology_Manager/output.xml
+   Log:     /home/odluser/public_html/CSIT/02__Topology_Manager/log.html
+   Report:  /home/odluser/public_html/CSIT/02__Topology_Manager/report.html
   
-Where pybot runs test case files written to use Python keywords. SimpleTest.txt is the name of your test case file.<br/>
+Where pybot runs test case files written to use Python keywords. test.txt is the name of your test case file.<br/>
 
 7. Test Run Results files: output.xml, log.html, and report.html are created each time you run a test case. These files are stored in the current directory from where you run your test case file.
 
@@ -78,7 +79,7 @@ Where pybot runs test case files written to use Python keywords. SimpleTest.txt 
    -rw-rw-r--. 1 odluser odluser 194773 Nov  8 09:40 log.html
    -rw-rw-r--. 1 odluser odluser   9185 Nov  8 09:40 output.xml
    -rw-rw-r--. 1 odluser odluser 197296 Nov  8 09:40 report.html
-   -rwxrwxr-x. 1 odluser odluser    522 Nov  8 09:40 SimpleTest.txt
+   -rwxrwxr-x. 1 odluser odluser    522 Nov  8 09:40 test.txt
 
 8. Viewing results files: ~olduser/public_html folder is accessible via browser but you will have to configure an ssh tunnel to browse to http://10.125.136.37/~odluser/. Test run results are also directed to standard out when run on the cli directly.
 
