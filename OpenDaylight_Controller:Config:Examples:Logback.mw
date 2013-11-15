@@ -845,4 +845,32 @@ The '''createInstance''' method will look like:
 </source>
 
 === Adding support for default instances ===
-In order to provide default instance of module bar-impl, we need to further modify generated code by overriding method ''getDefaultModules'' in ''src/main/java/**/BarImplModuleFactory'' class.
+In order to provide default instance of module bar-impl, we need to further modify generated code by overriding method ''getDefaultModules'' in ''src/main/java/**/BarImplModuleFactory'' class. The body of this class is emtpy so far and it inherits default behaviour from its parent abstract factory. We will replace empty body by this code:
+
+<source lang='java'>
+    public static final ModuleIdentifier defaultInstance1Id = new ModuleIdentifier(NAME, "defaultInstance1");
+
+    @Override
+    public Set<BarImplModule> getDefaultModules(DependencyResolverFactory dependencyResolverFactory, BundleContext bundleContext) {
+        DependencyResolver depResolver1 = dependencyResolverFactory.createDependencyResolver(defaultInstance1Id);
+        BarImplModule defaultModule1 = new BarImplModule(defaultInstance1Id, depResolver1);
+        defaultModule1.setDtoAttribute(getDefaultConfiguration(bundleContext));
+
+        return Sets.newHashSet(defaultModule1);
+    }
+
+    private DtoAttribute getDefaultConfiguration(BundleContext bundleContext) {
+        DtoAttribute defaultConfiguration = new DtoAttribute();
+
+        String property = bundleContext.getProperty("default.bool");
+        defaultConfiguration.setBoolAttribute(property == null ? false : Boolean.parseBoolean(property));
+
+        property = bundleContext.getProperty("default.int1");
+        defaultConfiguration.setIntAttribute(property == null ? 55 : Integer.parseInt(property));
+
+        property = bundleContext.getProperty("default.int2");
+        defaultConfiguration.setIntAttribute2(property == null ? 0 : Integer.parseInt(property));
+
+        return defaultConfiguration;
+    }
+</source>
