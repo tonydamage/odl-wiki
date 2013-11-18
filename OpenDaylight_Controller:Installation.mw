@@ -14,11 +14,16 @@ OpenDaylight Controller runs in a JVM. Being a Java application, it can potentia
 OpenDaylight Controller has not been tested in other environments.
 
 =Installing OpenDaylight Controller=
-:1. You have two options for obtaining the OpenDaylight Controller code:
-:* Download and extract the OpenDaylight Controller zip file ([https://jenkins.opendaylight.org/controller/job/controller-nightly/lastSuccessfulBuild/artifact/opendaylight/distribution/opendaylight/target/  latest night build]). 
-:* Pulling the code [[OpenDaylight Controller:Pulling, Hacking, and Pushing the Code from the CLI|via git]].
-: Prerequisite: JVM 1.7+ (JAVA_HOME should be set to environment)
-: The source code of the OpenDaylight Controller is in a directory called '''opendaylight'''. In this directory (usually the distribution/opendaylight/target/distribution.opendaylight-0.1.0-SNAPSHOT-osgipackage/opendaylight) you will see the following files:
+There are two options for obtaining the OpenDaylight Controller code. Option #1 is the easiest for 
+beginners to download the prebuilt current build. Option #2 is more advanced by building the modules on your machine.
+:'''Option #1 (Beginner)''': Download the latest build of controller already built to have running in a couple of steps:
+:* Download and extract the OpenDaylight Controller zip file ([https://jenkins.opendaylight.org/controller/job/controller-merge/lastSuccessfulBuild/artifact/opendaylight/distribution/opendaylight/target/  latest OpenDaylight Controller build]). 
+:* Prerequisite: JVM 1.7+ (JAVA_HOME should be set to environment)
+:* The Java JDK can be [http://docs.oracle.com/javase/7/docs/webnotes/install/ download here].
+'''Download and Run the controller'''
+:* The source code of the OpenDaylight Controller is in a directory called '''opendaylight'''.
+ In this directory (usually the distribution/opendaylight/target/distribution.opendaylight-0.1.0-SNAPSHOT-osgipackage/opendaylight)
+ you will see the following files:
 :*'''run.sh''' — launches the OpenDaylight Controller on Linux/Unix systems
 :*'''run.bat''' — launches OpenDaylight Controller on Windows systems
 :*'''version.properties''' — indicates the build version
@@ -29,16 +34,33 @@ OpenDaylight Controller has not been tested in other environments.
 :3. Navigate to '''http://'''''controller-ip''''':8080''' to open the web interface, then use the following credentials to log in:
 :* User: '''admin'''
 :* Password: '''admin'''
+:'''Option #2 (Advanced)''': To build the controller from source by pulling from the git repository, 
+please see the developer section in [[OpenDaylight Controller:Pulling, Hacking, and Pushing the Code from the CLI| Pulling, Hacking, and Pushing the Code from the CLI]].
+
 [[Image:Login.jpg|700px]]
 
 =Troubleshooting=
 :1. Out of memory error - java.lang.OutOfMemoryError: PermGen space:
 :* Can be resolved by setting maven options: 
 
-<pre>"MAVEN_OPTS="-Xmx1024m -XX:MaxPermSize=256m"
-/* syntax for setting varies on the OS used by the build machine.*/</pre>
+Increase the amount of memory by changing the "MAVEN_OPTS" ENV variable.
+An example for a Bash shell is as follows:
+<pre>export MAVEN_OPTS="-Xmx1024m -XX:MaxPermSize=256m"
+/* syntax for setting varies on the OS used by the build machine. */</pre>
 
-:2. If you receive a Maven error when building northbound integration tests that will also state "java.lang.OutOfMemoryError: PermGen space:" you can skip building those tests running the following:
+You can verify the variable is set with the following in a Bash shell.
+<pre>$ export | grep MAVEN_OPTS
+declare -x MAVEN_OPTS="-Xmx1024m -XX:MaxPermSize=256m"</pre>
+
+<pre> An example on a Linux based machine or a Mac you simply put "export" before
+ the variable. e.g. export MAVEN_OPTS="-Xmx1024m -XX:MaxPermSize=256m"
+ (parentheses around the value after the equals sign). That ENV variable is not 
+persistent unless you put it into a shell startup script. In Linux for example 
+the ~/.bashrc file and Mac the ~/.bash_profile file.</pre>
+
+:2. If you receive a Maven error when building northbound 
+integration tests that will also state "java.lang.OutOfMemoryError:
+ PermGen space:" you can skip building those tests running the following:
 
 <pre>mvn clean install -DskipTests 
 /* instead of "mvn clean install" */</pre>
@@ -69,6 +91,26 @@ Mininet will connect to OpenDaylight Controller and set up a three-level tree to
  mininet>
 
 '''Note:''' See the [http://mininet.github.com/walkthrough/ Mininet Walkthrough] for a more detailed explanation of Mininet's configuration options. There is an [http://mininet.github.com/walkthrough/#using-a-remote-controller appendix] that explains how to configure Mininet to use a remote controller.
+
+'''Important troubleshooting''' - if you are running VirtualBox on the same host/desktop where the controller is running, and trying to start the virtual network on Mininet VM produces this error: "Unable to contact the remote controller at ...", then
+the following resolves the problem:
+
+1. In VirtualBox, go to File-Preferences-Network and make sure you have at least one interface defined as Host-Only. Lets say its name is vboxnet0
+
+2. In VirtualBox - Mininet Vm - Settings - Network, check that the adapter is of type Host only , and is connected to the interface from item 1 (vboxnet0)
+
+3. On your host where controller and VirtualBox run, do "ifconfig" command to display all network interfaces on the machine.
+
+Search for the interface as in item 1 (vboxnet0 in our example)
+Take the ip address specified there (most probably 192.168.56.1 - default), and that is the correct remote controller ip address to use when starting a virtual network in mininet vm as stated in the example above (--controller=remote,ip=192.168.56.1) .
+
+4. If you are still not able to connect, you might want to consider temporarily disabling firewall on the host running the controller (on Linux, for example, iptables -F will do the job)
+
+5. Sometimes, the way you start the mininet  is a problem, it does not give error, but does not connect to the remote server. Here is a wrong example:
+    sudo mn --topo=tree,3 --mac --switch=ovsk --controller=remote, ip=192.168.16.10
+Here is the correct example:
+    sudo mn --topo=tree,3 --mac --switch=ovsk --controller=remote,ip=192.168.16.10
+The difference is the "SPACE" between "remote," and "ip".
 
 = Using the Simple Forwarding Application  =
 
