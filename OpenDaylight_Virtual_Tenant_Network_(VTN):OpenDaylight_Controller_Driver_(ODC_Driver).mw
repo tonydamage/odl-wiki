@@ -10,7 +10,7 @@ It consists of two sub components
 
 == Common Driver Framework (CDF) ==
 
-The CDF module provides a controller independent processing of the messages sent from [[OpenDaylight_Virtual_Tenant_Network_(VTN):Unified Provider Logical Layer (UPLL)|UPLL]] and [[OpenDaylight_Virtual_Tenant_Network_(VTN):Unified Provider Physical Layer (UPPL)|UPPL]] modules.
+CDF provides a controller independent processing of the messages sent from [[OpenDaylight_Virtual_Tenant_Network_(VTN):Unified Provider Logical Layer (UPLL)|UPLL]] and [[OpenDaylight_Virtual_Tenant_Network_(VTN):Unified Provider Physical Layer (UPPL)|UPPL]] modules.
 
 The main functions of this module are
 :*Isolate the driver modules from processing messages sent by [[OpenDaylight_Virtual_Tenant_Network_(VTN):Unified Provider Logical Layer (UPLL)|UPLL]] and [[OpenDaylight_Virtual_Tenant_Network_(VTN):Unified Provider Physical Layer (UPPL)|UPPL]]modules.
@@ -22,9 +22,87 @@ The main functions of this module are
 :*Support for Parallel Update operation across many controllers.
 :*The framework can be extended to support all driver modules in a common daemon or individual daemons.
 
+CDF is implemented using the following modules
+       vtndrvintf
+       vtncacheutil
+
+=== vtndrvintf ===
+:* Implements all the features of CDF as listed above.
+
+==== Class Details ====
+{| class="wikitable"
+|-
+! Class Name !! Description
+|-
+| VtnDrvIntf || This class is inherited from Module class and provides the entry point for messages from platform.
+This also provides interfaces to add drivers for different types of controllers.
+|-
+| KtHandler || Abstract interface for handling different message types.
+|-
+| KtRequestHandler || Template that implements KtHandler to process all messages from platform.
+|-
+| DriverTxnInterface || Common Transaction handling for drivers
+|-
+| ControllerFramework || This provides methods to add/delete/update Controllers of different types to the VTN Coordinator.
+This also ensures periodic monitoring of controllers and takes appropriate actions
+|}
+
+=== vtncacheutil ===
+:*  Utility module that provides interfaces for caching configuration entries to validate as a whole and then later commit
+
+==== Class Details ====
+{| class="wikitable"
+|-
+! Class Name !! Description
+|-
+| keytree || cache container that provides interfaces to append config to cache.
+| CommonIterator ||  Proves methods to iterate the elements in cache, the option to iterate in VTN hierarchial order is also available.
+|}
+
 == ODC Driver ==
 :* The ODC driver module implements the interfaces for controller connection management and virtual network provisioning and monitoring in the ODC controller.
 :* The request will be translated to the appropriate REST APIs and sent to the controller.
+:* Capable of translating the VTN Operations as Commands to VTN Manager in the ODL.
+
+The above features are implemented using these modules
+   restjsonutil
+   odcdriver
+
+=== restjsonutil ===
+:* Utility Module that provides services for json build/parse and handling REST Request/Response.
+==== Class Details ====
+{| class="wikitable"
+|-
+! Class Name !! Description
+|-
+| HttpClient || Interface to set up and maintain a connection to an HTTP Web service
+|-
+| RestClient || Interface to handle Request/Response on a REST Interface
+|-
+| JsonBuildParse || Interface for building/parsing the json strings for communication 
+|}
+
+=== odcdriver ===
+:* Implements the interfaces exposed by CDF
+:* Registers the driver for controllers of type : ODC (OpenDaylight Controllers)
+:* Uses the restjsonutil to communicate
+
+==== Class Details ====
+{| class="wikitable"
+|-
+! Class Name !! Description
+|-
+| OdcModule || Module implementation of odc driver, registers itself as diver for controllers of ODL type.
+|-
+| ODCController || Implements the various methods according to the features of the ODL Controller.
+|-
+| ODCVTNCommand || Handle Create/Update/Delete/Read requests for VTN from platform
+|-
+| ODCVBRCommand || Handle Create/Update/Delete/Read requests for VBridge from platform
+| -
+| ODCVBRIfCommand || Handle Create/Update/Delete/Read requests for VBridge Interfaces from platform
+|}
+
 
 
 [[Category:OpenDaylight Virtual Tenant Network]]
