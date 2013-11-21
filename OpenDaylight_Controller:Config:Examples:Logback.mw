@@ -96,7 +96,7 @@ rpc reset {
 Reset method is defined in LogbackRuntimeMXBean interface.
 
 == Logback configuration - Jolokia ==
-Now try to create configuration on running OSGi server. We will use '''Jolokia''' (http://www.jolokia.org/) as a JMX-HTTP bridge, which listen at http://localhost:8080/controller/nb/v2/jolokia and '''culr''' to request over HTTP.
+Now try to create configuration on running OSGi server. We will use '''Jolokia''' (http://www.jolokia.org/) as a JMX-HTTP bridge, which listen at http://localhost:8080/controller/nb/v2/jolokia and '''curl''' to request over HTTP.
 
 * Start up controller. Find more here: https://wiki.opendaylight.org/view/OpenDaylight_Controller:Pulling,_Hacking,_and_Pushing_the_Code_from_the_CLI
 
@@ -372,6 +372,92 @@ On succes, ok message obtained and logback configuration is set. As an evidence,
 ]]>]]>
 </syntaxhighlight>
 
+== Threadpool configuration via Netconf ==
+In this example, we will create thredfactory with name prefix to add new fixed-size threadpool. In this case we will need to instantiate two configuration modules - threadfactory and threadpool, wrapping implementation of java.util.concurrent.ThreadFactory and java.util.concurrent.Executors#newFixedThreadPool service. The threadfactory module needs to be injected into threadpool module. For that purpose we will need to define service, containg a reference to the module instance, in Netconf edit-config rpc. First steps will be similar as in the example above.
+
+* Start the server, open terminal and connect to the server via tcp.
+<source>
+telnet localhost 8383
+</source>
+* You should receive hello-message from server, containing capabilities and session-id. To establish connection, send hello message.
+<syntaxhighlight lang="xml">
+<hello xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+    <capabilities>
+        <capability>urn:ietf:params:netconf:base:1.0</capability>
+    </capabilities>
+</hello>
+]]>]]>
+</syntaxhighlight>
+
+* Now we can propose new configuration - create new threadpool. Look at the XML belove, it is a Netconf rpc of candidate configuration. It contains modules identified by type (module name) and name (module instance name) and services. The structures of modules and services are defined in yang files. First module represents threadfactory, it has one string attribute name-prefix containing value "myThreadpool". It will serve as a name prefix of threads in our threadpool. The second module represents fixed-size threadpool - has two parameters. The first, named "max-thread-count", says how much threads will be created in our threadpool. In this example set it to 10. The second argument called "threadFactory" is in fact dependency to the threadpool module, it needs to be injected via service. The threadfactory service contains reference to the insatnce of threadfactory module defined earlier, threadfactory-naming module must provide defined type of service.
+<syntaxhighlight lang="xml"> 
+<?xml version="1.0" encoding="UTF-8"?>
+<rpc xmlns="urn:ietf:params:xml:ns:netconf:base:1.0" message-id="101">
+   <edit-config>
+      <target>
+         <candidate />
+      </target>
+      <default-operation>merge</default-operation>
+      <config>
+         <modules xmlns="urn:opendaylight:params:xml:ns:yang:controller:config">
+            <module xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0" nc:operation="merge">
+               <name>threadfactory-naming-instance</name>
+               <type xmlns:th-java="urn:opendaylight:params:xml:ns:yang:controller:threadpool:impl">th-java:threadfactory-naming</type>
+               <name-prefix xmlns="urn:opendaylight:params:xml:ns:yang:controller:threadpool:impl">myThreadpool</name-prefix>
+            </module>
+            <module xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0" nc:operation="merge">
+               <name>fixed-threadpool-instance</name>
+               <type xmlns:th-java="urn:opendaylight:params:xml:ns:yang:controller:threadpool:impl">th-java:threadpool-fixed</type>
+               <max-thread-count xmlns="urn:opendaylight:params:xml:ns:yang:controller:threadpool:impl">10</max-thread-count>
+               <threadFactory xmlns="urn:opendaylight:params:xml:ns:yang:controller:threadpool:impl">
+                  <type xmlns:th="urn:opendaylight:params:xml:ns:yang:controller:threadpool">th:threadfactory</type>
+                  <name>factory-ref</name>
+               </threadFactory>
+            </module>
+         </modules>
+         <services xmlns="urn:opendaylight:params:xml:ns:yang:controller:config">
+            <service>
+               <type xmlns:th="urn:opendaylight:params:xml:ns:yang:controller:threadpool">th:threadfactory</type>
+               <instance>
+                  <name>factory-ref</name>
+                  <provider>/config/modules/module[name='threadfactory-naming']/instance[name='threadfactory-naming-instance']</provider>
+               </instance>
+            </service>
+         </services>
+      </config>
+   </edit-config>
+</rpc>
+]]>]]>
+</syntaxhighlight>
+
+* If proposed configuration is valid and we are satisfied, we can proceed to commiting.
+<syntaxhighlight lang="xml">
+<rpc xmlns="urn:ietf:params:xml:ns:netconf:base:1.0" message-id="101">
+    <commit></commit>
+</rpc>
+]]>]]>
+</syntaxhighlight>
+
+* If instances were successfuly created, we can request for running configuration modules to see our configuration or graphicly in i.e. VisualVM - can see two created MBeans (modules) with set arguments values and 10 threads with prefix "myThreadpool" waiting to be run.
+<syntaxhighlight lang="xml">
+<rpc id="a" a="64" xmlnx="a:b:c:d" xmlns="urn:ietf:params:xml:ns:netconf:base:1.0" message-id="101">
+    <get-config>
+        <source>
+            <running/>
+        </source>
+    </get-config>
+</rpc>
+]]>]]>
+</syntaxhighlight>
+
+* Finally close netconf session.
+<syntaxhighlight lang="xml">
+<rpc message-id="2" xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+    <close-session xmlns="urn:ietf:params:xml:ns:netconf:base:1.0"/>
+</rpc>
+]]>]]>
+</syntaxhighlight>
+
 = Sample maven project =
 In this example, we will create a maven project that will provide 2 modules each implementing one service. We will design a simple configuration as well as runtime data for each module using yang. <br />
 For this demo, we created a sample maven project called config-demo. This project contains 2 Java interfaces: Foo and Bar with one default implementation per interface: FooImpl and BarImpl. Bar is the producer in our example and produces integers when method getNextEvent() is called. Foo is the consumer and its implementation depends on a Bar instance. Both implementations require some configuration that is injected via constructors. <br/> 
@@ -462,7 +548,7 @@ public class FooImpl implements Foo {
         <relativePath>../commons/opendaylight/pom.xml</relativePath>
     </parent>
     <groupId>org.opendaylight.controller</groupId>
-    <version>0.2.1-SNAPSHOT</version>
+    <version>0.1.1-SNAPSHOT</version>
     <artifactId>config-demo</artifactId>
     <packaging>bundle</packaging>
     <name>${project.artifactId}</name>
@@ -534,8 +620,8 @@ As you can see, the config yang module needs to be imported in order to define s
 module config-demo-impl {
 
     yang-version 1;
-    namespace "urn:opendaylight:params:xml:ns:yang:controller:config:demo:impl";
-    prefix "demo-impl";
+    namespace "urn:opendaylight:params:xml:ns:yang:controller:config:demo:java";
+    prefix "demo-java";
 
     // Dependency on service definition for config-demo
     /* Service definitions could be also located in this yang file or even
@@ -602,7 +688,7 @@ module config-demo-impl {
     // Module implementing bar service
     identity bar-impl {
         base config:module-type;
-        config:provided-service demo:foo;
+        config:provided-service demo:bar;
         config:java-name-prefix BarImpl;
     }
 
@@ -642,10 +728,9 @@ Again, config yang module as well as config-demo yang module need to be imported
 Now we need to add yang-maven-plugin to our pom.xml. This plugin will process yang files and generate configuration code for the defined modules. Plugin's configuration:
 <source lang='xml'>
 <plugin>
-<plugin>
     <groupId>org.opendaylight.yangtools</groupId>
     <artifactId>yang-maven-plugin</artifactId>
-    <version>0.5.8</version>
+    <version>${yangtools.version}</version>
     <executions>
         <execution>
             <goals>
@@ -673,7 +758,7 @@ Now we need to add yang-maven-plugin to our pom.xml. This plugin will process ya
         <dependency>
             <groupId>org.opendaylight.controller</groupId>
             <artifactId>yang-jmx-generator-plugin</artifactId>
-            <version>0.2.1-SNAPSHOT</version>
+            <version>${config.version}</version>
         </dependency>
     </dependencies>
 </plugin>
@@ -707,11 +792,23 @@ Earlier, we imported config yang module in our yang files. In order to acquire t
 <dependency>
     <groupId>org.opendaylight.controller</groupId>
     <artifactId>config-api</artifactId>
-    <version>0.2.1-SNAPSHOT</version>
+    <version>${config.version}</version>
 </dependency>
 </source>
 
-We are ready to run '''mvn clean install'''.
+We will also add a couple of utility dependencies:
+<source lang='xml'>
+<dependency>
+    <groupId>org.slf4j</groupId>
+    <artifactId>slf4j-api</artifactId>
+</dependency>
+<dependency>
+    <groupId>com.google.guava</groupId>
+    <artifactId>guava</artifactId>
+</dependency>
+</source>
+
+We are now ready to run '''mvn clean install'''.
 
 == Generated java files ==
 Now we can see a bunch of new source files divided into 2 groups. First group is located under ${project.build.directory}/generated-sources/config directory, which we specified in yang-maven-plugin's configuration. The second group is located under src/main/java directory. Both groups then define package org.opendaylight.controller.config.yang.config.demo.impl. The first group contains code that should not be edited in any way, since this code can be regenerated by the plugin if necessary. The code that needs to be edited belongs to the second group and is located under src/main/java. <br/>
@@ -721,9 +818,9 @@ Now we can see a bunch of new source files divided into 2 groups. First group is
 <source lang='java'>
 public interface BarImplModuleMXBean
 {
-    public org.opendaylight.controller.config.yang.config.demo.impl.DtoAttribute getDtoAttribute();
+    public org.opendaylight.controller.config.yang.config.demo.java.DtoAttribute getDtoAttribute();
 
-    public void setDtoAttribute(org.opendaylight.controller.config.yang.config.demo.impl.DtoAttribute dtoAttribute);
+    public void setDtoAttribute(org.opendaylight.controller.config.yang.config.demo.java.DtoAttribute dtoAttribute);
 
 }
 </source>
@@ -776,10 +873,10 @@ Next we will create runtime bean for FooImplModule. Runtime beans are designated
 
 === Modifying generated sources ===
 Generated source files:
-* src/main/java/BarImplModule
-* src/main/java/BarImplModuleFactory
-* src/main/java/FooImplModule
-* src/main/java/FooImplModuleFactory
+* src/main/java/**/BarImplModule
+* src/main/java/**/BarImplModuleFactory
+* src/main/java/**/FooImplModule
+* src/main/java/**/FooImplModuleFactory
 
 '''BarImplModule'''<br />
 We will start by modifying BarImplModule. You can see 2 constructors (not interesting at all) and 2 generated methods:
@@ -806,7 +903,6 @@ In '''validate''', you can specify and validation for config attributes e.g.:
         Preconditions.checkNotNull(getDtoAttribute().getBoolAttribute());
         Preconditions.checkNotNull(getDtoAttribute().getIntAttribute());
         Preconditions.checkNotNull(getDtoAttribute().getIntAttribute2());
-        Preconditions.checkState(getDtoAttribute().getIntAttribute() > 55);
         Preconditions.checkState(getDtoAttribute().getIntAttribute() > getDtoAttribute().getIntAttribute2());
     }
 </source>
@@ -833,3 +929,57 @@ The '''createInstance''' method will look like:
         return new FooImpl(getStrAttribute(), getIntAttribute(), getBarDependencyDependency());
     }
 </source>
+
+=== Adding support for default instances ===
+In order to provide default instance of module bar-impl, we need to further modify generated code by overriding method ''getDefaultModules'' in ''src/main/java/**/BarImplModuleFactory'' class. The body of this class is emtpy so far and it inherits default behaviour from its parent abstract factory. We will replace empty body by this code:
+
+<source lang='java'>
+    public static final ModuleIdentifier defaultInstance1Id = new ModuleIdentifier(NAME, "defaultInstance1");
+
+    @Override
+    public Set<BarImplModule> getDefaultModules(DependencyResolverFactory dependencyResolverFactory, BundleContext bundleContext) {
+        DependencyResolver depResolver1 = dependencyResolverFactory.createDependencyResolver(defaultInstance1Id);
+        BarImplModule defaultModule1 = new BarImplModule(defaultInstance1Id, depResolver1);
+        defaultModule1.setDtoAttribute(getDefaultConfiguration(bundleContext));
+
+        return Sets.newHashSet(defaultModule1);
+    }
+
+    private DtoAttribute getDefaultConfiguration(BundleContext bundleContext) {
+        DtoAttribute defaultConfiguration = new DtoAttribute();
+
+        String property = bundleContext.getProperty("default.bool");
+        defaultConfiguration.setBoolAttribute(property == null ? false : Boolean.parseBoolean(property));
+
+        property = bundleContext.getProperty("default.int1");
+        defaultConfiguration.setIntAttribute(property == null ? 55 : Integer.parseInt(property));
+
+        property = bundleContext.getProperty("default.int2");
+        defaultConfiguration.setIntAttribute2(property == null ? 0 : Integer.parseInt(property));
+
+        return defaultConfiguration;
+    }
+</source>
+
+The ''getDefaultModules'' method now produces an instance of bar-impl module with name ''defaultInstance1'' (it is possible to produce multiple default instances since the return type is a Set of module instances). Notice the ''getDefaultConfiguration'' method, it provides the default configuration for default instances by trying to retrieve system properties from bundleContext (or provides hardcoded values in case system property is not present).
+
+For the controller distribution, system properties can be feeded via ''config.ini'' file.
+
+Method ''getDefaultModules'' is called automatically after a bundle containing this factory is started in the OSGi environment. Its default implementation returns an empty Set.
+
+Default instances approach is similar to the Activator class approach in OSGi with the advantage of default instances being managed by the configuration subsystem. This approach can replace Activator class approach or it can be used along with it.
+
+==== Verifying default instances in distribution ====
+If we add config-demo bundle to opendaylight's distribution, we can verify the presence of the default instance. File ''pom.xml'' under ''opendaylight/distribution/opendaylight'' folder needs to be modified by adding config-demo dependency:
+<source lang='xml'>
+<dependency>
+    <groupId>${project.groupId}</groupId>
+    <artifactId>config-demo</artifactId>
+    <version>0.1.1-SNAPSHOT</version>
+</dependency>
+</source>
+
+Now we need to rebuild the conf-demo module using mvn clean install. Then we can build the distribution using the same mvn command under ''opendaylight/distribution/opendaylight'' folder. Now if we head to ''opendaylight/distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight'' folder and execute ''run.sh'', the opendaylight distribution should start.
+
+We can check the presence of default instances via JMX using tool such as ''jvisualvm'':
+[[File:Default instance verify.PNG|frameless|center|jvisualvm showing the default instance of bar-impl module]]
