@@ -28,18 +28,83 @@ CSIT is implemented through the following jobs in [https://jenkins.opendaylight.
 
 == Code Development ==
 
-System test code is part of our Integration repo. It is stored under /test folder. Here is how to [[CrossProject:Integration_Group:Hack_Code| download and hack the code]].
+System test code is part of our Integration repo, it is stored under /test folder. Here is how to [[CrossProject:Integration_Group:Hack_Code| download and hack the code]].
 
 We also follow the same [[OpenDaylight_Controller:Development_Infrastructure_Overview|flow]] as any other OpenDaylight project, with some difference in the verify and merge jobs:
 
 * '''integration-verify-test'''. This job will trigger on patch creation under /test folder and will:
+** Update controller base edition (integration-deploy-controller-latest-base-edition) using last succesful base edition artifacts
+** Run Robot system test for base edition using GERRIT patch test code
 
 * '''integration-merge-test'''.  This job will trigger on patch merge under /test folder and will:
+** Update controller base edition (integration-deploy-controller-latest-base-edition) using last succesful base edition artifacts
+** Run Robot system test for base edition using merged test code
 
+== System Test Code ==
+System test cases are written in Robot framework. We recommend to follow these simple rules when writting test cases:
 
-ases are written in Robot framework CSIT runs at [[CrossProject:Integration_Group:ODL_Test_Lab|OpenDaylight Lab]]. This test bed is part of the OpenDaylight infrastructure maintained by Linux Foundation.<br/> 
+=== Test case organization ====
 
-CSIT is implemented through the following jobs in [https://jenkins.opendaylight.org/integration Integration Jenkins]:
+* We have 3 test suites as defined by Robot, they are stored in 3 separate folders under /test/csit/suites and they match the 3 system tests we envision for 3 different distributions: base, service provider and virtualization.
+
+* The test suite folder (like /test/csit/suites/base) can contain a set of test files named “module.txt” (like “topology_manager.txt”).  Every file is in charge of testing one particular component or feature in Opendaylight like Topology Manager, Switch Manager, Container Mgr, etc…
+
+* Every test file can have several test cases needed to test the entire module/feature. Every individual test case is recognized because it pushes one or more actions (like add a flow), gets a response and then makes a match condition to determine whether the action or actions are successful or not.
+
+* The test files should be self-sufficient so that they can run independently no matter which order we execute the files. This means these files should add any configuration needed for the module test and then remove it to start the next file clean.
+
+=== Name convention ===
+
+* Names for the test files should match the feature we want to test: “topology_manager.txt”, “forwarding_rule_manager.txt”, “container_manager.txt”, etc… are good examples
+
+* We also need to name the test cases within the files to describe the action being tested: “add flow”, “remove flow”, “get topology”, etc…
+
+==== Test case order ====
+
+* Test case order makes sense as it would be good to start testing from bottom to top, or base module/features to advanced module/features.
+
+* Test case order is written in a file called: X. Please remember to update this file when writting new test files
+
+==== How to write a test file ==== 
+
+Developers will be normally in charge of writing one or more test files. 
+
+Before writing the Robot Test file:
+* Check [http://robotframework.googlecode.com/hg/doc/userguide/RobotFrameworkUserGuide.html|Robot user guide] if you are not familiar with Robot
+* Check existing [[CrossProject:Integration_Group:CSIT_Test_Tools:_Robot_Based|robot libraries]] to see if you can reuse any keyword or variable. You can also add your own library if needed.
+* Check some TC examples in the repo like the one in the next section. 
+* Remember to use the variable ${CONTROLLER} to reference the controller IP
+
+==== Robot test file sample ====
+
+<pre>
+*** Settings ***
+Documentation     Test suite for the switch manager bundle.
+Suite Setup       Create Session    ${ODL_CONTROLLER_SESSION}    ${PREFIX}    auth=${AUTH}
+Suite Teardown    Delete All Sessions
+Library           Collections
+Library           RequestsLibrary
+Library           ../../libraries/Common.py
+Library           ../../libraries/SwitchManager.py
+Variables         ../../variables/Variables.py
+Library           ../../libraries/Topology.py
+
+*** Variables ***
+${REST_CONTEXT}    /controller/nb/v2/switchmanager
+
+*** Test Cases ***
+List all nodes
+    [Documentation]    List all nodes and their properties in the network.
+    [Tags]    list_info
+    ${URL}    Combine Strings    ${REST_CONTEXT}    /    ${CONTAINER}    /nodes
+    Log    ${topo_tree_level}
+    ${topo_nodes}    Get Nodes From Topology    ${TOPO_TREE_LEVEL}
+    ${resp}    Get    ${ODL_CONTROLLER_SESSION}    ${URL}
+    Should Be Equal As Strings    ${resp.status_code}    200    Response status code error
+    ${jsondata}=    To JSON    ${resp.content}
+    ${nodes}    Extract All Nodes    ${jsondata}
+    Collection Should Contain    ${nodes}    ${topo_nodes}
+</pre>
 
 == Open Test Lab ==
 
