@@ -104,31 +104,48 @@ Before writing the Robot Test file:
 
 <pre>
 *** Settings ***
-Documentation     Test suite for the switch manager bundle.
-Suite Setup       Create Session    ${ODL_CONTROLLER_SESSION}    ${PREFIX}    auth=${AUTH}
+Documentation     Test suite for the forwarding manager module.
 Suite Teardown    Delete All Sessions
 Library           Collections
-Library           RequestsLibrary
+Library           ../../libraries/RequestsLibrary.py
 Library           ../../libraries/Common.py
-Library           ../../libraries/SwitchManager.py
 Variables         ../../variables/Variables.py
-Library           ../../libraries/Topology.py
 
 *** Variables ***
-${REST_CONTEXT}    /controller/nb/v2/switchmanager
+${name}           test_route1
+${key}            staticRoute
+${REST_CONTEXT}    /controller/nb/v2/staticroute
 
 *** Test Cases ***
-List all nodes
-    [Documentation]    List all nodes and their properties in the network.
-    [Tags]    list_info
-    ${URL}    Combine Strings    ${REST_CONTEXT}    /    ${CONTAINER}    /nodes
-    Log    ${topo_tree_level}
-    ${topo_nodes}    Get Nodes From Topology    ${TOPO_TREE_LEVEL}
-    ${resp}    Get    ${ODL_CONTROLLER_SESSION}    ${URL}
+Add a static route
+    [Documentation]    Add a static route, list to validate the result.
+    [Tags]    add
+    ${body}    Create Dictionary    name    ${name}    prefix    192.168.1.0/24    nextHop
+    ...    10.0.0.2
+    ${headers}    Create Dictionary    Content-Type    application/json
+    Create Session    session    http://${CONTROLLER}:8080    headers=${headers}    auth=${auth}
+    ${resp}    Put    session    ${REST_CONTEXT}/${CONTAINER}/route/${name}    data=${body}
+    Should Be Equal As Strings    ${resp.status_code}    201    Response status code error
+    ${resp}    Get    session    ${REST_CONTEXT}/${CONTAINER}/routes
     Should Be Equal As Strings    ${resp.status_code}    200    Response status code error
-    ${jsondata}=    To JSON    ${resp.content}
-    ${nodes}    Extract All Nodes    ${jsondata}
-    Collection Should Contain    ${nodes}    ${topo_nodes}
+    ${result}    To JSON    ${resp.content}
+    ${content}    Get From Dictionary    ${result}    ${key}
+    List Should Contain Value    ${content}    ${body}
+
+Remove a static route
+    [Documentation]    Remove a static route, list to validate the result.
+    [Tags]    remove
+    ${body}    Create Dictionary    name    ${name}    prefix    192.168.1.0/24    nextHop
+    ...    10.0.0.2
+    ${headers}    Create Dictionary    Content-Type    application/json
+    Create Session    session    http://${CONTROLLER}:8080    headers=${headers}    auth=${auth}
+    ${resp}    Delete    session    ${REST_CONTEXT}/${CONTAINER}/route/${name}
+    Should Be Equal As Strings    ${resp.status_code}    204    Response status code error
+    ${resp}    Get    session    ${REST_CONTEXT}/${CONTAINER}/routes
+    Should Be Equal As Strings    ${resp.status_code}    200    Response status code error
+    ${result}    To JSON    ${resp.content}
+    ${content}    Get From Dictionary    ${result}    ${key}
+    List Should Not Contain Value    ${content}    ${body}
 </pre>
 
 === How to control Mininet ===
