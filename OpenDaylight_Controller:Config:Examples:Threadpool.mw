@@ -315,15 +315,14 @@ To commit the threadfactory instance, send a commit message:
 <syntaxhighlight lang="xml">
 <rpc message-id="101" xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
 	<commit/>
-</rpc>
-]]>]]>
+</rpc>]]>]]>
 </syntaxhighlight>
 
 Netconf endpoint should respond with ok to edit-config as well as commit message:
 <syntaxhighlight lang="xml">
 <rpc-reply xmlns="urn:ietf:params:xml:ns:netconf:base:1.0" message-id="101">
         <ok/>
-</rpc-reply>
+</rpc-reply>]]>]]>
 </syntaxhighlight>
 
 Now the response to get-config message (same as the first message sent in this example) should contain commited instance of threadfactory-naming:
@@ -360,5 +359,43 @@ Now the response to get-config message (same as the first message sent in this e
 			</service>
 		</services>
 	</data>
-</rpc-reply>
+</rpc-reply>]]>]]>
 </syntaxhighlight>
+
+== Configuring fixed threadpool ==
+To create an instance of '''threadpool-fixed ''' with the same configuration and the same dependency as before, we need to send following message:
+<syntaxhighlight lang="xml">
+<rpc message-id="101" xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+	<edit-config>
+		<target>
+			<candidate/>
+		</target>
+		<default-operation>merge</default-operation>
+		<config>
+			<modules xmlns="urn:opendaylight:params:xml:ns:yang:controller:config">
+				<module xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0" nc:operation="merge">
+					<name>bgp-threadpool</name>
+					<type xmlns:th-java="urn:opendaylight:params:xml:ns:yang:controller:threadpool:impl">th-java:threadpool-fixed</type>
+					<max-thread-count xmlns="urn:opendaylight:params:xml:ns:yang:controller:threadpool:impl">100</max-thread-count>
+					<threadFactory xmlns="urn:opendaylight:params:xml:ns:yang:controller:threadpool:impl">
+						<type xmlns:th="urn:opendaylight:params:xml:ns:yang:controller:threadpool">th:threadfactory</type>
+						<name>ref_th-bgp</name>
+					</threadFactory>
+				</module>
+			</modules>
+			
+			<services xmlns="urn:opendaylight:params:xml:ns:yang:controller:config">
+			<service>
+				<type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:threadpool">prefix:threadfactory</type>
+				<instance>
+					<name>ref_th-bgp</name>
+					<provider>/config/modules/module[name='threadfactory-naming']/instance[name='threadfactory-bgp']</provider>
+				</instance>
+			</service>
+		</services>
+		</config>
+	</edit-config>
+</rpc>]]>]]>
+</syntaxhighlight>
+
+Notice the ''services'' tag, that is used to reference the dependency on a threadfactory. We are referencing instance of threadfactory-naming created in previous step, but you are able to reference any instance that implements the threadfactory interface. Tag ''provider'' points to a unique instance that is already present in the config subsystem or is created within current edit-config operation. Tag ''name'' contains an identifier that can be referenced by other modules to create a dependency (instance of threadpool created by this message uses this reference in its configuration under ''threadFactory'' tag).
