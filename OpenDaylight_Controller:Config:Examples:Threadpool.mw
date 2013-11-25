@@ -191,3 +191,78 @@ To validate that a threadpool has been created, tool like VisualVM can be used.
 [[File:Configure-threadpools-visualvm.png]]
 
 =Example configuration of thread pools using telnet=
+It is also possible to manipulate configuration without the yuma cli. With just a telnet connection, it is possible to send plain text containing netconf rpcs encoded in xml format and achieve the same results as with yuma cli.
+
+In this example we will reproduce configuration of a threadpool and a threadfactory from the previous example (LINK HERE !!!) using just a telnet connection. For detailed information about initial configuration for the controller as well as the configuration process, please consult page related to the example using yuma cli. 
+
+== Connecting to netconf endpoint ==
+Open a telnet connection:
+<source>
+telnet 127.0.0.1 8383
+</source>
+
+The separator for messages is:
+<source>
+]]>]]>
+</source>
+and every message needs to be ended with these 6 characters.
+
+You should see a hello message from the server:
+<source>
+<hello xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+<capabilities>
+<capability>urn:ietf:params:netconf:base:1.0</capability>
+<capability>urn:ietf:params:netconf:capability:exi:1.0</capability>
+<capability>urn:opendaylight:l2:types?module=opendaylight-l2-types&amp;revision=2013-08-27</capability>
+<capability>urn:opendaylight:params:xml:ns:yang:controller:netty:threadgroup?module=threadgroup&amp;revision=2013-11-07</capability>
+<capability>urn:opendaylight:params:xml:ns:yang:controller:md:sal:binding?module=opendaylight-md-sal-binding&amp;revision=2013-10-28</capability>
+<capability>urn:opendaylight:params:xml:ns:yang:controller:threadpool?module=threadpool&amp;revision=2013-04-09</capability>
+<capability>urn:ietf:params:netconf:capability:candidate:1.0</capability>
+<capability>urn:opendaylight:params:xml:ns:yang:controller:config?module=config&amp;revision=2013-04-05</capability>
+<capability>urn:ietf:params:xml:ns:yang:ietf-netconf-monitoring?module=ietf-netconf-monitoring&amp;revision=2010-10-04</capability>
+<capability>urn:opendaylight:params:xml:ns:yang:controller:netty:eventexecutor?module=netty-event-executor&amp;revision=2013-11-12</capability>
+<capability>urn:ietf:params:xml:ns:yang:rpc-context?module=rpc-context&amp;revision=2013-06-17</capability>
+<capability>urn:opendaylight:params:xml:ns:yang:controller:md:sal:binding:impl?module=opendaylight-sal-binding-broker-impl&amp;revision=2013-10-28</capability>
+<capability>urn:opendaylight:params:xml:ns:yang:controller:netty:timer?module=netty-timer&amp;revision=2013-11-19</capability>
+<capability>urn:ietf:params:xml:ns:yang:ietf-inet-types?module=ietf-inet-types&amp;revision=2010-09-24</capability>
+<capability>urn:ietf:params:netconf:capability:rollback-on-error:1.0</capability>
+<capability>urn:opendaylight:params:xml:ns:yang:controller:threadpool:impl?module=threadpool-impl&amp;revision=2013-04-05</capability>
+<capability>urn:ietf:params:xml:ns:yang:ietf-yang-types?module=ietf-yang-types&amp;revision=2010-09-24</capability>
+<capability>urn:opendaylight:params:xml:ns:yang:controller:logback:config?module=config-logging&amp;revision=2013-07-16</capability>
+<capability>urn:opendaylight:params:xml:ns:yang:iana?module=iana&amp;revision=2013-08-16</capability>
+<capability>urn:opendaylight:yang:extension:yang-ext?module=yang-ext&amp;revision=2013-07-09</capability>
+<capability>urn:opendaylight:params:xml:ns:yang:controller:netty?module=netty&amp;revision=2013-11-19</capability>
+<capability>http://netconfcentral.org/ns/toaster?module=toaster&amp;revision=2009-11-20</capability>
+<capability>urn:opendaylight:params:xml:ns:yang:ieee754?module=ieee754&amp;revision=2013-08-19</capability>
+<capability>urn:opendaylight:params:xml:ns:yang:nps-concepts?module=nps-concepts&amp;revision=2013-09-30</capability>
+</capabilities>
+
+<session-id>4</session-id>
+</hello>
+]]>]]>
+</source>
+ 
+You as the client need to respond with hello message:
+<source>
+<hello xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+    <capabilities>
+        <capability>urn:ietf:params:netconf:base:1.0</capability>
+    </capabilities>
+</hello>
+]]>]]>
+</source>
+
+There is no response to hello message, but the session is already established.
+
+== Configuring threadfactory ==
+Xml equivalent to '''get-config source=running''':
+<syntaxhighlight lang="xml">
+<rpc id="a" a="64" xmlnx="a:b:c:d" xmlns="urn:ietf:params:xml:ns:netconf:base:1.0" message-id="101">
+    <get-config>
+        <source>
+            <running/>
+        </source>
+    </get-config>
+</rpc>
+]]>]]>
+</syntaxhighlight>
