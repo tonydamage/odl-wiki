@@ -28,22 +28,58 @@ This tutorial is for developers, those learning the OpenDaylight controller or j
 
 == Clone the OVSDB Repo and Insert into Controller ==
 
-<pre>git clone https://git.opendaylight.org/gerrit/p/ovsdb.git
-cd ovsdb/ovsdb
-mvn clean install
-cp target/ovsdb-0.5.0-SNAPSHOT.jar ../../distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/plugins/ 
-../../distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/run.sh</pre>
 
-If you want to pull the entire controller you can do that with the following:
+Pull the entire controller first and then clone the OVSDB directory:
 
-<pre>cd controller
+<pre>git clone https://git.opendaylight.org/gerrit/p/controller.git
+cd controller
 mvn clean install
 cd opendaylight/
-git clone ssh://brentsalisbury@git.opendaylight.org:29418/ovsdb.git
-cd ovsdb/ovsdb
+git clone https://git.opendaylight.org/gerrit/p/ovsdb.git
+cd ovsdb/neutron
 mvn clean install
-cp target/ovsdb-0.5.0-SNAPSHOT.jar ../../distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/plugins/ 
+cp target/ovsdb*jar ../../distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/plugins/
+cd ../northbound/ovsdb/
+mvn clean install
+cp target/ovsdb*jar ../../../distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/plugins/
+cd ../../ovsdb
+mvn clean install
+cp target/ovsdb*jar ../../distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/plugins/
+cd ..
 ../../distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/run.sh</pre>
+
+or you can use this script after the controller is built.
+
+<pre>git clone https://git.opendaylight.org/gerrit/p/controller.git
+cd controller
+mvn clean install
+### Once completed with the controller build, paste the following ###
+### Now paste the following into your console ###
+touch makemvn.sh
+echo '#!/bin/bash
+cd neutron
+echo "Refreshing ovsdb/neutron.."
+pwd
+mvn clean install
+sleep 40
+cp target/ovsdb*jar ../../distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/plugins/
+cd ../northbound/ovsdb/
+echo "Refreshing northbound/ovsdb.. "
+pwd
+mvn clean install
+sleep 40
+cp target/ovsdb*jar ../../../distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/plugins/
+cd ../../ovsdb
+echo "Refreshing ovsdb/ovsdb.."
+pwd
+mvn clean install
+sleep 40
+cp target/ovsdb*jar ../../distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/plugins/
+cd ..
+echo "done!"
+pwd' > makemvn.sh
+chmod +x makemvn.sh
+. ./makemvn.sh</pre>
 
 Finally if you only want to run the distribution with OVSDB integrated clone the following and build either the "Base" or "Virtualization" directories.
 <pre>git clone https://git.opendaylight.org/gerrit/integration
