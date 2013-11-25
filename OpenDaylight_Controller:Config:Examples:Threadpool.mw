@@ -257,7 +257,7 @@ There is no response to hello message, but the session is already established.
 == Configuring threadfactory ==
 Xml equivalent to '''get-config source=running''':
 <syntaxhighlight lang="xml">
-<rpc message-id="101">
+<rpc xmlns="urn:ietf:params:xml:ns:netconf:base:1.0" message-id="101">
     <get-config>
         <source>
             <running/>
@@ -269,7 +269,7 @@ Xml equivalent to '''get-config source=running''':
 
 Response containing current configuration:
 <syntaxhighlight lang="xml">
-<rpc-reply xmlns="urn:ietf:params:xml:ns:netconf:base:1.0" message-id="19" trace-id="19">
+<rpc-reply xmlns="urn:ietf:params:xml:ns:netconf:base:1.0" message-id="101">
 	<data>
 		<modules xmlns="urn:opendaylight:params:xml:ns:yang:controller:config">
 			<module>
@@ -278,6 +278,79 @@ Response containing current configuration:
 			</module>
 		</modules>
 		<services xmlns="urn:opendaylight:params:xml:ns:yang:controller:config">
+			<service>
+				<type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:md:sal:binding">prefix:binding-broker-osgi-registry</type>
+				<instance>
+					<name>ref_binding-broker-singleton</name>
+					<provider>/config/modules/module[name='binding-broker-impl-singleton']/instance[name='binding-broker-singleton']</provider>
+				</instance>
+			</service>
+		</services>
+	</data>
+</rpc-reply>]]>]]>
+</syntaxhighlight>
+
+To create an instance of '''threadfactory-naming''' with name '''threadfactory-bgp''' and attribute '''name-prefix''' set to '''bgp''', send message:
+<syntaxhighlight lang="xml">
+<rpc message-id="101" xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+	<edit-config>
+		<target>
+			<candidate/>
+		</target>
+		<default-operation>merge</default-operation>
+		<config>
+			<modules xmlns="urn:opendaylight:params:xml:ns:yang:controller:config">
+				<module xmlns:nc="urn:ietf:params:xml:ns:netconf:base:1.0" nc:operation="merge">
+					<name>threadfactory-bgp</name>
+					<type xmlns:th-java="urn:opendaylight:params:xml:ns:yang:controller:threadpool:impl">th-java:threadfactory-naming</type>
+					<name-prefix xmlns="urn:opendaylight:params:xml:ns:yang:controller:threadpool:impl">bgp</name-prefix>
+				</module>
+			</modules>
+		</config>
+	</edit-config>
+</rpc>]]>]]>
+</syntaxhighlight>
+
+To commit the threadfactory instance, send a commit message:
+<syntaxhighlight lang="xml">
+<rpc message-id="101" xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+	<commit/>
+</rpc>
+]]>]]>
+</syntaxhighlight>
+
+Netconf endpoint should respond with ok to edit-config as well as commit message:
+<syntaxhighlight lang="xml">
+<rpc-reply xmlns="urn:ietf:params:xml:ns:netconf:base:1.0" message-id="101">
+        <ok/>
+</rpc-reply>
+</syntaxhighlight>
+
+Now the response to get-config message (same as the first message sent in this example) should contain commited instance of threadfactory-naming:
+<syntaxhighlight lang="xml">
+<rpc-reply xmlns="urn:ietf:params:xml:ns:netconf:base:1.0" message-id="101">
+	<data>
+		<modules xmlns="urn:opendaylight:params:xml:ns:yang:controller:config">
+			<module>
+				<type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:md:sal:binding:impl">prefix:binding-broker-impl-singleton</type>
+				<name>binding-broker-singleton</name>
+			</module>
+
+			<module>
+				<type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:threadpool:impl">prefix:threadfactory-naming</type>
+				<name>threadfactory-bgp</name>
+				<name-prefix xmlns="urn:opendaylight:params:xml:ns:yang:controller:threadpool:impl">bgp</name-prefix>
+			</module>
+		</modules>
+		
+		<services xmlns="urn:opendaylight:params:xml:ns:yang:controller:config">
+			<service>
+				<type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:threadpool">prefix:threadfactory</type>
+				<instance>
+					<name>ref_threadfactory-bgp</name>
+					<provider>/config/modules/module[name='threadfactory-naming']/instance[name='threadfactory-bgp']</provider>
+				</instance>
+			</service>
 			<service>
 				<type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:md:sal:binding">prefix:binding-broker-osgi-registry</type>
 				<instance>
