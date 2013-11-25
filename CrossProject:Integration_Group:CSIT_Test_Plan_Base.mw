@@ -23,6 +23,11 @@
 ** add userlink (i.e. PUT http://10.125.136.52:8080/controller/nb/v2/topology/default/userLink/link1 + [[CrossProject:Integration_Group:REST_Body#UserLink_Body|userlink body]]), list userlinks and get topology
 ** remove userlink (i.e. DELETE http://10.125.136.52:8080/controller/nb/v2/topology/default/userLink/link1), list userlinks and get topology
 
+* Statistics Manager
+** show flow stats (i.e. GET http://10.125.136.52:8080/controller/nb/v2/statistics/default/flow)
+** show port stats (i.e. GET http://10.125.136.52:8080/controller/nb/v2/statistics/default/port)
+** show table stats (i.e. GET http://10.125.136.52:8080/controller/nb/v2/statistics/default/table)
+
 * Forwarding Rules Manager (Installs Flows on SB devices) 
 ** list flows (i.e. GET http://10.125.136.52:8080/controller/nb/v2/flowprogrammer/default) 
 ** add flow1 to reach host1 (i.e. PUT http://10.125.136.52:8080/controller/nb/v2/flowprogrammer/default/node/OF/00:00:00:00:00:00:00:02/staticFlow/flow1 + [[CrossProject:Integration_Group:REST_Body#Flow1_Body|flow1 body]]) and list flows
@@ -30,36 +35,29 @@
 ** remove flow1 (i.e. DELETE http://10.125.136.52:8080/controller/nb/v2/flowprogrammer/default/node/OF/00:00:00:00:00:00:00:02/staticFlow/flow1) and list flows
 ** show flow stats (i.e. GET http://10.125.136.52:8080/controller/nb/v2/statistics/default/flow) and check flow is not present
 
-* Statistics Manager (Collects Statistics information) 
-** ping on mininet (i.e. mininet> h1 ping -c 3 h2), verify it works
-** show flow stats (i.e. GET http://10.125.136.52:8080/controller/nb/v2/statistics/default/flow) and check packet
-** show port stats (i.e. GET http://10.125.136.52:8080/controller/nb/v2/statistics/default/port) and check packet count for h1,h2 ports
-** show table stats (i.e. GET http://10.125.136.52:8080/controller/nb/v2/statistics/default/table) and check lookup count for Switch2
-** Remove flows in  mininet (i.e. mininet> dpctl dump-flows)
-
 * Configuration (Handles controller configuration)
 ** add flow1 to reach host1 (i.e. PUT http://10.125.136.52:8080/controller/nb/v2/flowprogrammer/default/node/OF/00:00:00:00:00:00:00:02/staticFlow/flow1 + [[CrossProject:Integration_Group:REST_Body#Flow1_Body|flow1 body]])
-** add flow2 to reach host2 (i.e. PUT http://10.125.136.52:8080/controller/nb/v2/flowprogrammer/default/node/OF/00:00:00:00:00:00:00:02/staticFlow/flow2 + [[CrossProject:Integration_Group:REST_Body#Flow2_Body|flow2 body]])
 ** save configuration (i.e. POST http://10.125.136.52:8080/controller/nb/v2/switchmanager/default/save)
 ** restart controller
-** list flows after controller restart (i.e. GET http://10.125.136.52:8080/controller/nb/v2/flowprogrammer/default) and check they are present
+** list flows after controller restart (i.e. GET http://10.125.136.52:8080/controller/nb/v2/flowprogrammer/default) and check flow is present
 ** show flow stats after controller restart (i.e. GET http://10.125.136.52:8080/controller/nb/v2/statistics/default/flow)
 ** remove flow1 (i.e. DELETE http://10.125.136.52:8080/controller/nb/v2/flowprogrammer/default/node/OF/00:00:00:00:00:00:00:02/staticFlow/flow1)
-** remove flow2 (i.e. DELETE http://10.125.136.52:8080/controller/nb/v2/flowprogrammer/default/node/OF/00:00:00:00:00:00:00:02/staticFlow/flow2)
+** show flow stats (i.e. GET http://10.125.136.52:8080/controller/nb/v2/statistics/default/flow) and check flow is not present
 
 * Host Tracker (Tracks connected hosts) and Simple Forwarding (creates flows for connected hosts)
 ** list hosts (i.e. GET http://10.125.136.52:8080/controller/nb/v2/hosttracker/default/hosts/active)
-** add static host1 (i.e. PUT http://10.125.136.52:8080/controller/nb/v2/hosttracker/default/address/10.0.0.1 + [[CrossProject:Integration_Group:REST_Body#Host1_Body|host1 body]]) and list hosts
-** remove static arp for h1 on mininet (i.e. mininet> h4 arp -d h1)
+** add static host (i.e. PUT http://10.125.136.52:8080/controller/nb/v2/hosttracker/default/address/10.1.0.4 + [[CrossProject:Integration_Group:REST_Body#Host1_Body|host1 body]]) and list hosts
+** show flow stats (i.e. GET http://10.125.136.52:8080/controller/nb/v2/statistics/default/flow) and check flow for host is present
 ** remove static host1 (i.e. DELETE http://10.125.136.52:8080/controller/nb/v2/hosttracker/default/address/10.0.0.1) and list hosts
-** remove static host4 (i.e. DELETE http://10.125.136.52:8080/controller/nb/v2/hosttracker/default/address/10.0.0.4) and list hosts
+** show flow stats (i.e. GET http://10.125.136.52:8080/controller/nb/v2/statistics/default/flow) and check flow for host is present
 
-* ARP Handler (Handles ARP messages)
+* ARP Handler (Handles ARP messages according to subnet network configuration)
 ** list subnets (i.e. GET http://10.125.136.52:8080/controller/nb/v2/subnetservice/default/subnets)
-** add subnet gateway (i.e. PUT http://10.125.136.52:8080/controller/nb/v2/subnetservice/default/subnet/test + [[CrossProject:Integration_Group:REST_Body#Subnet_Body|subnet body]]) and list subnets
 ** ping on mininet (i.e. mininet> h1 ping -c 3 h4), verify it works
 ** list hosts (i.e. GET http://10.125.136.52:8080/controller/nb/v2/hosttracker/default/hosts/active), check h1 and h4
+** add subnet gateway (i.e. PUT http://10.125.136.52:8080/controller/nb/v2/subnetservice/default/subnet/test + [[CrossProject:Integration_Group:REST_Body#Subnet_Body|subnet body]]) and list subnets
 ** remove subnet gateway (i.e. DELETE http://10.125.136.52:8080/controller/nb/v2/subnetservice/default/subnet/test) and list subnets
+** Remove flows in  mininet (i.e. mininet> dpctl dump-flows)
 
 * Forwarding Manager (Installs Route and tracks next-hop) 
 ** add subnet gateway (i.e. PUT http://10.125.136.52:8080/controller/nb/v2/subnetservice/default/subnet/test + [[CrossProject:Integration_Group:REST_Body#Subnet_Body|subnet body]])
