@@ -28,22 +28,59 @@ This tutorial is for developers, those learning the OpenDaylight controller or j
 
 == Clone the OVSDB Repo and Insert into Controller ==
 
-<pre>git clone https://git.opendaylight.org/gerrit/p/ovsdb.git
-cd ovsdb/ovsdb
+
+Pull the entire controller first and then clone the OVSDB directory:
+
+<pre>git clone https://git.opendaylight.org/gerrit/p/controller.git
+cd controller
 mvn clean install
-cp target/ovsdb-0.5.0-SNAPSHOT.jar ../../distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/plugins/ 
+cd 
+git clone https://git.opendaylight.org/gerrit/p/ovsdb.git
+cd ovsdb/neutron
+mvn clean install
+cp target/ovsdb*jar ../../distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/plugins/
+cd ../northbound/ovsdb/
+mvn clean install
+cp target/ovsdb*jar ../../../distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/plugins/
+cd ../../ovsdb
+mvn clean install
+cp target/ovsdb*jar ../../distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/plugins/
+cd ..
 ../../distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/run.sh</pre>
 
-If you want to pull the entire controller you can do that with the following:
+or you can use this script after the controller is built.
 
-<pre>cd controller
+<pre>git clone https://git.opendaylight.org/gerrit/p/controller.git
+cd controller/opendaylight
 mvn clean install
-cd opendaylight/
-git clone ssh://brentsalisbury@git.opendaylight.org:29418/ovsdb.git
-cd ovsdb/ovsdb
+git clone https://git.opendaylight.org/gerrit/p/ovsdb.git
+cd ovsdb</pre>
+Once completed with the controller build, paste the following lame little script into your console. If it is the first time you may need to adjust the sleep values or run by hand depending on the amount of artifacts requiring download. Again, this is for dev. We will crank out better installers as time permits.
+<pre> touch makemvn.sh
+echo '#!/bin/bash
+cd neutron
+echo "Refreshing ovsdb/neutron.."
+pwd
 mvn clean install
-cp target/ovsdb-0.5.0-SNAPSHOT.jar ../../distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/plugins/ 
-../../distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/run.sh</pre>
+sleep 40
+cp target/ovsdb*jar ../../distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/plugins/
+cd ../northbound/ovsdb/
+echo "Refreshing northbound/ovsdb.. "
+pwd
+mvn clean install
+sleep 40
+cp target/ovsdb*jar ../../../distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/plugins/
+cd ../../ovsdb
+echo "Refreshing ovsdb/ovsdb.."
+pwd
+mvn clean install
+sleep 40
+cp target/ovsdb*jar ../../distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/plugins/
+cd ..
+echo "done!"
+pwd' > makemvn.sh
+chmod +x makemvn.sh
+. ./makemvn.sh</pre>
 
 Finally if you only want to run the distribution with OVSDB integrated clone the following and build either the "Base" or "Virtualization" directories.
 <pre>git clone https://git.opendaylight.org/gerrit/integration
@@ -62,7 +99,8 @@ cd integration/distributions/virtualization/target/generated-resources/opendayli
 [https://www.virtualbox.org/wiki/Downloads VirtualBox.org]
 We recommend using Postman for making API calls as you can download the same APIs we are using.
 
-[https://www.getpostman.com/collections/dfd8c317022849f7263a Postman OVSDB API call for importation]
+[https://www.getpostman.com/collections/6a477a38d322b573719d Postman OVSDB API call for importation (updated 11/24)]
+
 == Setting up the OVS Manager ==
 
 The following is the simple topology which is created by Mininet. In this tutorial we will modify the data path using the OVSDB plugin.
