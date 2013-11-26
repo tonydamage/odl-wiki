@@ -370,7 +370,7 @@ On succes, ok message obtained and logback configuration is set. As an evidence,
 </syntaxhighlight>
 
 == Logback configuration - Yuma ==
-This approach to configure logback will utilize a 3rd party cli netconf client from Yuma. We will modify existing file appender in logback and then call rpc reset to restore initial configuration of logback.
+This approach to configure logback will utilize a 3rd party cli netconf client from Yuma. We will modify existing console appender in logback and then call reset rpc on logback to clear its status list.
 
 For initial configuration of controller and startup parameters for yuma consult threadpool example [[OpenDaylight Controller:Config:Examples:Threadpool|Threadpool configuration using Yuma]]. 
 
@@ -450,7 +450,7 @@ rpc-reply {
 
 </source>
 
-=== Adding new file appender to logback ===
+=== Modifying existing consoleappender in logback ===
 Start edit-config with merge option:
 <source>
 merge /modules/module
@@ -460,11 +460,99 @@ For '''Name''' of the module enter '''singleton'''.<br />
 For '''Type''' enter '''logback'''.<br />
 Pick corresponding case statement with name '''logback'''.<br />
 
-Now we want to modify '''file-appenders''', so we will answer '''Y''' to the question from Yuma:
+We do not want to modify '''file-appenders''', '''rolling-appenders''' and '''loggers''' lists, so the answer to questions from yuma is N (for no):
 <source>
 Filling optional case /modules/module/configuration/logback:
 Add optional list 'file-appenders'?
 Enter Y for yes, N for no, or C to cancel: [default: Y]
 </source>
-This will start a new configuration process for file appender and we will fill following values:
-<append> true,
+
+But we want to modify '''console-appenders''', so we will answer '''Y''' to the question from Yuma:
+<source>
+Filling optional case /modules/module/configuration/logback:
+Add optional list 'console-appenders'?
+Enter Y for yes, N for no, or C to cancel: [default: Y]
+</source>
+This will start a new configuration process for console appender and we will fill following values:
+<encoder-pattern> %date{"yyyy-MM-dd HH:mm:ss.SSS z"} %msg %n,
+<threshold-filter> INFO,
+<name> STDOUT,
+
+Answer N to the next question:
+<source>
+Add another list?
+Enter Y for yes, N for no, or C to cancel: [default: N]
+</source>
+
+Notice that we changed the level for '''threashold-filter''' for '''STDOUT''' console appender.
+Now issue a '''commit''' command to commit changed configuration and the response from '''get-config source=running''' command should look like this:
+<source>
+rpc-reply {
+  data {
+    modules {
+      module  singleton {
+        type logging:logback
+        name singleton
+        console-appenders {
+          threshold-filter INFO
+          name STDOUT
+          encoder-pattern '%date{"yyyy-MM-dd HH:mm:ss.SSS z"} [%thread] %-5level %logger{36} - %msg%n'
+        }
+        file-appenders {
+          append true
+          file-name logs/audit.log
+          name audit-file
+          encoder-pattern '%date{"yyyy-MM-dd HH:mm:ss.SSS z"} %msg %n'
+        }
+        loggers {
+          level WARN
+          logger-name org.opendaylight.controller.logging.bridge
+        }
+        loggers {
+          level INFO
+          logger-name audit
+          appenders audit-file
+        }
+        loggers {
+          level ERROR
+          logger-name ROOT
+          appenders STDOUT
+          appenders opendaylight.log
+        }
+        loggers {
+          level INFO
+          logger-name org.opendaylight
+        }
+        loggers {
+          level WARN
+          logger-name io.netty
+        }
+        rolling-appenders {
+          append true
+          max-file-size 10MB
+          file-name logs/opendaylight.log
+          name opendaylight.log
+          file-name-pattern logs/opendaylight.%d.log.zip
+          encoder-pattern '%date{"yyyy-MM-dd HH:mm:ss.SSS z"} [%thread] %-5level %logger{35} - %msg%n'
+          clean-history-on-start false
+          max-history 1
+          rolling-policy-type TimeBasedRollingPolicy
+        }
+      }
+      module  binding-broker-singleton {
+        type binding-impl:binding-broker-impl-singleton
+        name binding-broker-singleton
+      }
+    }
+    services {
+      service  md-sal-binding:binding-broker-osgi-registry {
+        type md-sal-binding:binding-broker-osgi-registry
+        instance  ref_binding-broker-singleton {
+          name ref_binding-broker-singleton
+          provider /config/modules/module[name='binding-broker-impl-singleton']/instance[name='binding-broker-singleton']
+        }
+      }
+    }
+  }
+}
+</source>
