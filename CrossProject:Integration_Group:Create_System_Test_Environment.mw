@@ -1,0 +1,162 @@
+== Maintainer ==
+Luis Gomez (luis.gomez@ericsson.com)
+
+== Introduction ==
+The purpose of this instruction is to end up with a test environment that can be used to verify system test code as well as run the complete system test suite.
+
+== Installation Procedure ==
+
+=== Prerequisites ===
+
+This instruction has been verified on Ubuntu 12.04 but any other Linux standard distribution should be OK.
+
+=== Install Mininet ===
+
+Please follow the instructions on this [http://mininet.org/download/ link] to get mininet properly installed in your system
+
+Once you verify mininet works, shutdown any existing mn process:
+
+<pre>
+odluser@odl-vm:~\$ ps -ef | grep mn
+root     15800 11466  0 01:33 pts/0    00:00:00 sudo mn --controller=remote,ip=10.125.136.52 --topo tree,2
+root     15801 15800  0 01:33 pts/0    00:00:00 /usr/bin/python /usr/local/bin/mn --controller=remote,ip=10.125.136.52 --topo tree,2
+odluser  16183 16096  0 05:05 pts/2    00:00:00 grep --color=auto mn
+
+odluser@odl-vm:~\$ sudo pkill mn
+odluser@odl-vm:~\$ ps -ef | grep mn
+mininet  16265 16096  0 05:06 pts/2    00:00:00 grep --color=auto mn
+</pre>
+
+=== Install OpenDaylight controller ===
+
+Create directory for base edition distribution: 
+<pre>
+odluser@odl-vm:~\$ mkdir controller-base
+odluser@odl-vm:~\$ cd controller-base
+</pre>
+
+Download latest controller base edition:
+<pre>
+$ wget 'https://jenkins.opendaylight.org/integration/job/integration-merge/lastSuccessfulBuild/org.opendaylight.integration$
+distributions-base/artifact/org.opendaylight.integration/distributions-base/0.1.0-SNAPSHOT/distributions-base-0.1.0-SNAPSHOT-osgipackage.zip'
+$ unzip -o distributions-base-0.1.0-SNAPSHOT-osgipackage.zip </pre>
+
+Run the controller:
+<pre>
+$ cd ~odluser/controller-base/opendaylight/
+$ ./run.sh 
+</pre>
+
+Check controller is running:
+<pre>
+osgi> ss
+"Framework is launched."
+
+
+id      State       Bundle
+0       ACTIVE      org.eclipse.osgi_3.8.1.v20120830-144521
+1       ACTIVE      org.apache.felix.fileinstall_3.1.6
+2       ACTIVE      org.eclipse.jdt.core.compiler.batch_3.8.0.I20120518-2145
+3       ACTIVE      org.eclipse.equinox.ds_1.4.0.v20120522-1841
+4       ACTIVE      org.eclipse.equinox.util_1.0.400.v20120522-2049
+5       ACTIVE      org.eclipse.osgi.services_3.3.100.v20120522-1822
+6       ACTIVE      org.eclipse.equinox.console_1.0.0.v20120522-1841
+7       ACTIVE      slf4j.api_1.7.2
+8       ACTIVE      ch.qos.logback.classic_1.0.9
+9       ACTIVE      ch.qos.logback.core_1.0.9
+10      ACTIVE      org.opendaylight.controller.logging.bridge_0.4.1.SNAPSHOT
+11      ACTIVE      com.sun.jersey.core_1.17.0
+12      ACTIVE      com.sun.jersey.json_1.17.0
+13      ACTIVE      com.sun.jersey.jersey-server_1.17.0
+</pre>
+
+=== Install Test tools ===
+
+Check you have Python 2.6 or 2.7 installed (this is normally coming in most distributions):
+<pre>
+odluser@odl-vm:~\$ python 
+Python 2.7.3 (default, Sep 26 2013, 20:03:06) 
+[GCC 4.6.3] on linux2
+Type "help", "copyright", "credits" or "license" for more information.
+>>> 
+</pre>
+
+In case it is not there, you can install it with:
+<pre>
+odluser@odl-vm:~\$ sudo apt-get install python2.7 
+</pre>
+
+Also install python pip and paramiko if not there:
+<pre>
+odluser@odl-vm:~\$ sudo apt-get install python-pip
+odluser@odl-vm:~\$ sudo apt-get install python-paramiko 
+</pre>
+
+Install Robot Frameworks and required libraries:
+<pre>
+odluser@odl-vm:~\$ sudo pip install robotframework
+odluser@odl-vm:~\$ sudo pip install robotframework-sshlibrary
+odluser@odl-vm:~\$ pip install -U robotframework-requests
+</pre>
+
+Verify Robot installation:
+<pre>
+odluser@odl-vm:~\$ pybot --version
+Robot Framework 2.8.2 (Python 2.7.3 on linux2)
+</pre>
+
+=== Environment Adjustment ===
+
+Allow SSH public key authentication with folloing steps:
+
+1) Create public key for regular user (odluser):
+<pre>
+odluser@odl-vm:~\$ ssh-keygen
+</pre>
+
+2) Copy the generated public key (~/.ssh/id_rsa.pub) into the file ~/.ssh/authorized_keys
+<pre>
+odluser@odl-vm:~\$ cp ~/.ssh/id_rsa.pub ~/.ssh/authorized_keys
+</pre>
+
+3) Change ~/.ssh/authorized_keys permissions to 600
+<pre>
+odluser@odl-vm:~\$ chmod 600 ~/.ssh/authorized_keys
+</pre>
+
+Allow sudo access with no password:
+
+Edit /etc/sudoers file and add follow line at the end:
+<pre>
+odluser@odl-vm:~\$ sudo vi /etc/sudoers
+.
+odluser ALL=NOPASSWD: ALL
+.
+</pre>
+
+Change the user prompt termination from "$" to ">"
+
+Edit ~/.bashrc file and change the prompt (PS1) termination from "$" to ">":
+<pre>
+odluser@odl-vm:~\$ vi ~/.bashrc
+.
+if [ "$color_prompt" = yes ]; then
+    PS1='${debian_chroot:+($debian_chroot)}\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\> '
+else
+    PS1='${debian_chroot:+($debian_chroot)}\u@\h:\w\> '
+.
+</pre>
+
+=== Download and Run System Test Code ===
+
+Download latest integration code:
+<pre>
+odluser@odl-vm:~\$ git clone https://git.opendaylight.org/gerrit/integration
+</pre>
+
+Run system with following command:
+<pre>
+odluser@odl-vm:~\$ pybot -v CONTROLLER:127.0.0.1 -v MININET:127.0.0.1 -v USER_HOME:. -v MININET_USER:odluser integration/test/csit/suites/base/
+</pre>
+
+[[Category:Integration Group]]
