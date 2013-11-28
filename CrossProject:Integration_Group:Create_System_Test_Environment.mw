@@ -14,6 +14,52 @@ This instruction has been verified on Ubuntu 12.04 but any other Linux standard 
 
 Please follow the instructions on this [http://mininet.org/download/ link] to get mininet properly installed in your system
 
+Reinstall openvswitch using guide at https://github.com/mininet/mininet/wiki/Installing-new-version-of-Open-vSwitch , but use version 2.0.0 instead of 1.10.0  (http://openvswitch.org/releases/openvswitch-2.0.0.tar.gz)
+
+Modify source code of mininet node.py file in similar manner as follows: 
+
+<pre>
+ --- /root/mininet/build/lib.linux-x86_64-2.7/mininet/node.py    2013-11-22 03:35:12.000000000 -0800
+ +++ /usr/local/lib/python2.7/dist-packages/mininet-2.1.0-py2.7.egg/mininet/node.py      2013-11-22 06:17:07.350574387 -0800
+ @@ -952,6 +952,10 @@
+             datapath: userspace or kernel mode (kernel|user)"""
+          Switch.__init__( self, name, **params )
+          self.failMode = failMode
+ +       protKey = 'protocols'
+ +       if self.params and protKey in self.params:
+ +               print 'have protcol params!'
+ +               self.opts += protKey + '=' + self.params[protKey]
+          self.datapath = datapath
+   
+ @@ -1027,8 +1031,9 @@
+          if self.datapath == 'user':
+              self.cmd( 'ovs-vsctl set bridge', self,'datapath_type=netdev' )
+          int( self.dpid, 16 ) # DPID must be a hex string
+ +        print 'OVSswitch opts: ',self.opts
+          self.cmd( 'ovs-vsctl -- set Bridge', self,
+ -                  'other_config:datapath-id=' + self.dpid )
+ +                  self.opts+' other_config:datapath-id=' + self.dpid)
+          self.cmd( 'ovs-vsctl set-fail-mode', self, self.failMode )
+          for intf in self.intfList():
+              if not intf.IP():
+</pre>
+
+Verify mininet works for OF1.0:
+<pre>
+sudo mn --controller remote,ip=127.0.0.1 --topo tree,2
+</pre>
+
+Verify mininet works for OF1.3:
+<pre>
+sudo mn --controller remote,ip=127.0.0.1 --switch ovsk<span style="color: green;">,protocols=OpenFlow<b>13</b></span> --topo tree,2
+</pre>
+
+To test the version of used protocol by switch "s1":
+<pre>
+ovs-ofctl -O OpenFlow10 show s1
+ovs-ofctl -O OpenFlow13 show s1
+</pre>
+
 Once you verify mininet works, shutdown the mn process as system test suite will start/stop mininet automatically:
 
 <pre>
