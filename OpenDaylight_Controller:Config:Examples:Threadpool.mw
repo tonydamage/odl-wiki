@@ -2,20 +2,32 @@
 ==Requirements:==
 yangcli-pro version 13.04-7.1 or later
 
-==Connecting to plaintext TCP socket==
-Currently only plaintext TCP is exposed by the controller. The network interface and port are configured in configuration/config.ini . Current configuration of netconf is:
+==Connecting to plaintext TCP socket and ssh==
+Currently TCP and SSH is exposed by the controller. The network interface and port are configured in configuration/config.ini . Current configuration of netconf is:
 
 <source>
 # Netconf startup configuration
 netconf.tcp.address=0.0.0.0
 netconf.tcp.port=8383
+
+netconf.ssh.address=0.0.0.0
+netconf.ssh.port=1830
 </source>
 
 To connect the yangcli-pro client, use following syntax:
 <source>
 yangcli-pro --user=a --password=a --transport=tcp --ncport=8383 --server=localhost
 </source>
-Authentication in this case is ignored. For better debugging please include following arguments:
+Authentication in this case is ignored. 
+
+Alternatively, if you wish to use ssh use syntax : 
+
+<source>
+yangcli-pro --user=netconf --password=netconf --transport=ssh --ncport=1830 --server=localhost
+</source>
+
+For better debugging please include following arguments:
+
 <source>
  --log=/tmp/yuma.log --log-level=debug4
 </source>
@@ -43,7 +55,7 @@ rpc-reply {
         type md-sal-binding:binding-broker-osgi-registry
         instance  ref_binding-broker-singleton {
           name ref_binding-broker-singleton
-          provider /config/modules/module[name='binding-broker-impl-singleton']/instance[name='binding-broker-singleton']
+          provider /modules/module[type='binding-broker-impl-singleton'][name='binding-broker-singleton']
         }
       }
     }
@@ -107,14 +119,14 @@ rpc-reply {
         type th:threadfactory
         instance  ref_threadfactory-bgp {
           name ref_threadfactory-bgp
-          provider /config/modules/module[name='threadfactory-naming']/instance[name='threadfactory-bgp']
+          provider /modules/module[type='threadfactory-naming'][name='threadfactory-bgp']
         }
       }
       service  md-sal-binding:binding-broker-osgi-registry {
         type md-sal-binding:binding-broker-osgi-registry
         instance  ref_binding-broker-singleton {
           name ref_binding-broker-singleton
-          provider /config/modules/module[name='binding-broker-impl-singleton']/instance[name='binding-broker-singleton']
+          provider /modules/module[type='binding-broker-impl-singleton'][name='binding-broker-singleton']
         }
       }
     }
@@ -163,21 +175,21 @@ rpc-reply {
         type th:threadpool
         instance  ref_bgp-threadpool {
           name ref_bgp-threadpool
-          provider /config/modules/module[name='threadpool-fixed']/instance[name='bgp-threadpool']
+          provider /modules/module[type='threadpool-fixed'][name='bgp-threadpool']
         }
       }
       service  th:threadfactory {
         type th:threadfactory
         instance  ref_threadfactory-bgp {
           name ref_threadfactory-bgp
-          provider /config/modules/module[name='threadfactory-naming']/instance[name='threadfactory-bgp']
+          provider /modules/module[type='threadfactory-naming'][name='threadfactory-bgp']
         }
       }
       service  md-sal-binding:binding-broker-osgi-registry {
         type md-sal-binding:binding-broker-osgi-registry
         instance  ref_binding-broker-singleton {
           name ref_binding-broker-singleton
-          provider /config/modules/module[name='binding-broker-impl-singleton']/instance[name='binding-broker-singleton']
+          provider /modules/module[type='binding-broker-impl-singleton'][name='binding-broker-singleton']
         }
       }
     }
@@ -191,15 +203,22 @@ To validate that a threadpool has been created, tool like VisualVM can be used.
 [[File:Configure-threadpools-visualvm.png]]
 
 =Example configuration of thread pools using telnet=
-It is also possible to manipulate configuration without the yuma cli. With just a telnet connection, it is possible to send plain text containing netconf rpcs encoded in xml format and achieve the same results as with yuma cli.
+It is also possible to manipulate configuration without the yuma cli. With just a telnet or ssh connection, it is possible to send plain text containing netconf rpcs encoded in xml format and achieve the same results as with yuma cli.
 
-In this example we will reproduce configuration of a threadpool and a threadfactory from the previous example using just a telnet connection. For detailed information about initial configuration for the controller as well as the configuration process, please consult page related to the example using yuma cli. 
+In this example we will reproduce configuration of a threadpool and a threadfactory from the previous example using just a telnet connection. We can also use ssh connection, netconf rpcs sending procedure will be the same. For detailed information about initial configuration for the controller as well as the configuration process, please consult page related to the example using yuma cli. 
 
 == Connecting to plaintext TCP socket ==
 Open a telnet connection:
 <source>
 telnet 127.0.0.1 8383
 </source>
+
+Open a ssh connection:
+<source>
+ssh netconf@127.0.0.1 -p 1830 -s netconf
+</source>
+
+Password for user netconf is : netconf
 
 The separator for messages is:
 <source>
@@ -282,7 +301,7 @@ Response containing current configuration:
 				<type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:md:sal:binding">prefix:binding-broker-osgi-registry</type>
 				<instance>
 					<name>ref_binding-broker-singleton</name>
-					<provider>/config/modules/module[name='binding-broker-impl-singleton']/instance[name='binding-broker-singleton']</provider>
+					<provider>/modules/module[type='binding-broker-impl-singleton'][name='binding-broker-singleton']</provider>
 				</instance>
 			</service>
 		</services>
@@ -347,14 +366,14 @@ Now the response to get-config message (same as the first message sent in this e
 				<type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:threadpool">prefix:threadfactory</type>
 				<instance>
 					<name>ref_threadfactory-bgp</name>
-					<provider>/config/modules/module[name='threadfactory-naming']/instance[name='threadfactory-bgp']</provider>
+					<provider>/modules/module[type='threadfactory-naming'][name='threadfactory-bgp']</provider>
 				</instance>
 			</service>
 			<service>
 				<type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:md:sal:binding">prefix:binding-broker-osgi-registry</type>
 				<instance>
 					<name>ref_binding-broker-singleton</name>
-					<provider>/config/modules/module[name='binding-broker-impl-singleton']/instance[name='binding-broker-singleton']</provider>
+					<provider>/modules/module[type='binding-broker-impl-singleton'][name='binding-broker-singleton']</provider>
 				</instance>
 			</service>
 		</services>
@@ -389,7 +408,7 @@ To create an instance of '''threadpool-fixed ''' with the same configuration and
 				<type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:threadpool">prefix:threadfactory</type>
 				<instance>
 					<name>ref_th-bgp</name>
-					<provider>/config/modules/module[name='threadfactory-naming']/instance[name='threadfactory-bgp']</provider>
+					<provider>/modules/module[type='threadfactory-naming'][name='threadfactory-bgp']</provider>
 				</instance>
 			</service>
 		</services>
