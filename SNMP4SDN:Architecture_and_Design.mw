@@ -87,7 +87,7 @@ public interface IConfigService {
 }
 </pre>
 
-Then, IConfigService is implemented in ConfigService. Part of IConfigService is as follows.
+Then, IConfigService is implemented in ConfigService. ConfigService is to retrieve parameters from Node, NodeConnector, and CmethUtil (a record of CLI username, password, etc), and passes the parameters to CLIHandler. Vendor specific processing is implementated in CLIHandler.  Then CLIHandler calls ExpectHandler to send out the CLI command to the switch. Parts of ConfigService  and CLIHandler are as follows.
 
 <pre>
 package org.opendaylight.snmp4sdn.internal;
@@ -115,6 +115,49 @@ public class ConfigService implements IConfigService, CommandProvider{
         String username = cmethUtil.getCliUsername((Long)node.getID());
         String password = cmethUtil.getCliPassword((Long)node.getID());
         return new CLIHandler(sw_ipAddr, username, password).disableBpduFlooding();
+    }
+    ...
+}
+</pre>
+
+<pre>
+package org.opendaylight.snmp4sdn.internal;
+import org.opendaylight.snmp4sdn.internal.ExpectHandler;
+public class CLIHandler{
+    ExpectHandler expect;
+    String sw_ipAddr, username, password, prompt = "#";
+
+    public CLIHandler(String sw_ipAddr, String username, String password){
+        this.sw_ipAddr = new String(sw_ipAddr);
+        this.username = new String(username);
+        this.password = new String(password);
+        try{
+            expect = new ExpectHandler(sw_ipAddr, "UserName:", "PassWord:", username, password);//d-link:UserName,PassWord  Accton:Username, Password
+        }catch(Exception e){
+            System.out.println("CLIHandler() err:" + e);
+        }
+    }
+
+    public Status disableSTP(){
+        try{
+            System.out.println("disableSTP...");
+            if(expect.execute("disable stp", "#", "Success"))
+                return new Status(StatusCode.SUCCESS);
+        }catch(Exception e){
+            System.out.println("CLIHandler.disableSTP() err:" + e);
+        }
+        return new Status(StatusCode.INTERNALERROR);
+    }
+
+    public Status disableBpduFlooding(){
+        try{
+            System.out.println("disableBpduFlooding()...");
+            if(expect.execute("config stp fbpdu disable", "#", "Success"))
+                return new Status(StatusCode.SUCCESS);
+        }catch(Exception e){
+            System.out.println("CLIHandler.disableBpduFlooding() err:" + e);
+        }
+        return new Status(StatusCode.INTERNALERROR);
     }
     ...
 }
