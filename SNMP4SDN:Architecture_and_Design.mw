@@ -87,5 +87,35 @@ public interface IConfigService {
 }
 </pre>
 
-Then, for different product of Ethernet switches, one may implement the IConfigService like below.
-(TBD)
+Then, IConfigService is implemented in ConfigService. Part of IConfigService is as follows.
+
+<pre>
+package org.opendaylight.snmp4sdn.internal;
+public class ConfigService implements IConfigService, CommandProvider{
+    Controller controller = null;
+    CLIHandler cli = null;
+
+    public void setController(IController core) {
+        this.controller = (Controller)core;
+    }
+
+    @Override
+    public Status disableSTP(Node node){
+        CmethUtil cmethUtil = controller.getCmethUtil();
+        String sw_ipAddr = cmethUtil.getIpAddr((Long)node.getID());
+        String username = cmethUtil.getCliUsername((Long)node.getID());
+        String password = cmethUtil.getCliPassword((Long)node.getID());
+        return new CLIHandler(sw_ipAddr, username, password).disableSTP();
+    }
+
+    @Override
+    public Status disableBpduFlooding(Node node){
+        CmethUtil cmethUtil = controller.getCmethUtil();
+        String sw_ipAddr = cmethUtil.getIpAddr((Long)node.getID());
+        String username = cmethUtil.getCliUsername((Long)node.getID());
+        String password = cmethUtil.getCliPassword((Long)node.getID());
+        return new CLIHandler(sw_ipAddr, username, password).disableBpduFlooding();
+    }
+    ...
+}
+</pre>
