@@ -22,7 +22,6 @@ mvn clean install </pre>
 *** Content-Type: application/yang.data+xml
 *** Accept: application/xml
 ** Use URL: http://192.168.195.157:8080/restconf/config/opendaylight-inventory:nodes/node/openflow:1/table/0/flow/1
-** POST
 ** Use Body:
 <pre>
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
@@ -78,7 +77,7 @@ If you want to see the above information from the mininet prompt - use "sh" inst
 
 == Look for your flow stats in the controller operational data via RESTCONF ==
 * See your operational flow stats in POSTMAN with
-** URL http://192.168.195.157:8080/restconfig/operational/opendaylight-inventory:nodes/node/openflow:1/table/0/
+** URL http://192.168.195.157:8080/restconfig/config/opendaylight-inventory:nodes/node/openflow:1/table/0/
 ** GET
 
 = Discovering and testing new Flow Types =
@@ -116,8 +115,216 @@ Where # is 123 + the f# you used.  So for example, for f22, your url would be
 
 Note: You may have to trim out some of the sections like <flags> that contain bitfields and binary types that are not correctly modeled.
 
-Note: Before attempting to PUT a flow you have created via addMDFlow, please change its URL and body to, for example, use table 1 instead of table 2 or another Flow Id, so you don't collide.
+Note: Before attempting to PUT a flow you have created via addMDFlow, please change its URL and body to use table 1 instead of table 2 so you don't collide.
 
-= Example Flows =
+= Testing Reports =
 
-Examples for XML for various flow matches, instructions & actions can be found  [[Editing OpenDaylight OpenFlow Plugin:End to End Flows:Example Flows|here]]
+Please report on your attempts below.
+
+== f21 - <span style="color:red">ACTION IS DROP, SHOULD BE FLOOD</span> ==
+
+=== f21 URL ===
+
+http://192.168.195.157:8080/restconf/config/opendaylight-inventory:nodes/node/openflow:1/table/1/flow/144
+
+=== f21 Body ===
+
+<pre>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<flow 
+    xmlns="urn:opendaylight:flow:inventory">
+    <strict>false</strict>
+    <instructions>
+        <instruction>
+            <apply-actions>
+                <action>
+                    <flood-action/>
+                </action>
+            </apply-actions>
+        </instruction>
+    </instructions>
+    <table_id>1</table_id>
+    <id>144</id>
+    <cookie_mask>10</cookie_mask>
+    <out_port>10</out_port>
+    <installHw>false</installHw>
+    <out_group>2</out_group>
+    <match>
+        <ethernet-match>
+            <ethernet-type>
+                <type>2048</type>
+            </ethernet-type>
+        </ethernet-match>
+        <ipv4-destination>10.0.0.1/24</ipv4-destination>
+    </match>
+    <hard-timeout>12</hard-timeout>
+    <flags>FlowModFlags [_cHECKOVERLAP=false, _rESETCOUNTS=false, _nOPKTCOUNTS=false, _nOBYTCOUNTS=false, _sENDFLOWREM=false]</flags>
+    <cookie>10</cookie>
+    <idle-timeout>34</idle-timeout>
+    <flow-name>FooXf21</flow-name>
+    <priority>2</priority>
+    <barrier>false</barrier>
+</flow>
+</pre>
+
+=== f21 Results ===
+
+When PUT via RESTCONF did not get error via RESTCONF
+
+When PUT via RESTCONF did not get exception on OSGI console
+
+When PUT via RESTCONF did see flow on switch:
+
+<pre>
+vagrant@vagrant-ubuntu-trusty-64:~$ sudo ovs-ofctl -O OpenFlow13 dump-flows s1
+OFPST_FLOW reply (OF1.3) (xid=0x2):
+ cookie=0xa, duration=3.434s, table=1, n_packets=0, n_bytes=0, idle_timeout=34, hard_timeout=12, send_flow_rem priority=2,ip,nw_dst=10.0.0.0/24 actions=drop
+</pre>
+
+Validated that flow on switch <span style="color:red">does not match</span> flow sent via RESTCONF.  Action is drop, should be flood.
+
+When PUT via RESTCONF could GET via RESTCONF returned the following body:
+
+<pre>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<flow 
+    xmlns="urn:opendaylight:flow:inventory">
+    <strict>false</strict>
+    <instructions>
+        <instruction>
+            <apply-actions>
+                <action>
+                    <flood-action/>
+                </action>
+            </apply-actions>
+        </instruction>
+    </instructions>
+    <table_id>1</table_id>
+    <id>144</id>
+    <cookie_mask>10</cookie_mask>
+    <out_port>10</out_port>
+    <installHw>false</installHw>
+    <out_group>2</out_group>
+    <match>
+        <ethernet-match>
+            <ethernet-type>
+                <type>2048</type>
+            </ethernet-type>
+        </ethernet-match>
+        <ipv4-destination>10.0.0.1/24</ipv4-destination>
+    </match>
+    <hard-timeout>12</hard-timeout>
+    <flags>[FlowModFlags, [_cHECKOVERLAP=false,, _rESETCOUNTS=false,, _nOPKTCOUNTS=false,, _nOBYTCOUNTS=false,, _sENDFLOWREM=false]]</flags>
+    <cookie>10</cookie>
+    <idle-timeout>34</idle-timeout>
+    <flow-name>FooXf21</flow-name>
+    <priority>2</priority>
+    <barrier>false</barrier>
+</flow>
+</pre>
+
+== f22 <span style="color:red">MISSING IPv4 DST MATCH</span> ==
+
+=== f22 URL ===
+
+http://192.168.195.157:8080/restconf/config/opendaylight-inventory:nodes/node/openflow:1/table/2/flow/145
+
+=== f22 Body ===
+
+<pre>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<flow 
+    xmlns="urn:opendaylight:flow:inventory">
+    <strict>false</strict>
+    <instructions>
+        <instruction>
+            <apply-actions>
+                <action>
+                    <flood-all-action/>
+                </action>
+            </apply-actions>
+        </instruction>
+    </instructions>
+    <table_id>2</table_id>
+    <id>145</id>
+    <cookie_mask>10</cookie_mask>
+    <out_port>10</out_port>
+    <installHw>false</installHw>
+    <out_group>2</out_group>
+    <match>
+        <ethernet-match>
+            <ethernet-type>
+                <type>2048</type>
+            </ethernet-type>
+        </ethernet-match>
+        <ipv4-destination>10.0.0.1/24</ipv4-destination>
+    </match>
+    <hard-timeout>12</hard-timeout>
+    <cookie>10</cookie>
+    <idle-timeout>34</idle-timeout>
+    <flow-name>FooXf22</flow-name>
+    <priority>2</priority>
+    <barrier>false</barrier>
+</flow>
+</pre>
+
+=== f22 Results ===
+
+When PUT via RESTCONF did not get error via RESTCONF
+
+When PUT via RESTCONF did not get exception on OSGI console
+
+When PUT via RESTCONF did see flow on switch:
+
+<pre>
+vagrant@vagrant-ubuntu-trusty-64:~$ sudo ovs-ofctl -O OpenFlow13 dump-flows s1
+OFPST_FLOW reply (OF1.3) (xid=0x2):
+ cookie=0xa, duration=5.25s, table=2, n_packets=0, n_bytes=0, idle_timeout=34, hard_timeout=12, send_flow_rem priority=2,ip actions=drop
+</pre>
+
+Validated that flow on switch <span style="color:red">does not match</span> flow sent via RESTCONF.  Missing IPv4 Destination Match
+
+Had to trim out bit field or binary:
+
+<pre>
+    <flags>FlowModFlags [_cHECKOVERLAP=false, _rESETCOUNTS=false, _nOPKTCOUNTS=false, _nOBYTCOUNTS=false, _sENDFLOWREM=false]</flags>
+</pre>
+
+When PUT via RESTCONF could  GET via RESTCONF returned the following body:
+
+<pre>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<flow 
+    xmlns="urn:opendaylight:flow:inventory">
+    <strict>false</strict>
+    <instructions>
+        <instruction>
+            <apply-actions>
+                <action>
+                    <flood-all-action/>
+                </action>
+            </apply-actions>
+        </instruction>
+    </instructions>
+    <table_id>2</table_id>
+    <id>145</id>
+    <cookie_mask>10</cookie_mask>
+    <out_port>10</out_port>
+    <installHw>false</installHw>
+    <out_group>2</out_group>
+    <match>
+        <ethernet-match>
+            <ethernet-type>
+                <type>2048</type>
+            </ethernet-type>
+        </ethernet-match>
+        <ipv4-destination>10.0.0.1/24</ipv4-destination>
+    </match>
+    <hard-timeout>12</hard-timeout>
+    <cookie>10</cookie>
+    <idle-timeout>34</idle-timeout>
+    <flow-name>FooXf22</flow-name>
+    <priority>2</priority>
+    <barrier>false</barrier>
+</flow>
+</pre>
