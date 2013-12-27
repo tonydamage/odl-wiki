@@ -21,34 +21,46 @@ mvn clean install </pre>
 ** Set 
 *** Content-Type: application/yang.data+xml
 *** Accept: application/xml
-** Use URL: http://192.168.195.157:8080/restconf/config/opendaylight-inventory:nodes/node/openflow:1/table/0/flow/1
+** Use URL: http://192.168.195.157:8080/restconf/config/opendaylight-inventory:nodes/node/openflow:1/table/0/flow/125
+** POST
 ** Use Body:
 <pre>
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<flow xmlns="urn:opendaylight:flow:inventory">
-    <priority>2</priority>
-    <flow-name>Foo</flow-name>
-    <match>
-        <ethernet-match>
-            <ethernet-type>
-                <type>2048</type>
-            </ethernet-type>
-        </ethernet-match>
-        <ipv4-destination>10.0.10.2/24</ipv4-destination>
-    </match>
-    <id>1</id>
-    <table_id>0</table_id>
+<flow 
+    xmlns="urn:opendaylight:flow:inventory">
+    <strict>false</strict>
     <instructions>
         <instruction>
             <order>0</order>
             <apply-actions>
                 <action>
-                   <order>0</order>
-                   <dec-nw-ttl/>
+                  <order>0</order>
+                    <dec-nw-ttl/>
                 </action>
             </apply-actions>
         </instruction>
     </instructions>
+    <table_id>0</table_id>
+    <id>125</id>
+    <cookie_mask>10</cookie_mask>
+    <out_port>0</out_port>
+    <installHw>false</installHw>
+    <out_group>2</out_group>
+    <match>
+        <ipv4-destination>10.0.0.1/24</ipv4-destination>
+        <ethernet-match>
+            <ethernet-type>
+                <type>2048</type>
+            </ethernet-type>
+        </ethernet-match>
+    </match>
+    <hard-timeout>0</hard-timeout>
+    <flags/>
+    <cookie>10</cookie>
+    <idle-timeout>0</idle-timeout>
+    <flow-name>FooXf1</flow-name>
+    <priority>2</priority>
+    <barrier>false</barrier>
 </flow>
 </pre>
 ** Note: If you want to try a different flow id or a different table, make sure the URL and the body stay in sync.  For example, if you wanted to try: table 2 flow 20 you'd change the URL to
@@ -57,8 +69,6 @@ http://192.168.195.157:8080/restconf/config/opendaylight-inventory:nodes/node/op
 
 but you would also need to update the <id>20</id> and <table_id>2</table_id> the body to match.
 
-Other caveat, we have a known bug with updates, so please only write to a given flow id and table id on a given node once at this time until we resolve it.
-
 == Check for your flow on the switch ==
 * See your flow on your mininet:
 <pre>
@@ -66,6 +76,8 @@ mininet@mininet-vm:~$ sudo ovs-ofctl -O OpenFlow13 dump-flows s1
 OFPST_FLOW reply (OF1.3) (xid=0x2):
  cookie=0x0, duration=7.325s, table=0, n_packets=0, n_bytes=0, idle_timeout=300, hard_timeout=600, send_flow_rem priority=2,ip,nw_dst=10.0.10.0/24 actions=dec_ttl
 </pre>
+
+If you want to see the above information from the mininet prompt - use "sh" instead of "sudo" i.e. use "sh ovs-ofctl -O OpenFlow13 dump-flows s1".
 
 == Check for your flow in the controller config via RESTCONF ==
 * See your configured flow in POSTMAN with
