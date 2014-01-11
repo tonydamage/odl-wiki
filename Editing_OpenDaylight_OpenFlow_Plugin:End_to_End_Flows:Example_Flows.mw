@@ -2,6 +2,15 @@
 
 The flow examples on this page are tested to work with OVS.
 
+Use, for example, POSTMAN with the following parameters:
+<pre>
+PUT http://<ctrl-addr>:8080/restconf/config/opendaylight-inventory:nodes/node/<Node-id>/table/<Table-#>/flow/<Flow-#>
+
+- Accept' application/xml
+- Content-Type: application/xml
+</pre>
+
+
 = Matches =
 
 ===  IPv4 Destination Address ===
@@ -35,7 +44,6 @@ The flow examples on this page are tested to work with OVS.
         <ipv4-destination>10.0.1.1/24</ipv4-destination>
     </match>
     <hard-timeout>12</hard-timeout>
-    <flags>FlowModFlags [_cHECKOVERLAP=false, _rESETCOUNTS=false, _nOPKTCOUNTS=false, _nOBYTCOUNTS=false, _sENDFLOWREM=false]</flags>
     <cookie>1</cookie>
     <idle-timeout>34</idle-timeout>
     <flow-name>FooXf1</flow-name>
@@ -73,14 +81,150 @@ The flow examples on this page are tested to work with OVS.
         </ethernet-match>
     </match>
     <hard-timeout>12</hard-timeout>
-    <flags>FlowModFlags [_cHECKOVERLAP=false, _rESETCOUNTS=false, _nOPKTCOUNTS=false, _nOBYTCOUNTS=false, _sENDFLOWREM=false]</flags>
     <cookie>3</cookie>
     <idle-timeout>34</idle-timeout>
     <flow-name>FooXf3</flow-name>
     <priority>2</priority>
     <barrier>false</barrier>
 </flow>
+</pre>
 
+===  Ethernet Source & Destination Addresses, Ethernet Type ===
+* Flow=127, Table=2, Priority=2, Instructions={Apply_Actions={drop}}, match={ethernet-source=00:00:00:00:23:ae, ethernet-destination=ff:ff:ff:ff:ff:ff, ethernet-type=45}
+<pre>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<flow xmlns="urn:opendaylight:flow:inventory">
+    <strict>false</strict>
+    <instructions>
+        <instruction>
+            <order>0</order>
+            <apply-actions>
+                <action>
+                    <order>0</order>
+                    <dec-mpls-ttl/>
+                </action>
+            </apply-actions>
+        </instruction>
+    </instructions>
+    <table_id>2</table_id>
+    <id>127</id>
+    <cookie_mask>255</cookie_mask>
+    <installHw>false</installHw>
+    <match>
+        <ethernet-match>
+            <ethernet-type>
+                <type>45</type>
+            </ethernet-type>
+            <ethernet-destination>
+                <address>ff:ff:ff:ff:ff:ff</address>
+            </ethernet-destination>
+            <ethernet-source>
+                <address>00:00:00:00:23:ae</address>
+            </ethernet-source>
+        </ethernet-match>
+    </match>
+    <hard-timeout>12</hard-timeout>
+    <cookie>4</cookie>
+    <idle-timeout>34</idle-timeout>
+    <flow-name>FooXf4</flow-name>
+    <priority>2</priority>
+    <barrier>false</barrier>
+</flow>
+</pre>
+
+===  Ethernet Source & Destination Addresses,  IPv4 Source & Destination Addresses, Input Port # ===
+* Note that ethernet-type MUST be 2048 (0x800)
+<pre>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<flow xmlns="urn:opendaylight:flow:inventory">
+    <strict>false</strict>
+    <instructions>
+        <instruction>
+            <order>0</order>
+            <apply-actions>
+                <action>
+                    <order>0</order>
+                    <dec-mpls-ttl/>
+                </action>
+            </apply-actions>
+        </instruction>
+    </instructions>
+    <table_id>2</table_id>
+    <id>128</id>
+    <cookie_mask>255</cookie_mask>
+    <match>
+        <ethernet-match>
+            <ethernet-type>
+                <type>2048</type>
+            </ethernet-type>
+            <ethernet-destination>
+                <address>ff:ff:ff:ff:ff:ff</address>
+            </ethernet-destination>
+            <ethernet-source>
+                <address>00:00:00:00:23:ae</address>
+            </ethernet-source>
+        </ethernet-match>
+        <ipv4-source>10.1.2.3/24</ipv4-source>
+        <ipv4-destination>20.4.5.6/16</ipv4-destination>
+        <in-port>0</in-port>
+    </match>
+    <hard-timeout>12</hard-timeout>
+    <cookie>5</cookie>
+    <idle-timeout>34</idle-timeout>
+    <flow-name>FooXf5</flow-name>
+    <priority>2</priority>
+    <barrier>false</barrier>
+</flow>
+</pre>
+
+===  Ethernet Source & Destination Addresses,  IPv4 Source & Destination Addresses, IP Protocol #, IP DSCP, IP ECN, Input Port # ===
+* Note that ethernet-type MUST be 2048 (0x800)
+<pre>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<flow xmlns="urn:opendaylight:flow:inventory">
+    <strict>false</strict>
+    <instructions>
+        <instruction>
+            <order>0</order>
+            <apply-actions>
+                <action>
+                    <order>0</order>
+                    <dec-mpls-ttl/>
+                </action>
+            </apply-actions>
+        </instruction>
+    </instructions>
+    <table_id>2</table_id>
+    <id>130</id>
+    <cookie_mask>255</cookie_mask>
+    <match>
+        <ethernet-match>
+            <ethernet-type>
+                <type>2048</type>
+            </ethernet-type>
+            <ethernet-destination>
+                <address>ff:ff:ff:ff:ff:aa</address>
+            </ethernet-destination>
+            <ethernet-source>
+                <address>00:00:00:11:23:ae</address>
+            </ethernet-source>
+        </ethernet-match>
+        <ipv4-source>10.1.2.3/24</ipv4-source>
+        <ipv4-destination>20.4.5.6/16</ipv4-destination>
+        <ip-match>
+            <ip-protocol>56</ip-protocol>
+            <ip-dscp>15</ip-dscp>
+            <ip-ecn>1</ip-ecn>
+        </ip-match>
+        <in-port>0</in-port>
+    </match>
+    <hard-timeout>12000</hard-timeout>
+    <cookie>7</cookie>
+    <idle-timeout>12000</idle-timeout>
+    <flow-name>FooXf7</flow-name>
+    <priority>2</priority>
+    <barrier>false</barrier>
+</flow>
 </pre>
 
 = Actions =
