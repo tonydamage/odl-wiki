@@ -1,0 +1,74 @@
+'''Email "Release Readiness : From SNAPSHOT to Release & Branching recommendations" sent to all Devs and Project owners.'''
+
+Hi Devs,<br />
+<br />
+Apologies on the long email again. I cant think of any better way to communicate this kind of info. I will also add this to the Wiki.<br />
+<br />
+The last step of the development process for the Hydrogen (or any subsequent release) is to move from SNAPSHOT<br />
+versions of the bundle to the release version. This release version of the bundles are deemed the stable version.<br />
+<br />
+As per the collective decision during the TSC call, we decided on starting the process of cutting over from SNAPSHOT<br />
+to the release version on 01/27 & we expect this process to be complete by 01/28.<br />
+<br />
+If this is the last step and if it is planned on 01/27, why are we discussing about this now ?.<br />
+The answer is simple, There are lots of pre-work to be done here and the project owners (& volunteers) should gear up well in advance.<br />
+<br />
+This email will provide the recommendation for cutting-over to the release versions and the subsequent branching strategy.<br />
+This is a heavy topic and we have a ton of information to share and discuss.<br />
+<br />
+'''Short list of Things TODO for Project Owners and Project Volunteers to start working on today (01/14/2014)<br />'''
+<br />
+0. Finish up the "Release Readiness : Dependency convergence" ASAP.<br />
+    (https://wiki.opendaylight.org/view/Simultaneous_Release:Simultaneous_Release_Plan_2014:DependencyConvergence)<br />
+<br />
+1. Please review this email from Giovanni Meo : https://lists.opendaylight.org/pipermail/controller-dev/2013-August/001042.html<br />
+    Most of it holds even for today. Some info are outdated (but still quite useful to know).<br />
+<br />
+2. Prepare your project for the release (refer to https://git.opendaylight.org/gerrit/#/c/978/).<br />
+    1a. Every POM file should have proper <scm> section. Care must be taken to make sure every pom file in a project must carry the exact <scm> section.<br />
+    1b. Add maven-release-plugin to the plugin management section of your project (refer to opendaylight/commons/opendaylight/pom.xml in the above gerrit : 978).<br />
+    1c. If not already present, add a POM file to the root of your project from where we can execute the release operations.<br />
+<br />
+3. We will be using maven-release-plugin. Hence please review : http://maven.apache.org/maven-release/maven-release-plugin/index.html<br />
+<br />
+4. Thank god, we have Giovanni amongst us :-), he already went through the painful process of releasing artifacts from the controller project and<br />
+     the jenkins jobs used for that (in September'2013) are as follows :<br />
+     '''4a. Prepare-only : https://jenkins.opendaylight.org/controller/job/controller-bulk-release-prepare-only/configure.<br />'''
+     '''4b. Final Publish : https://jenkins.opendaylight.org/controller/job/controller-bulk-release/<br />'''
+     Please review these & ask any questions you might have. Dont copy it yet to your projects.<br />
+<br />
+5. Based on the Dependency tree evaluation, the only incorrect project dependencies was identified on controller depending directly on bgpcep.<br />
+    We have to remove this dependency from the controller project.<br />
+<br />
+6. It is recommended to start with the 1.0.0 as the release/branch version. If we agree on 1.0.0 as the release/branch name, then the version of the<br />
+    parent root pom must be set to 1.0.0-SNAPSHOT, which will be automatically used by the jenkins job.<br />
+<br />
+<br />
+'''List of things ToDo on 01/27 & 01/28'''<br />
+<br />
+0. Though the following activities are per-project related, it is recommended to do this as a group with representatives from all the projects present.<br />
+<br />
+1. Based on the dependency tree evaluation, we have to perform the release process in the following sequence<br />
+    - yangtools<br />
+    - controller<br />
+    - openflowjava , ovsdb, opendove, vtn, affinity, bgpcep, lispflowmapping, snmp4sdn, defense4all (all these projects can be done in parallel)<br />
+    - openflowplugin (after openflowjava).<br />
+<br />
+2. Any inter-project SNAPSHOT version dependencies must be changed to the RELEASE version dependency. For example, Controller project is<br />
+    dependent on Yangtools SNAPSHOT, it must be changed to the yangtools's release version & so on and so forth and commit the changes to your repo.<br />
+<br />
+3. In each project, we have to copy both the Prepare-only & Final-Publish jenkins jobs from the controller project & adjust it to  per-project configurations.<br />
+<br />
+4. Execute the prepare-only jenkins job and make sure all the issues are resolved and we get to a successful execution.<br />
+<br />
+5. Execute the Final-publish job (bulk-release) on your project that will publish the artifact to the nexus repo.<br />
+<br />
+6. In Step4, the maven-release-plugin would also drop a tag in the GIT repo to mark the exact release point. We can either manually create a branch on<br />
+    each of the project with a Branch version (please note that this Branch version is Nothing to do with the artifact versions, as they are different in each bundle)<br />
+    or automate the branch creation on the jenkins job.<br />
+<br />
+Ofcourse, there are tons of detailed information available on all these. <br />
+Please dont take this lightly. Tons of stuffs to do in getting the release out & hence your attention to this is highly appreciated.<br />
+<br />
+Thanks,<br />
+-Madhu<br />
