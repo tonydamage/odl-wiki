@@ -25,29 +25,42 @@ odluser@odl-vm:~\$ sudo apt-get install mininet -y
 Modify source code of mininet node.py file in similar manner as follows: 
 
 <pre>
- --- /root/mininet/build/lib.linux-x86_64-2.7/mininet/node.py    2013-11-22 03:35:12.000000000 -0800
- +++ /usr/local/lib/python2.7/dist-packages/mininet-2.1.0-py2.7.egg/mininet/node.py      2013-11-22 06:17:07.350574387 -0800
- @@ -952,6 +952,10 @@
-             datapath: userspace or kernel mode (kernel|user)"""
-          Switch.__init__( self, name, **params )
-          self.failMode = failMode
- +       protKey = 'protocols'
- +       if self.params and protKey in self.params:
- +               print 'have protcol params!'
- +               self.opts += protKey + '=' + self.params[protKey]
-          self.datapath = datapath
-   
- @@ -1027,8 +1031,9 @@
-          if self.datapath == 'user':
-              self.cmd( 'ovs-vsctl set bridge', self,'datapath_type=netdev' )
-          int( self.dpid, 16 ) # DPID must be a hex string
- +        print 'OVSswitch opts: ',self.opts
-          self.cmd( 'ovs-vsctl -- set Bridge', self,
- -                  'other_config:datapath-id=' + self.dpid )
- +                  self.opts+' other_config:datapath-id=' + self.dpid)
-          self.cmd( 'ovs-vsctl set-fail-mode', self, self.failMode )
-          for intf in self.intfList():
-              if not intf.IP():
+odluser@odl-vm:~\$ cd /
+odluser@odl-vm:~\$ sudo patch -p0 < ~/patch.txt
+odluser@odl-vm:~\$ cd -
+</pre>
+
+Where the patch to apply patch.txt is:
+<pre>
+ --- /usr/share/pyshared/mininet/node.py	2013-12-06 02:54:41.079577722 +0000
++++ new_node.py	2013-12-06 02:54:20.139578272 +0000
+@@ -952,6 +952,10 @@
+            datapath: userspace or kernel mode (kernel|user)"""
+         Switch.__init__( self, name, **params )
+         self.failMode = failMode
++	protKey = 'protocols'
++	if self.params and protKey in self.params:
++		print 'have protocol params!'
++		self.opts += protKey + '=' + self.params[protKey]
+         self.datapath = datapath
+ 
+     @classmethod
+@@ -1024,12 +1028,13 @@
+         # Annoyingly, --if-exists option seems not to work
+         self.cmd( 'ovs-vsctl del-br', self )
+         self.cmd( 'ovs-vsctl add-br', self )
++	print 'OVSswitch opts: ',self.opts
+         if self.datapath == 'user':
+             self.cmd( 'ovs-vsctl set bridge', self,'datapath_type=netdev' )
+         int( self.dpid, 16 ) # DPID must be a hex string
+         self.cmd( 'ovs-vsctl -- set Bridge', self,
+-                  'other_config:datapath-id=' + self.dpid )
+-        self.cmd( 'ovs-vsctl set-fail-mode', self, self.failMode )
++        	self.opts+' other_config:datapath-id=' + self.dpid )
++	self.cmd( 'ovs-vsctl set-fail-mode', self, self.failMode )
+         for intf in self.intfList():
+             if not intf.IP():
+                 self.attach( intf )
 </pre>
 
 Verify mininet works for OF1.0:
@@ -64,24 +77,6 @@ To test the version of used protocol by switch "s1":
 <pre>
 odluser@odl-vm:~\$ ovs-ofctl -O OpenFlow10 show s1
 odluser@odl-vm:~\$ ovs-ofctl -O OpenFlow13 show s1
-</pre>
-
-Once you verify mininet works, shutdown the mn process as system test suite will start/stop mininet automatically:
-
-<pre>
-odluser@odl-vm:~\$ ps -ef | grep mn
-root     15800 11466  0 01:33 pts/0    00:00:00 sudo mn --controller=remote,ip=127.0.0.1 --topo tree,2
-root     15801 15800  0 01:33 pts/0    00:00:00 /usr/bin/python /usr/local/bin/mn --controller=remote,ip=127.0.0.1 --topo tree,2
-odluser  16183 16096  0 05:05 pts/2    00:00:00 grep --color=auto mn
-
-odluser@odl-vm:~\$ sudo pkill mn
-odluser@odl-vm:~\$ ps -ef | grep mn
-odluser  16265 16096  0 05:06 pts/2    00:00:00 grep --color=auto mn
-</pre>
-
-Note: If you plan to test individual test files or make custom REST requests please start the mininet with:
-<pre>
-odluser@odl-vm:~\$ sudo mn --controller=remote,ip=10.125.136.52 --topo tree,2
 </pre>
 
 === Install OpenDaylight controller ===
