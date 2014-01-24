@@ -1,190 +1,146 @@
 =Technical Architecture=
 OpenDaylight Virtual Tenant Network (VTN) is an application that provides multi-tenant virtual network on an SDN controller. It provides API for creating a common virtual network irrespective of the physical network. It is implemented as two major components
-* VTN Coordinator
 * VTN Manager
+* VTN Coordinator
 [[File:VTN Coordinator.png|800px]]
  
 ==OpenDaylight Virtual Tenant Network (VTN):VTN Coordinator==
-This has been implemented as an external application to the OpenDaylight controller. This component is responsible for the VTN Virtualization. The user will use the REST API’s of the VTN Coordinator to create the VTN network with the virtual configuration as required. VTN Coordinator will use the REST interface exposed by the VTN Manger to realize the virtual network  using the  OpenDaylight controller.
+This has been implemented as an external aplication to the OpenDaylight controller. This component is responsible for the VTN Virtualization. The user will use the REST API’s of the VTN Coordinator to create the VTN network with the virtual configuration as required. VTN Coordinator will use the REST interface exposed by the VTN Manger to realise the virtual network  using the  OpenDaylight controller.
 
-[https://wiki.opendaylight.org/view/OpenDaylight_Virtual_Tenant_Network_(VTN):VTN_Coordinator#VTN_Coordinator| VTN Coordinator Architecture Overview]
+==VTN Coordinator Architecture==
+[[File:VTN Coordinator architecture.png|600px]]
 
-* VTN Coordinator components
-** [https://wiki.opendaylight.org/view/OpenDaylight_Virtual_Tenant_Network_(VTN):VTN_API#VTN_API| VTN API]
-** [https://wiki.opendaylight.org/view/OpenDaylight_Virtual_Tenant_Network_(VTN):Transaction_Coordinator#Transaction_Coordinator| Transaction Coordinator]
-** [https://wiki.opendaylight.org/view/OpenDaylight_Virtual_Tenant_Network_(VTN):Unified_Provider_Physical_Layer_(UPPL)#Unified_Provider_Physical_Layer_.28UPPL.29| Unified Provider Physical Layer (UPPL)]
-** [https://wiki.opendaylight.org/view/OpenDaylight_Virtual_Tenant_Network_(VTN):Unified_Provider_Logical_Layer_(UPLL)#Unified_Provider_Logical_Layer_.28UPLL.29| Unified Provider Logical Layer (UPLL)]
-**[https://wiki.opendaylight.org/view/OpenDaylight_Virtual_Tenant_Network_(VTN):OpenDaylight_Controller_Driver_(ODC_Driver)#OpenDaylight_Controller_Driver_.28ODC_Driver.29| OpenDaylight Controller Driver (ODC Driver)]
+*Note: All the compoenents use the propreitary IPC API to communicate with each other.
+
+;OpenDaylight Virtual Tenant Network (VTN):VTN API
+The component providing the REST interface for VTN Coordinator. The webserver and VTN Service JAVA API are the implementations of this component.
+
+;Webserver:
+The Web Server module handles the REST APIs received from the VTN applications. It translates the REST APIs to the appropriate Java APIs. 
+The main functions of this module are 
+*Is started via the startup script catalina.sh. 
+*VTN Application sends HTTP request to Web server in XML or JSON format. 
+*Creates a session and acquire a read/write lock. 
+*Invokes the VTN Service Java API corresponding to the specified URI. 
+*Returns the response to the VTN Application. 
+VTN Coordinator uses the Apache Tomcat as the webserver.
+
+;VTN Service Java API library:
+It provides the Java API library to communicate with the lower layer modules in the VTN Coordinator.
+
+[[File:VTN java api.png|300px]]
+The main functions of this library are 
+*Creates an IPC client session to the lower layer. 
+*Converts the request to IPC framework format. 
+*Invokes the lower layer API (e.g. TC API to interact with TC module)
+*Return the response from the lower layer to the web server 
+The class details in implementation cab ne referred from this link
+
+https://wiki.opendaylight.org/view/OpenDaylight_Virtual_Tenant_Network_%28VTN%29:VTN_API
+
+;OpenDaylight Virtual Tenant Network (VTN):Transaction Coordinator
+This component is responsible for the Two Phase commit implementation in VTN Coordinator. This coordinates between various components participating in commit and ensures the commit to the underlying controller (ODL). The TCLIB module is part of the components that need to interact with TC, helps to convert TC commands to programmable interface.
+VTNService use the API provided by TC to initiate commit, while TC uses the IPC to communicate with TCLIB and service the commit request.
+
+[[File:VTN service.png|400px]]
+
+Class implementation details can be referred here
+https://wiki.opendaylight.org/view/OpenDaylight_Virtual_Tenant_Network_%28VTN%29:Transaction_Coordinator
+
+;OpenDaylight Virtual Tenant Network (VTN): Unified Provider Physical Layer (UPPL)
+[[File:VTN UPPL.png|400px]]
+
+This component is responsible for maintaining the physical network details. The user will create a controller entry upon which the VT%N Coordinator will communicate with the controller and fetch all physical information and the UPPL module will construct the physical topology using the same.
+The class implementation details can be referred here.
+https://wiki.opendaylight.org/view/OpenDaylight_Virtual_Tenant_Network_%28VTN%29:Unified_Provider_Physical_Layer_%28UPPL%29
+
+;OpenDaylight Virtual Tenant Network (VTN): Unified Provider Logical Layer (UPLL)
+[[File:VTN UPLL.png|400px]]
+
+
+This is the core of VTN Coordinator, This provides the VTN implementation service. Any VTN component create/update/delete is received by UPLL and the appropriate entries are created in datable. Later when commit is triggered by TC, the same is committed to the controller (ODL).
+For class implementation details, please refer to this url
+https://wiki.opendaylight.org/view/OpenDaylight_Virtual_Tenant_Network_%28VTN%29:Unified_Provider_Logical_Layer_%28UPLL%29
+
+;OpenDaylight Virtual Tenant Network (VTN): OpenDaylight Controller Driver (ODC Driver)
+
+This component is responsible for the following
+*Translate VTN Commands from the UPLL/UPL to appropriate REST API calls to VTN Manager
+*Ensure ODL is running, by issuing frequent ping calls to collect version.
+*Collect physical network details frequently and post the same to UPPL.
+
+[[File:VTN ODCDriver.png|500px]]
 
 ==OpenDaylight Virtual Tenant Network (VTN):VTN Manager==
-This is implemented as one plugin to the OpenDayLight controller. This provides a REST interface to create/update/delete VTN components. The user command in VTN Coordinator is translated as REST API to VTN Manager by the ODC Driver component.
+This is implemented as one plugin in the ODL controller. This provides a REST interface to create/update/delete VTN components. The user command in VTN Coordinator is translated as REST API to VTN Manager by the ODC Driver component.
 In addition to the above mentioned role, it also provides an implementation to the Openstack L2 Network Functions API.
 
-[[File:VTN_MANAGER_diag_new.png|600px]]
+[[File:VTN Manager.png|900px]]
 
 ==Function Outline ==
-{| class="wikitable"
+VTN Virtualization comprises of the below list of components. VTN provides following operations for various network resources.
+
+;(Example) Connecting the terminal to virtual network 
+{|class = "wikitable
 |-
-! Component
-! Interface
-! Purpose
+|Resources||GET||POST||PUT||DELETE 
 |-
-| VTN Manager
-| RESTful API
-| Configure VTN Virtualization model components in OpenDayLight
+|VTN ||Yes||Yes||Yes||Yes 
 |-
-| VTN Manager
-| Neutron API implementation
-| Handle Networks API from OpenStack (Neutron Interface)
+vBridge||Yes||Yes||Yes||Yes 
 |-
-| VTN Coordinator
-| RESTful API
-| 
-*Uses the Restful interface of VTN Manager and Configure VTN Virtualization model components in OpenDayLight.
-*handle multiple controller orchestration.
-*Provides API to read the physical network details.Please refer to [[OpenDaylight Virtual Tenant Network (VTN):VTN Coordinator:RestApi:L2 Network Example Using VTN Virtualization|samples]] for usage.
+vRouter||Yes||Yes||Yes||Yes 
+|-
+vTep||Yes||Yes||Yes||Yes 
+|-
+vTunnel||Yes||Yes||Yes||Yes 
+|-
+vBypass||Yes||Yes||Yes||Yes 
+|-
+vLink||Yes||Yes||Yes||Yes 
+|-
+Interface||Yes||Yes||Yes||Yes 
+|-
+Port map||Yes||No||Yes||Yes 
+|-
+Vlan map||Yes||Yes||Yes||Yes 
+|-
+Flowfilter (ACL/redirect)||Yes||Yes||Yes||Yes 
+|-
+Controller information||Yes||Yes||Yes||Yes 
+|-
+Physical topology information||Yes||No||No||No 
+|-
+Alarm information||Yes||No||No||No 
 |}
 
-=Installation Guide=
-;[[OpenDaylight Virtual Tenant Network (VTN):Installation:VTN Coordinator|Install VTN Coordinator from source]]
-;[[OpenDaylight Virtual Tenant Network (VTN):Installation:VTN Manager|Install VTN Manager from Source]]
-;[[OpenDaylight Virtual Tenant Network (VTN):Installation:Virtualization Edition|Install VTN Coordinator and VTN Manager from virtualization Edition]]
-
-=Installation Troubleshooting=
-[[OpenDaylight Virtual Tenant Network (VTN):Installation:Troubleshooting|Troubleshoot VTN Coordinator]]
-
-=Configuration=
-[[OpenDaylight Virtual Tenant Network (VTN):Installation:Configuration|Configuration of VTN Coordinator]]
-
-=Tutorial / How-To=
-== Assumptions ==
-* VTN Coordinator is installed and configured to accept requests in 8080
-* The ODL controller is enabled to work with VTN virtualization (i.e. executed as ./run.sh -virt vtn)
-* The Controller is reachable from VTN Coordinator
-==Example==
-All requests are ported to VTN Coordinator.
-Example of mapping interface and sending packets between hosts for single controller using mininet:
-“mininet” details and set-up can be referred at below URL: https://wiki.opendaylight.org/view/OpenDaylight_Controller:Installation#Using_Mininet
-
-;Single Controller Topology:
-[[File:Single Controller topology.png|600px]]
-*“mininet” command for above topology:
+The following is an example of the usage to connect the terminal to the network. 
+*Create VTN 
 {|class = "wikitable"
 |-
-|mininet@mininet-vm:~$ sudo mn --controller=remote,ip=<controller-ip> --topo tree,2
+|# curl -X POST -H 'content-type: application/json' -H 'username: admin' -H 'password: PASSWORD' -H 'ipaddr: 127.0.0.1' \
+-d '{"vtn":{"vtn_name":"VTN1"}}' http://172.1.0.1:8080/vtn-webapi/vtns.json
 |}
 
-*Create a Controller
+*Create Controller Information 
 {|class = "wikitable"
 |-
-|curl -v -X POST -H 'content-type: application/json' -H 'username: admin' -H 'password: adminpass' -H 'ipaddr:127.0.0.1' -d '{"controller": {"controller_id": "controllerone", "ipaddr":"10.0.0.2", "type": "odc", "version": "1.0", "auditstatus":"enable"}}' http://127.0.0.1:8080/vtn-webapi/controllers.json
+|# curl -X POST -H 'content-type: application/json' -H 'username: admin' -H 'password: PASSWORD' -H 'ipaddr: 127.0.0.1' \
+  -d '{"controller": {"controller_id":"CONTROLLER1","ipaddr":"172.1.0.1","type":"pfc","username":"root", \
+  "password":"PASSWORD","version":"5.0"}}' http://172.1.0.1:8080/vtn-webapi/controllers.json
 |}
 
-*Create a VTN 
+*Create vBridge under VTN 
 {|class = "wikitable"
 |-
-|curl -v -X POST -H 'content-type: application/json' -H 'username: admin' -H 'password: adminpass' -H 'ipaddr:127.0.0.1' -d '{"vtn" : {"vtn_name":"vtn1","description":"test VTN" }}' http://127.0.0.1:8080/vtn-webapi/vtns.json
+|# curl -X POST -H 'content-type: application/json' -H 'username: admin' -H 'password: PASSOWRD' -H 'ipaddr: 127.0.0.1' \
+  -d '{"vbridge":{"vbr_name":"VBR1","controller_id": "CONTROLLER1","domain_id": "(DEFAULT)"}}' \
+  http://172.1.0.1:8080/vtn-webapi/vtns/VTN1/vbridges.json
 |}
 
-*Create a vBridge in the VTN 
+*Create the interface to connect the terminal under vBridge 
 {|class = "wikitable"
 |-
-|curl -v -X POST -H 'content-type: application/json' -H 'username: admin' -H 'password: adminpass' -H 'ipaddr:127.0.0.1' -d '{"vbridge" : {"vbr_name":"vBridge1","controller_id":"controllerone","domain_id":"(DEFAULT)" }}' http://127.0.0.1:8080/vtn-webapi/vtns/vtn1/vbridges.json
+|# curl -X POST -H 'content-type: application/json' -H 'username: admin' -H 'password: PASSWORD' -H 'ipaddr: 127.0.0.1' \
+  -d '{"interface":{"if_name":"IF1"}}' http://172.1.0.1:8080/vtn-webapi/vtns/VTN1/vbridges/VBR1/interfaces.json
 |}
-
-*Create two Interfaces into the vBridge 
-{|class = "wikitable"
-|-
-|curl -v -X POST -H 'content-type: application/json' -H 'username: admin' -H 'password: adminpass' -H 'ipaddr:127.0.0.1' -d '{"interface": {"if_name": "if1","description": "if_desc1"}}' http://127.0.0.1:8080/vtn-webapi/vtns/vtn1/vbridges/vBridge1/interfaces.json
-|-
-|curl -v -X POST -H 'content-type: application/json' -H 'username: admin' -H 'password: adminpass' -H 'ipaddr:127.0.0.1' -d '{"interface": {"if_name": "if2","description": "if_desc2"}}' http://127.0.0.1:8080/vtn-webapi/vtns/vtn1/vbridges/vBridge1/interfaces.json
-|}
-
-*Get the list of logical ports configured
-{|class = "wikitable"
-|-
-|curl -v -X GET -H 'content-type: application/json' -H 'username: admin' -H 'password: adminpass' -H 'ipaddr:127.0.0.1' http://127.0.0.1:8080/vtn-webapi/controllers/controllerone/domains/\(DEFAULT\)/logical_ports.json
-|}
-
-*Configure two mappings on the interfaces 
-{|class = "wikitable"
-|-
-|curl -v -X PUT -H 'content-type: application/json' -H 'username: admin' -H 'password: adminpass' -H 'ipaddr:127.0.0.1' -d '{"portmap":{"logical_port_id": "PP-OF:00:00:00:00:00:00:00:03-s3-eth1"}}' http://127.0.0.1:8080/vtn-webapi/vtns/vtn1/vbridges/vBridge1/interfaces/if1/portmap.json
-|-
-|curl -v -X PUT -H 'content-type: application/json' -H 'username: admin' -H 'password: adminpass' -H 'ipaddr:127.0.0.1' -d '{"portmap":{"logical_port_id": "PP-OF:00:00:00:00:00:00:00:02-s2-eth1"}}' http://127.0.0.1:8080/vtn-webapi/vtns/vtn1/vbridges/vBridge1/interfaces/if2/portmap.json
-|}
-
-*Send packets from Host1 to Host3
-{|class = "wikitable"
-|-
-|mininet> h1 ping h3
-|}
-
-Refer to [[OpenDaylight Virtual Tenant Network (VTN):VTN Coordinator:RestApi:L2 Network Example Using VTN Virtualization|Examples]] for multi controller scenarios and illustrations with images.
-
-=Command Line Interface=
-NA
-
-=Programmatic Interface(s)=
-
-
-All the below API's are supported in VTN Coordinator.
-
-==API's for OpenDaylight Controller Virtualization for VTN Coordinator==
-The below VTN API can be configured for OpenDayLight Controller.
-
-* [[OpenDaylight Virtual Tenant Network (VTN):VTN Coordinator:RestApi:API Version Function|API Version function]]<br>
-* [[OpenDaylight Virtual Tenant Network (VTN):VTN Coordinator:RestApi: VTN Functions|VTN functions]]<br>
-* [[OpenDaylight Virtual Tenant Network (VTN):VTN Coordinator:RestApi: vBridge Functions|vBridge Functions]]<br>
-* [[OpenDaylight Virtual Tenant Network (VTN):VTN Coordinator:RestApi: VLAN Map Functions|VLAN Map Functions]]<br>
-* [[OpenDaylight Virtual Tenant Network (VTN):VTN Coordinator:RestApi: vBridge Interface Functions|vBridge Interface functions]]<br>
-* [[OpenDaylight Virtual Tenant Network (VTN):VTN Coordinator:RestApi: vBridge Interface Port Map Functions|vBridge Interface Port Map functions]]<br>
-* [[OpenDaylight Virtual Tenant Network (VTN):VTN Coordinator:RestApi: Physical Controller Functions|Physical Controller Functions]]<br>
-* [[OpenDaylight Virtual Tenant Network (VTN):VTN Coordinator:RestApi:Physical Switch Functions|Physical Switch functions]]<br>
-* [[OpenDaylight Virtual Tenant Network (VTN):VTN Coordinator:RestApi:Physical Port Functions|Physical Port function]]<br>
-* [[OpenDaylight Virtual Tenant Network (VTN):VTNCoordinator:RestApi:Physical Link Function|Physical Link function]]<br>
-* [[OpenDaylight Virtual Tenant Network (VTN):VTN Coordinator:RestApi:Physical Domain Functions|Physical Domain functions]]<br>
-* [[OpenDaylight Virtual Tenant Network (VTN):VTN Coordinator:RestApi:Logical Port Function|Logical Port function]]<br>
-* [[OpenDaylight Virtual Tenant Network (VTN):VTN Coordinator:RestApi:Physical Boundary Functions|Physical Boundary functions]]<br>
-
-==Additional API's for VTN Coordinator==
-The below API's are supported in VTN Coordinator, the implementations to configure these API in OpenDayLight will be done in subsequent releases.
-* [[OpenDaylight Virtual Tenant Network (VTN):VTN Coordinator:RestApi: Coordinator Version Functions|Coordinator Version Functions]]<br>
-* [[OpenDaylight Virtual Tenant Network (VTN):VTN Coordinator:RestApi:Flow List Functions|Flow List functions]]<br>
-* [[OpenDaylight Virtual Tenant Network (VTN):VTNCoordinator:RestApi:Flow List Entry Functions|Flow List Entry functions]]<br>
-* [[OpenDaylight Virtual Tenant Network (VTN):VTN Coordinator:VTN Station Functions|VTN Station functions]]<br>
-* [[OpenDaylight Virtual Tenant Network (VTN):VTNCoordinator:RestApi:VTN Flow Filter Functions|VTN Flow Filter functions]]<br>
-* [[OpenDaylight Virtual Tenant Network (VTN):VTNCoordinator:RestApi:VTN Flow Filter Entry functions|VTN Flow Filter Entry functions]]<br>
-* [[OpenDaylight Virtual Tenant Network (VTN):VTN Coordinator:RestApi:Host Address Functions|Host Address functions]]<br>
-* [[OpenDaylight Virtual Tenant Network (VTN):VTN Coordinator:RestApi:L2 Domain Function|L2 Domain function]]<br>
-* [[OpenDaylight Virtual Tenant Network (VTN):VTN Coordinator:RestApi:MAC Entry Function|MAC Entry function]]<br>
-* [[OpenDaylight Virtual Tenant Network (VTN):VTN Coordinator:RestApi:vBridge Flow Filter Functions|vBridge Flow Filter functions]]<br>
-* [[OpenDaylight Virtual Tenant Network (VTN):VTN Coordinator:RestApi:vBridge Flow Filter Entry Functions|vBridge Flow Filter Entry functions]]<br>
-* [[OpenDaylight Virtual Tenant Network (VTN):VTN Coordinator:RestApi:vBridge Interface Flow Filter Functions|vBridge Interface Flow Filter functions]]<br>
-* [[OpenDaylight Virtual Tenant Network (VTN):VTN Coordinator:RestApi:vBridge Interface Flow Filter Entry Functions|vBridge Interface Flow Filter Entry Functions]]<br>
-* [[OpenDaylight Virtual Tenant Network (VTN):VTN Coordinator:RestApi:vRouter functions|vRouter functions]]<br>
-* [[OpenDaylight Virtual Tenant Network (VTN):VTN Coordinator:Static IP Route Functions|Static IP Route functions]]<br>
-* [[OpenDaylight Virtual Tenant Network (VTN):VTN Coordinator:RestApi:IP Routes Function|IP Routes function]]<br>
-* [[OpenDaylight Virtual Tenant Network (VTN):VTN Coordinator:RestApi:ARP Entry Functions|ARP Entry functions]]<br>
-* [[OpenDaylight Virtual Tenant Network (VTN):VTN Coordinator:RestApi:DHCP Relay Status Functions|DHCP Relay Status functions]]<br>
-* [[OpenDaylight Virtual Tenant Network (VTN):VTN Coordinator:RestApi:DHCP Relay Interface Functions|DHCP Relay Interface functions]]<br>
-* [[OpenDaylight Virtual Tenant Network (VTN):VTN Coordinator:RestApi:DHCP Relay Server Functions|DHCP Relay Server functions]]<br>
-* [[OpenDaylight Virtual Tenant Network (VTN):VTN Coordinator:RestApi:vRouter Interface Functions|vRouter Interface functions]]<br>
-* [[OpenDaylight Virtual Tenant Network (VTN):VTN Coordinator:RestApi:vRouter Interface Flow Filter functions|vRouter Interface Flow Filter functions]]<br>
-* [[OpenDaylight Virtual Tenant Network (VTN):VTN Coordinator:RestApi:vRouter Interface Flow Filter Entry functions|vRouter Interface Flow Filter Entry functions]]<br>
-* [[OpenDaylight Virtual Tenant Network (VTN):VTN Coordinator:RestApi:vBypass Functions|vBypass functions]]<br>
-* [[OpenDaylight Virtual Tenant Network (VTN):VTN Coordinator:RestApi:vBypass Interface Functions|vBypass Interface functions]]<br>
-* [[OpenDaylight Virtual Tenant Network (VTN):VTN Coordinator:vTep Functions|vTep functions]]<br>
-* [[OpenDaylight Virtual Tenant Network (VTN):VTN Coordinator:vTep Interface Functions|vTep Interface functions]]<br>
-* [[OpenDaylight Virtual Tenant Network (VTN):VTN Coordinator:vTep Interface Port Map Functions|vTep Interface Port Map functions]]<br>
-* [[OpenDaylight Virtual Tenant Network (VTN):VTN Coordinator:vTep Group Functions|vTep Group functions]]<br>
-* [[OpenDaylight Virtual Tenant Network (VTN):VTN Coordinator:vTunnel Functions|vTunnel functions]]<br>
-* [[OpenDaylight Virtual Tenant Network (VTN):VTN Coordinator:vTunnel Interface Functions|vTunnel Interface functions]]<br>
-* [[OpenDaylight Virtual Tenant Network (VTN):VTN Coordinator:vTunnel Interface Port Map functions|vTunnel Interface Port Map functions]]<br>
-* [[OpenDaylight Virtual Tenant Network (VTN):VTN Coordinator:vLink Functions|vLink functions]]<br>
-* [[OpenDaylight Virtual Tenant Network (VTN):VTN Coordinator:RestApi:Configuration Functions|Configuration functions]]<br>
-* [[OpenDaylight Virtual Tenant Network (VTN):VTN Coordinator:RestApi: Session Functions|Session functions]]<br>
-* [[OpenDaylight Virtual Tenant Network (VTN):VTN Coordinator:RestApi: User Function|User function]]<br>
-
-
-[[Category:OpenDaylight Virtual Tenant Network]]
