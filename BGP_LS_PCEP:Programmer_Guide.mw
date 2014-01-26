@@ -1,0 +1,78 @@
+== Writing an extension to PCE protocol ==
+
+=== Introduction ===
+An extension to PCE protocol means basically adding parsers and serializers for
+new PCEP elements, such as messages, objects, tlvs or subobjects. This is 
+usually necessary when you are extending PCEP with another RFC or draft.
+PCEP parser is pluggable and you can specify which extensions to load alongside
+to the base PCEP parser (covering all of RFC5440) in the configuration file.
+
+=== Current standards support ===
+Current pcep base-parser implementation supports following RFCs:
+
+'''[http://tools.ietf.org/html/rfc5440 RFC5440]''' - Path Computation Element (PCE) Communication Protocol (PCEP) <br />
+'''[http://tools.ietf.org/html/rfc5541 RFC5541]''' - Encoding of Objective Functions in the Path Computation Element Communication Protocol (PCEP) <br />
+'''[http://tools.ietf.org/html/rfc5455 RFC5455]''' - Diffserv-Aware Class-Type Object for the Path Computation Element Communication Protocol <br />
+'''[http://tools.ietf.org/html/rfc5521 RFC5521]''' - Extensions to the Path Computation Element Communication Protocol (PCEP) for Route Exclusions <br />
+'''[http://tools.ietf.org/html/rfc5557 RFC5557]''' - Path Computation Element Communication Protocol (PCEP) Requirements and Protocol Extensions in Support of Global Concurrent Optimization <br />
+
+There are already two extensions for: <br />
+'''[http://tools.ietf.org/html/draft-ietf-pce-stateful-pce-07 draft-ietf-pce-stateful-pce]''' - in versions 02 and 07 <br />
+'''[http://tools.ietf.org/html/draft-ietf-pce-pce-initiated-lsp-00 draft-ietf-pce-pce-initiated-lsp-00]''' - versions crabbe-initiated-00 and ietf-initiated-00 <br />
+
+Note, that they extend each other, so it is vital to load the extensions with compatible versions.
+In this case crabbe-initiated-00 is compatible with stateful-02 and ietf-initiated-00 is compatible
+with stateful-07.
+
+=== How to implement an extension to pcep ===
+
+* Create a separate artefact (eclipse project) for your extension. Make sure it depends on pcep-api and pcep-spi.
+
+* Write yang model for new elements or augment existing ones. Perform 'mvn install' to generate files from the model.
+
+* Write parsers and serializers. All parsers need to implement *Parser and *Serializer interfaces from pcep-spi (e.g. if you are writing a new TLV, your parser should implement TlvParser and TlvSerializer). Add Activator, that extends AbstractPCEPExtensionProviderActivator, where you register your parsers and serializers.
+
+===== Update configuration: =====
+
+* Update 32-pcep.xml. Register your parser as a module in pcep-impl:
+<br />
+<module><br />
+	<type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:pcep:impl">prefix:pcep-parser-new-parser</type><br />
+	<name>pcep-parser-new-parser</name><br />
+</module><br />
+<br />
+* Add it as an extension to pcep-parser-base:
+<br />
+<extension><br />
+	<type xmlns:pcepspi="urn:opendaylight:params:xml:ns:yang:controller:pcep:spi">pcepspi:extension</type><br />
+	<name>pcep-parser-new-parser</name><br />
+</extension><br />
+<br />
+* Add it's instance to services:
+<br />
+<instance><br />
+	<name>pcep-parser-new-parser</name><br />
+	<provider>/config/modules/module[name='pcep-parser-new-parser']/instance[name='pcep-parser-new-parser']</provider><br />
+</instance><br />
+<br />
+* Update odl-pcep-impl-cfg.yang so that it generates Module and ModuleFactory classes for your new parser.
+<br />
+identity pcep-parser-new-parser {<br />
+	base config:module-type;<br />
+	config:provided-service spi:extension;<br />
+	config:java-name-prefix NewParserPCEPParser;<br />
+}<br />
+<br />
+augment "/config:modules/config:module/config:configuration" {<br />
+	case pcep-parser-new-parser {<br />
+		when "/config:modules/config:module/config:type = 'pcep-parser-new-parser'";<br />
+	}<br />
+}<br />
+
+* Run mvn install on pcep-impl-config to generate Module and ModuleFactory files.
+Update Module to start your NewParserPCEPParserModule.java whent it's created.
+<br />
+@Override<br />
+public java.lang.AutoCloseable createInstance() {<br />
+	return new InitiatedActivator();<br />
+}<br />
