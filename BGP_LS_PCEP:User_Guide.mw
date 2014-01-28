@@ -1,0 +1,60 @@
+== BGP ==
+
+All configuration for BGP is held in configuration file 41-bgp-example.xml .
+
+Currently the configuration for BGP peer is ignored in the configuration, to 
+prevent the client from starting with default configuration. Therefore the first
+step is to uncomment all the commented parts in this file.
+
+* Adjust values for initial BGP Open message
+
+ <module>
+    <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:bgp:rib:impl">prefix:bgp-proposal-impl</type>
+    <name>example-bgp-proposal</name>
+    <as-number>64496</as-number>        // local as number
+    <bgp-id>192.0.2.2</bgp-id>          // local BGP identifier
+ </module>
+
+ <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:bgp:rib:impl">prefix:rib-impl</type>
+ <name>example-bgp-rib</name>
+ <rib-id>example-bgp-rib</rib-id>
+ <local-as>64496</local-as>             // local as number
+ <bgp-id>192.0.2.2</bgp-id>             // local BGP identifier
+ 
+* Specify IP address of your BGP speaker
+
+ <module>
+    <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:bgp:rib:impl">prefix:bgp-impl</type>
+    <name>example-bgp-peer</name>
+    <bgp-dispatcher>
+        <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:bgp:rib:impl">prefix:bgp-dispatcher</type>
+        <name>global-bgp-dispatcher</name>
+    </bgp-dispatcher>
+    <bgp-proposal>
+        <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:bgp:rib:impl">prefix:bgp-proposal</type>
+        <name>example-bgp-proposal</name>
+    </bgp-proposal>
+    <host>route-reflector.example.org</host>        // IP address of the speaker
+ </module>
+ 
+You can also add more BGP peers by copying above module and register it:
+
+ <bgp>
+    <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:bgp:listener">prefix:listener</type>
+    <name>new-bgp-peer</name>
+ </bgp>
+
+* Configure connection attributes (all in milliseconds)
+
+ <module>
+    <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:reconnectstrategy">prefix:timed-reconnect-strategy</type>
+    <name>example-reconnect-strategy</name>
+    <min-sleep>1000</min-sleep>             // Minimum sleep time in between reconnect tries
+    <max-sleep>180000</max-sleep>           // Maximum sleep time in between reconnect tries
+    <sleep-factor>2.00</sleep-factor>       // Power factor of the sleep time between reconnect tries
+    <connect-time>5000</connect-time>       // Wait for the first connection
+    <executor>
+        <type xmlns:netty="urn:opendaylight:params:xml:ns:yang:controller:netty">netty:netty-event-executor</type>
+        <name>global-event-executor</name>
+    </executor>
+ </module>
