@@ -1,4 +1,4 @@
-== BGP ==
+=== BGP ===
 
 All configuration for BGP is held in configuration file 41-bgp-example.xml .
 
@@ -6,7 +6,7 @@ Currently the configuration for BGP peer is ignored in the configuration, to
 prevent the client from starting with default configuration. Therefore the first
 step is to uncomment all the commented parts in this file.
 
-* Adjust values for initial BGP Open message
+==== Adjust values for initial BGP Open message ====
 
  <module>
     <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:bgp:rib:impl">prefix:bgp-proposal-impl</type>
@@ -21,7 +21,7 @@ step is to uncomment all the commented parts in this file.
  <local-as>64496</local-as>             // local as number
  <bgp-id>192.0.2.2</bgp-id>             // local BGP identifier
  
-* Specify IP address of your BGP speaker
+==== Specify IP address of your BGP speaker ====
 
  <module>
     <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:bgp:rib:impl">prefix:bgp-impl</type>
@@ -44,7 +44,7 @@ You can also add more BGP peers by copying above module and register it:
     <name>new-bgp-peer</name>
  </bgp>
 
-* Configure connection attributes (all in milliseconds)
+==== Configure connection attributes (all in milliseconds) ====
 
  <module>
     <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:reconnectstrategy">prefix:timed-reconnect-strategy</type>
@@ -58,3 +58,34 @@ You can also add more BGP peers by copying above module and register it:
         <name>global-event-executor</name>
     </executor>
  </module>
+
+=== PCEP ===
+ 
+Current PCEP implemenatation supports PCE server only, which will start on 0.0.0.0:4189, when ODL starts. <br />
+ 
+All configuration for PCEP is held in configuration file 32-pcep.xml . <br />
+
+==== Configure draft versions ====
+
+There are already two extensions for PCEP: <br />
+'''[http://tools.ietf.org/html/draft-ietf-pce-stateful-pce draft-ietf-pce-stateful-pce]''' - in versions 02 and 07 <br />
+'''[http://tools.ietf.org/html/draft-ietf-pce-pce-initiated-lsp draft-ietf-pce-pce-initiated-lsp]''' - versions crabbe-initiated-00 and ietf-initiated-00 <br />
+
+Note, that they extend each other, so it is vital to load the extensions with compatible versions. In this case crabbe-initiated-00 is compatible with stateful-02 and ietf-initiated-00 is compatible with stateful-07. Default configuration is to use newest versions of the drafts. If you want to use older version, switch commented code to ignore stateful-7 andd ietf-initiated-00 versions. <br />
+
+ <module>
+    <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:pcep:impl">prefix:pcep-parser-ietf-stateful07</type>
+    <name>pcep-parser-ietf-stateful07</name>
+ </module>
+ <module>
+    <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:pcep:impl">prefix:pcep-parser-ietf-initiated00</type>
+    <name>pcep-parser-ietf-initiated00</name>
+ </module>
+ <nowiki><!--module>
+    <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:pcep:impl">prefix:pcep-parser-ietf-stateful02</type>
+    <name>pcep-parser-ietf-stateful02</name>
+ </module>
+ <module>
+    <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:pcep:impl">prefix:pcep-parser-crabbe-initiated00</type>
+    <name>pcep-parser-crabbe-initiated00</name>
+ </module--></nowiki>
