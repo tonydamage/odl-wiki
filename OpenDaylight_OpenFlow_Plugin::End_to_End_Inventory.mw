@@ -99,11 +99,41 @@ Start Openflow protocol agent:
   e.g - $utilities/dpctl tcp:127.0.0.1:6680 queue-mod 1 1 23</pre>
 "dpctl" --help is not very intuitive, so please keep adding any new command you figured out while your experiment with the switch.
 
+=== Using the built-in Wireshark ===
+
+Mininet comes with pre-installed Wireshark, but for some reason it does not include the Openflow protocol dissector. You may want to get and install it in the ''<HOME>/.wireshark/plugins/'' directory.
+
+First login to your mininet VM
+
+<pre> ssh mininet@<your mininet vm ip> -X </pre>
+
+The -X option in ssh will enable x-session over ssh so that the wireshark window can be shown on your host machine's display. when prompted, enter the password (mininet).
+
+From the mininet vm shell, set the wireshark capture privileges (http://wiki.wireshark.org/CaptureSetup/CapturePrivileges):
+
+<pre>
+sudo chgrp mininet /usr/bin/dumpcap
+sudo chmod 754 /usr/bin/dumpcap
+sudo setcap 'CAP_NET_RAW+eip CAP_NET_ADMIN+eip' /usr/bin/dumpcap
+</pre> 
+
+Finally, start wireshark:
+
+<pre> wireshark </pre>
+
+The wireshark window should show up.
+
+To see only Openflow packets, you may want to apply the following filter in the Filter window:
+
+<pre> tcp.port == 6633 and tcp.flags.push == 1 </pre>
+
+Start the capture on ''any'' port.
+
 == Running Mininet with OF 1.3 ==
 
 From within the Mininet VM, run:
 
-<pre> sudo mn --topo single,3  --controller 'remote,ip=<your controller ip>:6653' --switch ovsk,protocols=OpenFlow13</pre>
+<pre> sudo mn --topo single,3  --controller 'remote,ip=<your controller ip>,port=6653' --switch ovsk,protocols=OpenFlow13</pre>
 
 == Restconf for Inventory ==
 
@@ -120,7 +150,7 @@ Alternately, if you have a node's id you can address it as
 for example
 <pre>http://localhost:8080/restconf/datastore/opendaylight-inventory:nodes/node/openflow:1</pre>
 
-=== How to hit Restonf with Postman ===
+=== How to hit RestConf with Postman ===
 
 [https://chrome.google.com/webstore/detail/postman-rest-client/fdmmgilgnpjigdojojpjoooidkmcomcm?hl=en Install Postman for Chrome]
 
@@ -130,7 +160,7 @@ And click on Postman.
 
 Enter the URL.  Click on the Headers button on the far right.  Enter the Accept: header.  Click on the Basic Auth Tab at the top and setup the username and password.  Send.
 
-== Know Bug ==
+== Known Bug ==
 
 If you have not had any switches come up, and though no children for 
 http://localhost:8080/restconf/datastore/opendaylight-inventory:nodes/
