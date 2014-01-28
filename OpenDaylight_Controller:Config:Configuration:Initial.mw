@@ -1,4 +1,248 @@
-Initial configuration for controller
+= Initial configuration for controller =
+
+There are two ways to configure the controller:
+* Using config.ini property file to pass configuration properties to OSGi bundles besides config subsystem
+* Using [[OpenDaylight Controller:Config:Configuration:Initial#Configuration Persister|configuration persister]] to push initial configuration for modules managed by config subsystem
+
+Config persister is a default service in controller and is started automatically using OSGi Activator. Its purpose is to '''load initial configuration for config subsystem''' and '''store a snapshot of every new configuration state pushed to config-subsystem from external clients'''. It retrieves base configuration from config.ini property file and tries to load the configuration for config subsystem. The configuration for config subsystem is pushed as a set of edit-config netconf rpc followed by commit rpc since config persister acts as a netconf client.
+
+'''Config persister lifecycle''':
+# Start config persister service at ''config-persister-impl'' bundle startup
+# Retrieve base configuration of adapters from ''config.ini'' property file
+# Initialize backing storage adapters
+# Initialize netconf client and connect to netconf endpoint of config subsystem
+# Load initial configuration snapshots from latest storage adapter
+# Send edit-config rpc with initial configuration snapshots
+# Send commit rpc
+# Listen for any following changes to configuration and persist a snapshot 
+ 
+== Current configuration for controller distribution ==
+
+The ''config.ini'' property file contains following configuration for configuration persister:
+<source>
+netconf.config.persister.active=1,2
+
+netconf.config.persister.1.storageAdapterClass=org.opendaylight.controller.config.persist.storage.directory.autodetect.AutodetectDirectoryStorageAdapter
+netconf.config.persister.1.properties.directoryStorage=configuration/initial/
+netconf.config.persister.1.readonly=true
+
+netconf.config.persister.2.storageAdapterClass=org.opendaylight.controller.config.persist.storage.file.xml.XmlFileStorageAdapter
+netconf.config.persister.2.properties.fileStorage=configuration/current/controller.currentconfig.xml
+netconf.config.persister.2.properties.numberOfBackups=1
+</source>
+
+With this configuration, configuration persister initializes two adapters: 
+* AutodetectDirectoryStorageAdapter to load initial configuration files from ''configuration/initial/'' folder. These files will be pushed as initial configuration for config subsystem. Since this adapter is read only, it will not store any configuration snapshot during controller's lifecycle.
+* XmlFileStorageAdapter to store snapshots of current configuration after any change in file ''configuration/current/controller.currentconfig.xml'' (only 1 snapshot backup is kept, every new change overwrites the previous).
+
+The initial configuration in controller distribution consists of 2 files in [[OpenDaylight Controller:Config:Configuration:Initial#Persisted snapshot format|xml format]]:
+* '''configuration/initial/00-netty.xml''':
+<source>
+<snapshot>
+    <required-capabilities>
+        <capability>urn:opendaylight:params:xml:ns:yang:controller:netty?module=netty&amp;revision=2013-11-19</capability>
+        <capability>urn:opendaylight:params:xml:ns:yang:controller:netty:eventexecutor?module=netty-event-executor&amp;revision=2013-11-12</capability>
+        <capability>urn:opendaylight:params:xml:ns:yang:controller:netty:threadgroup?module=threadgroup&amp;revision=2013-11-07</capability>
+        <capability>urn:opendaylight:params:xml:ns:yang:controller:netty:timer?module=netty-timer&amp;revision=2013-11-19</capability>
+    </required-capabilities>
+    <configuration>
+    
+        <data xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+            <modules xmlns="urn:opendaylight:params:xml:ns:yang:controller:config">
+                <module>
+                    <type xmlns:netty="urn:opendaylight:params:xml:ns:yang:controller:netty:threadgroup">netty:netty-threadgroup-fixed</type>
+                    <name>global-boss-group</name>
+                </module>
+                <module>
+                    <type xmlns:netty="urn:opendaylight:params:xml:ns:yang:controller:netty:threadgroup">netty:netty-threadgroup-fixed</type>
+                    <name>global-worker-group</name>
+                </module>
+                <module>
+                    <type xmlns:netty="urn:opendaylight:params:xml:ns:yang:controller:netty:timer">netty:netty-hashed-wheel-timer</type>
+                    <name>global-timer</name>
+                </module>
+                <module>
+                    <type xmlns:netty="urn:opendaylight:params:xml:ns:yang:controller:netty:eventexecutor">netty:netty-global-event-executor</type>
+                    <name>global-event-executor</name>
+                </module>
+            </modules>
+            
+            <services xmlns="urn:opendaylight:params:xml:ns:yang:controller:config">
+                <service>
+                    <type xmlns:netty="urn:opendaylight:params:xml:ns:yang:controller:netty">netty:netty-threadgroup</type>
+                    <instance>
+                        <name>global-boss-group</name>
+                        <provider>/modules/module[type='netty-threadgroup-fixed'][name='global-boss-group']</provider>
+                    </instance>
+                    <instance>
+                        <name>global-worker-group</name>
+                        <provider>/modules/module[type='netty-threadgroup-fixed'][name='global-worker-group']</provider>
+                    </instance>
+                </service>
+                <service>
+                    <type xmlns:netty="urn:opendaylight:params:xml:ns:yang:controller:netty">netty:netty-event-executor</type>
+                    <instance>
+                        <name>global-event-executor</name>
+                        <provider>/modules/module[type='netty-global-event-executor'][name='global-event-executor']</provider>
+                    </instance>
+                </service>
+                <service>
+                    <type xmlns:netty="urn:opendaylight:params:xml:ns:yang:controller:netty">netty:netty-timer</type>
+                    <instance>
+                        <name>global-timer</name>
+                        <provider>/modules/module[type='netty-hashed-wheel-timer'][name='global-timer']</provider>
+                    </instance>
+                </service>
+            </services>
+        </data>
+
+    </configuration>
+</snapshot>
+</source>
+This configuration snapshot instantiates netty utilities, which will be utilized by controller components that use netty internally.
+
+* '''configuration/initial/01-md-sal.xml''':
+<source>
+<snapshot>
+
+    <configuration>
+    
+        <data xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+            <modules xmlns="urn:opendaylight:params:xml:ns:yang:controller:config">
+                <module>
+                    <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:md:sal:dom:impl">prefix:schema-service-singleton</type>
+                    <name>yang-schema-service</name>
+                </module>
+                <module>
+                    <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:md:sal:dom:impl">prefix:hash-map-data-store</type>
+                    <name>hash-map-data-store</name>
+                </module>
+                <module>
+                    <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:md:sal:dom:impl">prefix:dom-broker-impl</type>
+                    <name>dom-broker</name>
+                    <data-store xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:dom:impl">
+                        <type xmlns:dom="urn:opendaylight:params:xml:ns:yang:controller:md:sal:dom">dom:dom-data-store</type>
+                        <!-- to switch to the clustered data store, comment out the hash-map-data-store <name> and uncomment the cluster-data-store one -->
+                        <name>hash-map-data-store</name>
+                        <!-- <name>cluster-data-store</name> -->
+                    </data-store>
+                </module>
+                <module>
+                    <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:md:sal:binding:impl">prefix:binding-broker-impl</type>
+                    <name>binding-broker-impl</name>
+                    <notification-service xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:binding:impl">
+                        <type xmlns:binding="urn:opendaylight:params:xml:ns:yang:controller:md:sal:binding">binding:binding-notification-service</type>
+                        <name>binding-notification-broker</name>
+                    </notification-service>
+                    <data-broker xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:binding:impl">
+                        <type xmlns:binding="urn:opendaylight:params:xml:ns:yang:controller:md:sal:binding">binding:binding-data-broker</type>
+                        <name>binding-data-broker</name>
+                    </data-broker>
+                </module>
+                <module>
+                    <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:md:sal:binding:impl">prefix:runtime-generated-mapping</type>
+                    <name>runtime-mapping-singleton</name>
+                </module>
+                <module>
+                    <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:md:sal:binding:impl">prefix:binding-notification-broker</type>
+                    <name>binding-notification-broker</name>
+                </module>
+                <module>
+                    <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:md:sal:binding:impl">prefix:binding-data-broker</type>
+                    <name>binding-data-broker</name>
+                    <dom-broker xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:binding:impl">
+                        <type xmlns:dom="urn:opendaylight:params:xml:ns:yang:controller:md:sal:dom">dom:dom-broker-osgi-registry</type>
+                        <name>dom-broker</name>
+                    </dom-broker>
+                    <mapping-service xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:binding:impl">
+                        <type xmlns:binding="urn:opendaylight:params:xml:ns:yang:controller:md:sal:binding:impl">binding:binding-dom-mapping-service</type>
+                        <name>runtime-mapping-singleton</name>
+                    </mapping-service>
+                </module>
+                
+            </modules>
+            
+            <services xmlns="urn:opendaylight:params:xml:ns:yang:controller:config">
+                	<service>
+				<type xmlns:dom="urn:opendaylight:params:xml:ns:yang:controller:md:sal:dom">dom:schema-service</type>
+				<instance>
+					<name>yang-schema-service</name>
+					<provider>/modules/module[type='schema-service-singleton'][name='yang-schema-service']</provider>
+				</instance>
+			</service>
+			<service>
+				<type xmlns:binding="urn:opendaylight:params:xml:ns:yang:controller:md:sal:binding">binding:binding-notification-service</type>
+				<instance>
+					<name>binding-notification-broker</name>
+					<provider>/modules/module[type='binding-notification-broker'][name='binding-notification-broker']</provider>
+				</instance>
+			</service>
+			<service>
+				<type xmlns:dom="urn:opendaylight:params:xml:ns:yang:controller:md:sal:dom">dom:dom-data-store</type>
+				<instance>
+					<name>hash-map-data-store</name>
+					<provider>/modules/module[type='hash-map-data-store'][name='hash-map-data-store']</provider>
+				</instance>
+			</service>
+			<service>
+				<type xmlns:binding="urn:opendaylight:params:xml:ns:yang:controller:md:sal:binding">binding:binding-broker-osgi-registry</type>
+				<instance>
+					<name>binding-osgi-broker</name>
+					<provider>/modules/module[type='binding-broker-impl'][name='binding-broker-impl']</provider>
+				</instance>
+			</service>
+			<service>
+				<type xmlns:binding="urn:opendaylight:params:xml:ns:yang:controller:md:sal:binding">binding:binding-rpc-registry</type>
+				<instance>
+					<name>binding-rpc-broker</name>
+					<provider>/modules/module[type='binding-broker-impl'][name='binding-broker-impl']</provider>
+				</instance>
+			</service>
+			<service>
+				<type xmlns:binding-impl="urn:opendaylight:params:xml:ns:yang:controller:md:sal:binding:impl">binding-impl:binding-dom-mapping-service</type>
+				<instance>
+					<name>runtime-mapping-singleton</name>
+					<provider>/modules/module[type='runtime-generated-mapping'][name='runtime-mapping-singleton']</provider>
+				</instance>
+			</service>
+			<service>
+			<type xmlns:dom="urn:opendaylight:params:xml:ns:yang:controller:md:sal:dom">dom:dom-broker-osgi-registry</type>
+				<instance>
+					<name>dom-broker</name>
+					<provider>/modules/module[type='dom-broker-impl'][name='dom-broker']</provider>
+				</instance>
+			</service>
+			<service>
+				<type xmlns:binding="urn:opendaylight:params:xml:ns:yang:controller:md:sal:binding">binding:binding-data-broker</type>
+				<instance>
+					<name>binding-data-broker</name>
+					<provider>/modules/module[type='binding-data-broker'][name='binding-data-broker']</provider>
+				</instance>
+			</service>
+
+            </services>
+        </data>
+
+    </configuration>
+    
+    <required-capabilities>
+        <capability>urn:opendaylight:params:xml:ns:yang:controller:netty:eventexecutor?module=netty-event-executor&amp;revision=2013-11-12</capability>
+        <capability>urn:opendaylight:params:xml:ns:yang:controller:threadpool?module=threadpool&amp;revision=2013-04-09</capability>
+        <capability>urn:opendaylight:params:xml:ns:yang:controller:md:sal:binding?module=opendaylight-md-sal-binding&amp;revision=2013-10-28</capability>
+        <capability>urn:opendaylight:params:xml:ns:yang:controller:md:sal:dom?module=opendaylight-md-sal-dom&amp;revision=2013-10-28</capability>
+        <capability>urn:opendaylight:params:xml:ns:yang:controller:md:sal:binding:impl?module=opendaylight-sal-binding-broker-impl&amp;revision=2013-10-28</capability>
+        <capability>urn:opendaylight:params:xml:ns:yang:controller:md:sal:dom:impl?module=opendaylight-sal-dom-broker-impl&amp;revision=2013-10-28</capability>
+        <capability>urn:opendaylight:params:xml:ns:yang:controller:md:sal:common?module=opendaylight-md-sal-common&amp;revision=2013-10-28</capability>
+    </required-capabilities>
+
+</snapshot>
+</source>
+This configuration snapshot instantiates md-sal modules.
+
+== Adding custom initial configuration ==
+There are multiple ways to add custom initial confguration to controller distribution:
+# Manually create config file and put it in the initial configuration folder.
+# Reconfigure running controller using yuma's yangcli tool. The XmlFileStorageAdapter adapter will store current snapshot and on the next startup of controller (assuming it was not rebuilt since), it will load configuration containing your changes.
 
 = Configuration Persister =
 As a part of the configuration subsystem, purpose of the persister is to save and load a permanent copy of a configuration. The '''Persister''' interface represents basic operations over a storage - persist configuration and load last config, configuration snapshot is represented as string and set of it's capabilities. '''StorageAdapter''' represents an adapter interface to the '''ConfigProvider''' - subset of BundleContext, allowing access to the OSGi framework  system properties. 
@@ -8,6 +252,7 @@ Configuration persister implementation is part of the Controller Netconf. '''Per
 
 Example of presisters configuration :
 
+<source>
  netconf.config.persister.active=2,3
  # read startup configuration
  netconf.config.persister.1.storageAdapterClass=org.opendaylight.controller.config.persist.storage.directory.xml.XmlDirectoryStorageAdapter
@@ -20,6 +265,7 @@ Example of presisters configuration :
  netconf.config.persister.3.storageAdapterClass=org.opendaylight.controller.config.persist.storage.file.FileStorageAdapter
  netconf.config.persister.3.properties.fileStorage=configuration/current/controller.config.2.txt
  netconf.config.persister.3.properties.numberOfBackups=3
+</source>
 
 During server startup ConfigPersisterNotificationHandler requests last snapshot from underlying storages. Each storage can respond by giving snapshot or absent response.The PersisterAggregator#loadLastConfigs() will search for first non-absent response from storages ordered backwards as user specified (first '3', then '2'). When a commit notification is received, '2' will be omitted because readonly flag is set to true, so only '3' will have a chance to persist new configuration. If readonly was false or not specified, both storage adapters would be called in order specified by 'netconf.config.persister' property.
 
@@ -49,3 +295,32 @@ required capabilities will be merged together. Writing to this persister is not 
 
 === No-Operation Storage ===
 '''NoOpStorageAdapter''' serves as dummy implementation of the storage adapter.
+
+== Persisted snapshot format ==
+Configuration snapshots are persisted in xml files for both file and directory adapter. They share the same format:
+<source>
+<snapshot>
+    <required-capabilities>
+        <capability>urn:opendaylight:params:xml:ns:yang:controller:netty?module=netty&amp;revision=2013-11-19</capability>
+        ...
+    </required-capabilities>
+    <configuration>
+    
+        <data xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+            <modules xmlns="urn:opendaylight:params:xml:ns:yang:controller:config">
+             ...    
+            </modules>
+            
+            <services xmlns="urn:opendaylight:params:xml:ns:yang:controller:config">
+             ...    
+            </services>
+            
+        </data>
+
+    </configuration>
+</snapshot>
+</source> 
+
+The whole snapshot is encapsulated in ''snapshot'' tag that contains two children elements:
+* ''required-capabilities'' tag contains list of yang capabilities that are required to push configuration located under ''configuration'' tag. Config persister will not push the configuration before the netconf endpoint for config subsystem reports all needed capabilities. Every yang model that is referenced within this xml file (as namespace for xml tag) must be referenced as a capability in this list.
+* ''configuration'' tag contains configuration to be pushed to config subsystem. It is wrapped in a ''data'' tag with base netconf namespace. The whole ''data'' tag with all its child elements will be inserted into an edit-config rpc. For further information about the structure of configuration data consult base yang model for config subsystem (!add link) as well as provided examples.
