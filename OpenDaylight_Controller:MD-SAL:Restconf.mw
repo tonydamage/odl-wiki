@@ -9,13 +9,14 @@ Restconf allows access to datastores locating in controller. There are two datas
 <br />
 Restconf supports '''OPTIONS, GET, PUT, POST, DELETE''' operations. Request and response '''data can be in XML or JSON''' format. XML has structure according to yang by [http://tools.ietf.org/html/rfc6020 XML-YANG] and JSON by [http://tools.ietf.org/html/draft-lhotka-netmod-yang-json-02 JSON-YANG]. Data in request must have correctly set “'''Content-Type'''” field in http header with allowed value of media type and media type of requested data has to be set in “'''Accept'''” field. Media types for each resource can be got by calling OPTIONS operation.
 <br />
-We will use <tt><identifier></tt> in explanation of operations.
+Most of the Restconf endpoints path uses [[OpenDaylight Controller:MD-SAL:Concepts#Instance_Identifier|Instance Identifier]]. We will use <tt><identifier></tt> in explanation of operations.
 <br />
 : <tt><identifier></tt>
 ::* must start with '''<tt><moduleName></tt>:<tt><nodeName></tt>''' where '''<tt><moduleName></tt>''' is a name of module and '''<tt><nodeName></tt>''' is a name of node in the module. It is sufficient use just '''<tt><nodeName></tt>''' after '''<tt><moduleName></tt>:<tt><nodeName></tt>'''. Each '''<tt><nodeName></tt>''' has to be separated by '''/'''
 ::* '''<tt><nodeName></tt>''' can represent data node which is list or container yang build-in type. If data node is list there must be defined keys of the list behind the data node name e.g. '''<tt><nodeName>/<valueOfKey1>/<valueOfKey2></tt>'''
 ::* Format '''<tt><moduleName></tt>:<tt><nodeName></tt>''' has to be used in this case as well:
 ::: Module A has node A1. Module B augments node A1 by adding node X. Module C augments node A1 by adding node X. Then for clarification there has to be known which node X is thought (e.g. C:X).
+::: For more details about encoding please see: [http://tools.ietf.org/html/draft-bierman-netconf-restconf-02#section-5.3.1 Restconf 02 - Encoding YANG Instance Identifiers in the Request URI]
 : '''Mount point'''
 ::* Node can be behind mount point. In this case URI has to be in format '''<tt><identifier></tt>/yang-ext:mount/<tt><identifier></tt>'''. The first '''<tt><identifier></tt>''' is path to a mount point and the second '''<tt><identifier></tt>''' is path to a node behind the mount point. URI can end in mount point itself by using '''<tt><identifier></tt>/yang-ext:mount'''
 <br />
@@ -119,12 +120,13 @@ The first picture shows GET operation with URI restconf/config/M:N where M is mo
 <br />
 [[Image:Get.png|GET operation with URI restconf/config/M:N where M is module name and N is node name.]]
 <br />
-# Requested URI is translated into InstanceIdentifier which points to data node. During this translations is obtained DataSchemaNode conform to the data node. If data node is behind mount point the MountInstance is obtained as well.
+# Requested URI is translated into InstanceIdentifier which points to data node. During this translations DataSchemaNode conform to the data node is obtained. If data node is behind mount point the MountInstance is obtained as well.
 # Restconf asks for value of data node from DataBrokerService based on InstanceIdentifier.
 # DataBrokerService returns CompositeNode as data.
 # StructuredDataToXmlProvider or StructuredDataToJsonProvider is called based on Accept field from http request. These two providers can transform CompositeNode regarding to DataSchemaNode to XML or JSON document.
 # XML or JSON is returned as answer on the client's request.
 <br />
+
 ==== PUT in action ====
 The second picture shows PUT operation with URI restconf/config/M:N where M is module name and N is node name. Data are sent in request either in XML or JSON format.
 [[Image:Put.png|PUT operation with URI restconf/config/M:N where M is module name and N is node name. Data are sent in request either in XML or JSON format.]]
