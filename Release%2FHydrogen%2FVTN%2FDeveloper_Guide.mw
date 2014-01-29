@@ -8,62 +8,28 @@ OpenDaylight Virtual Tenant Network (VTN) is an application that provides multi-
 This has been implemented as an external application to the OpenDaylight controller. This component is responsible for the VTN Virtualization. The user will use the REST API’s of the VTN Coordinator to create the VTN network with the virtual configuration as required. VTN Coordinator will use the REST interface exposed by the VTN Manger to realize the virtual network  using the  OpenDaylight controller.
 
 ===VTN Coordinator Architecture===
-[[File:VTN Coordinator architecture.png|600px]]
+[[https://wiki.opendaylight.org/view/OpenDaylight_Virtual_Tenant_Network_(VTN):VTN_Coordinator#VTN_Coordinator| VTN Coordinator architecture]]
 
-*Note: All the components use the proprietary IPC API to communicate with each other.
+====VTN Coordinator components====
+* OpenDaylight Virtual Tenant Network (VTN):VTN API
 
-;OpenDaylight Virtual Tenant Network (VTN):VTN API
-The component providing the REST interface for VTN Coordinator. The webserver and VTN Service JAVA API are the implementations of this component.
+[[https://wiki.opendaylight.org/view/OpenDaylight_Virtual_Tenant_Network_(VTN):VTN_API#VTN_API| VTN API]]
 
-;Webserver:
-The Web Server module handles the REST APIs received from the VTN applications. It translates the REST APIs to the appropriate Java APIs. 
-The main functions of this module are 
-*Is started via the startup script catalina.sh. 
-*VTN Application sends HTTP request to Web server in XML or JSON format. 
-*Creates a session and acquire a read/write lock. 
-*Invokes the VTN Service Java API corresponding to the specified URI. 
-*Returns the response to the VTN Application. 
-VTN Coordinator uses the Apache Tomcat as the webserver.
+* OpenDaylight Virtual Tenant Network (VTN):Transaction Coordinator
 
-;VTN Service Java API library:
-It provides the Java API library to communicate with the lower layer modules in the VTN Coordinator.
+[[https://wiki.opendaylight.org/view/OpenDaylight_Virtual_Tenant_Network_(VTN):Transaction_Coordinator#Transaction_Coordinator| Transaction Coordinator]]
 
-[[File:VTN java api.png|300px]]
-The main functions of this library are 
-*Creates an IPC client session to the lower layer. 
-*Converts the request to IPC framework format. 
-*Invokes the lower layer API (e.g. TC API to interact with TC module)
-*Return the response from the lower layer to the web server 
-The class details in implementation can be referred from this [[OpenDaylight Virtual Tenant Network (VTN):VTN API|VTN API page]].
-;OpenDaylight Virtual Tenant Network (VTN):Transaction Coordinator
-This component is responsible for the Two Phase commit implementation in VTN Coordinator. This coordinates between various components participating in commit and ensures the commit to the underlying controller (ODL). The TCLIB module is part of the components that need to interact with TC, helps to convert TC commands to programmable interface.
-VTNService use the API provided by TC to initiate commit, while TC uses the IPC to communicate with TCLIB and service the commit request.
+* OpenDaylight Virtual Tenant Network (VTN): Unified Provider Physical Layer (UPPL)
 
-[[File:VTN service.png|400px]]
+[[https://wiki.opendaylight.org/view/OpenDaylight_Virtual_Tenant_Network_(VTN):Unified_Provider_Physical_Layer_(UPPL)#Unified_Provider_Physical_Layer_.28UPPL.29| UPPL]]
 
-Class implementation details can be referred from [[OpenDaylight Virtual Tenant Network (VTN):Transaction Coordinator|TC page]].
+* OpenDaylight Virtual Tenant Network (VTN): Unified Provider Logical Layer (UPLL)
 
-;OpenDaylight Virtual Tenant Network (VTN): Unified Provider Physical Layer (UPPL)
-[[File:VTN UPPL.png|400px]]
+[[https://wiki.opendaylight.org/view/OpenDaylight_Virtual_Tenant_Network_(VTN):Unified_Provider_Logical_Layer_(UPLL)#Unified_Provider_Logical_Layer_.28UPLL.29| UPLL]]
 
-This component is responsible for maintaining the physical network details. The user will create a controller entry upon which the VTN Coordinator will communicate with the controller and fetch all physical information and the UPPL module will construct the physical topology using the same.
-The class implementation details can be referred from [[OpenDaylight Virtual Tenant Network (VTN):Unified Provider Physical Layer (UPPL)|UPPL page]].
+* OpenDaylight Virtual Tenant Network (VTN): OpenDaylight Controller Driver (ODC Driver)
 
-;OpenDaylight Virtual Tenant Network (VTN): Unified Provider Logical Layer (UPLL)
-[[File:VTN UPLL.png|400px]]
-
-
-This is the core of VTN Coordinator, This provides the VTN implementation service. Any VTN component create/update/delete is received by UPLL and the appropriate entries are created in datable. Later when commit is triggered by TC, the same is committed to the controller (ODL).
-The class implementations can be referred from the [[OpenDaylight Virtual Tenant Network (VTN):Unified Provider Logical Layer (UPLL)|UPLL page]].
-
-;OpenDaylight Virtual Tenant Network (VTN): OpenDaylight Controller Driver (ODC Driver)
-
-This component is responsible for the following
-*Translate VTN Commands from the UPLL/UPL to appropriate REST API calls to VTN Manager
-*Ensure ODL is running, by issuing frequent ping calls to collect version.
-*Collect physical network details frequently and post the same to UPPL.
-
-[[File:VTN ODCDriver.png|500px]]
+[[https://wiki.opendaylight.org/view/OpenDaylight_Virtual_Tenant_Network_(VTN):OpenDaylight_Controller_Driver_(ODC_Driver)#OpenDaylight_Controller_Driver_.28ODC_Driver.29| ODC Driver]]
 
 ==OpenDaylight Virtual Tenant Network (VTN):VTN Manager==
 This is implemented as one plugin in the ODL controller. This provides a REST interface to create/update/delete VTN components. The user command in VTN Coordinator is translated as REST API to VTN Manager by the ODC Driver component.
