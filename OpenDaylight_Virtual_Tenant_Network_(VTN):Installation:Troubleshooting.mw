@@ -1,0 +1,59 @@
+==How to install VTN Coordinator?==
+* [[OpenDaylight Virtual Tenant Network (VTN):Installation:VTN Coordinator|Install coordinator from source]]
+
+==After executing db_setup, you have encountered the error "Failed to setup database"?==
+The error could be due to the below reasons
+* Not a Root user 
+  You may not be user with root permissions, please switch to such a previleage and execute again
+
+* Postgres not Present 
+  1.In case of Fedora/CentOS/RHEL, please check if /usr/pgsql/<version> directory is present and also ensure the commands 
+    initdb, createdb,pg_ctl,psql are working. If, not please re-install postgres packages
+
+  2.In case of Ubuntu, check if /usr/lib/postgres/<version> directory is present and check for 
+    the commands as in the previous step.
+
+* Not enough space to create tables
+ Please check df -k and ensure enough free space is available.
+      
+* If the above steps do not solve the problem, please refer to the log file for the exact problem
+      /usr/local/vtn/var/dbm/unc_setup_db.log for the exact error.
+
+==What are the things to check after vtn_start?==
+* list of coordinator processes
+    command: ps -ef | grep unc
+    postgres 29176 29171  0 18:50 ?        00:00:00 postgres: autovacuum launcher process
+    root     29206     1  0 18:50 ?        00:00:00 /usr/local/vtn/sbin/uncd
+    root     29221 29206  0 18:50 ?        00:00:00 drvodcd -Pcore.uncd.pid=29206 -Pcore.ipc.notify=uncd,launcher,0 -DR
+    root     29243 29206  0 18:50 ?        00:00:00 phynwd -Pcore.uncd.pid=29206 -Pcore.ipc.notify=uncd,launcher,0 -DR
+    root     29259 29206  0 18:50 ?        00:00:00 lgcnwd -Pcore.uncd.pid=29206 -Pcore.ipc.notify=uncd,launcher,0 -DR
+    postgres 29278 29171  0 18:50 ?        00:00:00 postgres: uncdbuser uncdb 127.0.0.1(50531) idle
+    postgres 29279 29171  0 18:50 ?        00:00:00 postgres: uncdbuser uncdb 127.0.0.1(50532) idle
+    postgres 29280 29171  0 18:50 ?        00:00:00 postgres: uncdbuser uncdb 127.0.0.1(50533) idle
+    postgres 29281 29171  0 18:50 ?        00:00:00 postgres: uncdbuser uncdb 127.0.0.1(50534) idle
+    postgres 29284 29171  0 18:50 ?        00:00:00 postgres: uncdbuser uncdb 127.0.0.1(50536) idle
+    
+* Issue the curl command to fetch version and ensure rthe process is able to respond.
+
+    
+==Things to do when the processes are not getting listed in process table.==
+* Please execute /usr/local/bin/vtn_stop and check process table 
+if there are any coordinator process still running. This could error if the directory /usr/local/vtn was removed without vtn_stop.
+In such situations, Please kill all coordinator process and retry.
+   
+* Check the log file /usr/local/vtn/var/uncd/uncd_start.err for any particular startup errors.
+   
+* Check the log file /usr/local/vtn/var/db/pg_log/postgres*.log to ensure that database startup was 
+successful, if else please re-configure database and attempt the start again.
+      
+* Check the log file /usr/local/vtn/var/uncd/log/pfcd_message.log for the failure of any particular daemon,
+If the log messages indicate the failure of a particular daemon, please check the log file of the particular daemon for more details
+/usr/local/vtn/var/<daemon>/log/pfcd_message.log
+
+* Mail the error to vtn-dev mailing list with the tar file of the /usr/local/vtn/var directory for debugging.
+
+==After setting up the apache tomcat server, what are the aspects that should be checked.==
+     Please check if catalina is running.
+
+==If you encounter an erroneous situation where the REST API is always failing.==
+    Please ensure the firewall settings for port:8080 and enable the same.
