@@ -1,21 +1,21 @@
 == How to use Restconf ==
 ==== Overview before operations ====
 Restconf allows access to datastores locating in controller. There are two datastores: 
-* '''Config''' – TODO add description
-* '''Operational''' – TODO add description<br />
+* '''Config''' – contains data inserted via controller
+* '''Operational''' – contains other data
 <br />
 Each request must start with URI '''<nowiki>http://</nowiki><tt><controllerIP></tt>:8080/restconf'''
 : <tt><controllerIP></tt> - IP address of controller
 : Restconf listens on port '''8080''' for http requests
 : URI starts with '''/restconf'''
 <br />
-Restconf supports '''OPTIONS, GET, PUT, POST, DELETE''' operations. Request and response '''data can be in XML or JSON''' format. Data in request must have correctly set “'''Content-Type'''” field in header with allowed media type and media type of requested data has to be set in “'''Accept'''” field in header.
+Restconf supports '''OPTIONS, GET, PUT, POST, DELETE''' operations. Request and response '''data can be in XML or JSON''' format. XML has structure according to yang by [http://tools.ietf.org/html/rfc6020 XML-YANG] and JSON by [http://tools.ietf.org/html/draft-lhotka-netmod-yang-json-02 JSON-YANG]. Data in request must have correctly set “'''Content-Type'''” field in http header with allowed value of media type and media type of requested data has to be set in “'''Accept'''” field. Media types for each resource can be got by calling OPTIONS operation.
 <br />
 We will use <tt><identifier></tt> in explanation of operations.
 <br />
 : <tt><identifier></tt>
 ::* must start with '''<tt><moduleName></tt>:<tt><nodeName></tt>''' where '''<tt><moduleName></tt>''' is a name of module and '''<tt><nodeName></tt>''' is a name of node in the module. It is sufficient use just '''<tt><nodeName></tt>''' after '''<tt><moduleName></tt>:<tt><nodeName></tt>'''. Each '''<tt><nodeName></tt>''' has to be separated by '''/'''
-::* '''<tt><nodeName></tt>''' can represent node which is list or container yang build-in type. If node is list there must be defined keys of the list behind the node name e.g. '''<tt><nodeName>/<valueOfKey1>/<valueOfKey2></tt>'''
+::* '''<tt><nodeName></tt>''' can represent data node which is list or container yang build-in type. If data node is list there must be defined keys of the list behind the data node name e.g. '''<tt><nodeName>/<valueOfKey1>/<valueOfKey2></tt>'''
 ::* Format '''<tt><moduleName></tt>:<tt><nodeName></tt>''' has to be used in this case as well:
 ::: Module A has node A1. Module B augments node A1 by adding node X. Module C augments node A1 by adding node X. Then for clarification there has to be known which node X is thought (e.g. C:X).
 : '''Mount point'''
@@ -26,14 +26,14 @@ We will use <tt><identifier></tt> in explanation of operations.
 :* returns XML description of resources with required request and response media types in Web Application Description Language (WADL)
 <br />
 ==== GET <nowiki>http://</nowiki><tt><controllerIP></tt>:8080/restconf/config/<tt><identifier></tt> ====
-:* returns data about node from Config datastore
+:* returns value of data node from Config datastore
 <br />
 ==== GET <nowiki>http://</nowiki><tt><controllerIP></tt>:8080/restconf/operational/<tt><identifier></tt> ====
-:* returns data about node from Operational datastore
+:* returns value of data node from Operational datastore
 <br />
 ==== PUT <nowiki>http://</nowiki><tt><controllerIP></tt>:8080/restconf/config/<tt><identifier></tt> ====
-:* updates or creates data in the Config datastore and returns state about success
-:* <tt><identifier></tt> points to a node which should be stored
+:* updates or creates data in Config datastore and returns state about success
+:* <tt><identifier></tt> points to a data node which should be stored
 : Example:
 <pre>
 PUT http://<controllerIP>:8080/restconf/config/module1:foo/bar
@@ -52,8 +52,8 @@ Content-Type: applicaton/xml
 </pre>
 <br />
 ==== POST <nowiki>http://</nowiki><tt><controllerIP></tt>:8080/restconf/config/<tt><identifier></tt> ====
-:* creates data if they do not exist in the Config datastore and returns state about success
-:* <tt><identifier></tt> points to a node where data should be stored
+:* creates data if they do not exist in Config datastore and returns state about success
+:* <tt><identifier></tt> points to a data node where data should be stored
 :* root element of data must have namespace (data are in XML) or module name (data are in JSON)
 : Example:
 <pre>
@@ -86,17 +86,18 @@ Accept: applicaton/xml
   …
 </input>
 
-Answer could be:
+Answer from server could be:
 <output>
   …
 </output>
 </pre>
 <br />
 ==== DELETE <nowiki>http://</nowiki><tt><controllerIP></tt>:8080/restconf/config/<identifier> ====
-:* removes data in the Config datastore and returns state about success
+:* removes data node in the Config datastore and returns state about success
 :* <tt><identifier></tt> points to a node which should be removed.
 <br />
 <br />
+For further information read [http://tools.ietf.org/html/draft-bierman-netconf-restconf-02 RESTCONF RFC]
 == How it works ==
 Restconf uses these base classes:
 * '''InstanceIdentifier''' represents path in data tree.
@@ -112,12 +113,18 @@ Restconf uses these base classes:
 ==== GET in action ====
 The first picture shows GET operation with URI restconf/config/M:N where M is module name and N is node name.
 <br />
-[[Image:Get.png|GET operation with URI restconf/config/M:N where M is module name and N is node name]]
+[[Image:Get.png|GET operation with URI restconf/config/M:N where M is module name and N is node name.]]
 <br />
 # Requested URI is translated into InstanceIdentifier which points to data node. During this translations is obtained DataSchemaNode conform to the data node. If data node is behind mount point the MountInstance is obtained as well.
 # Restconf asks for value of data node from DataBrokerService based on InstanceIdentifier.
 # DataBrokerService returns CompositeNode as data.
-# Based on Accept field from http request is called StructuredDataToXmlProvider or StructuredDataToJsonProvider which transform CompositeNode regarding to DataSchemaNode to XML or JSON document.
+# StructuredDataToXmlProvider or StructuredDataToJsonProvider is called based on Accept field from http request. These two providers can transform CompositeNode regarding to DataSchemaNode to XML or JSON document.
 # XML or JSON is returned as answer on the client's request.
+<br />
 ==== PUT in action ====
 The second picture shows PUT operation with URI restconf/config/M:N where M is module name and N is node name. Data are sent in request either in XML or JSON format.
+[[Image:Put.png|PUT operation with URI restconf/config/M:N where M is module name and N is node name. Data are sent in request either in XML or JSON format.]]
+# Input data are sent to JsonToCompositeNodeProvider or XmlToCompositeNodeProvider. Correct provider is selected based on Content-Type field from http request. These two providers can transform input data to CompositeNode. However this CompositeNode does not contain enough information for transaction.
+# Requested URI is translated into InstanceIdentifier which points to data node. During this translations is obtained DataSchemaNode conform to the data node. If data node is behind mount point the MountInstance is obtained as well.
+# CompositeNode can be normalized by adding additional information from DataSchemaNode.
+# Restconf begins transaction and puts CompositeNode with InstanceIdentifier into it. Response on client's request is status code which depends on result from transaction.
