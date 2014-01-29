@@ -24,10 +24,13 @@ Steps:
 == Messages with response ==
 Steps:
 * [1] Plugin sends DTO (with expected response) to the Connection Adapter
-** [1.1] Library creates Future object and stores it in ResponseCache
-** [1.2] The Future object is later used for assigning the reply to the corresponding request
-* [2] library deserializes the message into DTO and delegates the DTO to Connection Adapter
-* [3] Connection Adapter call the corresponding notification in Plugin
-
+* [2] Library creates Future object and stores it in ResponseCache
+** [2.1] The Future object is later used for assigning the reply to corresponding request
+* [3] DTO is passed to Channel pipeline for serialization
+* [4] Library sends serialized DTO to switch and sets the Future object (see [1.2])
+* [5] Reply message is received from the Switch
+* [6] When the reply message is deserialized, responseCache is searched for the corresponding Future object
+* [7] The Future object is set with received message (and Plugin can continue processing)
+** [7.1] If the Future object wasn't found - warning is logged
 
 [[File:MessageWithResponse.png | center]]
