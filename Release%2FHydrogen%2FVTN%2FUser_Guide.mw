@@ -1,0 +1,99 @@
+=Overview and Architecture=
+
+===Conceptual Overview===
+OpenDaylight Virtual Tenant Network (VTN) is an application that provides multi-tenant virtual network on an SDN controller.
+Conventionally, huge investment in the network systems and operating expenses are needed because the network is configured as a silo for each department and system. So, various network appliances must be installed for each tenant and those boxes cannot be shared with others. It is a heavy work to design, implement and operate the entire complex network.
+The uniqueness of VTN is a logical abstraction plane. This enables the complete separation of logical plane from physical plane. Users can design and deploy any desired network without knowing the physical network topology or bandwidth restrictions.
+VTN allows the users to define the network with a look and feel of conventional L2/L3 network. Once the network is designed on VTN, it will automatically be mapped into underlying physical network, and then configured on the individual switch leveraging SDN control protocol. The definition of logical plane makes it possible not only to hide the complexity of the underlying network but also to better manage network resources. It achieves reducing reconfiguration time of network services and minimizing network configuration errors.
+
+[[File:Network Virtualization.jpg|550px]]
+
+For more details please click on the link:[[OpenDaylight Virtual Tenant Network (VTN):Overview|VTN overview]]
+
+=Installation Guide =
+[[OpenDaylight Virtual Tenant Network (VTN):Installation:VTN Coordinator|Install VTN Coordinator from Source]]
+
+[[OpenDaylight Virtual Tenant Network (VTN):Installation:VTN Manager|Install VTN Manager from source]]
+
+[[OpenDaylight Virtual Tenant Network (VTN):Installation:Virtualization Edition|Install VTN Coordinator and VTN Manager from Virtualization Edition]]
+
+=Installation Troubleshooting=
+[[OpenDaylight Virtual Tenant Network (VTN):Installation:Troubleshooting|VTN Coordinator Troubleshooting]]
+
+=Configuration=
+[[OpenDaylight Virtual Tenant Network (VTN):Installation:Configuration|VTN Coordinator Configuration]]
+
+=Tutorial / How-To=
+This Example explains about mapping interface and sending packets between hosts for single controller using mininet:
+“mininet” details and set-up can be referred at below URL: https://wiki.opendaylight.org/view/OpenDaylight_Controller:Installation#Using_Mininet
+Single Controller Topology:
+ [[File:Example VTN.png|600px]]
+
+* “mininet” command for above topology:
+mininet@mininet-vm:~$ sudo mn --controller=remote,ip=<controller-ip> --topo tree,2
+* Create a Controller
+{|class = "wikitable"
+|-
+|curl -v -X POST -H 'content-type: application/json' -H 'username: admin' -H 'password: adminpass' -H 'ipaddr:127.0.0.1' -d '{"controller": {"controller_id": "controllerone", "ipaddr":"10.0.0.2", "type": "odc", "version": "1.0", "auditstatus":"enable"}}' http://127.0.0.1:8080/vtn-webapi/controllers.json
+|}
+
+* Create a VTN 
+{|class = "wikitable
+|-
+|curl -v -X POST -H 'content-type: application/json' -H 'username: admin' -H 'password: adminpass' -H 'ipaddr:127.0.0.1' -d '{"vtn" : {"vtn_name":"vtn1","description":"test VTN" }}' http://127.0.0.1:8080/vtn-webapi/vtns.json
+|}
+
+* Create a vBridge in the VTN 
+{|class = "wikitable"
+|-
+|curl -v -X POST -H 'content-type: application/json' -H 'username: admin' -H 'password: adminpass' -H 'ipaddr:127.0.0.1' -d '{"vbridge" : {"vbr_name":"vBridge1","controller_id":"controllerone","domain_id":"(DEFAULT)" }}' http://127.0.0.1:8080/vtn-webapi/vtns/vtn1/vbridges.json
+|}
+
+* Create two Interfaces into the vBridge 
+{|class = "wikitable"
+|-
+curl -v -X POST -H 'content-type: application/json' -H 'username: admin' -H 'password: adminpass' -H 'ipaddr:127.0.0.1' -d '{"interface": {"if_name": "if1","description": "if_desc1"}}' http://127.0.0.1:8080/vtn-webapi/vtns/vtn1/vbridges/vBridge1/interfaces.json
+|-
+|curl -v -X POST -H 'content-type: application/json' -H 'username: admin' -H 'password: adminpass' -H 'ipaddr:127.0.0.1' -d '{"interface": {"if_name": "if2","description": "if_desc2"}}' http://127.0.0.1:8080/vtn-webapi/vtns/vtn1/vbridges/vBridge1/interfaces.json
+|}
+
+* Get the list of logical ports configured
+{|class = "wikitable"
+|-
+|curl -v -X GET -H 'content-type: application/json' -H 'username: admin' -H 'password: adminpass' -H 'ipaddr:127.0.0.1' http://127.0.0.1:8081/vtn-webapi/controllers/controllerone/domains/\(DEFAULT\)/logical_ports.json
+|}
+
+* Configure two mappings on the interfaces 
+{|class = "wikitable"
+|-
+|curl -v -X PUT -H 'content-type: application/json' -H 'username: admin' -H 'password: adminpass' -H 'ipaddr:127.0.0.1' -d '{"portmap":{"logical_port_id": "PP-00:00:00:00:00:00:00:03-s3-eth1"}}' http://127.0.0.1:8080/vtn-webapi/vtns/vtn1/vbridges/vBridge1/interfaces/if1/portmap.json
+|-
+|curl -v -X PUT -H 'content-type: application/json' -H 'username: admin' -H 'password: adminpass' -H 'ipaddr:127.0.0.1' -d '{"portmap":{"logical_port_id": "PP-00:00:00:00:00:00:00:02-s2-eth1"}}' http://127.0.0.1:8080/vtn-webapi/vtns/vtn1/vbridges/vBridge1/interfaces/if2/portmap.json
+|}
+
+* Send packets from Host1 to Host3
+{|class = "wikitable"
+|-
+|mininet> h1 ping h3
+|}
+
+Refer to below URL for more details and multi-controller scenario: https://wiki.opendaylight.org/view/OpenDaylight_Virtual_Tenant_Network_(VTN):VTN_Coordinator:RestApi:L2_Network_Example_Using_VTN_Virtualization
+
+=Web/Graphical Interface=
+:None
+
+=Command Line Interface=
+:None
+
+=Console Interface=
+:None
+
+=Programmatic Interface(s)=
+Refer to the link [[OpenDaylight Virtual Tenant Network (VTN):Developer Guide#Programmatic_Interface|Programmatic Interface for VTN API's]] for the details on VTN API's
+
+=Help=
+*VTN dev mailing lists:
+vtn-dev@lists.opendaylight.org
+
+*VTN users mailing lists:
+vtn-users@lists.opendaylight.org
