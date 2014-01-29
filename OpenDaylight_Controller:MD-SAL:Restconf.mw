@@ -99,12 +99,23 @@ Answer could be:
 <br />
 == How it works ==
 Restconf uses these base classes:
-* '''InstanceIdentifier''' represents path in yang data tree.
+* '''InstanceIdentifier''' represents path in data tree.
 * '''ConsumerSession''' is used for invoking RPCs.
 * '''DataBrokerService''' offers manipulation with transactions and reading data from datastores. 
 * '''SchemaContext''' holds informations about yang modules. 
 * '''MountService''' returns MountInstance based on InstanceIdentifier pointing to a mount point.
 * '''MountInstace''' contains SchemaContext behind mount point.
+* '''DataSchemaNode''' is information about schema node.
+* '''SimpleNode''' has name as schema node and contains value representing data node value
+* '''CompositeNode''' can contains CompositeNode-s and SimpleNode-s
 <br />
 
 The first picture shows GET operation with URI restconf/config/M:N where M is module name and N is node name.
+<br />
+[[Image:Get.png|GET operation with URI restconf/config/M:N where M is module name and N is node name]]
+<br />
+# Requested URI is translated into InstanceIdentifier which points to data node. During this translations is obtained DataSchemaNode conform to data node. If data node is behind mount point the MountInstance is obtained as well.
+# Restconf asks for value of data node from DataBrokerService based on InstanceIdentifier.
+# DataBrokerService returns CompositeNode as data.
+# Based on Accept field from http request is called StructuredDataToXmlProvider or StructuredDataToJsonProvider which transform CompositeNode regarding to DataSchemaNode to XML or JSON document.
+# XML or JSON is returned as answer to the client's request.
