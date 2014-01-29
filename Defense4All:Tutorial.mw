@@ -1,4 +1,4 @@
-==[[Defense4All Tutorial:Introduction|Introduction]] ==
+=[[Defense4All Tutorial:Introduction|Introduction]] =
 A well-known DoS attack mitigation and threats detection strategy is to divert suspected traffic from its normal network path to dedicated attack mitigation infrastructures, for cleaning and threat detection. These infrastructures are also known as “Security Centers” or “Scrubbing Centers”, mainly built of L3-L7 DoS attack mitigations devices. These “Security Centers” can be deployed in dedicated remote sites within the network in “out of path” manner (i.e. not “inline” with the native traffic flow), so diversion of traffic toward these centers is essential. During the traffic cleaning process, the attack mitigation infrastructure identifies and drops malicious IP packets and forwards legitimate IP packets back to their original targeted network destinations. The “Scrubbing Centers” can be located within the enterprise cooperate network, datacenter, cloud and also as part of carrier’s infrastructure.   
 In general protection against DDoS attacks in Out-Off-Path (OOP) systems comprises three main elements: 
 # Collection of traffic statistics and learning of statistics behavior of protected objects during peace-time. From this collected statistics, the normal traffic baselines of the protected objects are built.  
@@ -21,12 +21,12 @@ The diagram below describes the possible state of any given PN. Radware DefenseP
 
 Back to [[Defense4All:User_Guide|Defense4All User Guide Page]]
 
-==[[Tutorial:Deployment alternatives|Deployment alternatives]] ==
+=[[Tutorial:Deployment alternatives|Deployment alternatives]] =
 Defense4All supports “short diversion”, in which the AMS (Attack mitigation system) is connected to the edge router, so one hop traffic redirection is achieved. See also PE1 and DefensePro 2 in Figure 3. “Long diversion”, in which AMS scrubbing centers are located in arbitrary remote locations in the network, may be added in future Defense4All versions. See also PE2 and DefensePro 1 in Figure below.  
 Defense4All supports both automatic and manual diversion modes. The manual mode includes user-based confirmation before diversion.
 [[File:redirection_alternatives.jpg|none|900px|Defense4All Deployment traffic redirection alternatives]]
 
-==[[Tutorial:Defense4All in ODL Environment|Defense4All in ODL Environment]] ==
+=[[Tutorial:Defense4All in ODL Environment|Defense4All in ODL Environment]] =
 Defense4All is an SDN application for detecting and mitigating DDoS attacks. The application communicates with OpenDaylight Controller via the ODC north-bound REST API. Through this API Defense4All performs two main tasks:
 # Monitoring behavior of protected traffic - the application sets flow entries in selected network locations to read traffic statistics for each of the PNs (aggregating statistics collected for a given PN from multiple locations).
 # Diverting attacked traffic to selected AMSs – the application set flow entries in selected network locations to divert traffic to selected AMSs. When an attack is over the application removes these flow entries, thus returning to normal operation and traffic monitoring.
@@ -40,7 +40,7 @@ Defense4All comprises an SDN applications Framework and the Defense4All applicat
 # Faster, flexible deployment in different environments, form-factors, satisfying different NFRs – the Framework masks from SDN applications factors such as required data survivability, scale and elasticity, availability, security.
 # Enhanced robustness - complex Framework code is implemented and tested once, cleaner separation of concerns leads to more stable code, Framework can increase robustness proactively with no additional code in application logic (e.g., periodic application recycle).
 # Unified management of common aspects – common look and feel.
-==[[Tutorial:Framework View|Framework View]] ==
+=[[Tutorial:Framework View|Framework View]] =
 [[File:framework_view.jpg|none|900px|Defense4All Structure from Framework point of view]]
 The Framework contains the following elements:
 
@@ -63,7 +63,7 @@ WebServer – Jetty web server running the Jersey RESTful Web Services framework
 
 The Defense4All Application is highly pluggable - it can accommodate different attack detection mechanisms, different attack mitigation drivers, and drivers (called reps – short for representative) to different versions of ODC and different AMSs. Defense4All Application comprises “core” modules and “pluggable” modules implementing well-defined Defense4All Application APIs. 
 
-==[[Tutorial:Application View|Application View]] ==
+=[[Tutorial:Application View|Application View]] =
 [[File:d4a_application_view.jpg|none|900px|Defense4All Defense4All Application Structure]]
 
 The Defense4All Application modules are described below:
@@ -98,7 +98,7 @@ When mitigation should be ended the MitigationDriverLocal notifies AMSBasedDetec
 
 '''AMSRep''' - Is a pluggable module for different AMSs. The module adheres to AMSRep APIs. It can support configuration of all introduced AMSs (permanently or before/after attack mitigations). It can also receive/query security information (attack statuses), as well as operational information (health, load). AMSRep module is entirely optional – AMSs can be configured and monitored externally. In many cases attacks can continue be monitored solely via SDN counters. Defense4All contains a reference implementation AMSRep that communicates with Radware’s DefensePro AMSs.
 
-==[[Tutorial:ODL Reps View|ODL Reps View]] ==
+=[[Tutorial:ODL Reps View|ODL Reps View]] =
 
 [[File:d4a_odl_reps_view.jpg|none|900px|Defense4All Defense4All ODL Reps Structure]]
 
@@ -127,7 +127,7 @@ The sub-modules are described below:
 
 '''ODL REST Pojos''' – This set of java classes are part of the ODC REST API, specifying the Java classes of the parameters and the results of interaction with ODC.
 
-==[[Tutorial:Basic control flows|Basic control flows]] ==
+=[[Tutorial:Basic control flows|Basic control flows]] =
 Control flows are logically ordered according to module runtime dependencies, so if module A depends on module B then module B should be initialized before module A, and terminate after it. Defense4All App modules depend on most Framework modules, except RestServer.
 
 '''Startup''' – The startup consists of first instantiating all modules, then initializing them in order. Module instantiation includes setting up all externally configured runtime parameters. Initialization starts with all Framework modules, except the RestServer, which is activated last (after the application is fully ready). The Framework modules are initialized in the following order: FrameworkMain, RepoFactory, FlightRecorder, FrameworkMgmtPoint. Then the Framework initializes the Defense4All Application. Defense4All Application modules are initialized in the following order: MitigationDriverLocal, global Defense4All Application Repos, ODLStatsCollectionRep, ODLDvsnRep, AmsRep, StatsCollector, DetectorMgr and RateBasedDetector, AttackDecisionPoint, MitigationMgr, DFMgmtPoint. When FrameworkMgmtPoint initializes it retrieves from global repos all user configurations in previous lifecycles, and re-applies them in all the relevant modules - as if the user has just configured them, however with one difference – any dynamically added state to configured elements (e.g., PNs) is preserved. Similarly, Defense4All Application MgmtPoint re-applies all user configurations done in previous lifecycles. This design leaves all modules completely stateless, allowing flexibility, consistency and robustness in applying user configurations (whether to latest or any previous state snapshot).
@@ -136,7 +136,7 @@ Control flows are logically ordered according to module runtime dependencies, so
 
 '''Reset''' – In this flow all modules are reset according to reset level (currently soft, dynamic or factory). The order of modules’ reset is identical to that of termination. Reset includes clearing cached information as well as fully or selectively information from Repos – according to the type of reset.
 
-==[[Tutorial:Configurations and setup flows|Configurations and setup flows]] ==
+=[[Tutorial:Configurations and setup flows|Configurations and setup flows]] =
 '''OFC (OpenFlowController = ODC)''' – When DFMgmtPoint receives from DFRestService a request to add OFC, it first records the added OFC in OFCs Repo, then notifies ODLStatsCollectionRep and ODLDvsnRep, which in turn notifies ODL to initiate connection to added OFC (ODC). ODL instantiates a REST client for communication with ODC.
 NetNode  - Multiple NetNodes can be added. Each NetNode models a switch or similar network device, along with its traffic ports, protected links and connections to AMSs. When DFMgmtPoint receives from DFRestService a request to add a NetNode, it first records the added NetNode in NetNodes Repo, and then notifies ODLStatsCollectionRep and ODLDvsnRep, followed by MitigationMgr. ODLStatsCollectionRep and ODLDvsnRep in turn notify ODL, and the latter installs low priority flow entries to pass traffic between protected links’ port pairs. MitigationMgr notifies MitigationDriverLocal, which updates its NetNode-AMS connectivity groups for consistent assignment of AMSs to diversion from given NetNodes.
 
@@ -144,7 +144,7 @@ NetNode  - Multiple NetNodes can be added. Each NetNode models a switch or simil
 
 '''PN''' - Multiple PNs can be added. When DFMgmtPoint receives from DFRestService a request to add a PN, it first records the added PN in PNs Repo, then notifies MitigationMgr, and finally it notifies the DetectionMgr. MitigationMgr notifies MitigationDriverLocal, which in turn notifies AMSRep. AMSRep can preconfigure the AMS for this PN, as well its EventMgr to accept events related to this PN’s traffic. DetectionMgr notifies RateBasedDetector, which in turn notifies StatsCollector. StatsCollector queries ODLStatsCollectionRep about possible placements of stats collection counters for this PN. ODLStatsCollectionRep returns all NetNodes configured for this PN (and if none configured it returns all NetNodes currently known to Defense4All). StatsCollector “chooses” (this only presently available) counter locations option. For each of the NetNodes it then asks ODLStatsCollectionRep to create a counter for the subject PN in each of the selected NetNodes. The counter is essentially a set of flow entries set for the protocols of interest (tcp, udp, icmp, and rest of ip) on each north traffic port. The counter is given a priority and this constitutes the peacetime traffic floor (to monitor traffic by periodically reading all counter flow entry traffic count values). Because PN may be re-introduced at restart or a change in network topology may require re-calculation of counter locations, it is possible that some/all counters may already be in place. Only new counters are added. No-longer needed counters are removed. ODLStatsCollectionRep configures the flow entries according to NetNode type: for hybrid NetNodes the flow entry action is “send to normal” (i.e., proceed to legacy routing), while for native NetNodes the action is matching output port (in each protected link). OdlStatsCollectionRep invokes ODL to create each specified flow entry. The latter invokes FlowEntryMgr and Connector to send the request to ODC.
 
-==[[Tutorial:Attack Detection flow|Attack Detection flow]] ==
+=[[Tutorial:Attack Detection flow|Attack Detection flow]] =
 Periodically StatsCollector requests ODL StatsCollectionRep to query the ODC for the latest statistics for each set counter for each configured PN. ODLStatsCollectionRep invokes FlowEntryMgr to obtain statistics in each flow entry in a counter. The latter invokes the Connector to obtain the desired statistics from the ODC. 
 
 ODLStatsCollectionRep aggregates the obtained results in a vector of stats (latest bytes and packets readings per each protocol) and returns that vector. StatsCollector feeds each counter stats vector to DetectionMgr, who forwards the stats vector to RateBasedDetector. The latter maintains stats information for every counter as well as aggregated counter stats for every PN. Stats information includes time of previous reading, and for every protocol - latest rates and exponential averages. 
