@@ -75,8 +75,41 @@ Submit a POST request to http://<odmc address>:8080/controller/nb/v2/neutron/por
 
 This will create a port on virtual network 1, two ports on virtual network two and a port on virtual network 3.
 
-== Deploy VMs and attach to OVS ==
+=== Deploy VMs and attach to OVS ===
 
 Deploy three VMs to nodes with OVS and the OVS-Agent.  Configure each of these to use an address from each of the three networks.  Then attach the VMs to the OVS-Agent with the following command (repeated for each VM, being sure to match interface of the VM that uses an address from subnet 1 with network_id 1 and so on):
 
 ./add-port <VM interface> <network_id>
+
+=== Create Policies ===
+
+To create a policy between network 1 and network 2, first, issue a POST request to http://<odmc address>:8080/controller/nb/v2/neutron/routers
+with the following JSON body: 
+
+{ 
+"router":
+{
+"id": "<router uuid 1>",
+"name": "<router name 1>",
+"admin_state_up": true
+}
+}
+
+After this, issue two PUT requests to http://<odmc address>:8080/controller/nb/v2/neutron/routers/<router uuid 1>/add_router_interface
+For the first use 
+{
+"id": "<router uuid 1>",
+"tenant_id": "<tenant uuid>",
+"port_id": "<port uuid 1>",
+"subnet_id": "<subnet uuid 1>"
+}
+
+and for the second use
+{
+"id": "<router uuid 1>",
+"tenant_id": "<tenant uuid>",
+"port_id": "<port uuid 2>",
+"subnet_id": "<subnet uuid 2>"
+}
+
+At this point VMs in net 1 and net 2 should be able to ping each other.
