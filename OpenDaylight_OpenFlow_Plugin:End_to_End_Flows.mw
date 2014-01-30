@@ -8,19 +8,20 @@
 
 == Flow Strategy ==
 Current way to flush a flow to switch looks like this:
-# create MD-SAL modeled flow and commit it into dataStore using two phase commit 
+# Create MD-SAL modeled flow and commit it into dataStore using two phase commit [[https://wiki.opendaylight.org/view/OpenDaylight_Controller:MD-SAL:FAQ|MD-SAL FAQ]]
 # FRM gets notified and invokes corresponding rpc (addFlow) on particular service provider (if suitable provider for given node registered)
-# the provider (plugin in this case) transforms MD-SAL modeled flow into OF-API modeled flow
+# The provider (plugin in this case) transforms MD-SAL modeled flow into OF-API modeled flow
 # OF-API modeled flow is then flushed into OFLibrary
 # OFLibrary encodes flow into particular version of wire protocol and sends it to particular switch
-# check on mininet side if flow is set
+# Check on mininet side if flow is set
 
 == Push your flow == 
 * With PostMan:
-** Set 
+** Set headers:
 *** Content-Type: application/xml
 *** Accept: application/xml
-** Use URL: http://192.168.195.157:8080/restconf/config/opendaylight-inventory:nodes/node/openflow:1/table/0/flow/1
+*** Authentication
+** Use URL: <nowiki>http://<controller IP>:8080/restconf/config/opendaylight-inventory:nodes/node/openflow:1/table/0/flow/1</nowiki>
 ** PUT
 ** Use Body:
 <pre>
@@ -51,33 +52,32 @@ Current way to flush a flow to switch looks like this:
     </instructions>
 </flow>
 </pre>
-** Note: If you want to try a different flow id or a different table, make sure the URL and the body stay in sync.  For example, if you wanted to try: table 2 flow 20 you'd change the URL to
+'''<nowiki>*Note</nowiki>''': If you want to try a different flow id or a different table, make sure the URL and the body stay in sync.  For example, if you wanted to try: table 2 flow 20 you'd change the URL to:
+<nowiki>http://<controller IP>:8080/restconf/config/opendaylight-inventory:nodes/node/openflow:1/table/2/flow/20</nowiki>
 
-http://192.168.195.157:8080/restconf/config/opendaylight-inventory:nodes/node/openflow:1/table/2/flow/20
+but you would also need to update the <id>20</id> and <table_id>2</table_id> in the body of the XML.
 
-but you would also need to update the <id>20</id> and <table_id>2</table_id> the body to match.
-
-Other caveat, we have a known bug with updates, so please only write to a given flow id and table id on a given node once at this time until we resolve it.
+Other caveat, we have a known bug with updates, so please only write to a given flow id and table id on a given node once at this time until we resolve it. Or you can use the DELETE method with the same URL in PostMan to delete the flow information on switch and controller cache.
 
 == Check for your flow on the switch ==
 * See your flow on your mininet:
 <pre>
 mininet@mininet-vm:~$ sudo ovs-ofctl -O OpenFlow13 dump-flows s1
 OFPST_FLOW reply (OF1.3) (xid=0x2):
- cookie=0x0, duration=7.325s, table=0, n_packets=0, n_bytes=0, idle_timeout=300, hard_timeout=600, send_flow_rem priority=2,ip,nw_dst=10.0.10.0/24 actions=dec_ttl
+cookie=0x0, duration=7.325s, table=0, n_packets=0, n_bytes=0, idle_timeout=300, hard_timeout=600, send_flow_rem priority=2,ip,nw_dst=10.0.10.0/24 actions=dec_ttl
 </pre>
 
 If you want to see the above information from the mininet prompt - use "sh" instead of "sudo" i.e. use "sh ovs-ofctl -O OpenFlow13 dump-flows s1".
 
 == Check for your flow in the controller config via RESTCONF ==
 * See your configured flow in POSTMAN with
-** URL http://192.168.195.157:8080/restconf/config/opendaylight-inventory:nodes/node/openflow:1/table/0/
+** URL <nowiki>http://<controller IP>:8080/restconf/config/opendaylight-inventory:nodes/node/openflow:1/table/0/</nowiki>
 ** GET
-** You should no longer need to set Accept
+** You no longer need to set Accept header
 
 == Look for your flow stats in the controller operational data via RESTCONF ==
 * See your operational flow stats in POSTMAN with
-** URL http://192.168.195.157:8080/restconfig/operational/opendaylight-inventory:nodes/node/openflow:1/table/0/
+** URL <nowiki>http://<controller IP>:8080/restconfig/operational/opendaylight-inventory:nodes/node/openflow:1/table/0/</nowiki>
 ** GET
 
 = Discovering and testing new Flow Types =
