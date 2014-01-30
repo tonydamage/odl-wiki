@@ -253,6 +253,122 @@ There are multiple ways to add custom initial confguration to controller distrib
 # Manually create config file and put it in the initial configuration folder.
 # Reconfigure running controller using yuma's yangcli tool. The XmlFileStorageAdapter adapter will store current snapshot and on the next startup of controller (assuming it was not rebuilt since), it will load configuration containing your changes.
 
+=== Custom initial configuration in bgpcep distribution ===
+The bgpcep(!link) project will serve as an example of adding custom initial configuration. The bgpcep project contains custom initial configuration that is based on initial configuration from controller. It adds new modules, which depend on md-sal and netty modules created with controller's initial config files. There are multiple config files in bgpcep project, but only the '''30-programming.xml''' file located under ''programming-parent/controller-config'' project. This file contains the configuration of '''instruction-scheduler''' module:
+<source>
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- vi: set et smarttab sw=4 tabstop=4: -->
+<!--
+      Copyright (c) 2013 Cisco Systems, Inc. and others.  All rights reserved.
+
+ This program and the accompanying materials are made available under the
+ terms of the Eclipse Public License v1.0 which accompanies this distribution,
+ and is available at http://www.eclipse.org/legal/epl-v10.html
+-->
+<snapshot>
+	<required-capabilities>
+		<capability>urn:opendaylight:params:xml:ns:yang:controller:md:sal:binding?module=opendaylight-md-sal-binding&amp;revision=2013-10-28</capability>
+		<capability>urn:opendaylight:params:xml:ns:yang:controller:netty?module=netty&amp;revision=2013-11-19</capability>
+		<capability>urn:opendaylight:params:xml:ns:yang:controller:programming:impl?module=config-programming-impl&amp;revision=2013-11-15</capability>
+		<capability>urn:opendaylight:params:xml:ns:yang:controller:programming:spi?module=config-programming-spi&amp;revision=2013-11-15</capability>
+	</required-capabilities>
+	<configuration>
+
+		<data xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+			<modules xmlns="urn:opendaylight:params:xml:ns:yang:controller:config">
+				<module>
+					<type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:programming:impl">prefix:instruction-scheduler-impl</type>
+					<name>global-instruction-scheduler</name>
+					<data-provider>
+						<type xmlns:binding="urn:opendaylight:params:xml:ns:yang:controller:md:sal:binding">binding:binding-data-broker</type>
+						<name>binding-data-broker</name>
+					</data-provider>
+					<notification-service>
+						<type xmlns:binding="urn:opendaylight:params:xml:ns:yang:controller:md:sal:binding">binding:binding-notification-service</type>
+						<name>binding-notification-broker</name>
+					</notification-service>
+					<rpc-registry>
+						<type xmlns:binding="urn:opendaylight:params:xml:ns:yang:controller:md:sal:binding">binding:binding-rpc-registry</type>
+						<name>binding-rpc-broker</name>
+					</rpc-registry>
+					<timer>
+						<type xmlns:netty="urn:opendaylight:params:xml:ns:yang:controller:netty">netty:netty-timer</type>
+						<name>global-timer</name>
+					</timer>
+				</module>
+			</modules>
+
+			<services xmlns="urn:opendaylight:params:xml:ns:yang:controller:config">
+				<service>
+					<type xmlns:pgmspi="urn:opendaylight:params:xml:ns:yang:controller:programming:spi">pgmspi:instruction-scheduler</type>
+					<instance>
+						<name>global-instruction-scheduler</name>
+						<provider>/modules/module[type='instruction-scheduler-impl'][name='global-instruction-scheduler']</provider>
+					</instance>
+				</service>
+			</services>
+		</data>
+
+	</configuration>
+</snapshot>
+</source>
+<br/>
+
+Instruction-scheduler module is instantiated as a module of type ''instruction-scheduler-impl'' with name '''global-instruction-scheduler''':
+<source>
+<module>
+       <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:programming:impl">prefix:instruction-scheduler-impl</type>
+       <name>global-instruction-scheduler</name>
+       ...
+</source>
+<br/>
+
+There is also an alias created for this module of type ''instruction-scheduler'' and the alias is '''global-instruction-scheduler''':
+<source>
+<service>
+	<type xmlns:pgmspi="urn:opendaylight:params:xml:ns:yang:controller:programming:spi">pgmspi:instruction-scheduler</type>
+	<instance>
+		<name>global-instruction-scheduler</name>
+		<provider>/modules/module[type='instruction-scheduler-impl'][name='global-instruction-scheduler']</provider>
+	</instance>
+</service>
+</source>
+<br/>
+The type of the alias is ''instruction-scheduler''. This type refers to a certain service that is implemented by the ''instruction-scheduler-impl'' module. With this service type, '''global-instruction-scheduler''' instance can be injected into any other module that requires ''instruction-scheduler'' as a dependency. 
+One module can provide(implement) multiple services and each of this service can be assigned an alias. This alias can be later used to reference the implementation it is pointing to.
+If no alias is assigned by user, a default alias will be assigned for each provided service. Default alias is constructed from the name of the module instance with a prefix '''ref_''' and a possible suffix containing a number to resolve name clashes. '''It is advised for users to provide aliases for each service of every module instance. And use these aliases for dependency injection.'''
+
+<br/>
+
+The configuration contains 4 dependencies on md-sal and netty modules: 
+<source>
+...
+<data-provider>
+	<type xmlns:binding="urn:opendaylight:params:xml:ns:yang:controller:md:sal:binding">binding:binding-data-broker</type>
+	<name>binding-data-broker</name>
+</data-provider>
+<notification-service>
+	<type xmlns:binding="urn:opendaylight:params:xml:ns:yang:controller:md:sal:binding">binding:binding-notification-service</type>
+	<name>binding-notification-broker</name>
+</notification-service>
+<rpc-registry>
+	<type xmlns:binding="urn:opendaylight:params:xml:ns:yang:controller:md:sal:binding">binding:binding-rpc-registry</type>
+	<name>binding-rpc-broker</name>
+</rpc-registry>
+<timer>
+	<type xmlns:netty="urn:opendaylight:params:xml:ns:yang:controller:netty">netty:netty-timer</type>
+	<name>global-timer</name>
+</timer>
+...
+</source>
+
+* '''data-provider''' dependency 
+* '''notification-service''' dependency
+* '''rpc-registry''' dependency
+* '''timer''' dependency
+
+This configuration expects these dependencies to be already up and ready...
+
 = Configuration Persister =
 As a part of the configuration subsystem, purpose of the persister is to save and load a permanent copy of a configuration. The '''Persister''' interface represents basic operations over a storage - persist configuration and load last config, configuration snapshot is represented as string and set of it's capabilities. '''StorageAdapter''' represents an adapter interface to the '''ConfigProvider''' - subset of BundleContext, allowing access to the OSGi framework  system properties. 
 
