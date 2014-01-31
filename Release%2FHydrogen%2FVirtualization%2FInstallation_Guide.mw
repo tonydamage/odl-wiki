@@ -1,18 +1,9 @@
-{| align="right" border="1"
-|align="center"|'''Virtualization Contents'''
-|-
-|[[Release/Hydrogen/Virtualization/Installation_Guide|Virt. Install]]<br>
-[[Release/Hydrogen/Virtualization/User_Guide|Virt. User Guide]]<br>
-[[Release/Hydrogen/Virtualization/Release_Notes|Virt. Release Notes]]<br>
-[[Release/Hydrogen/Developer Guide|Developer Guide]]<br>
-[[Release/Hydrogen|Hydrogen Main]]<br>
-|}
-
 = Installing From Zip =
 
 == Getting the Zip File ==
 
-You can find the OpenDaylight Hydrogen Release Virtualization Edition zip file on the download page here: http://nexus.opendaylight.org/content/repositories/opendaylight.release/org/opendaylight/integration/distributions-virtualization/0.1.1/distributions-virtualization-0.1.1-osgipackage.zip
+You can find the OpenDaylight Hydrogen Release Virtualization Edition zip file on the download page here: http://nexus.opendaylight.org/content/repositories/opendaylight.release/org/opendaylight/integration/distributions-virtualization/0.1.0/distributions-virtualization-0.1.0-osgipackage.zip
+
 
 == Installing ==
 The simplest and easiest way to install OpenDaylight is to download the pre-built zip file which you can find above. 
@@ -51,17 +42,7 @@ The simplest and easiest way to install OpenDaylight is to download the pre-buil
 
 = Installing From RPM =
 
-== Getting the RPM ==
-
-{{:Release/Hydrogen/Installation From RPM}}
-
 = VirtualBox Image =
-
-== Getting the VirtualBox Image ==
-
-You can find the OpenDaylight Hydrogen Release VirtualBox Image on the download page [http://www.opendaylight.org/software/downloads/hydrogen-virtualization-10 here.]
-
-{{:Release/Hydrogen/Installation_From_Virtualbox_Image}}
 
 = Docker Image =
 == What is Docker ==
@@ -81,19 +62,19 @@ There are public images available via the public docker repository. You can find
 
     $ docker search opendaylight
     Found 3 results matching your query ("opendaylight")
-    NAME                                     DESCRIPTION
-    opendaylight/base-edition                The base OpenDaylight SDN controlelr
-    opendaylight/serviceprovider-edition     The service provider version of the OpenDaylight SDN controller
-    opendaylight/virtualization-edition      The virtualization version of the OpenDaylight SDN controller
+    NAME                             DESCRIPTION
+    opendaylight/base                The base OpenDaylight SDN controlelr
+    opendaylight/serviceprovider     The service provider version of the OpenDaylight SDN controller
+    opendaylight/virtualization      The virtualization version of the OpenDaylight SDN controller
 
 Each of these images have version tags that allow the specification of the version via the version name. `<code>latest</code> is also a support tag to identify the latest official release. For the first release of OpenDaylight, the version tag is <code>hydrogen</code>.
 
 == Using the Image ==
 The OpenDaylight docker image is meant to be used to start an instance of the OpenDaylight SDN controller and that process will be invoked when the docker image is <code>run</code>. Any command line options you append to the <code>docker run</code> command will be passed on to the the OpenDaylight <code>run.sh</code> startup script. In its simplest form you can invoke an instance of the Opendaylight controller using the command:
 
-    docker run -d <image-identifier> -virt <virtualization-type>
+    docker run -d <image-identifier> 
 
-Where <code><image-identifier></code> can be one of the pre-build image references, i.e. <code>opendaylight/virtualization</code>. Additional information and options for 'running' a docker image can be found at [http://docs.docker.io/en/latest/commandline/cli/#run docker.io's run documentation].
+Where <code><image-identifier></code> can be one of the pre-build image references, i.e. <code>opendaylight/virtualization:hydrogen</code>. Additional information and options for 'running' a docker image can be found at [http://docs.docker.io/en/latest/commandline/cli/#run docker.io's run documentation].
 
 === Ports ===
 The OpenDaylight controller image will expose the following ports from the container to the host system:
@@ -132,19 +113,17 @@ All values not prefixed by a <code>+</code> will be interpreted normally.
 
 Below is an example of starting up a three node cluster using this syntax:
 
-    $ docker run -d -name node1 opendaylight/virtualization -Dsupernodes=+self -virt vtn
+    $ docker run -d -name node1 opendaylight/virtualization:hydrogen -Dsupernodes=+self
     a8435cc23e13cb4e04c3c9788789e7e831af61c735d14a33025b3dd6c76e2938
-    $ docker run -d -name node2 -link node1:n1 opendaylight/virtualization -Dsupernodes=+self:+n1 -virt vtn
+    $ docker run -d -name node2 -link node1:n1 d44fd77ebbdf -Dsupernodes=+self:+n1
     fa0b37dfd216291e36fd645a345751a1a6079123c99d75326a5775dce8414a93
-    $ docker run -d -name node3 -link node1:n1 opendaylight/virtualization -Dsupernodes=+self:+n1 -virt vtn
+    $ docker run -d -name node3 -link node1:n1 d44fd77ebbdf -Dsupernodes=+self:+n1
     9ad6874aa85cad29736030239baf836f46ceb0c242baf873ab455674040d96b1
 
 The cluster can be verified through the OpenDaylight user interface. This can be accomplished by first determining the IP address of one of the nodes:
 
-    $ docker inspect -format='{ {.NetworkSettings.IPAddress} }' node1
+    $ docker inspect -format='{ { .NetworkSettings.IPAddress } }' node1
     172.17.0.46
-
-'''Note: The spaces between the ``{ {`` and ``} }`` should not be entered, wikitext just does not allow proper display of double brackets without attempting to interpret them'''
 
 After determining the IP address you can view the web interface by typing <code>http://172.17.0.46:8080</code> in the browser address bar, authenticating with the default user name and password (<code>admin/admin</code>), and then viewing the cluster information by selecting <code>Cluster</code> from the right hand drop down menu. A popup window should be displayed that shows all the nodes in the cluster with the master marked with a <code>C</code> and the node to which you are currently connected marked with a <code>*</code> (asterisks).
 
