@@ -7,11 +7,23 @@ We propose a southbound plugin that can control the off-the-shelf commodity Ethe
 '''Figure. SNMP4SDN as a southbound plugin in OpenDaylight architecture'''
 
 ===Architecture===
-The modules in the plugin are depicted as the following figure. <font red>For every module’s exposed functions and key design are summarized here(link to user guide’s table).</font> In terms of the architecture of the SNMP4SDN plugin’s features, the features include flow configuration, topology discovery, proprietary configuration, statistic retrieving, and switch/port property retrieving. Their architectures are as follows.
+The modules in the plugin are depicted as the following figure. 
 
 [[File:snmp4sdn_modules.jpg|400px]]
 
 '''Figure. Modules in the SNMP4SDN plugin'''
+
+* FlowProgrammerService: to add/modify/remove flows on the switches.
+* ReadService: to acquire the flow's or switch's or port's statistics.
+* InventoryService: to acquire the switches’ and their ports’ properties.
+* DiscoveryService: to probe and resolve the underlying switches as well as the port pairs connecting the switches. The probing is realized by SNMP queries. The updates from discovery will also be reflected to the TopologyService.
+* TopologyService: to query and acquire the switches' topology.
+* ConfigService: to do kinds of vendor-specific proprietary settings on switches
+** Supported vendor-specific proprietary settings, such as: to disable kind of flooding (BPDU flooding, broadcast flooding, multicast flooding, and unknown flooding), disabling source mac check and source learning, and setting SNMP host and community.
+
+For the services above, when they need to read or configure the underlying switches via SNMP or CLI, these queries are dealt with the modules SNMPHandler and CLIHandler which directly talk with the switches.
+<br>
+In terms of the architecture of the SNMP4SDN plugin’s features, the features include flow configuration, topology discovery, proprietary configuration, statistic retrieving, and switch/port property retrieving. Their architectures are as follows.
 
 ====Flow configuration====
 FlowProgrammer implements the SAL API, IPluginInFlowProgrammerService. FlowProgrammer is in charge of listening to the flow given from upper layer and pass it to the MessageReadWriteService, which maintains command sending queue of the specific switch, and then SNMPHandler or CLIHandler will be called to send the command out to the switch. (SNMPHandler is to handle configurations on forwarding table, which can be done via SNMP, CLIHandler is to handle configurations on ACL)
