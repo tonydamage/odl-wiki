@@ -22,27 +22,26 @@
 * [[OpenDaylight_Lisp_Flow_Mapping:Developer_Guide_for_Hydrogen|Developer Guide for Hydrogen]]
 
 ==Architectural Issues==
-An overview of the architecture including API documentation is posted at [[OpenDaylight_Lisp_Flow_Mapping:Architecture|Architecture Overview] page].
-* Mappings registered via southbound LISP protocol and via northbound REST API for the same EID (EID prefix) are not differentiable, and will overwrite each other. Later versions may provide support for differentiating with priority to allow for non-overwrite option. 
+An overview of the architecture including API documentation is posted at the [[OpenDaylight_Lisp_Flow_Mapping:Architecture|Architecture Overview]] page.
+* Mappings registered via southbound LISP protocol and via northbound REST API for the same EID (EID prefix) are added to the mapping record of that EID if the registered locators are different. Mappings will expire in 4 minutes. Later versions may provide support for deleting mappings per xTR registration and differentiating between northbound and southbound registrations with priority to allow for overwrite option.
 
 ==Security Issues==
 LISP southbound plugin follows LISP RFC6830 security guidelines. A key/password is associated with every EID prefix which is used to create a MAC (Message Authentication Code) of the UDP LISP control messages for authentication and integrity protection of the UDP messages. This is implemented as specified in the LISP RFC6830. On the Northbound API, the key is passed via JSON and is tested for equality against the stored key for the EID prefix being registered. No MAC of the REST request is created.
 
 ==Quality Assurance (test coverage, etc)==
 * Unit Tests: Several unit tests are implemented and passed for the following modules: Implementation, Southbound, Northbound. Coverage is more extensive on the Implementation and Southbound modules.
-* Integration Tests: About 30 integration tests have been implemented and passed ( 6 tests for northbound API and rest for implementation and southbound). Coverage is more extensive on simple AFIs compared to more complex LCAF types.
-
+* Integration Tests: About 30 integration tests have been implemented and passed ( 6 tests for northbound API and rest for implementation and southbound). Coverage is more extensive on simple AFIs compared to more complex LCAF types. Northbound APIs have not been tested for LCAF AFI types.
+ 
 ==End-of-life (API/Features EOLed in Release)==
 This is the first release of LISP Flow Mapping.
 
 ==Bugzilla (summary of bug situation)==
-No outstanding feature bugs as of now. 2 outstanding design bugs likely to be targeted for next release.
+1 outstanding feature bug as of now. 2 outstanding design bugs likely to be targeted for next release.
 
 ==Standards (summary of standard compliance)==
 The LISP implementation module and southbound plugin conforms to the IETF RFC6830 and RFC6833, with the following exceptions:
 * In Map-Register message, P bit is stored but Mapping Service always acts as proxy, and does not forward Map-Requests.
 * In Map-Request message, M bit(Map-Reply Record exist in the MapRequest) is processed but any mapping data at the bottom of a Map-Request are discarded.
-'''**** David/Gal is this correct, has it been tested or should we say avoid setting this bit to 1??'''
 * LISP LCAFs are limited to only up to one level of recursion. For instance in the case of a traffic engineering policy every hop can only be a generic AFI address (IPv4,  IPv6, MAC, Dist. Name, AS Number), and can not include combinations such as Segment ID, or list. 
 
 From the list of AFI and LCAFs available in LISP the following are supported in this release:
