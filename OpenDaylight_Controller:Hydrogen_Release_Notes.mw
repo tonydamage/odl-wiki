@@ -6,20 +6,14 @@ Hydrogen release marks the first release of the Opendaylight Controller. The fol
 * Allows the Controller to support multiple protocols on the Southbound and providing consistent services for modules and Apps (where the business logic is embedded).
 
 ==== AD-SAL Openflow 1.0 Southbound Plugin ====
-* Provides support for [https://www.opennetworking.org/images/stories/downloads/sdn-resources/onf-specifications/openflow/openflow-spec-v1.0.2.pdf OpenFlow protocol v1.0]
 
 ==== Clustering Services ====
-* Services for cluster-based High-Availability model
-** Uses the stable 5.3.0 version of Infinispan
-** Provides state and event synchronization
-** Transactions: the javax.transaction model supported
 
 ==== AD-SAL Network Service Functions ====
 
-==== Flow-capable Controller ====
+==== Openflow 1.0 Controller ====
 
-* Flow capable controller using AD-SAL, Clustering services, AD-SAL Network Service Functions, Openflow 1.0 Southbound plugin, 
-* Support for additional flow-capable protocols by installing other AD-SAL Southbound plugins
+* Openflow 1.0 Controller using AD-SAL, Clustering services, AD-SAL Network Service Functions
 
 ==== Config Subsystem & Netconf Server ====
 
@@ -27,46 +21,30 @@ Hydrogen release marks the first release of the Opendaylight Controller. The fol
 * Runtime statistics and other data exposed via JMX runtime beans
 * YANG code generator to generate JMX, configuration interfaces and skeletons of Modules and ModuleFactories
 * netconf server (plain TCP and ssh) is used as config-subsystem endpoint, wraps JMX config and runtime beans into model driven XML representation
+* netconf client with advanced capabilities like reconnection strategies and capability testing
 * configuration pusher and persister that delivers initial or current configuration, automatic persisting of changes after netconf commit
 * low level Java APIs wrapped with yang models and configuration factories, like executor framework, netty threadgroups, logback
+* shutdown management via netconf RPC
 
 ==== MD-SAL ====
-Model-driven service adaptation layer which provides infrastructure services for plugins and applications
-
-* Data storage and access services
-* Two phase coordination and support for data changes in shared data store.
-* RPC service infrastructure and content-based routing
-** Dynamic routing with routing decision first, marshalling and unmarshalling only if neccesary.
-* Notification subscription and publish services
-* API Adaptation between supported API types.
-* Dynamic runtime wiring and reviring of consumers and providers
-API Types supported by initial release of MD-SAL:
-
-* Java APIs using generated code from YANGTools
-* Java DOM APIs providing access to services using Yang Data DOM (XML-like).
-* REST APIs derived from models as defined in Restconf 02 Draft.
 
 ==== MD-SAL Network Service Functions ====
 
-* YANG Models of Flow-capable (Openflow-like) Network devices
-* Forwarding Rules Manager for MD-SAL southbound plugins supporting Flow Capable Network devices
-* Statistics Collection for MD-SAL southbound plugins supporting Flow Capable Network devices
-* Inventory management for MD-SAL Flow Capable Network devices
-* Topology LLDP discovery MD-SAL southbound plugins supporting Flow Capable Network devices
-
-* REST APIs for mentioned services using MD-SAL and Restconf
-
 ==== MD-SAL Netconf Southbound Plugin ====
 
-* Netconf southbound plugin with dynamic YANG schema discovery
-* Exposion of device specific REST APIs via YANG schema discovery and RESTConf.
-** This APIs are derived dynamicly, based on models provided by Netconf device, no additional installation of model specific plugins is needed.
-
-==== MD-SAL to AD-SAL Compatibility layer ====
-
-* Set of components exposing MD-SAL Flow-capable southbound plugins to AD-SAL components
+==== RESTConf ====
 
 ===Known Issues and Limitations===
+
+* During the development of Hydrogen release a number of issues have been identified in the Java Binding Specification:
+** Using the same name for groupings and containers in the same context results in invalid code (issues [https://bugs.opendaylight.org/show_bug.cgi?id=138 #138], [https://bugs.opendaylight.org/show_bug.cgi?id=157 #157], [https://bugs.opendaylight.org/show_bug.cgi?id=295 #295])
+** The specification contains a static get() method, conflicting with JMX implementation
+** Binding's handling of unsigned types could be improved with Guava's Unsigned types
+** The translation of choice/case statements requires users to use instanceof and explicit typecasts, leading to run-time errors due to missed spots in refactoring
+** The exact mapping of YANG lists to Set/Map/List is not completely satisfactory
+
+The implementation has been tested extensively with its downstream projects (openflowjava, bgpcep) and works reasonably well for complex models. There are a few known bugs which will be addressed in the next bugfix release.
+
 
 ===Target Environment===
 
