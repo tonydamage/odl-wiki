@@ -162,7 +162,7 @@ You can create a few networks for you VMs like so...
 word-wrap: break-word;"> $  neutron net-create my-private-net
     neutron subnet-create $(neutron net-list | grep 'my-private-net' | awk '{print $2}') 10.254.0.0/24 --name my-private-subnet --ip-version 4 --gateway 10.254.0.1 --allocation-pool start=10.254.0.2,end=10.254.0.254</pre>
   
-Booting VMs
+<big>Booting Nova Guest VMs</big>
 
 Once you have created your networks, you can create some VMs.
 To create multiple VM's at once, we use the `--num-instances flag`
@@ -170,7 +170,7 @@ To create multiple VM's at once, we use the `--num-instances flag`
  <pre style="pre style="white-space: pre-wrap; 
 word-wrap: break-word;"> $   nova boot --flavor m1.nano --image $(nova image-list | grep 'cirros-0.3.1-x86_64-uec\s' | awk '{print $2}') --nic net-id=$(neutron net-list | grep my-private-net | awk '{print $2}')  --num-instances 3 vm </pre>
 
-Verifying the configuration
+<big>Verifying the configuration</big>
 
 Now to test that the OVSDB plugin has set the tunnels up correctly:
 
@@ -233,7 +233,52 @@ Using the REST API
 
 The OVSDB REST API can be used to perform CRUD operations on any of the tables of an Open vSwitch instance. Usage examples can be found in the [Postman Collection](https://www.getpostman.com/collections/4fe7530a669dc9da93e4)
 
-Using the Remote Debugger
+<big>Possibly Useful Aliases Used for Troubleshooting and Verification</big>
+
+The following aliases can be added to a users ~/.bashrc 
+
+After adding them to .bashrc refresh the shell with:
+ $ source ~/.bashrc
+
+<pre style="pre style="white-space: pre-wrap; 
+word-wrap: break-word;">
+######################################
+######  Fedora ~/.bashrc lazy aliases   ######
+######################################
+
+### OVS Aliases ###
+alias novh='nova hypervisor-list'
+alias novm='nova-manage service list' 
+alias ovstart='sudo /usr/share/openvswitch/scripts/ovs-ctl start' 
+alias ovs='sudo ovs-vsctl show'
+alias ovsd='sudo ovsdb-client dump'
+alias ovsp='sudo ovs-dpctl show'
+alias ovsf='sudo ovs-ofctl '
+alias logs="sudo journalctl -n 300 --no-pager"
+alias ologs="tail -n 300 /var/log/openvswitch/ovs-vswitchd.log"
+alias vsh="sudo virsh list"
+alias ovap="sudo ovs-appctl fdb/show "
+alias ovapd="sudo ovs-appctl bridge/dump-flows "
+alias dpfl=" sudo ovs-dpctl dump-flows "
+alias ovtun="sudo ovs-ofctl dump-flows br-tun"
+alias ovint="sudo ovs-ofctl dump-flows br-int"
+alias ovap="sudo ovs-appctl fdb/show "
+alias ovapd="sudo ovs-appctl bridge/dump-flows "
+alias ovl="sudo ovs-ofctl dump-flows br-int"
+alias dfl="sudo ovs-ofctl -O OpenFlow13 del-flows "
+alias ovls="sudo ovs-ofctl -O OpenFlow13  dump-flows br-int"
+alias dpfl="sudo ovs-dpctl dump-flows "
+alias ofport=" sudo ovs-ofctl -O OpenFlow13 dump-ports br-int"
+alias del=" sudo ovs-ofctl -O OpenFlow13 del-flows "
+alias delman=" sudo ovs-vsctl del-manager"
+# Replace the IP with the ODL controller or OVSDB manager address
+alias addman=" sudo ovs-vsctl set-manager tcp:10.0.2.15:6640"
+alias prof="vi ~/.bash_profile"
+alias src="source ~/.bashrc"
+alias vsh="sudo virsh list"
+alias ns="sudo ip netns exec "</pre>
+
+<big>Using the Remote Debugger</big>
 
 To use the remote debugger, you must add one of the following flags when starting your controller
 
