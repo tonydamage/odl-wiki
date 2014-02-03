@@ -38,21 +38,44 @@ This section provides instructions to set up a LISP network of two nodes using L
 * Step Three: Configure the LISPmob on VM_1 and VM_2 lispd.conf configuration files. Set the EID in each lispd.conf file from the IP address space selected for your virtual/LISP network. In this example VM_2 EID is set to 1.1.1.1/32 , and VM_3 EID is set to 1.1.1.2/32 . The RLOC in each lispd.conf is the IP address of the corresponding VM. In this example VM_2 RLOC is 10.33.12.37 and VM_3 RLOC is 10.33.12.44. Set the Map-Server and Map-Resolver addresses to the IP address of the VM_ODL. Modify the "key" parameter in each lispd.conf file to a key/password of your choice. In this example asdf1 and asdf2 respectively.  
 
 * Step Four: Define the key and EID prefix associations in the ODL using the northbound API:
-Create a JSON file per each key. Here is one example for VM_2 with EID 1.1.1.1/32:
-
-
-
-
+** Create a JSON file per each key. Here is one example for VM_2 with EID 1.1.1.1/32:
 <pre>
- curl --user "admin":"admin" -H "Content-type: application/json" -X PUT http://10.33.12.32:8080/lispflowmapping/nb/v2/default/key --data @key1.json
+key1.json
+ 
+{ 
+"key" : "asdf1", 
+"maskLength" : 32, 
+"address" : 
+  { 
+  "ipAddress" : "1.1.1.1", 
+  "afi" : 1
+  }
+}
 </pre>
-* Step Four: Run the lisp daemon on VM_2 and VM_3: 
+
+** Add the key in ODL:
+{|class = "wikitable"
+|-
+|curl --user "admin":"admin" -H "Content-type: application/json" -X PUT http://10.33.12.33:8080/lispflowmapping/nb/v2/default/key --data @key1.json
+|}
+
+** You can verify that the key is added properly by requesting the following URL:
+<pre>
+http://10.33.12.33:8080/lispflowmapping/nb/v2/default/key/0/1/1.1.1.1/32
+</pre>
+
+** Similarly create a key2.json and add that to ODL as well.
+
+* Step Five: Run the lisp daemon on VM_2 and VM_3: 
 {|class = "wikitable"
 |-
 | lispd -f /root/lispd.conf
 |}
 
-* Step Five:
+* Step Six: Now the LISP network is up. To verify, log into VM_2 and ping the EID of VM_3 from VM_2:
+<pre>
+ping 1.1.1.2
+</pre>
 
 === Programmatic Interfaces ===
 The LISP Flow Mapping service Java and REST APIs are documented below:
