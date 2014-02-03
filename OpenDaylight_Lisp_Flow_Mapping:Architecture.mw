@@ -8,12 +8,19 @@
 
 == Overview and Architecture ==
 
-=== LISP Overview ===
+==== LISP Overview ====
 Locator ID Separation Protocol ([http://tools.ietf.org/search/rfc6830 LISP]) is a technology that provides a flexible map-and-encap framework that can be used for overlay network applications, such as data center network virtualization, and Network Function Virtualization (NFV). LISP introduces two name spaces: Endpoint Identifiers (EIDs), and Routing Locators (RLOCs). In a virtualization environment, EIDs can be viewed as virtual address space and RLOCs can be viewed as physical network address space.
 The LISP framework decouples network control plane from the forwarding plane by providing: (1) a data plane that specifies how the virtualized network addresses are encapsulated in addresses from the underlying physical network, and (2) a control plane that stores the mapping of the virtual-to-physical address spaces and the associated forwarding policies, and serves this information to the data plane on demand. Network programmability is achieved by programming forwarding policies such as transparent mobility, service chaining, and traffic engineering in the mapping system, where the data plane elements can fetch these policies on demand as new flows arrive. In this presentation we explain how the LISP Flow Mapping project in ODL can be used to enable advanced SDN and NFV use cases.
 
-=== Architecture Overview ===
-The Lisp Flow Mapping service provides [http://tools.ietf.org/search/rfc6830 LISP] Mapping System services. This includes LISP Map-Server and LISP Map-Resolver services, to store and serve the ''mapping data'' to data plane nodes as well as to OpenDaylight applications. Mapping data can include mapping of virtual addresses to physical network address where the virtual nodes are reachable/hosted at. Mapping data can also include a variety of routing policies including traffic engineering and load balancing. To leverage this service, a northbound API allows OpenDaylight applications and services to define the mappings and policies in the LISP Mapping Service. This project also includes a southbound LISP plugin that enables LISP dataplane devices to interact with the OpenDaylight via the LISP protocol.
+LISP data plane Tunnel Routers are available at [http://lispmob.org LISPmob.org] in the open source community on the following platforms:
+* Linux
+* Android
+* OpenWRT
+
+For more detail and support for LISP data plane software please visit [http://lispmob.org LISPmob.org].
+
+==== Architecture Overview ====
+The Lisp Flow Mapping service provides [http://tools.ietf.org/search/rfc6830 LISP] Mapping System services. This includes LISP Map-Server and LISP Map-Resolver services, to store and serve the ''mapping data'' to data plane nodes as well as to OpenDaylight applications. Mapping data can include mapping of virtual addresses to physical network address where the virtual nodes are reachable/hosted at. Mapping data can also include a variety of routing policies including traffic engineering and load balancing. To leverage this service OpenDaylight applications and services can use the northbound REST API to define the mappings and policies in the LISP Mapping Service. Data plane devices capable of LISP control protocol can leverage this service through a southbound LISP plugin via the LISP control protocol (Map-Register, Map-Request, Map-Reply messages).
 
 The following figure depicts the described components.
 
@@ -30,6 +37,16 @@ The OpenDaylight LISP Mapping Service includes:
 
 ==Architecture Details==
 * TO DO
+The following figure shows the various LISP Flow Mapping modules. A brief description of each module follows.
+
+
+DAO: This is the layer that separates the LISP logics from the Data Base. Implementation of this layer uses the Controller Cluster Service.
+Map Server: This is the module that processes the adding or registration of keys and mappings.  For a detailed specification of LISP Map Server please see [http://tools.ietf.org/search/rfc6830 LISP].
+Map Resolver: This is the module that receives and processes the mapping lookup queries and provides the mappings to requester. For a detailed specification of LISP Map Server please see [http://tools.ietf.org/search/rfc6830 LISP].
+Northbound API: This is part of the ODL northbound API. This module enables defining key-EID associations, as well as adding mapping information through the Map Server. Key-EID associations can also be queried via this API. The Northbound API also provides capability of querying the mapping information for an EID prefix.
+LISP Southbound Plugin: This plugin enables data plane devices that support LISP control plane protocol (see [http://tools.ietf.org/search/rfc6830 LISP]) to register and query mappings to the LISP Flow Mapping via the LISP control plane protocol. 
+Java API: The Java API exposes the Map Server and Map Resolver capabilities via Java API.
+
 
 == API ==
 
