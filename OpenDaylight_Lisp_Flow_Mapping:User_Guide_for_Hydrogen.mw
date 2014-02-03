@@ -33,7 +33,7 @@ This section provides instructions to set up a LISP network of two nodes using L
 
 * Step Two: VM_2 and VM_3 are used as data plane LISP nodes. While LISPmob is used as the data plane LISP nodes in this scenario, the LISP data plane nodes can be any LISP-enabled HW or SW router (commercial/open source). Install LISPmob on each of VM_2 and VM_3 following the LISPmob Installation Instructions [http://lispmob.org/documentation#installation HERE].
 
-* Step Three: Configure the LISPmob on VM_1 and VM_2 lispd.conf configuration files. Set the EID in each lispd.conf file from the IP address space selected for your virtual/LISP network. In this example VM_2 EID is set to 1.1.1.1/32 , and VM_3 EID is set to 1.1.1.2/32 . The RLOC in each lispd.conf is the IP address of the corresponding VM. In this example VM_2 RLOC is 10.33.12.37 and VM_3 RLOC is 10.33.12.44. Set the Map-Server and Map-Resolver addresses to the IP address of the VM_ODL. Modify the "key" parameter in each lispd.conf file to a key/password of your choice. In this example asdf1 and asdf2 respectively.  
+* Step Three: Configure the LISPmob on VM_1 and VM_2 lispd.conf configuration files. Set the EID in each lispd.conf file from the IP address space selected for your virtual/LISP network. In this example VM_2 EID is set to 1.1.1.1/32 , and VM_3 EID is set to 1.1.1.2/32 . Change the priority_v4 parameter for each of the lispd.conf files to a number larger than 10. The RLOC in each lispd.conf is the IP address of the corresponding VM. In this example VM_2 RLOC is 10.33.12.37 and VM_3 RLOC is 10.33.12.44. Set the Map-Server and Map-Resolver addresses to the IP address of the VM_ODL. Modify the "key" parameter in each lispd.conf file to a key/password of your choice. In this example asdf1 and asdf2 respectively.  
 
 * Step Four: Define the key and EID prefix associations in the ODL using the northbound API:
 ** Create a JSON file per each key. Here is one example for VM_2 with EID 1.1.1.1/32:
@@ -69,6 +69,74 @@ lispd -f /root/lispd.conf
 <pre>
 ping 1.1.1.2
 </pre>
+
+* You can use these basic steps to build more complex LISP networks. For instance, you can set up a third LISPmob node VM_4 for instance with IP address/RLOC 10.33.12.47, with the same EID as VM_3 making 1.1.1.2/32 a multihomed EID. All other steps are same as for VM_2 and VM_3 above. You can now adjust the weight and priority of the two RLOCs for this EID via the ODL northbound API to divert the ping traffic from VM_3 to VM_4. To do this create a JSON file similar to the following:
+<pre>
+mapping.json
+
+{ 
+"key" : "asdf2", 
+"mapregister" : 
+  { 
+  "proxyMapReply" : true, 
+  "eidToLocatorRecords" : 
+    [ 
+      { 
+      "authoritative" : true, 
+      "prefixGeneric" : 
+        { 
+        "ipAddress" : "1.1.1.2", 
+        "afi" : 1
+        },
+      "mapVersion" : 0, 
+      "maskLength" : 32, 
+      "action" : "NoAction", 
+      "locators" : 
+        [ 
+          { 
+          "locatorGeneric" : 
+            { 
+            "ipAddress" : "10.33.12.44", 
+            "afi" : 1
+            }, 
+          "priority" : 10, 
+          "weight" : 50, 
+          "multicastPriority" : 1, 
+          "routed" : true, 
+          "multicastWeight" : 50, 
+          "rlocProbed" : false, 
+          "localLocator" : false 
+          } ,
+          {
+          "locatorGeneric" :
+            {
+            "ipAddress" : "10.33.12.47",
+            "afi" : 1
+            },
+          "priority" : 5,
+          "weight" : 50,
+          "multicastPriority" : 1,
+          "routed" : true,
+          "multicastWeight" : 50,
+          "rlocProbed" : false,
+          "localLocator" : false
+          }
+        ], 
+      "recordTtl" : 5 
+      } 
+    ], 
+  "keyId" : 0 
+  } 
+}
+</pre>
+
+Here the priority of the second RLOC (10.33.12.47) is set lower than 10 originally set in previous steps VM_3 (Note "priority" : 5 for 10.33.12.47). This policy is saying this RLOC is preferred to 10.33.12.44 for reaching EID 1.1.1.2/32. Note that lower priority has higher preference in LISP. You can add this policy to ODL by executing:
+{|class = "wikitable"
+|-
+|curl --user "admin":"admin" -H "Content-type: application/json" -X PUT http://10.33.12.33:8080/lispflowmapping/nb/v2/default/mapping --data @mapping.json
+|}
+
+If you leave the ping on, and monitor the traffic using wireshark you can see that the ping traffic will be diverted from VM_3 to VM_4. Currently this may take some time as this version of the LISP Flow Mapping project does not support proactive SMR, meaning that it will wait for the LISPmob nodes to query the new policy on their periodic cycle. The proactive push of policy to the data plane nodes is scheduled to be supported in the next version of LISP Flow Mapping, to allow for immediate distribution and enforcement of policies defined via ODL northbound API.
 
 === Programmatic Interfaces ===
 The LISP Flow Mapping service Java and REST APIs are documented below:
