@@ -31,9 +31,28 @@ To install Lisp Flow Mapping project directly form the git repository please see
 
 This section provides instructions to set up a LISP network of two nodes using LISPmob as data plane LISP nodes and LISP Flow Mapping project in ODL as the LISP programmable mapping system.
 
-* Step One: 3 Linux VMs are required for this scenario. VM_1 is used to install ODL Service Provider edition. Please follow the [[Release/Hydrogen/Service Provider/Installation Guide|Service Provider Edition Installation Guide]] to install and run ODL SP edition.
+* Step One: 3 Linux VMs are required for this scenario. VM_1 is used to install ODL Service Provider edition. Please follow the [[Release/Hydrogen/Service Provider/Installation Guide|Service Provider Edition Installation Guide]] to install and run ODL SP edition. We refer to VM_1 as VM_ODL. In this example VM_ODL has 10.33.12.33 as its IP address.
 
 * Step Two: VM_2 and VM_3 are used as data plane LISP nodes. While LISPmob is used as the data plane LISP nodes in this scenario, the LISP data plane nodes can be any LISP-enabled HW or SW router (commercial/open source). Install LISPmob on each of VM_2 and VM_3 following the LISPmob Installation Instructions [http://lispmob.org/documentation#installation HERE].
+
+* Step Three: Configure the LISPmob on VM_1 and VM_2 lispd.conf configuration files. Set the EID in each lispd.conf file from the IP address space selected for your virtual/LISP network. In this example VM_2 EID is set to 1.1.1.1/32 , and VM_3 EID is set to 1.1.1.2/32 . The RLOC in each lispd.conf is the IP address of the corresponding VM. In this example VM_2 RLOC is 10.33.12.37 and VM_3 RLOC is 10.33.12.44. Set the Map-Server and Map-Resolver addresses to the IP address of the VM_ODL. Modify the "key" parameter in each lispd.conf file to a key/password of your choice. In this example asdf1 and asdf2 respectively.  
+
+* Step Four: Define the key and EID prefix associations in the ODL using the northbound API:
+Create a JSON file per each key. Here is one example for VM_2 with EID 1.1.1.1/32:
+
+
+
+
+<pre>
+ curl --user "admin":"admin" -H "Content-type: application/json" -X PUT http://10.33.12.32:8080/lispflowmapping/nb/v2/default/key --data @key1.json
+<pre>
+* Step Four: Run the lisp daemon on VM_2 and VM_3: 
+{|class = "wikitable"
+|-
+| lispd -f /root/lispd.conf
+|}
+
+* Step Five:
 
 === Programmatic Interfaces ===
 The LISP Flow Mapping service Java and REST APIs are documented below:
