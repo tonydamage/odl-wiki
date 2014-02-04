@@ -7,6 +7,16 @@
 * If next hop is found, create flow_mod and send
 * Else, flood like hub.
 
+==Processing a Packet: System View==
+The application's workflow when processing a packet is shown in the following figure.
+
+[[File:MD-SAL-Tutorial-App-Workflow.jpg]]
+
+The sequence is as follows:
+# A packet_in is sent from the switch to controller
+# The OpenFlow java library parses the packet and translates it into an MD-SAL format governed by the OpenFlow protocol model; the OpenFlow plugin creates an MD-SAL notification and publishes it into the MD-SAL.
+# MD-SAL routes the notification to all registered consumers, in this case the Learning Switch application
+# If the Learning Switch application does not yet know about floo
 
 =Building the Application=
 * '''Prerequisites:'''
@@ -103,24 +113,18 @@ and inject them into a new LearningSwitchManagerMultiImpl instance, which we the
 
 * During its startup, LearningSwitchManagerMultiImpl hooks up into MD-SAL services by:
 ** registering a new instance of PacketInDispatcherImpl as a [https://jenkins.opendaylight.org/controller/job/controller-merge/lastSuccessfulBuild/artifact/target/apidocs/org/opendaylight/controller/sal/binding/api/NotificationListener.html NotificationListener]
+** creating a FlowCommitWrapperImpl instance, which will store flow information into the Configuration data tree
+** creating a MultipleLearningSwitchHandlerFacadeImpl instance, whose function is to ensure that a single instance of LearningSwitchHandlerSimpleImpl is created for each known switch
+** creating a WakeupOnNode instance and registering it with DataBrokerService to have it notified about when FlowCapableNodes change in the inventory
+
+=== New switch activation ===
+When OpenFlow plugin discovers sees a new switch connected, it will create a new entry for it in the inventory and will start populating the inventory with the tables learned from the switch. Each such update triggers WakeupOnNode.onDataChanged() callback, which examines the inventory entry and looks for presence of a table with id == 0 (InstanceIdentifier: Nodes/Node/augmentation:FlowCapableNode/Table). As soon as it finds it, it will inform MultipleLearningSwitchHandlerFacadeImpl about the switch coming online.
+
+MultipleLearningSwitchHandlerFacadeImpl reacts to the new switch by inserting a low-priority flow, which will forward all packets to the controller, into the configuration data tree. It then notifies the per-switch LearningSwitchHandlerSimpleImpl of the location of table 0. The store operation will asynchronously trigger FRM, which will push the flow onto the switch through the OpenFlow Plugin. LearningSwitchHandlerSimpleImpl disconnects WakeupOnNode listener from the inventory node of that particular switch, so as to suppress any future notifications.
+
+From this point on the new switch is configured and the rest of the logic will only react to PacketInNotification events.
 
 
-- Bundle activator registers for:
-  - SimpleLearningSwitchHandler as PacketInNotification
-- into SimpleLearningSwitchManager injets DataBrokerService
-- starts SimpleLearningSwitchManager
-
-- SimpleLearningSwitchManager registers for:
-  - WakeupOnNode as DataChangedListener
-    (InstanceIdentifier: Nodes/Node/augmentation:FlowCapableNode/Table)
-
-- as soon as first table with id == 0 appears WakeupOnNode does following:
-  - writes flow to config context so that all packets will be forwarded to controller (low priority)
-  - notifies SimpleLearningSwitchHandler with InstanceIdentifier of the (received) table
-
-- SimpleLearningSwitchHandler does following during this notification:
-  - stores info about table and node
-  - closes registration [WakeupOnNode as DataChangedListener] in order not to get notified again
 
 - now only PacketInNotification event may occur
   - SimpleLearningSwitchHandler reads source and destination MAC and stores ingress port + source MAC into map
