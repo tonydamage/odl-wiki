@@ -7,6 +7,16 @@
 * If next hop is found, create flow_mod and send
 * Else, flood like hub.
 
+==Processing a Packet: System View==
+The application's workflow when processing a packet is shown in the following figure.
+
+[[File:MD-SAL-Tutorial-App-Workflow.jpg]]
+
+The sequence is as follows:
+# A packet_in is sent from the switch to controller
+# The OpenFlow java library parses the packet and translates it into an MD-SAL format governed by the OpenFlow protocol model; the OpenFlow plugin creates an MD-SAL notification and publishes it into the MD-SAL.
+# MD-SAL routes the notification to all registered consumers, in this case the Learning Switch application
+# If the Learning Switch application does not yet know about floo
 
 =Building the Application=
 * '''Prerequisites:'''
@@ -114,10 +124,9 @@ MultipleLearningSwitchHandlerFacadeImpl reacts to the new switch by inserting a 
 
 From this point on the new switch is configured and the rest of the logic will only react to PacketInNotification events.
 
+=== Processing a PacketInNotification ===
+When a PacketIn occurs, LearningSwitchHandlerSimpleImpl.onPacketReceived() triggers. It examines the packet's source and destination MAC address and creates the source MAC to ingress port mapping. It then checks if the destination MAC has a port mapping defined.
 
-
-- now only PacketInNotification event may occur
-  - SimpleLearningSwitchHandler reads source and destination MAC and stores ingress port + source MAC into map
   - if the map contains destination MAC
     - check if covering flow already exists (if yes, it is not working)
     - else:
