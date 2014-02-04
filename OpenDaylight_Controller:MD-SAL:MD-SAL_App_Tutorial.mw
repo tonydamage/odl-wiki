@@ -8,7 +8,7 @@
 * Else, flood like hub.
 
 
-==Building the Application==
+=Building the Application=
 * '''Prerequisites:'''
 ** Java 7, Maven 3.0.5 or later, Linux or Mac
 
@@ -29,7 +29,7 @@
 Prerequisites: Install maven plugin for Eclipse
 
 
-==Preparing the Controller:==
+=Setting up the Environment=
 * '''Prerequisites:'''
 ** Java 7, Linux or Mac
 ** [https://www.dropbox.com/s/t66vqfqx57a7nhk/mininet-2.1.0-of1.3.zip Mininet 2.1 with OpenFlow 1.3]
@@ -48,7 +48,7 @@ Prerequisites: Install maven plugin for Eclipse
 <logger name="org.opendaylight.openflowplugin.learningswitch" level="TRACE"/>
 </pre>
 
-== Running the App==
+=Starting up the Environment=
 * Run the controller:
 <pre>
 > ./run.sh -of13
@@ -83,6 +83,28 @@ osgi>
 
 =Running the App=
 ==Workflow==
+
+=== Learning switch startup ===
+
+* The bundle activator, org.opendaylight.openflowplugin.learningswitch.Activator is using [https://jenkins.opendaylight.org/controller/job/controller-merge/lastSuccessfulBuild/artifact/target/apidocs/org/opendaylight/controller/sal/binding/api/AbstractBindingAwareConsumer.html AbstractBindingAwareConsumer] as its activator base, which registers with OSGi and waits for MD-SAL to get initialized and fires off [https://jenkins.opendaylight.org/controller/job/controller-merge/lastSuccessfulBuild/artifact/target/apidocs/org/opendaylight/controller/sal/binding/api/BindingAwareConsumer.html#onSessionInitialized(org.opendaylight.controller.sal.binding.api.BindingAwareBroker.ConsumerContext) onSessionInitialized()]. 
+
+ public class Activator extends AbstractBindingAwareConsumer implements AutoCloseable {
+     @Override
+     public void onSessionInitialized(ConsumerContext session) {
+         [...]
+     }
+ }
+
+* Once MD-SAL is online, we get references to the following services registered with MD-SAL:
+** [https://jenkins.opendaylight.org/controller/job/controller-merge/lastSuccessfulBuild/artifact/target/apidocs/org/opendaylight/controller/sal/binding/api/data/DataBrokerService.html DataBrokerService]
+** [https://jenkins.opendaylight.org/controller/job/controller-merge/lastSuccessfulBuild/artifact/target/apidocs/org/opendaylight/controller/sal/binding/api/NotificationService.html NotificationService]
+** PacketProcessingService
+and inject them into a new LearningSwitchManagerMultiImpl instance, which we then start.
+
+* During its startup, LearningSwitchManagerMultiImpl hooks up into MD-SAL services by:
+** registering a new instance of PacketInDispatcherImpl as a [https://jenkins.opendaylight.org/controller/job/controller-merge/lastSuccessfulBuild/artifact/target/apidocs/org/opendaylight/controller/sal/binding/api/NotificationListener.html NotificationListener]
+
+
 - Bundle activator registers for:
   - SimpleLearningSwitchHandler as PacketInNotification
 - into SimpleLearningSwitchManager injets DataBrokerService
@@ -116,7 +138,6 @@ osgi>
 ... take some time ...
 
 - now all packets should be managed by flows on switch and none should be sent to controller
-
 
 ==Testing scenario==
 - build distribution/base
