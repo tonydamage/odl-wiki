@@ -1,1 +1,58 @@
+=Building the App=
 
+=Running the App=
+==Workflow==
+- Bundle activator registers for:
+  - SimpleLearningSwitchHandler as PacketInNotification
+- into SimpleLearningSwitchManager injets DataBrokerService
+- starts SimpleLearningSwitchManager
+
+- SimpleLearningSwitchManager registers for:
+  - WakeupOnNode as DataChangedListener
+    (InstanceIdentifier: Nodes/Node/augmentation:FlowCapableNode/Table)
+
+- as soon as first table with id == 0 appears WakeupOnNode does following:
+  - writes flow to config context so that all packets will be forwarded to controller (low priority)
+  - notifies SimpleLearningSwitchHandler with InstanceIdentifier of the (received) table
+
+- SimpleLearningSwitchHandler does following during this notification:
+  - stores info about table and node
+  - closes registration [WakeupOnNode as DataChangedListener] in order not to get notified again
+
+- now only PacketInNotification event may occur
+  - SimpleLearningSwitchHandler reads source and destination MAC and stores ingress port + source MAC into map
+  - if the map contains destination MAC
+    - check if covering flow already exists (if yes, it is not working)
+    - else:
+      - create flow so that packets from source MAC to destination MAC will use corresponding port
+      - create second flow working the other way around)
+    - stores MAC addresses covered by flows so that the same flow won't be created again
+
+  - uses flood to deliver packet 
+    (if flow was created -> flooded last time for this source/destination MAC combination)
+        (else this is the only way to deliver packet)
+
+... take some time ...
+
+- now all packets should be managed by flows on switch and none should be sent to controller
+
+
+==Testing scenario==
+- build distribution/base
+- remove plugins/org.opendaylight.controller.samples.simpleforwarding-*-SNAPSHOT.jar
+- copy simple learning jar into plugins folder
+- start controller (run.sh)
+- start wireshark
+- start mininet+(ovs(OF-1.0|OF-1.3)|cpqd)
+  - ovs(OF-1.0) : sudo mn --topo single,10  --controller 'remote,ip=10.0.42.5,port=6633' --switch ovsk,protocols=OpenFlow10
+  - ovs(OF-1.3) : sudo mn --topo single,10  --controller 'remote,ip=10.0.42.5,port=6633' --switch ovsk,protocols=OpenFlow13
+  - cpqd        : sudo mn --topo single,10  --controller 'remote,ip=10.0.42.5,port=6633' --mac --switch user
+- observe wireshark, wait for flow_mod message
+- check if flow is pushed to switch 
+  - ovs(OF1.0): sudo ovs-ofctl -O OpenFlow10 dump-flows s1
+  - ovs(OF1.3): sudo ovs-ofctl -O OpenFlow13 dump-flows s1
+  - cpqd      : sudo dpctl unix:/tmp/s1 stats-flow
+- in mininet enter: 
+  - h1 ping h2
+  - pingall
+- observe ws, flows ..
