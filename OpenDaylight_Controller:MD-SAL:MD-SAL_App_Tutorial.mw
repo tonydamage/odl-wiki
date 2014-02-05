@@ -170,22 +170,9 @@ MultipleLearningSwitchHandlerFacadeImpl reacts to the new switch by inserting a 
 From this point on the new switch is configured and the rest of the logic will only react to PacketInNotification events.
 
 === Processing a PacketInNotification ===
-When a PacketIn occurs, LearningSwitchHandlerSimpleImpl.onPacketReceived() triggers. It examines the packet's source and destination MAC address and creates the source MAC to ingress port mapping. It then checks if the destination MAC has a port mapping defined.
+When a PacketIn occurs, LearningSwitchHandlerSimpleImpl.onPacketReceived() triggers. It examines the packet's source and destination MAC address and creates the source MAC to ingress port mapping. It then checks if the destination MAC has a port mapping defined. If it does not, it floods the packet to all ports. If it there is a mapping, it will check if a flow has been created to cover this packet's path towards the port where the destination MAC was seen. If not, it creates a flow. In either case it forwards the packet through the destination port. This is necessary because flow installation has a latency during which we should not be losing packets.
 
-  - if the map contains destination MAC
-    - check if covering flow already exists (if yes, it is not working)
-    - else:
-      - create flow so that packets from source MAC to destination MAC will use corresponding port
-      - create second flow working the other way around)
-    - stores MAC addresses covered by flows so that the same flow won't be created again
-
-  - uses flood to deliver packet 
-    (if flow was created -> flooded last time for this source/destination MAC combination)
-        (else this is the only way to deliver packet)
-
-... take some time ...
-
-- now all packets should be managed by flows on switch and none should be sent to controller
+After starting injecting packets, you should see a gradual drop in the number of packets being sent to the controller as it builds up the flows to cover the traffic hitting the switches.
 
 ==The Testing Scenario==
 - build distribution/base
@@ -206,3 +193,6 @@ When a PacketIn occurs, LearningSwitchHandlerSimpleImpl.onPacketReceived() trigg
   - h1 ping h2
   - pingall
 - observe ws, flows ..
+
+=Related Presentations=
+* [http://wiki.opendaylight.org/view/File:Os2014-md-sal-tutorial.pdf|2014 OpenDaylight Summit presentation]
