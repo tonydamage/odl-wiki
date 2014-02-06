@@ -21,73 +21,16 @@ This tutorial is for developers, those learning the OpenDaylight controller or j
 * Attach ports to a datapath (bridge). In mininet this will create a link between two emulated switches.
 * Add/modify/delete the OVSDB manager and the OpenFlow controller managing the OVS implementation.
 
-== Clone the OVSDB Repo and Insert into Controller ==
+== Pull the ODL Virtualization Distribution ==
 
+ curl -O http://nexus.opendaylight.org/content/repositories/opendaylight.release/org/opendaylight/integration/distributions-virtualization/0.1.1/distributions-virtualization-0.1.1-osgipackage.zip
+ cd opendaylight
+ ./run.sh
 
-Pull the entire controller first and then clone the OVSDB directory:
+== Download a Test VM or Mininet ==
 
-<pre>git clone https://git.opendaylight.org/gerrit/p/controller.git
-cd controller
-mvn clean install
-cd opendaylight
-git clone https://git.opendaylight.org/gerrit/p/ovsdb.git
-cd ovsdb/neutron
-mvn clean install
-cp target/ovsdb*jar ../../distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/plugins/
-cd ../northbound/ovsdb/
-mvn clean install
-cp target/ovsdb*jar ../../../distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/plugins/
-cd ../../ovsdb
-mvn clean install
-cp target/ovsdb*jar ../../distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/plugins/
-cd ..
-../../distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/run.sh</pre>
-
-or you can use this script after the controller is built.
-
-<pre>git clone https://git.opendaylight.org/gerrit/p/controller.git
-cd controller
-mvn clean install
-cd opendaylight
-git clone https://git.opendaylight.org/gerrit/p/ovsdb.git
-cd ovsdb</pre>
-Once completed with the controller build, paste the following lame little script into your console. If it is the first time you may need to adjust the sleep values or run by hand depending on the amount of artifacts requiring download. Again, this is for dev. We will crank out better installers as time permits.
-<pre> touch makemvn.sh
-echo '#!/bin/bash
-cd neutron
-echo "Refreshing ovsdb/neutron.."
-pwd
-mvn clean install
-sleep 40
-cp target/ovsdb*jar ../../distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/plugins/
-cd ../northbound/ovsdb/
-echo "Refreshing northbound/ovsdb.. "
-pwd
-mvn clean install
-sleep 40
-cp target/ovsdb*jar ../../../distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/plugins/
-cd ../../ovsdb
-echo "Refreshing ovsdb/ovsdb.."
-pwd
-mvn clean install
-sleep 40
-cp target/ovsdb*jar ../../distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/plugins/
-cd ..
-echo "done!"
-pwd' > makemvn.sh
-chmod +x makemvn.sh
-. ./makemvn.sh</pre>
-
-Finally if you only want to run the distribution with OVSDB integrated clone the following and build either the "Base" or "Virtualization" directories.
-<pre>git clone https://git.opendaylight.org/gerrit/integration
-#Choose your build base or virtualization be
- changing to those directories and run:
-integration/distributions/ {base or virtualization} 
-mvn clean install
-cd integration/distributions/virtualization/target/generated-resources/opendaylight
-./run.sh</pre>
-
-== Download Mininet ==
+*Download pre-built ODL VM
+[http://www.opendaylight.org/software/downloads OpenDaylight Image Downloads]
 
 *Download Mininet
 [http://mininet.org/download/ Mininet.org]
@@ -116,7 +59,7 @@ This configuration in the OVS client will appear as follows:
 2. ''Active Manager'' - The OVS element can be set to attach to an active Daylight management controller. In this model, the controller is listening on a specified port. The IANA registered port for OVS is 6640.
 <pre>sudo ovs-vsctl set-manager tcp:192.168.254.128:6640</pre>
 
-After the host is connected to the controller. The OVS configuration will reflect the established connection with a bolean value in the "Manager" table in the "is_connected" column of "true".
+After the host is connected to the controller. The OVS configuration will reflect the established connection with a boolean value in the "Manager" table in the "is_connected" column of "true".
 
 <pre>root@mininet-vm:~# ovs-vsctl show
 987c42d0-eab0-43d9-a32b-4246973706c2
