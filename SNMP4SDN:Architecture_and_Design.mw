@@ -79,11 +79,11 @@ public interface IConfigService {
 }
 </pre>
 
-Then, IConfigService is implemented in ConfigService. ConfigService is to retrieve parameters from Node, NodeConnector, and CmethUtil (a record of CLI username, password, etc), and passes the parameters to CLIHandler. Vendor specific processing is implementated in CLIHandler.  Then CLIHandler calls ExpectHandler to send out the CLI command to the switch. Parts of ConfigService  and CLIHandler are as follows.
+Then, IConfigService is implemented in ConfigService. ConfigService is to retrieve parameters from Node, NodeConnector, and CmethUtil (CmethUtil maintains every switch's CLI username, password, etc), and passes the parameters to CLIHandler. Vendor specific implementation is processed in CLIHandler.  Then CLIHandler calls ExpectHandler to send out the CLI command to the switch. Parts of ConfigService and CLIHandler are as follows.
 
 <pre>
 package org.opendaylight.snmp4sdn.internal;
-public class ConfigService implements IConfigService, CommandProvider{
+public class ConfigService implements IConfigService{
     Controller controller = null;
     CLIHandler cli = null;
 
@@ -112,6 +112,8 @@ public class ConfigService implements IConfigService, CommandProvider{
 }
 </pre>
 
+In CLIHandler, vendor specific implementation is processed here. For example, in the CLIHandler(), ExpectHandler is called, given the prompt string. In disableBpduFlooding(), the CLI command string "config stp fbpdu disable" is given, and check whether the switch's respond string contains a substring "Success".
+
 <pre>
 package org.opendaylight.snmp4sdn.internal;
 import org.opendaylight.snmp4sdn.internal.ExpectHandler;
@@ -124,30 +126,28 @@ public class CLIHandler{
         this.username = new String(username);
         this.password = new String(password);
         try{
-            expect = new ExpectHandler(sw_ipAddr, "UserName:", "PassWord:", username, password);//d-link:UserName,PassWord  Accton:Username, Password
+            expect = new ExpectHandler(sw_ipAddr, "UserName:", "PassWord:", username, password);//D-Link DGS-3120 switch's prompt for login: "UserName:" to prompt for username, and "PassWord" to prompt for password
         }catch(Exception e){
-            System.out.println("CLIHandler() err:" + e);
+            logger.warn("CLIHandler() err:" + e);
         }
     }
 
     public Status disableSTP(){
         try{
-            System.out.println("disableSTP...");
             if(expect.execute("disable stp", "#", "Success"))
                 return new Status(StatusCode.SUCCESS);
         }catch(Exception e){
-            System.out.println("CLIHandler.disableSTP() err:" + e);
+            logger.warn("CLIHandler.disableSTP() err:" + e);
         }
         return new Status(StatusCode.INTERNALERROR);
     }
 
     public Status disableBpduFlooding(){
         try{
-            System.out.println("disableBpduFlooding()...");
             if(expect.execute("config stp fbpdu disable", "#", "Success"))
                 return new Status(StatusCode.SUCCESS);
         }catch(Exception e){
-            System.out.println("CLIHandler.disableBpduFlooding() err:" + e);
+            logger.warn("CLIHandler.disableBpduFlooding() err:" + e);
         }
         return new Status(StatusCode.INTERNALERROR);
     }
