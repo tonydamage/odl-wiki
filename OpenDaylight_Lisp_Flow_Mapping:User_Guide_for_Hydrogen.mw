@@ -36,121 +36,35 @@ To install Lisp Flow Mapping project directly form the git repository please see
 You can find the ODL summit presentation slides which provides and overview of LISP, and a couple of demo scenarios at the [http://events.linuxfoundation.org/events/opendaylight-summit/program/slides ODL Summit page].
 
 === Tutorial ===
-This section provides instructions to set up a LISP network of two nodes using LISPmob as data plane LISP nodes and LISP Flow Mapping project in ODL as the LISP programmable mapping system.
+This section provides instructions to set up a LISP network of three nodes (one "client" node and two "server" nodes) using LISPmob and Open vSwitch (OVS) as data plane LISP nodes and the LISP Flow Mapping project from ODL as the LISP programmable mapping system for the LISP network.  The steps shown below will demonstrate performing a failover between the two "server" nodes.  The three LISP data plane nodes and the LISP mapping system are assumed to be running in Linux virtual machines using the following IPv4 addresses on their <code>eth0</code> interfaces (please adjust configuration files, JSON examples, etc. accordingly if you're using another addressing scheme):
+ controller     10.33.12.32        OpenDaylight
+ client         10.33.12.35        LISPmob
+ server1        10.33.12.37        LISPmob
+ server2        10.33.12.44        Open vSwitch
 
-* Step One: 3 Linux VMs are required for this scenario. VM_1 is used to install ODL Service Provider edition. Please follow the [[Release/Hydrogen/Service Provider/Installation Guide|Service Provider Edition Installation Guide]] to install and run ODL SP edition. We refer to VM_1 as VM_ODL. In this example VM_ODL has 10.33.12.33 as its IP address.
+''Note: while the tutorial uses LISPmob and OVS as the data plane, they could be any LISP-enabled HW or SW router (commercial/open source).''
 
-* Step Two: VM_2 and VM_3 are used as data plane LISP nodes. While LISPmob is used as the data plane LISP nodes in this scenario, the LISP data plane nodes can be any LISP-enabled HW or SW router (commercial/open source). Install LISPmob on each of VM_2 and VM_3 following the LISPmob Installation Instructions [http://lispmob.org/documentation#installation HERE].
+<blockquote>The below steps are using the command line tool cURL to talk to the LISP Flow Mapping northbound REST API.  This is so that you can see the actual request URLs and body content on the page.  However, it is much more convenient to use the Postman Chrome browser extension to edit and send the requests.  The project git repository hosts a collection of the requests that are used in this tutorial in the <tt>resources/tutorial/ODL_Summit_LISP_Demo.json</tt> file.  You can import this file by following ''Collections-->Import a collection-->Import from URL'' and then entering the following link: NEED DIRECT LINK!  You will need to define some variables to point to the controller.</blockquote>
 
-* Step Three: Configure the LISPmob on VM_1 and VM_2 lispd.conf configuration files. Set the EID in each lispd.conf file from the IP address space selected for your virtual/LISP network. In this example VM_2 EID is set to 1.1.1.1/32 , and VM_3 EID is set to 1.1.1.2/32 . Change the priority_v4 parameter for each of the lispd.conf files to a number larger than 10. Set the RLOC interface in each lispd.conf. LISP will determine the RLOC (IP address of the corresponding VM) based on this interface. In this example VM_2 RLOC is 10.33.12.37 and VM_3 RLOC is 10.33.12.44. Set the Map-Server and Map-Resolver addresses to the IP address of the VM_ODL. Modify the "key" parameter in each lispd.conf file to a key/password of your choice. In this example asdf1 and asdf2 respectively.  
-
-* Step Four: Define the key and EID prefix associations in the ODL using the northbound API:
-** Create a JSON file per each key. Here is one example for VM_2 with EID 1.1.1.1/32:
-<pre>
-key1.json
- 
-{ 
-"key" : "asdf1", 
-"maskLength" : 32, 
-"address" : 
-  { 
-  "ipAddress" : "1.1.1.1", 
-  "afi" : 1
-  }
-}
-</pre>
-
-** Add the key in ODL:
-{|class = "wikitable"
-|-
-|curl --user "admin":"admin" -H "Content-type: application/json" -X PUT http://10.33.12.33:8080/lispflowmapping/nb/v2/default/key --data @key1.json
-|}
-** You can verify that the key is added properly by requesting the following URL:
-<pre>
-http://10.33.12.33:8080/lispflowmapping/nb/v2/default/key/0/1/1.1.1.1/32
-</pre>
-** Similarly create a key2.json and add that to ODL as well.
-* Step Five: Run the lisp daemon on VM_2 and VM_3: 
-<pre>
-lispd -f /root/lispd.conf
-</pre>
-* Step Six: The two LISPmob nodes should now register their EID-to-RLOC mappings in ODL. To verify you can lookup the corresponding EIDs via the northbound API:
-<pre>
-http://10.33.12.33:8080/lispflowmapping/nb/v2/default/mapping/0/1/1.1.1.1/32
-http://10.33.12.33:8080/lispflowmapping/nb/v2/default/mapping/0/1/1.1.1.2/32
-</pre>
-* Step Seven: Now the LISP network is up. To verify, log into VM_2 and ping the EID of VM_3 from VM_2:
-<pre>
-ping 1.1.1.2
-</pre>
-
-* You can use these basic steps to build more complex LISP networks. For instance, you can set up a third LISPmob node VM_4 for instance with IP address/RLOC 10.33.12.47, with the same EID as VM_3 making 1.1.1.2/32 a multihomed EID. All other steps are same as for VM_2 and VM_3 above. You can now adjust the weight and priority of the two RLOCs for this EID via the ODL northbound API to divert the ping traffic from VM_3 to VM_4. To do this create a JSON file similar to the following:
-<pre>
-mapping.json
-
-{ 
-"key" : "asdf2", 
-"mapregister" : 
-  { 
-  "proxyMapReply" : true, 
-  "eidToLocatorRecords" : 
-    [ 
-      { 
-      "authoritative" : true, 
-      "prefixGeneric" : 
-        { 
-        "ipAddress" : "1.1.1.2", 
-        "afi" : 1
-        },
-      "mapVersion" : 0, 
-      "maskLength" : 32, 
-      "action" : "NoAction", 
-      "locators" : 
-        [ 
-          { 
-          "locatorGeneric" : 
-            { 
-            "ipAddress" : "10.33.12.44", 
-            "afi" : 1
-            }, 
-          "priority" : 10, 
-          "weight" : 50, 
-          "multicastPriority" : 1, 
-          "routed" : true, 
-          "multicastWeight" : 50, 
-          "rlocProbed" : false, 
-          "localLocator" : false 
-          } ,
-          {
-          "locatorGeneric" :
-            {
-            "ipAddress" : "10.33.12.47",
-            "afi" : 1
-            },
-          "priority" : 5,
-          "weight" : 50,
-          "multicastPriority" : 1,
-          "routed" : true,
-          "multicastWeight" : 50,
-          "rlocProbed" : false,
-          "localLocator" : false
-          }
-        ], 
-      "recordTtl" : 5 
-      } 
-    ], 
-  "keyId" : 0 
-  } 
-}
-</pre>
-
-Here the priority of the second RLOC (10.33.12.47) is set lower than 10 originally set in previous steps VM_3 (Note "priority" : 5 for 10.33.12.47). This policy is saying this RLOC is preferred to 10.33.12.44 for reaching EID 1.1.1.2/32. Note that lower priority has higher preference in LISP. You can add this policy to ODL by executing:
-{|class = "wikitable"
-|-
-|curl --user "admin":"admin" -H "Content-type: application/json" -X PUT http://10.33.12.33:8080/lispflowmapping/nb/v2/default/mapping --data @mapping.json
-|}
-
+Follow the steps below for the tutorial. It is assumed that commands are executed as the ''root'' user.  If you just want a basic LISP setup (no fail-over) and prefer to avoid dealing with OVS, you can skip step 7.
+# Install and run ODL Service Provider edition on the '''controller''' VM. Please follow the [[Release/Hydrogen/Service Provider/Installation Guide|Service Provider Edition Installation Guide]] for details on how to do this.
+# Install LISPmob on the '''client''' and '''server1''' VMs following the installation instructions [http://lispmob.org/documentation#installation here].
+# Configure the LISPmob installations from the previous step.  Starting from the ''lispd.conf.example'' file in the distribution, set the EID in each lispd.conf file from the IP address space selected for your virtual/LISP network. In this tutorial the '''client''''s EID is set to <tt>1.1.1.1/32</tt>, and that of '''server1''' to <tt>2.2.2.2/32</tt>.  Set the RLOC interface in each ''lispd.conf''. LISP will determine the RLOC (IP address of the corresponding VM) based on this interface.  Set the Map-Resolver address to the IP address of the '''controller''', and on the '''client''' the Map-Server too.  On '''server1''' set the Map-Server to something else, so that it doesn't interfere with the mappings on the controller, since we're going to program them manually. Modify the "key" parameter in each ''lispd.conf'' file to a key/password of your choice, <tt>asdf</tt> in this tutorial.  The <tt>resources/tutorial</tt> directory in the ''develop'' branch of the project git repository has the files used in the tutorial checked in: [https://git.opendaylight.org/gerrit/gitweb?p=lispflowmapping.git;a=tree;f=resources/tutorial;hb=refs/heads/develop lispd.conf.client] and [https://git.opendaylight.org/gerrit/gitweb?p=lispflowmapping.git;a=tree;f=resources/tutorial;hb=refs/heads/develop lispd.conf.server1].  Copy the files to <tt>/root/lispd.conf</tt> on the respective VMs.
+# Define a key and EID prefix association in ODL using the northbound API for both EIDs (1.1.1.1/32 and 2.2.2.2/32). <pre>curl -u "admin":"admin" -H "Content-type: application/json" -X PUT \&#10;    http://10.33.12.32:8080/lispflowmapping/nb/v2/default/key --data @key1.json&#10;curl -u "admin":"admin" -H "Content-type: application/json" -X PUT \&#10;    http://10.33.12.32:8080/lispflowmapping/nb/v2/default/key --data @key2.json</pre> where the content of the key1.json and key2.json files is the following (with different "ipAddress"): <pre>{&#10;"key" : "asdf",&#10;"maskLength" : 32,&#10;"address" :&#10;  {&#10;  "ipAddress" : "1.1.1.1",&#10;  "afi" : 1&#10;  }&#10;}</pre>
+# Verify that the key is added properly by requesting the following URL: <pre>curl -u "admin":"admin" http://10.33.12.32:8080/lispflowmapping/nb/v2/default/key/0/1/1.1.1.1/32&#10;curl -u "admin":"admin" http://10.33.12.32:8080/lispflowmapping/nb/v2/default/key/0/1/2.2.2.2/32</pre>
+# Run the <tt>lispd</tt> LISPmob daemon on the '''client''' and '''server1''' VMs: <pre>lispd -f /root/lispd.conf</pre>
+# Set up the OVS environment on '''server2''':
+## Start the ovsdb-server and ovs-vswitchd daemons (or check that your distribution's init scripts already started them)
+## Start listening for OVSDB manager connections on the standard 6640 TCP port: <pre>ovs-vsctl set-manager "ptcp:6640"</pre>
+## Create a TAP port for communications with the guest VM (we'll have another VM inside the '''server2''' VM, that will be set up with the 2.2.2.2/32 EID): <pre>tunctl -t tap0&#10;ifconfig tap0 up</pre>
+## Start the guest VM: <pre>mod probe kvm&#10;kvm -daemonize -m 128 -net nic,macaddr=00:00:0C:15:C0:A1 \&#10;    -net tap,ifname=tap0,script=no,downscript=no \&#10;    -drive file=ubuntu.12-04.x86-64.20120425.static_ip_2.2.2.2.qcow2 -vnc :0</pre>
+# The '''client''' LISPmob node should now register its EID-to-RLOC mapping in ODL. To verify you can lookup the corresponding EIDs via the northbound API: <pre>curl -u "admin":"admin" http://10.33.12.32:8080/lispflowmapping/nb/v2/default/mapping/0/1/1.1.1.1/32</pre>
+# Register the EID-to-RLOC mapping of the server EID 2.2.2.2/32 to the controller, pointing to '''server1''' and '''server2''' with a higher priority for '''server1''':<pre>{&#10;"key" : "asdf",&#10;"mapregister" :&#10;  {&#10;  "proxyMapReply" : true,&#10;  "eidToLocatorRecords" :&#10;    [&#10;      {&#10;      "authoritative" : true,&#10;      "prefixGeneric" :&#10;        {&#10;        "ipAddress" : "2.2.2.2",&#10;        "afi" : 1&#10;        },&#10;      "mapVersion" : 0,&#10;      "maskLength" : 32,&#10;      "action" : "NoAction",&#10;      "locators" :&#10;        [&#10;          {&#10;          "multicastPriority" : 1,&#10;          "locatorGeneric" :&#10;            {&#10;            "ipAddress" : "10.33.12.37",&#10;            "afi" : 1&#10;            },&#10;          "routed" : true,&#10;          "multicastWeight" : 0,&#10;          "rlocProbed" : false,&#10;          "localLocator" : false,&#10;          "priority" : 126,&#10;          "weight" : 1&#10;          } ,&#10;          {&#10;          "multicastPriority" : 1,&#10;          "locatorGeneric" :&#10;            {&#10;            "ipAddress" : "10.33.12.44",&#10;            "afi" : 1&#10;            },&#10;          "routed" : true,&#10;          "multicastWeight" : 0,&#10;          "rlocProbed" : false,&#10;          "localLocator" : false,&#10;          "priority" : 127,&#10;          "weight" : 1&#10;          }&#10;        ],&#10;      "recordTtl" : 5&#10;      }&#10;    ],&#10;  "keyId" : 0&#10;  }&#10;}&#10;</pre> Here the priority of the second RLOC (10.33.12.44 - '''server2''') is 127, a higher numeric value than the priority of 10.33.12.37, which is 126. This policy is saying that '''server1''' is preferred to '''server2''' for reaching EID 2.2.2.2/32. Note that lower priority has higher preference in LISP.
+# Verify the correct registration of the 2.2.2.2/32 EID: <pre>curl -u "admin":"admin" http://10.33.12.32:8080/lispflowmapping/nb/v2/default/mapping/0/1/2.2.2.2/32</pre>
+# Now the LISP network is up. To verify, log into the '''client''' VM and ping the server EID:<pre>ping 2.2.2.2</pre>
+<!---
 If you leave the ping on, and monitor the traffic using wireshark you can see that the ping traffic will be diverted from VM_3 to VM_4. Currently this may take some time as this version of the LISP Flow Mapping project does not support proactive SMR, meaning that it will wait for the LISPmob nodes to query the new policy on their periodic cycle. The proactive push of policy to the data plane nodes is scheduled to be supported in the next version of LISP Flow Mapping, to allow for immediate distribution and enforcement of policies defined via ODL northbound API.
+--->
 
 === Programmatic Interfaces ===
 The LISP Flow Mapping service Java and REST APIs are documented below:
