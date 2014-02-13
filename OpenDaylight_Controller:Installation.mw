@@ -14,11 +14,17 @@ OpenDaylight Controller runs in a JVM. Being a Java application, it can potentia
 OpenDaylight Controller has not been tested in other environments.
 
 =Installing OpenDaylight Controller=
-:1. You have two options for obtaining the OpenDaylight Controller code:
-:* Download and extract the OpenDaylight Controller zip file ([https://jenkins.opendaylight.org/controller/job/controller-merge/lastSuccessfulBuild/artifact/opendaylight/distribution/opendaylight/target/  latest build]). 
-:* Pulling the code [[OpenDaylight Controller:Pulling, Hacking, and Pushing the Code from the CLI|via git]].
-: Prerequisite: JVM 1.7+ (JAVA_HOME should be set to environment)
-: The source code of the OpenDaylight Controller is in a directory called '''opendaylight'''. In this directory (usually the distribution/opendaylight/target/distribution.opendaylight-0.1.0-SNAPSHOT-osgipackage/opendaylight) you will see the following files:
+There are two options for obtaining the OpenDaylight Controller code. Option #1 is the easiest for 
+beginners to download the prebuilt current build. Option #2 is more advanced by building the modules on your machine.
+
+=='''Option #1 (Beginner)'''==
+
+Download the latest build of controller already built to have running in a couple of steps:
+:* Download and extract the OpenDaylight Controller zip file ([https://jenkins.opendaylight.org/controller/job/controller-merge/lastSuccessfulBuild/artifact/opendaylight/distribution/opendaylight/target/  latest OpenDaylight Controller build]). 
+:* Prerequisite: JVM 1.7+ (JAVA_HOME should be set to environment)
+:* The Java JDK can be [http://docs.oracle.com/javase/7/docs/webnotes/install/ download here].
+'''Download and Run the controller'''
+:* The source code of the OpenDaylight Controller is in a directory called '''opendaylight'''. In this directory (the coresponding directory in the git repository is usually the distribution/opendaylight/target/distribution.opendaylight-0.1.0-SNAPSHOT-osgipackage/opendaylight), you will see the following files:
 :*'''run.sh''' — launches the OpenDaylight Controller on Linux/Unix systems
 :*'''run.bat''' — launches OpenDaylight Controller on Windows systems
 :*'''version.properties''' — indicates the build version
@@ -29,21 +35,81 @@ OpenDaylight Controller has not been tested in other environments.
 :3. Navigate to '''http://'''''controller-ip''''':8080''' to open the web interface, then use the following credentials to log in:
 :* User: '''admin'''
 :* Password: '''admin'''
+
+=='''Option #2 (Advanced)'''==
+
+To build the controller from source by pulling from the git repository, please see the developer section in [[OpenDaylight Controller:Pulling, Hacking, and Pushing the Code from the CLI| Pulling, Hacking, and Pushing the Code from the CLI]].
+
 [[Image:Login.jpg|700px]]
 
 =Troubleshooting=
 :1. Out of memory error - java.lang.OutOfMemoryError: PermGen space:
 :* Can be resolved by setting maven options: 
 
-<pre>MAVEN_OPTS="-Xmx1024m -XX:MaxPermSize=256m"
+Increase the amount of memory by changing the "MAVEN_OPTS" ENV variable.
+An example for a Bash shell is as follows:
+<pre>export MAVEN_OPTS="-Xmx1024m -XX:MaxPermSize=512m"
 /* syntax for setting varies on the OS used by the build machine. */</pre>
 
- An example on a Linux based machine or a Mac you simply put "export" before the variable. e.g. export MAVEN_OPTS="-Xmx1024m -XX:MaxPermSize=256m" (parentheses around the value after the equals sign). That ENV variable is not persistent unless you put it into a shell startup script. In Linux for example the ~/.bashrc file and Mac the ~/.bash_profile file.
+You can verify the variable is set with the following in a Bash shell.
+<pre>$ export | grep MAVEN_OPTS
+declare -x MAVEN_OPTS="-Xmx1024m -XX:MaxPermSize=512m"</pre>
 
-:2. If you receive a Maven error when building northbound integration tests that will also state "java.lang.OutOfMemoryError: PermGen space:" you can skip building those tests running the following:
+<pre> An example on a Linux based machine or a Mac you simply put "export" before
+ the variable. e.g. export MAVEN_OPTS="-Xmx1024m -XX:MaxPermSize=512m"
+ (parentheses around the value after the equals sign). That ENV variable is not 
+persistent unless you put it into a shell startup script. In Linux for example 
+the ~/.bashrc file and Mac the ~/.bash_profile file.</pre>
+
+:2. If you receive a Maven error when building northbound 
+integration tests that will also state "java.lang.OutOfMemoryError:
+ PermGen space:" you can skip building those tests running the following:
 
 <pre>mvn clean install -DskipTests 
 /* instead of "mvn clean install" */</pre>
+
+:3 GetLocalHost() failure on MacOS and java7u5 
+
+If you see the following message when running the controller you have stumbled on a Java bug for MacOS:
+
+ "Failed to get local hostname java.net.UnknownHostException: repenno-mac: repenno-mac: nodename nor servname provided, or not known" 
+
+This is a known bug that has plagued Java for Macos for some time. For reference:
+
+http://bugs.java.com/bugdatabase/view_bug.do?bug_id=7180557
+
+http://blog.leon-rosenberg.net/2012/08/oracle-kills-getlocalhost-on-macos-x-in.html
+
+First try adding an extra line to edit /etc/hosts like:
+
+<pre>
+127.0.0.1 <your-host-name>
+</pre>
+
+But in some systems this is not enough. The <your-host-name> needs to be the same you get as the output of scutil. 
+
+For example, a good output of scutil assuming the host name is <sailing-mac> is:
+
+<pre>
+
+sailing-mac:controller repenno$ scutil --get LocalHostName
+sailing-mac
+sailing-mac:controller repenno$ scutil --get HostName
+sailing-mac
+sailing-mac:controller repenno$ scutil --get ComputerName
+sailing-mac
+
+</pre>
+
+So, make sure all have the same name:
+
+<pre>
+
+sailing-mac:controller repenno$ scutil --set LocalHostName <your-host-name>
+sailing-mac:controller repenno$ scutil --set HostName <yout-host-name>
+sailing-mac:controller repenno$ scutil --get ComputerName <your-host-name>
+
+</pre>
 
 =Using Mininet=
 # Download [http://mininet.github.com/download/ Mininet]. OpenDaylight Controller has been tested against the Mininet VM (Option 1). It has not been tested against other Mininet installation options. 
@@ -85,6 +151,12 @@ Search for the interface as in item 1 (vboxnet0 in our example)
 Take the ip address specified there (most probably 192.168.56.1 - default), and that is the correct remote controller ip address to use when starting a virtual network in mininet vm as stated in the example above (--controller=remote,ip=192.168.56.1) .
 
 4. If you are still not able to connect, you might want to consider temporarily disabling firewall on the host running the controller (on Linux, for example, iptables -F will do the job)
+
+5. Sometimes, the way you start the mininet  is a problem, it does not give error, but does not connect to the remote server. Here is a wrong example:
+    sudo mn --topo=tree,3 --mac --switch=ovsk --controller=remote, ip=192.168.16.10
+Here is the correct example:
+    sudo mn --topo=tree,3 --mac --switch=ovsk --controller=remote,ip=192.168.16.10
+The difference is the "SPACE" between "remote," and "ip".
 
 = Using the Simple Forwarding Application  =
 
