@@ -57,7 +57,7 @@ The grammar for data objects structure is:
 == In-memory MD-SAL data store ==
 
 In-memory data store will be implemented using Normalized Data Tree Model, and will represents it structures (except additional metadata storage) as immutable tree
-which de-facto is snapshot of actual state. 
+which de-facto is consistent snapshot of actual state. 
 
 There are two in-memory data stores, when one represents configuration tree, the other one operational.
 
@@ -65,5 +65,24 @@ Nodes in Normalized Data Tree Model are extended to contain following informatio
 
 * node version - captures the version of the node
 * modification timestamp - timestamp for last revision
-* list of affected commit handlers - set of two phase commit participants, which registered themselves as participants for changes in the subtree rooted at that node.
 * list of affected data change listeners - set data change listeners, which registered themselves to notify for the changes of that node and subtree rooted at that node.
+
+=== Data Modification ===
+
+Supported atomic data operations:
+- Insertion of leaf (subtree)
+- Removal of leaf (subtree)
+- Replace of leaf (subtree)
+- Set of additions, removals, replacements of leaves of same node
+
+Complex operations could be implemented using these two well-defined operations.
+
+Data Modifications are processed by applying requested changes starting from deepest nodes in the data tree structure and propagating changes to the parent node.
+
+# Reference to initial state is captured
+# Data store creates new subtree by applying specified operations affecting that node
+# Data store captures set of affected data change listeners with initial state (reference to old-subtree) and new state (reference to new subtree)
+# Data store propagates new subtree to the parent node and applies atomic operations on parent node (1.) until root node of data store is replaced.
+# Data store replaces reference to root element to newly created root element.
+# Data store finishes transaction.
+# All captured affected listeners are notified with initial state and new state.
