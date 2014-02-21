@@ -78,12 +78,24 @@ Atomic operations could not be invoked outside transaction.
 
 === Data Modification Transactions ===
 
-Transactions are processed by applying requested changes starting from deepest nodes in the data tree structure and propagating changes to the parent node.
+
+Data Store is participant in two-phase commit (as commit handler).
+
+==== Request commit phase ====
+
+Changes are processed by applying requested changes starting from deepest nodes in the data tree structure and propagating changes to the parent node.
 
 # Reference to initial state is captured
 # Data store creates new subtree by applying specified operations affecting that node
 # Data store captures set of affected data change listeners with initial state (reference to old-subtree) and new state (reference to new subtree)
 # Data store propagates new subtree to the parent node and applies atomic operations on parent node (1.) until root node of data store is replaced.
+
+==== Finish phase ====
+
 # Data store replaces reference to root element to newly created root element.
 # Data store finishes transaction.
 # All captured affected listeners are notified with initial state and new state.
+
+==== Rollback ====
+
+Noop, since the reference to consistent (and public snapshot) is changed only in finish phase. Data Store is only required to not reference newly created tree.
