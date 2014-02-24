@@ -210,6 +210,23 @@ The versions and their changes should be maintained by data stores during finish
 Introduced versioning and change tracking in transactions allows for easier collision detection between concurrent transactions
 and state changes of data store during initial start of transaction and actually requesting commit.
 
+The simplified collision detection depends on type of action and changes:
+
+  // modification contains action type and new node and version of original node.
+  // storedNode is already stored node in data store, which resides at target location.
+  boolean isConflicting(modification,storedNode) {
+    switch(modification.type) {
+      case INSERT:
+        return (storedNode != null); 
+      case REPLACE:
+        if(storedNode == null) return true;
+        return modification.originalNode.parentVersion != stored.parentVersion || modification.originalNode.nodeVersion != stored.nodeVersion  
+      case REMOVE:
+        if(storedNode == null) return false;
+        return modification.originalNode.parentVersion != stored.parentVersion || modification.originalNode.nodeVersion != stored.nodeVersion
+    }
+  }
+
 ==== Chained Transactions ====
 
 MD-SAL APIs needs to be extended to allow support for explicit transaction chaining using core Data Broker APIs and implicit chaining
