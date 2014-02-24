@@ -149,7 +149,25 @@ be applied when transaction succeeds.
 
 Transaction is:
 * Self-consistent snapshot of overall data tree (reference to data tree snapshots from creation time)
-* Set of atomic operations which should be apply to the tree. 
+* Set of atomic operations which should be apply to the tree.
+
+==== Transaction sub-operations ====
+
+* read - reads a subtree with all proposed changes (in scope of this transaction and original snapshot) applied.
+* Data Changes
+  * put - insert or replace, actual operation depends on original state. Submits an Insert or Replace change to the transaction backlog.
+  * remove - removes subtree from data tree. Submits an Remove change to the transaction backlog.
+
+The changes and order in which they are applied is sorted by:
+
+ # Remove operations in order of decreasing depth
+ # Insert / Replace operations in order of decreasing depth
+
+Effectively this means that removals always take precedence before insertions and replaces, so it is not possible to remove data in same
+transaction in which they we're inserted.
+
+This in effect means that all subsequent reads on transaction will result in consistent view of data, which we're present at the time 
+of transaction start, with all changes proposed by the consumers (in this transaction) applied.
 
 === Data Change Listeners ===
 
