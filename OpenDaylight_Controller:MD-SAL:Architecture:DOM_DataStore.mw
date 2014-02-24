@@ -87,7 +87,58 @@ which will benefit from normalization
 ** '''sal-*''' DataBroker - unification of concepts between Java DTOs and yang-data-api, well defined normalized form will improve code reusability, readability and performance of Data Broker
 ** '''DataStore''' - data store implementation will benefit from unified data normalized model, which could lead to more effective implementations
 
-== Changes in MD-SAL Data Broker model ==
+== MD-SAL Data Broker contract ==
+
+Data Brokers were designed without assumption of intelligent in-memory cache with tree like structures capable of tracking 
+dependencies, calculating change sets and maintaining relationship between commit handlers, notification listeners and actual
+data, which lead to less effective implementation of two-phase commit, where all state tracking is done by data broker during two-phase commit
+as followed:
+
+# Calculate affected subtrees
+# Filter commit handlers by affected subtrees
+# Filter data change listeners by affected subtrees
+# Capture initial state for data change listeners (one read per data change listener set)
+# Start Request Commit of all affected commit handlers
+# Finish Commit on all affected commit handlers
+# Capture final state for data change listeners (one read per data change listener set)
+# Publish Data Change events to affected data change listeners.
+
+The state which is kept and maintained by Data Brokers is:
+
+* Mapping of subtree paths to registered commit handlers
+* Mapping of subtree paths to registered data change listeners
+* Mapping of subtree paths to registered data readers 
+
+Additional to this state keeping responsibilities of Data Brokers are:
+
+* Read request routing for data readers
+* Two phase commit coordination
+* Publishing Data Change Events
+** Capturing Before and After state 
+
+
+=== Asynchronous read ===
+
+Most of the MD-SAL APIs we're defined to be asynchronous - one omission was ''read*Data'' operation, which 
+confused people to be immediate, fast. With introduction of  additional use cases such as
+lazy codec generation, remote systems providing read operations (Netconf), support for multiple readers, clustering, this proved
+not to be true.
+
+The proposed change is to make also DataReader contract asynchronous, which allows chaining of reads, not blocking caller thread
+durring the read, which will result in more cleaner concurrency models.
+
+Proposed change: https://git.opendaylight.org/gerrit/#/c/5143/2 
+
+
+=== In-memory cache ===
+
+Addition of advanced in-memory cache could offload Data Brokers from following responsibilities
+
+* Mapping of subtreee paths to registered data change listeners
+* Publishing Data Change Events
+** Capturing Before and After state
+
+=== Data Change Listeners ===
 
 == The In-Memory MD-SAL Data Store ==
 
