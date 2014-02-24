@@ -162,13 +162,25 @@ The changes and order in which they are applied is sorted by:
 
 # Remove operations in order of decreasing depth
 # Insert / Replace operations in order of decreasing depth
-
 Effectively this means that removals always take precedence before insertions and replaces, so it is not possible to remove data in same
 transaction in which they we're inserted.
 
 This in effect means that all subsequent reads on transaction will result in consistent view of data, which we're present at the time 
 of transaction start, with all changes proposed by the consumers (in this transaction) applied.
 
+==== Change Tracking ====
+
+Transaction tracks changes in tree structure separate to the original state snapshot (which is immutable), structurally organized same
+way as snapshot data tree, but limited only to nodes affected by changes and their parent nodes. 
+There are two distinct node types:
+* '''Explicitly changed node''' - Explicitly changed node is a node with associated data changes submitted by the consumers of transaction. During transaction lifecycle explicitly changed node
+''never changes'' it's type  to ''implicitly changed node''.
+This node tracks:
+** original version of node as of time of transaction creation.
+** change set which should be applied to this node (e.g. replacement of child, insertion of child) and other explicitly changed nodes.
+* '''Implicitly changed node''' - this node tracks nodes which are not directly changed, but indirectly because of child change. 
+Implicitly changed node could be change it's state to ''explicitly changed''  if a change is proposed to that node.
+Implicitly changed node may carry original version of that node from snapshot for ease of debugging.
 
 ==== Chained Transactions ====
 
