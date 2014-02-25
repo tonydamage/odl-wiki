@@ -135,47 +135,40 @@ The Data Broker contract and deployment model will assume the existence of an in
 
 === Data Modification Transaction ===
 
-Semantic of Data Modification did not explicitly specified memory and consistency model of transaction during transaction
-lifecycle.
+The semantics of a Data Modification did not explicitly specify the memory and consistency model of a transaction during the transaction lifecycle.
 
-Transaction tracks original state of data tree and set of proposed changes (atomic operations) on data tree, which should
-be applied when transaction succeeds. 
+A transaction tracks the original state of the data tree and a set of proposed changes (atomic operations) on the data tree that should be applied when the transaction succeeds. 
 
-Transaction is:
-* Self-consistent snapshot of overall data tree (reference to data tree snapshots from creation time)
-* Set of atomic operations which should be apply to the tree.
+A transaction is:
+* A self-consistent snapshot of the overall data tree (reference to data tree snapshots from the creation time)
+* A set of atomic operations which should be applied to the data tree.
 
-==== Transaction sub-operations ====
+==== Transaction Sub-Operations ====
 
-* '''read''' - reads a subtree with all proposed changes (in scope of this transaction and original snapshot) applied.
-* Data Changes - modifies a data tree
-** '''put (write)''' - actual operation (insert or replace) depends on original state. Submits an Insert or Replace change to the transaction backlog.
-** '''remove''' - removes subtree from data tree. Submits an Remove change to the transaction backlog. Remove operation also cleans  previously submitted writes associated with removed subtree.
+* '''read''' - reads a subtree with all proposed changes (in scope of this transaction and the original snapshot) applied.
+* Data Changes - modifies a data tree:
+** '''put (write)''' - the actual operation (insert or replace) depends on the original state. Submits an Insert or Replace change to the transaction backlog.
+** '''remove''' - removes a subtree from the data tree. Submits a Remove change to the transaction backlog. A Remove operation also cleans the previously submitted writes associated with the removed subtree.
 
-This in effect means that all subsequent reads on transaction will result in consistent view of data, which we're present at the time 
-of transaction start, with all changes proposed by the consumers (in this transaction) applied.
+This in effect means that all subsequent reads on transaction will result in a consistent view of data, which were present at the time of the transaction start, with all changes proposed by all consumers (in this transaction) applied.
 
 ==== Change Tracking ====
 
-Transaction tracks changes in tree structure separate to the original state snapshot (which is immutable), structurally organized same
-way as snapshot data tree, but limited only to nodes affected by changes and their parent nodes. 
+A transaction tracks changes in the tree structure separate to the original state snapshot (which is immutable), structurally organized same way as snapshot data tree, but limited only to nodes affected by changes and their parent nodes. 
+
 There are two distinct node types:
-* '''Explicitly changed node''' - Explicitly changed node is a node with associated data changes submitted by the consumers of transaction. During transaction lifecycle explicitly changed node
-''never changes'' it's type  to ''implicitly changed node''.
+* '''Explicitly changed node''' - Explicitly changed node is a node with associated data changes submitted by the consumers of a transaction. During the transaction lifecycle, an  explicitly changed node ''never changes'' its type to ''implicitly changed node''.
 This node tracks:
-** original version of node as of time of transaction creation.
-** change set which should be applied to this node (e.g. replacement of child, insertion of child) and other explicitly changed nodes.
-*** Insert change - new node which should be inserted
-*** Replace change - new node, version of old node which is to be replaced.
-*** Delete change - version of old node, which is to be removed.
-* '''Implicitly changed node''' - this node tracks nodes which are not directly changed, but indirectly because of child change. 
-Implicitly changed node could be change it's state to ''explicitly changed''  if a change is proposed to that node.
-Implicitly changed node may carry original version of that node from snapshot for ease of debugging.
+** The original version of a node as of the time of the transaction creation.
+** The change set which should be applied to this node (e.g. a replacement of child, insertion of child) and other explicitly changed nodes.
+*** Insert change - a new node which should be inserted
+*** Replace change - a new node, version of an old node which is to be replaced.
+*** Delete change - a version of old node, which is to be removed.
+* '''Implicitly changed node''' - this node tracks nodes which are not directly changed, but indirectly changed because of a change of a child. An implicitly changed node could change its state to ''explicitly changed''  if a change is proposed to that node. An implicitly changed node may carry the original version of that node from the snapshot for ease of debugging.
 
-==== Versioning of nodes ====
+==== Versioning of Nodes ====
 
-In order to keep track of changes, it is required to keep version information about each data tree node.
-Version of node consists of two fields:
+In order to keep track of changes, it is required to keep the version information about each data tree node. The version of a node consists of two fields:
 * version - tracks version of actual node.
 
 {| class="wikitable"
@@ -189,14 +182,13 @@ Version of node consists of two fields:
 | remove child || ++parent.nodeVersion;
 |}
 
-The versions and their changes should be maintained by data stores during finish phase of two phase commit.
+Versions and their changes should be maintained by data stores during the finish phase of the Two Phase commit.
 
-==== Node collision detection ====
+==== Node Collision Detection ====
 
-Introduced versioning and change tracking in transactions allows for easier collision detection between  transaction
-and  data store for particular element in data tree:
+Versioning and change tracking in transactions that were introduced in this proposal allow for easier collision detection between transactions and the data store for a particular element in data tree:
 
-The simplified collision detection depends on type of action and changes:
+The simplified collision detection depends on the type of action and changes:
 
   // modification contains action type and new node and version of original node.
   // storedNode is already stored node in data store, which resides at target location.
@@ -213,18 +205,14 @@ The simplified collision detection depends on type of action and changes:
 
 ==== Chained Transactions ====
 
-MD-SAL APIs needs to be extended to allow support for explicit transaction chaining using core Data Broker APIs and implicit chaining
-using utility adapters.
+MD-SAL APIs needs to be extended to allow support for explicit transaction chaining using core Data Broker APIs and implicit chaining using utility adapters.
 
-Transaction chaining allows to create prerequisite chains between transactions - one transaction is based on the successful results of the other 
-one.
+Transaction chaining allows to create prerequisite chains between transactions - one transaction is based on the successful results of another one.
 
 There are two types of chained transaction:
 
-* '''Join Transaction''' - transaction does not contains any data changes, but could have multiple parent transactions as prerequisites. This transaction
-represents a data tree state, where are prerequisites (ancestors) are successfully applied.
-* '''Data Modification Transaction''' - transaction could have parent transaction which is prerequisite and represents a initial state for this transaction. Transaction may 
-contains proposed Data Changes.
+* '''Join Transaction''' - the transaction does not contains any data changes, but could have multiple parent transactions as prerequisites. This transaction represents a data tree state, where are prerequisites (ancestors) are successfully applied.
+* '''Data Modification Transaction''' - transaction could have parent transaction which is prerequisite and represents the initial state for this transaction. Transaction may contain proposed Data Changes.
 
 === Data Change Listeners ===
 
