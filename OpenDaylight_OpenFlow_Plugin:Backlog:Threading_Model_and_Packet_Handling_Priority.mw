@@ -28,4 +28,41 @@ The propsoed model is shown in the following figure:
 *** No internal queue must be maintained within this execution-context (because Netty’s I/O threadpool to execution thread-pool by itself is a transition via internal Netty’s queue)
 ** Configuration Management : Config subsystem (or simple ini file ?) 
 
-=Packet Handling Priorities=
+* Notification Thread Pool (MD-SAL Core)
+** Owned by : MD-SAL Core
+** Lifecycle managed by : MD-SAL
+** Functionality : 
+*** Executes internal MD-SAL functionality like – routing, data operations etc
+*** Dispatches messages based on session (switch) + priority combination (see slide 6 for details)
+*** NSFs’ notification-handling logic would also be executed in this pool. Hence must be able to cope with the differences in processing times of various NSFs for each notification
+** Configuration Management : Config subsystem (already implemented)
+
+* RPC Thread Pool (MD-SAL Core)
+** Owned by : MD-SAL Core
+** Lifecycle managed by : MD-SAL
+** Functionality :
+*** Executes the business logic from the point of RPC invocation by NSFs till the point of submitting a message to OFLibrary (towards switches)
+*** Special Requirements : None. Current implementation meets the requirements 
+*** Configuration Management : Config subsystem (already implemented)
+
+== Rationale for Using Netty Threadpools==
+* Using Netty’s Execution threadpool mechanism would provide message-ordering per connection out-of-box
+* No additional specialized thread-pool design is required
+* All other options considered would require extensive design, implementation and testing efforts. Most of the requirements shall be met with the Netty Execution Threadpool
+
+==Impact Areas and Required Code Changes==
+* OFLibrary:
+** Changes only to the extent that the configured threadpools are used by Netty bootstrap code
+* OFPlugin:
+** All current code which uses additional pool of threads (including the pool which processes/translates messages and one which sends MD-SAL notifications) must be removed and executing code must be modified to exploit Netty’s execution thread-pool
+** Handhsake part must be made fully asynchronous. Timeout requirements during handshake phase must use IdleStateHandler of Netty pipeline than using custom blocking/timeout mechanism
+** Message-parsing and priority-assignment functionality to be incorporated
+* MD-SAL:
+** Changes would be required in Notfication-processing to the extent that the messages are delivered to NSFs considering
+*** Order of reception from session (switch) and Priority-assigned at plugin layer
+* Clustering:
+* Proposed model would also be amenable with minimal or no changes while implementing clustering / federation of controllers
+
+
+=Message Handling Priorities=
+==Requirements==
