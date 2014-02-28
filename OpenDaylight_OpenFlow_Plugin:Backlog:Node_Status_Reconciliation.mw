@@ -1,13 +1,13 @@
 =Current Status=
 Currently there is a dirty fix (https://git.opendaylight.org/gerrit/#/c/5001/) prepared, where we 
- - remove all flows from switch upon switch reconnection
- - remove all flows from datastore upon switch disconnection
+* Remove all flows from switch upon switch reconnection
+* Remove all flows from datastore upon switch disconnection
 
 This is generally bad strategy, because
- - we will immediately lose statistics data
- - we wont be able to configure switch via alternative way (e.g.: different controller)
- - in case of short term connection outage switch will need to configure again
- - only code in application space is supposed to write to config context of datastore
+* We will immediately lose statistics data
+* We wont be able to configure switch via alternative way (e.g.: different controller)
+* In case of short term connection outage switch will need to configure again
+* Only code in application space is supposed to write to config context of datastore
 
  
 =Ideas on How to Handle Situations=
@@ -22,24 +22,24 @@ This is generally bad strategy, because
 
 == Switch Gets Reconnected ==
 === DataStore does not contain any related items ===
-- we will fill up operational context through pulling stats (if the switch contains any flows/meters/groups)
-- app might decide to purge all the switch content
-- - this could be managed by new configuration item or by providing rpc to app for that goal (I vote for rpc)
-- or app might want to adopt those data into config context (e.g.: to be able to modify them)
-- - again -> through configuration or via rpc (I vote for rpc)
-- node in operational context can exist (and harvest stats data..) with or without being reflected by config context
+* We will fill up operational context through pulling stats (if the switch contains any flows/meters/groups)
+* App might decide to purge all the switch content
+** This could be managed by new configuration item or by providing rpc to app for that goal (I vote for rpc)
+* Or app might want to adopt those data into config context (e.g.: to be able to modify them)
+** Again -> through configuration or via rpc (I vote for rpc)
+* Node in operational context can exist (and harvest stats data..) with or without being reflected by config context
 
 === DataStore contains related items ===
 After we pulled stats, there will be up-to-date operational context.
 Now there is new problem (except adopting) - merging config context with operational:
-- app might (or is expected to) decide to push all stuff from config into switch
-- - rpc/configuration item (I vote for configuration)
-- - this should either wait till operational context is completed
-- - or start pushing and rely on switch to properly handle duplicate flows or updates
-- here we might encounter errors and have to decide if the not applicable flows should be removed or kept in config context
-- - controlled by configuration item
-- - app will be able to detect anytime if some config data are not propagated into device by comparing them with operational context
-- - - by rpc (on demand)
-- now we might have some data in operational context not reflected in config - here the adopting can by applied (as mentioned before)
-- app might decide to push flows from config into device again later (after adopting operational stuff to config context and altering it)
-- - by rpc (on demand)
+* App might (or is expected to) decide to push all stuff from config into switch
+** Rpc/configuration item (I vote for configuration)
+** This should either wait till operational context is completed
+** Or start pushing and rely on switch to properly handle duplicate flows or updates
+* Here we might encounter errors and have to decide if the not applicable flows should be removed or kept in config context
+** Controlled by configuration item
+** App will be able to detect anytime if some config data are not propagated into device by comparing them with operational context
+*** by rpc (on demand)
+* Now we might have some data in operational context not reflected in config - here the adopting can by applied (as mentioned before)
+* App might decide to push flows from config into device again later (after adopting operational stuff to config context and altering it)
+** by rpc (on demand)
