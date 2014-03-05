@@ -1,11 +1,11 @@
 == Maintainer ==
-Luis Gomez (ecelgp@gmail.com)
+Luis Gomez (luis.gomez@ericsson.com)
 
 == Introduction ==
 The purpose of this instruction is to setup a test environment that can be used to verify system test code as well as to run the complete system test suite. Please note that all the different components: mininet, controller and test tools can be installed in the same VM like in this instruction or in separated VMs like in OpenDaylight Lab (split setup).
 
-== Test VM ==
-Before proceeding with the steps below you may consider to download and install this [https://wiki.opendaylight.org/view/CrossProject:Integration_Group:Test_VMs VM] which  has already everything you need for system test.
+== System Test VM ==
+Before proceeding with the steps below you may consider to download and install this [https://wiki.opendaylight.org/images/HostedFiles/odl_system_test.ovf.zip Virtualbox VM] (Ubuntu 12.04) which  has already everything you need for system test plus Maven and Eclipse. Login is: user/passw=odluser/odluser1.
 
 == Installation Procedure ==
 
@@ -143,7 +143,64 @@ odluser@odl-vm:~\$ ovs-ofctl -O OpenFlow10 show s1
 odluser@odl-vm:~\$ ovs-ofctl -O OpenFlow13 show s1
 </pre>
 
-=== Install Robot Framework ===
+=== Install OpenDaylight controller ===
+
+Install Java JDK 1.7+:
+<pre>
+odluser@odl-vm:~\$ sudo apt-get install openjdk-7-jre
+</pre>
+
+Set JAVA_HOME in environment. Add follow lines (Java path may change depending on the JDK installation) in ~/.bashrc file:
+<pre>
+odluser@odl-vm:~\$ vi ~/.bashrc
+...
+export JAVA_HOME=/usr/lib/jvm/java-1.7.0-openjdk-amd64
+...
+</pre>
+
+
+Create directory for base edition distribution: 
+<pre>
+odluser@odl-vm:~\$ mkdir controller-base
+odluser@odl-vm:~\$ cd controller-base
+</pre>
+
+Download latest controller base edition:
+<pre>
+$ wget https://jenkins.opendaylight.org/integration/job/integration-project-centralized-integration/lastSuccessfulBuild/artifact/distributions/base/target/distributions-base-0.1.2-SNAPSHOT-osgipackage.zip
+</pre>
+
+Run the controller:
+<pre>
+odluser@odl-vm:~\$ unzip distributions-base-0.1.2-SNAPSHOT-osgipackage.zip
+odluser@odl-vm:~\$ cd opendaylight
+odluser@odl-vm:~\$ ./run.sh 
+</pre>
+
+Check controller is running:
+<pre>
+osgi> ss
+"Framework is launched."
+
+
+id      State       Bundle
+0       ACTIVE      org.eclipse.osgi_3.8.1.v20120830-144521
+1       ACTIVE      org.apache.felix.fileinstall_3.1.6
+2       ACTIVE      org.eclipse.jdt.core.compiler.batch_3.8.0.I20120518-2145
+3       ACTIVE      org.eclipse.equinox.ds_1.4.0.v20120522-1841
+4       ACTIVE      org.eclipse.equinox.util_1.0.400.v20120522-2049
+5       ACTIVE      org.eclipse.osgi.services_3.3.100.v20120522-1822
+6       ACTIVE      org.eclipse.equinox.console_1.0.0.v20120522-1841
+7       ACTIVE      slf4j.api_1.7.2
+8       ACTIVE      ch.qos.logback.classic_1.0.9
+9       ACTIVE      ch.qos.logback.core_1.0.9
+10      ACTIVE      org.opendaylight.controller.logging.bridge_0.4.1.SNAPSHOT
+11      ACTIVE      com.sun.jersey.core_1.17.0
+12      ACTIVE      com.sun.jersey.json_1.17.0
+13      ACTIVE      com.sun.jersey.jersey-server_1.17.0
+</pre>
+
+=== Install Test tools ===
 
 Check you have Python 2.6 or 2.7 installed (this is normally coming in most distributions):
 <pre>
@@ -220,12 +277,17 @@ else
 ...
 </pre>
 
-=== Install OpenDaylight controller ===
+=== Download and Run System Test Code ===
 
-Follow [https://wiki.opendaylight.org/view/CrossProject:Integration_Group:Controller_Artifacts Controller Artifacts] wiki to install desirable controller distribution
+Download latest integration code:
+<pre>
+odluser@odl-vm:~\> git clone https://git.opendaylight.org/gerrit/integration
+</pre>
 
-=== Download and Run System Test ===
-
-Now you are ready for [https://wiki.opendaylight.org/view/CrossProject:Integration_Group:Download_and_Run_System_Test Download and Run System Test]
+Run system with following command:
+<pre>
+odluser@odl-vm:~\> pybot -v CONTROLLER:127.0.0.1 -v MININET:127.0.0.1 -v USER_HOME:${HOME} -v MININET_USER:${USER} ${HOME}/integration/test/csit/suites/base/
+</pre>
+'''IMPORTANT''': In case you have a split setup (different VMs for controller and mininet), you have to use interface IPs instead of loopbacks for the controller and mininet
 
 [[Category:Integration Group]]
