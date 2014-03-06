@@ -4,9 +4,6 @@ The OpenDaylight virtualization edition zip file for Hydrogen release can be dow
 
 * distributions-virtualization-0.1.0-osgipackage.zip
 
-The latest OpenDaylight virtualization edition zip file can be downloaded from
-[http://nexus.opendaylight.org/content/repositories/opendaylight.snapshot/org/opendaylight/integration/distributions-virtualization/0.1.2-SNAPSHOT/]
-
 == Supported Platforms ==
 {| class="wikitable"
 | '''Supported Platform''' ||  '''Java Version'''
@@ -21,11 +18,9 @@ The latest OpenDaylight virtualization edition zip file can be downloaded from
 |}
 
 ==  Installation == 
- Important Note: File names differs for all the latest virtualization edition and Hydrogen Relase version.
- So please ensure before running the commands, when following the installation procedure as below.
 === Installing ODL Controller and Execution ===
-:1.Unzip the downloaded file as follows 
- unzip distributions-virtualization-0.1.0-osgipackage.zip
+:1.Unzip the file as follows 
+  unzip distributions-virtualization-0.1.0-osgipackage.zip
 :2. This will create a directory with name opendaylight
 :3. Please ensure the environment variable JAVA_HOME is set to the location of the JDK.
 :4. Execute Controller for VTN using the below command
@@ -49,50 +44,50 @@ The latest OpenDaylight virtualization edition zip file can be downloaded from
 :* rpm -Uvh epel-release-6-8.noarch.rpm
 :* yum install json-c
 
-=====  Installing PostgreSQL Database =====
-:: The following steps to be followed to have PostgreSQL installed for Hydrogen release
-   
-   Configure Yum repository to download the latest rpms for PostgreSQL 9.1
-   rpm -ivh http://yum.postgresql.org/9.1/redhat/rhel-6-x86_64/pgdg-redhat91-9.1-5.noarch.rpm
-   
+=====  Installing Postgres Database =====
+:* Download the following PostgreSQL 9.1 files from http://yum.postgresql.org/9.1/redhat/rhel-6-x86_64/ and install
+ postgresql91-libs-9.1.9-1PGDG.rhel6.x86_64.rpm
+ postgresql91-9.1.9-1PGDG.rhel6.x86_64.rpm
+ postgresql91-server-9.1.9-1PGDG.rhel6.x86_64.rpm
+ postgresql91-contrib-9.1.9-1PGDG.rhel6.x86_64.rpm
+ postgresql91-odbc-09.00.0310-1PGDG.rhel6.x86_64.rpm
 
-   Install the required PostgreSQL packages
-   yum install postgresql91-libs postgresql91 postgresql91-server postgresql91-contrib postgresql91-odbc
+===== Install and Configure tomcat (Manually)=====
+:1. Install Tomcat.
+:* Download the following file.
+:** http://archive.apache.org/dist/tomcat/tomcat-7/v7.0.39/bin/apache-tomcat-7.0.39.tar.gz
+:* Extract under /usr/share/java.
+ tar zxvf apache-tomcat-7.0.39.tar.gz -C /usr/share/java
 
-* Note: if you are facing any problems while installing postgreSQL rpm, Please refer to [[OpenDaylight_Virtual_Tenant_Network_(VTN):Installation:Troubleshooting#Problems_while_Installing_PostgreSQL_due_to_openssl|openssl_problems]] query in troubleshooting FAQ.
+:2. Carry out Tomcat settings.
+:* Create the following symbolic link.
+ ln -s /usr/local/vtn/tomcat/webapps/vtn-webapi /usr/share/java/apache-tomcat-7.0.39/webapps/vtn-webapi
+:* Add the following to common.loader of /usr/share/java/apache-tomcat-7.0.39/conf/catalina.properties.
+ /usr/local/vtn/tomcat/lib,/usr/local/vtn/tomcat/lib/*.jar
+:* Add the following to shared.loader of /usr/share/java/apache-tomcat-7.0.39/conf/catalina.properties.
+ /usr/local/vtn/tomcat/shared/lib/*.jar
+:* Add the following to <Server> of /usr/share/java/apache-tomcat-7.0.39/conf/server.xml.
+ <Listener className="org.opendaylight.vtn.tomcat.server.StateListener" />
 
-:: Beyond Hydrogen release, Coordinator supports PostgreSQL 9.3 also
-
-   Configure Yum repository
-   http://yum.postgresql.org/9.3/redhat/rhel-6-x86_64/pgdg-redhat93-9.3-1.noarch.rpm
-
-   Install the required PostgreSQL packages
-   yum install postgresql93-libs postgresql93 postgresql93-server postgresql93-contrib postgresql93-odbc
-
-===== Install and Configure tomcat =====
-  Tomcat will be auto configured and will run on port:8083
+:3. If the VTN Coordinator and the controller are  deployed in the same server, then change the apache port from 8080 to some 
+other number as available in the server. 8080 is the port used by the ODL. The ports need to be modified in the server.xml of the tomcat installation.
 
 ===== Configure Database for VTN Coordinator =====
  /usr/local/vtn/sbin/db_setup
 
 ===== Launch VTN Coordinator to accept requests =====
 :* /usr/local/vtn/bin/vtn_start
-:* Launch tomcat to accept requests (Not necessary to run the below command if downloaded latest virtualization edition)
+:* Launch tomcat to accept requests
    /usr/share/java/apache-tomcat-7.0.39/bin/catalina.sh start
 
 ===== Test and use VTN Coordinator =====
-
-:*;Important Note
- VTN Coordinator runs on port 8083 by default.
- So, please ensure the port number on which VTN coordinator is running and execute the following commands.
-
 :1. The below command should yield such a response to ensure successful installation
    curl -X GET -H 'content-type: application/json' -H 'username: admin' -H 'password: adminpass' \
-   -H 'ipaddr:127.0.0.1' <nowiki>http://<VTN_COORDINATOR_IP_ADDRESS>:8083/vtn-webapi/api_version.json</nowiki>
+   -H 'ipaddr:127.0.0.1' <nowiki>http://<VTN_COORDINATOR_IP_ADDRESS>:8080/vtn-webapi/api_version.json</nowiki>
 :Response   
    {"api_version":{"version":"V1.0"}}
 
 :2. Create and use VTN
-Please refer to [[OpenDaylight_Virtual_Tenant_Network_(VTN):VTN_Coordinator:RestApi#VTNCoordinator_RestApi_Contents|Web API reference]] for all the API details to create VTN and all its sub components.
+Please refer to [[OpenDaylight Virtual Tenant Network (VTN):VTNCoordinator:RestApi:Contents|Web API reference]] for all the API details to create VTN and all its sub components.
 
 [[Category:OpenDaylight Virtual Tenant Network]]
