@@ -10,7 +10,7 @@
 
 :* Ubuntu 13.10
    apt-get install pkg-config gcc make  ant g++ maven git libboost-dev libcurl4-openssl-dev \
-    libjson0-dev libssl-dev openjdk-7-jdk unixodbc-dev xmlstarlet
+    libjson0-dev libssl-dev openjdk-7-jdk unixodbc-dev
 
 :* Ubuntu 12.04
    apt-get install pkg-config gcc make  ant g++ maven git libboost-dev libcurl4-openssl-dev \
@@ -32,12 +32,12 @@
 :4. Preperation for Execution
 
 :* RHEL/Fedora/Cent OS
-:: Download the following PostgreSQL 9.1 files (latest versions) from http://yum.postgresql.org/9.1/redhat/rhel-6.4-x86_64/ (RHEL 6.4) or http://yum.postgresql.org/9.1/redhat/rhel-6.1-x86_64/ (RHEL 6.1)and install. 
-::* postgresql91-libs 
-::* postgresql91
-::* postgresql91server
-::* postgresql91-contrib
-::* postgresql91-odbc
+:: Download the following PostgreSQL 9.1 files from http://yum.postgresql.org/9.1/redhat/rhel-6-x86_64/ and install. 
+::* postgresql91-libs-9.1.9-1PGDG.rhel6.x86_64.rpm
+::* postgresql91-9.1.9-1PGDG.rhel6.x86_64.rpm
+::* postgresql91-server-9.1.9-1PGDG.rhel6.x86_64.rpm
+::* postgresql91-contrib-9.1.9-1PGDG.rhel6.x86_64.rpm
+::* postgresql91-odbc-09.00.0310-1PGDG.rhel6.x86_64.rpm
 
 :* Ubuntu 13.10/12.04
    apt-get install  postgresql-9.1 postgresql-client-9.1 postgresql-client-common postgresql-contrib-9.1 odbc-postgresql
@@ -64,17 +64,12 @@
    rm -rf gtest-work
 
 == Build ==
- Important Note: User is not required to be mandatorily root, but the user must own the directory /usr/local/vtn 
-* Example :
-;The directory should appear as below (assuming the user as "vtn"):
- # ls -l /usr/local/
-   drwxr-xr-x. 12 vtn  vtn  4096 Mar 14 21:53 vtn
-:;1. Download the code from git.
+:1. Download the code from git.
  git clone ssh://<username>@git.opendaylight.org:29418/vtn.git
 or
  git clone <nowiki>https://git.opendaylight.org/gerrit/p/vtn.git</nowiki>
 
-:;2. Build and install VTN Coordinator.
+:2. Build and install VTN Coordinator.
  cd vtn/coordinator
  mvn -f dist/pom.xml package
  sudo make install
@@ -82,26 +77,45 @@ or
 = Run VTN Coordinator =
 
 == Prior preparation ==
-===To change the port===
-:1. By Default coordinator will listen on port 8083
-:2. To change the listening port modify the TOMCAT_PORT in below file
-:* /usr/local/vtn/tomcat/conf/tomcat-env.sh.
+Please use any one of the below procedure
+===Configuration via script===
+Download the following file
+[[File:Tomcat setup.sh | Tomacat installation and configuration]]
+To run the script :
+./tomcat_setup.sh
+
+===Manual Configuration===
+:1. Install Tomcat.
+:* Download the following file.
+:** http://archive.apache.org/dist/tomcat/tomcat-7/v7.0.39/bin/apache-tomcat-7.0.39.tar.gz
+:* Extract under /usr/share/java.
+ tar zxvf apache-tomcat-7.0.39.tar.gz -C /usr/share/java
+
+:2. Carry out Tomcat settings.
+:* Create the following symbolic link.
+ ln -s /usr/local/vtn/tomcat/webapps/vtn-webapi /usr/share/java/apache-tomcat-7.0.39/webapps/vtn-webapi
+:* Add the following to common.loader of /usr/share/java/apache-tomcat-7.0.39/conf/catalina.properties.
+ /usr/local/vtn/tomcat/lib,/usr/local/vtn/tomcat/lib/*.jar
+:* Add the following to shared.loader of /usr/share/java/apache-tomcat-7.0.39/conf/catalina.properties.
+ /usr/local/vtn/tomcat/shared/lib/*.jar
+:* Add the following to <Server> of /usr/share/java/apache-tomcat-7.0.39/conf/server.xml.
+ <Listener className="org.opendaylight.vtn.tomcat.server.StateListener" />
+
 :3. Set up the DB.
  /usr/local/vtn/sbin/db_setup
 
-If any problem in setting up db, Please click on [[OpenDaylight_Virtual_Tenant_Network_(VTN):Installation:Troubleshooting#After_executing_db_setup.2C_you_have_encountered_the_error_.22Failed_to_setup_database.22.3F|troubleshooting]] page
-
 == Start ==
-:1. Start VTN Coordinator.
+:1. Start VTN Coordinator and Tomcat.
  /usr/local/vtn/bin/vtn_start
+ /usr/share/java/apache-tomcat-7.0.39/bin/catalina.sh start
+
 :2. Execute the following commands while stopping.
+ /usr/share/java/apache-tomcat-7.0.39/bin/catalina.sh stop
  /usr/local/vtn/bin/vtn_stop
 
 == WebAPI ==
 * VTN Coordinator version information will be displayed if following command is executed when VTN has started successfully.
-    curl -X GET -H 'content-type: application/json' -H 'username: admin' -H 'password: adminpass' -H \
-    'ipaddr:127.0.0.1' <nowiki>http://127.0.0.1:8083/vtn-webapi/api_version.json</nowiki>  
-
+    curl -X GET -H 'content-type: application/json' -H 'username: admin' -H 'password: adminpass' -H 'ipaddr:127.0.0.1' <nowiki>http://127.0.0.1:8080/vtn-webapi/api_version.json</nowiki>
 * The expected response message:
  {"api_version":{"version":"V1.0"}}
 
