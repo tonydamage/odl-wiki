@@ -1,0 +1,48 @@
+== Introduction ==
+
+The purpose of the Merge Job is to make sure that the branch (usually master) is still healthy after the merge
+of a new patch and to publish all the binary artifacts to the Nexus Repo (so we have fresh SNAPSHOTS that match the branch)
+so others can consume them.
+
+== Caveats ==
+
+'''Note:''' to complete these steps you will need to be a committer on the project for which you are doing it.
+
+'''Note:''' in all examples given below, '''repo_name''' is used a stand in for the repo name of your project and
+'''project_name''' is the name of your project. Please substitute appropriately.
+
+'''Note:''' For the deployment to Nexus to work the groupid in all of your projects pom.xml files must be 
+
+<groupid>org.opendaylight.repo_name</groupid>
+
+due to permission restrictions on Nexus.  If you need to do something different, please contact helpdesk@opendaylight.org.
+
+'''Note:''' These instructions presume you have already [[GettingStarted:Jenkins Verify Job Setup|Setup your Jenkins Verify Job]]
+
+== Detailed Steps ==
+
+# Navigate to the Jenkins for your project by going to http://jenkins.opendaylight.org/repo_name/
+# Log in
+#: [[File:Jenkins Verify Job Setup - Log In.jpg|800px]]
+# Click on "New Job"
+#: [[File:Jenkins Verify Job - New Job.jpg|800px]]
+## Name your Job repo_name-merge (examples: controller-verify, vtn-verify, etc).
+## Select '''Copy existing Job''' as your Job Type 
+## Enter "repo_name-verify" in "Copy from"
+## Click '''OK'''.
+##: [[File:Jenkins Merge Job - Job Name.jpg|800px]]
+# Update Description with something like "Build project_name - runs right after a patch is merged into the SCM (after being reviewed in Gerrit and +2ed) pushes snapshot builds to Nexus"
+#: [[File:Jenkins Merge Job - Description.jpg|800px]]
+# Delete Refspec
+## Scroll down to "Source Code Management" and click "Advanced"
+##: [[File:Jenkins Merge Job - Git - Advanced.jpg|800px]]
+## Scroll down and delete the value in "Refspec"
+##: [[File:Jenkins Merge Job - Delete Refspec.jpg|800px]]
+# Scroll down to "Gerrit Trigger" -> "Trigger on" 
+## Delete "PatchSet Created" and "Draft Published"
+##: [[File:Jenkins Merge Job - Delete Triggers.jpg|800px]]
+## Click "Add" and select "Change Merged"
+##: [[File:Jenkins Merge Job - Add Trigger.jpg|800px]]
+# Add a Post Build-Action to deploy the artifacts from the main build
+##: [[File:Add_deploy.png|800px]]
+## Click "Save"
