@@ -1,0 +1,60 @@
+
+
+The new normalized model for data will not be based on the serialization format (as defined in the YANG specification and used by ''sal-broker-impl 1.0''), but will rather represent the actual concepts behind the YANG Specification.
+
+== Node Types ==
+
+* '''NormalizedNode''' - Base type representing a node in a tree structure; all nodes are derived from it, it contains a leaf identifier and a value.
+** '''DataContainerNode''' - Node which contains multiple leafs; it does not have a direct representation in the YANG syntax.
+*** '''ContainerNode''' - Node, which represents a leaf which can occur only once per parent node; it contains multiple child leaves and maps to the ''container'' statement in YANG.
+*** '''MapEntryNode''' - Node which represents a leaf, which can occur multiple times; a leave is uniquely identified by the value of its key. A MapEntryNode may contain multiple child leaves. MapEntryNode maps to the instance of ''list'' in YANG.
+*** '''ChoiceNode''' - Node which represents a leaf, which occurs mostly once per parent node, but possible values could have different types. Maps to ''choice'' statement. Types maps to the ''case'' statements for that ''choice''.
+*** '''AugmentationNode''' - Node which represents a leaf, which occurs mostly once per parent node.
+** '''LeafNode''' - Node which represents a leaf, which occurs mostly once per parent node. Contains simple value.
+** '''LeafSetEntryNode''' - Node which represents a leaf, which type could occurs multiple times per parent node. Maps to to the instances of ''leaf-list'' in YANG.
+** '''LeafSetNode''' - Special node, which can occur only once per parent node; its leaves are LeafSetEntryNode nodes of specified type. Maps into the ''leaf-list'' in YANG. 
+** '''MapNode''' - Special node, which can occur only once per parent node; its leaves are MapEntryNode nodes.
+
+The original model also did not provide a tie-in between the InstanceIdentifier and the Data Store. This omission has been fixed in this proposal by defining a relationship between path arguments in InstanceIdentifier
+and data tree nodes.
+
+== Tree Grammar ==
+ 
+The grammar for the data objects structure is as follows:
+
+  InstanceIdentifier = PathArgument*
+  PathArgument = NodeIdentifier|NodeIdentifierWithPredicates|NodeIdentifierWithValue|AugmentationIdentifier
+  
+  TreeRoot = DataContainerNode
+  DataContainerNode = (LeafNode|ChoiceNode|AugmentationNode|MapNode|LeafSetNode)*
+  ContainerDataNode = NodeIdentifier DataContainerNode
+ 
+  LeafNode = NodeIdentifier SimpleValue
+  AugmentationNode = AugmentationIdentifier DataContainerNode
+  MapNode = MapEntryNode*
+  MapEntryNode = NodeIdentifierWithPredicates DataContainerNode
+  
+  /* Special nodes */
+  LeafSetNode = LeafSetEntryNode*
+  ChoiceNode = NodeIdentifier DataContainerNode
+  LeafSetEntryNode = NodeIdentifierWithValue SimpleValue
+
+
+The resulting organization of the data tree is:
+
+* (DataContainerNode)
+** (0..n) LeafNode
+** (0..n) LeafSetNode
+*** (0..n) LeafSetEntryNode
+** (0..n) ContainerNode
+*** (Same as DataContainerNode)
+** (0..n) ContainerNode
+*** (Same as DataContainerNode)
+** (0..n) MapNode
+*** (0..n) MapEntryNode
+**** (Same as DataContainerNode)
+** (0..n) AugmentationNode
+*** (Same as DataContainerNode)
+
+
+Code for the proposed APIs is in: http://git.opendaylight.org/gerrit/5441
