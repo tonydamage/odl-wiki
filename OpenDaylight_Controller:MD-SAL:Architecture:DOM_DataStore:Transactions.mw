@@ -20,7 +20,7 @@ The sequence is as follows:
 
 
 =Transaction-Based Operation=
-==Create BA to DOM Transactions==
+==Create a BA-to-DOM Transaction==
 First a transaction object needs to be created, as shown in the following sequence:
 
 [[File:DS-Create-Tx.jpg]]
@@ -39,8 +39,9 @@ The sequence is as follows:
 # Return baDomTx to client
 
 
-==Data Read Operation on Transaction==
+==Data Read Operation on a Transaction==
 An application can issue multiple reads on a previously created transaction, as shown in the following sequence:
+
 [[File:DS-Data-Read-Tx.jpg]]
 
 The sequence is as follows:
@@ -55,3 +56,51 @@ The sequence is as follows:
 # baData is returned to caller
 # baData is returned to caller
 # baData is returned to caller
+
+
+==Cancel a Transaction==
+An application can cancel a transaction. A transaction is cancelled, for example, if all operations on the transaction were read.
+
+[[File:DS-Cancel-Tx.jpg]]
+
+The sequence is as follows:
+# baDomTx.cancel()
+# baDomTx clean ups all local state (cache of DTO, references to services)
+# domTx.cancel()
+# dataBroker.cancel(domTx)
+# domTx clean ups all local state (cache of DTO, references to services)
+# storeTx.cancel() // Asynchronous – need to keep track of
+# storeTx clean ups all local state (modifications, snapshot)
+
+
+==Data Write Operation on a Transaction==
+In additions to reads, an application can issue multiple writes on a previously created transaction, as shown in the following sequence:
+
+[[File:DS-Data-Write-Tx.jpg]]
+
+The sequence is as follows:
+# baDomTx.putOperationalData(yang.binding.InstanceIdentifier<Node>,Node)
+# // Cache cleanup of subtree and parent nodes
+# domII,domData = mappingService.toDataDom(bindingInstanceIdentifier,baData)
+# domTx.putOperationalData(domInstanceIdentifier,domData)
+# storeTx.replaceData(domInstanceIdentifier,domData)
+# storeTx updates modification index
+
+
+==Transaction Commit==
+The commit operation is shown in the following sequence:
+
+[[File:DS-Commit-Tx.jpg]]
+
+The sequence is as follows:
+# baDomTx.commit() // Submits to commit queue
+# domTx.commit()
+# dataBroker.commit(domTx)
+# Start of two Phase commit – requestCommit on Commit Handlers
+# storeTx.requestCommit() // Asynchronous – need to keep track of
+# storeTx creates optimistic snapshot 
+# dataTx returns goAhead
+# End of Two phace commit – finish callback on Commit Handlers
+# storeTx.finish()
+# dataStore.finish(storeTx)
+# dataStore replaces snapshot
