@@ -1,0 +1,57 @@
+= Current Mode of Operation=
+==Data Store Read Operation==
+The data store read operation is shown in the following figure:
+
+[[File:DS-Data-Read-OP.jpg]]
+
+The sequence is as follows:
+# baDataBroker.readOperationalData(yang.binding.InstanceIdentifier<Node>)
+# connector.readOperationalData(...)
+# domInstanceIdentifier = mappingService.toDataDom(bindingInstanceIdentifier)
+# biDataBroker.readOperationalData(domInstanceIdentifier)
+# domData = dataStore.readOperationalData(domInstanceIdentifier)
+# domData is returned to caller
+# domData is returned to caller
+# baData = mappingService.toDataObject (bindingInstanceIdentifier, domData)
+# baData is returned to caller
+# baData is returned to caller
+# baData is returned to caller
+
+
+
+=Transaction-Based Operation=
+==Create BA to DOM Transactions==
+First a transaction object needs to be created, as shown in the following sequence:
+
+[[File:DS-Create-Tx.jpg]]
+
+The sequence is as follows:
+# baDataBroker.beginTransaction()
+# connector.beginForwardedTransaction()
+# biDataBroker.beginTransaction()
+# storeTx = dataStore.beginTransaction() // storeTx contains snapshot
+# storeTx is returned to caller
+# domTx = createDomTx(storeTx)
+# return domTx to caller
+# baDomTx = createForwardedTransaction(domTx)
+# Return baDomTx to ForwardedDataBroker
+# Return baDomTx to client
+# Return baDomTx to client
+
+
+==Data Read Operation on Transaction==
+An application can issue multiple reads on a previously created transaction, as shown in the following sequence:
+[[File:DS-Data-Read-Tx.jpg]]
+
+The sequence is as follows:
+# baDomTx.readOperationalData(yang.binding.InstanceIdentifier<Node>)
+# // lookup in local cache, asume fail – performance optimalization
+# domInstanceIdentifier = mappingService.toDataDom(bindingInstanceIdentifier)
+# domTx.readOperationalData(domInstanceIdentifier)
+# domData = storeTx.readOperationalData(domInstanceIdentifier)
+# domData is returned to caller
+# domData is returned to caller
+# baData = mappingService.toDataDom(bindingInstanceIdentifier, domData)
+# baData is returned to caller
+# baData is returned to caller
+# baData is returned to caller
