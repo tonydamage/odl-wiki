@@ -55,7 +55,7 @@ The existing code base contains 3 components which perform schema aware data nor
 
 == MD-SAL DOM Data Broker Contract ==
 
-The DOM Data Broker was designed without any assumption of an intelligent in-memory cache with tree-like structures capable of tracking dependencies, calculating change sets and maintaining relationship between commit handlers, notification listeners and actual data. This may lead to an inefficient implementation of the two-phase commit, where all state tracking during two-phase commit is done by the Data Broker itself as follows:
+The current DOM Data Broker has not been designed with an assumption of a intelligent in-memory cache with tree-like structures that would be able to track dependencies, calculate change sets and maintain the relationships between commit handlers, notification listeners and the actual data. This may lead to an inefficient implementation of the two-phase commit, where all state tracking during the is done by the Data Broker itself as follows:
 
 # Calculate affected subtrees
 # Filter commit handlers by affected subtrees
@@ -66,14 +66,12 @@ The DOM Data Broker was designed without any assumption of an intelligent in-mem
 # Capture final state for data change listeners (one read per data change listener set)
 # Publish Data Change events to affected data change listeners.
 
-The state which is kept and maintained by Data Brokers is:
-
+The state kept and maintained by the current Data Broker is:
 * Mapping of subtree paths to registered commit handlers
 * Mapping of subtree paths to registered data change listeners
 * Mapping of subtree paths to registered data readers 
 
-In addition, the state keeping responsibilities of Data Brokers are:
-
+In addition, the state keeping responsibilities of the Data Broker are:
 * Read request routing for data readers
 * Two phase commit coordination
 * Publishing Data Change Events
@@ -81,7 +79,6 @@ In addition, the state keeping responsibilities of Data Brokers are:
 
 
 === Asynchronous Read ===
-
 Most of the MD-SAL APIs were asynchronous - one exception used to be the ''read*Data'' operation, which appeared to be immediate & fast. When additional read*Data use cases are introduced, such as lazy codec generation, remote systems providing read operations (Netconf),  support for multiple readers, and clustering, this is no longer true.
 
 The proposed change is to make the DataReader contract asynchronous as well, which allows chaining of reads and allows the caller thread to  be non-blocking during the read. This will result in cleaner concurrency models.
