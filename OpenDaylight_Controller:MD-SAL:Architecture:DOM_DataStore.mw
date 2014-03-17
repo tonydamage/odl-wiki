@@ -90,7 +90,8 @@ This proposal will affect the components that perform schema aware data normaliz
 
 These components will be modifed to use the new normalized data model (that provides more efficient APIs).
 
-=== In-Memory Datastore / Cache ===
+=== New Implementations===
+==== In-Memory Datastore / Cache ====
 
 The DOM Data Broker contract and deployment model will assume the existence of an in-memory datastore (cache), which could offload Data Brokers from the following responsibilities:
 
@@ -98,7 +99,7 @@ The DOM Data Broker contract and deployment model will assume the existence of a
 * Publishing Data Change Events:
 ** Capturing the 'Before' and 'After' states
 
-=== Data Modification Transaction ===
+====Data Modification Transactions ====
 
 The semantics of a Data Modification did not explicitly specify the memory and consistency model of a transaction during the transaction lifecycle.
 
@@ -108,7 +109,7 @@ A transaction is:
 * A self-consistent snapshot of the overall data tree (reference to data tree snapshots from the creation time)
 * A set of atomic operations which should be applied to the data tree.
 
-==== Transaction Sub-Operations ====
+===== Transaction Sub-Operations =====
 
 * '''read''' - reads a subtree with all proposed changes (in scope of this transaction and the original snapshot) applied.
 * Data Changes - modifies a data tree:
@@ -117,7 +118,7 @@ A transaction is:
 
 This in effect means that all subsequent reads on transaction will result in a consistent view of data, which were present at the time of the transaction start, with all changes proposed by all consumers (in this transaction) applied.
 
-==== Change Tracking ====
+===== Change Tracking =====
 
 A transaction tracks changes in the tree structure separate to the original state snapshot (which is immutable), structurally organized same way as snapshot data tree, but limited only to nodes affected by changes and their parent nodes. 
 
@@ -131,7 +132,7 @@ This node tracks:
 *** Delete change - a version of old node, which is to be removed.
 * '''Implicitly changed node''' - this node tracks nodes which are not directly changed, but indirectly changed because of a change of a child. An implicitly changed node could change its state to ''explicitly changed''  if a change is proposed to that node. An implicitly changed node may carry the original version of that node from the snapshot for ease of debugging.
 
-==== Versioning of Nodes ====
+===== Versioning of Data Tree Nodes =====
 
 In order to keep track of changes, it is required to keep the version information about each data tree node. The version of a node consists of two fields:
 * version - tracks version of actual node.
@@ -149,7 +150,7 @@ In order to keep track of changes, it is required to keep the version informatio
 
 Versions and their changes should be maintained by data stores during the finish phase of the Two Phase commit.
 
-==== Node Collision Detection ====
+===== Data Tree Node Collision Detection =====
 
 Versioning and change tracking in transactions that were introduced in this proposal allow for easier collision detection between transactions and the data store for a particular element in data tree:
 
@@ -168,7 +169,7 @@ The simplified collision detection depends on the type of action and changes:
     }
   }
 
-==== Chained Transactions ====
+===== Chained Transactions =====
 
 MD-SAL APIs needs to be extended to allow support for explicit transaction chaining using core Data Broker APIs and implicit chaining using utility adapters.
 
@@ -179,7 +180,7 @@ There are two types of chained transaction:
 * '''Join Transaction''' - the transaction does not contains any data changes, but could have multiple parent transactions as prerequisites. This transaction represents a data tree state, where are prerequisites (ancestors) are successfully applied.
 * '''Data Modification Transaction''' - transaction could have parent transaction which is prerequisite and represents the initial state for this transaction. Transaction may contain proposed Data Changes.
 
-=== Data Change Listeners ===
+==== Data Change Listeners ====
 
 Data Change Listener registration proved to very generic, which does not allow consumers to
 more concretely specify criteria on which they are notified, and thus could not allow
@@ -211,7 +212,7 @@ Nodes in the Normalized Data Tree Model are extended to contain following inform
 * modification timestamp - timestamp for last revision
 * list of affected data change listeners - set data change listeners, which registered themselves to notify for the changes of that node and subtree rooted at that node.
 
-=== Atomic Operations === 
+==== Atomic Operations ==== 
 
 * Insertion of leaf (subtree)
 * Removal of leaf (subtree)
