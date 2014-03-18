@@ -1,0 +1,41 @@
+Here are some common problems you can encounter while working with BGP-LS or PCEP plugins in ODL.
+
+First, if you encounter ANY kind of problems, turn on logger on level TRACE for bgpcep project. Log file will be located in opendaylight/logs/opendaylight.log , after you run ODL.
+
+Add to [https://jenkins.opendaylight.org/integration/view/Integration%20jobs/job/integration-project-centralized-integration/lastSuccessfulBuild/artifact/distributions/serviceprovider/target/distributions-serviceprovider-0.1.2-SNAPSHOT-osgipackage/opendaylight/configuration/logback.xml logback.xml] following lines:
+
+ <nowiki><!-- BGPCEP plugin --> </nowiki>
+ <logger name="org.opendaylight.protocol" level="TRACE"/>
+ <logger name="org.opendaylight.bgpcep" level="TRACE"/>
+
+We will need this log file to investigate your problem.
+
+== BGP-LS ==
+
+
+
+
+== PCEP ==
+
+<big>'''Important note : troubleshoot guide for PCEP is currently only for draft versions ietf-stateful-02 & crabbe-initiated-00.'''</big>
+
+==== Session with PCC does not come up ====
+
+There are multiple causes for this problem. Inspect opendaylight.log:
+
+* '''I can find following line in the log'''
+
+ WARN  o.o.p.p.i.AbstractPCEPSessionNegotiator - Unexpected error received from PCC: type 6 value 13
+
+PCEP error code type 6, value 13 states LSP_CLEANUP_TLV_MISSING. LSP Cleanup TLV is sent as a part of PCEP session proposal, but only when you specified
+stateful02 version in your configuration. Session proposal for stateful07 does NOT contain this TLV as it was removed from the draft in later versions.
+
+''What to do''
+
+Please, check again your configuration for PCEP and make sure it is set according to [[BGP LS PCEP:User Guide|User Guide]] .
+
+* '''No error/warning is shown in the log file'''
+
+''What to do''
+
+Wait. Depending on the nature of your PCC, it can take several minutes for PCC to initiate the connection.
