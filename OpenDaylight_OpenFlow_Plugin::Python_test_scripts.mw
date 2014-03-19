@@ -1,7 +1,7 @@
 = Python test-scripts =
 
 == Prerequisite ==
-* Linux based OS
+* Linux based OS (these instructions cover debian 7 - wheezy)
 * Java 1.7+
 * python (v 2.6)
 * openvswitch (v 2.0.0)
@@ -36,41 +36,33 @@ Add openflow13 dissector to wireshark
 * apt-get install openjdk-7-jdk
 * export JAVA_HOME=/usr/lib/jvm/java-7-openjdk-amd64/jre/bin/java
 
-==== Install and test maven ====
-* apt-get install maven
-* maven --version
-
-==== Pull and build yangtools, controller and plugin ====
-* mkdir odl
-* cd odl
-* git clone https://git.opendaylight.org/gerrit/p/openflowplugin.git
-* git clone https://git.opendaylight.org/gerrit/p/controller.git
-* git clone https://git.opendaylight.org/gerrit/p/yangtools.git
-* export MAVEN_OPTS="-Xmx1024m -XX:MaxPermSize=256m"
-* (cd yangtools/; mvn clean install)
-* (cd controller/; mvn clean install)
-* (cd openflowplugin/; mvn clean install)
+==== Download and unzip integration build ====
+* find latest integration/distribution/base build on [http://nexus.opendaylight.org/content/repositories/opendaylight.snapshot/org/opendaylight/integration/distributions-base nexus]
+* download it (using e.g. wget <url to artifact.zip>) and unzip it (using e.g. unzip <artifact.zip>)
+* start controller: 
+ cd opendaylight
+ ./run.sh -of13
 
 == Tests ==
 * locations: openflowplugin/test-scripts
 * content directory
-* xml (switch configuration input in xml form)
-* 
-* runnable files:
-* odl_tests.py
-* stress_test.py
-* oper_data_test.py
-* sw_restart_test.py 
+** xmls (switch configuration input in xml form)
+** openvswitch
+** '''runnable files''':
+*** odl_tests.py
+*** stress_test.py
+*** oper_data_test.py
+*** sw_restart_test.py 
 
 == General ==
 The tests are designed for running on Linux based machines with installed ovs and mininet python scripts. All scripts has to be  started with same permission as mininet (sudo). Otherwise  the scripts can not start mininet. 
 All runnable scripts contains a help description for input parameters for a quick orientation.
 Basic parameters for all runnable scripts:
-* -- mnport : it is a controller port listener for the openflow switch communications. The parameter is used for configuration startup of the Mininet. A default value is 6653.
-* --odlhost : it is a controller IP address. The parameter is used for configuration startup of the Mininet and for the rest address builders. A default value is 127.0.0.1 (localhost). 
-* -- odlport : it is a controller port listener for a http REST communication. The parameter is used for the rest address builders.
+* <code>--mnport</code> : it is a controller port listener for the openflow switch communications. The parameter is used for configuration startup of the Mininet. A default value is 6653.
+* <code>--odlhost</code> : it is a controller IP address. The parameter is used for configuration startup of the Mininet and for the rest address builders. A default value is 127.0.0.1 (localhost). 
+* <code>--odlport</code> : it is a controller port listener for a http REST communication. The parameter is used for the rest address builders.
 
-ODL Test (odl_tests.py | odl_tests_new.py)
+== ODL Test (odl_tests.py | odl_tests_new.py) ==
 The test scripts are designed for testing the switch configuration inputs via REST request. (It could work with mininet [opf13] only yet.) All inputs are readed from xml files. 
 The test life cycle:
 * read input and put in to controller via REST
@@ -78,7 +70,7 @@ The test life cycle:
 * get stored data from switch via command line and compare they
 * delete input via REST and test the delete process
 Parameters:
-* --xmls : number of specific test xml file from xmls directory (pattern: f{nr}.xml). This parameter has no default value. The script is testing all f_.xml files from xmls directory without --xmls parameter.
+* <code>--xmls</code> : number of specific test xml file from xmls directory (pattern: f{nr}.xml). This parameter has no default value. The script is testing all f_.xml files from xmls directory without --xmls parameter.
 
 == Stress Test (stress_test.py) ==
 The test is simulating multiple connections for the repeatable END-TO-END add flow test scenario. The flow pattern is same (look in to openvswitch.flow_tools.py). The script is changing a flow_id value only.
@@ -92,18 +84,18 @@ The test life cycle:
 * incremental delete flow's groups (in every thread from thread pool)
 * final report
 Parameters:
-* -- threads : number of threads which should be used for multiple connection simulation in the thread pool. The default value is 50
-* -- flows : number of flows which should be used for add connection samples
+* <code>--threads</code> : number of threads which should be used for multiple connection simulation in the thread pool. The default value is 50
+* <code>--flows</code> : number of flows which should be used for add connection samples
 
-Operational Data Test (oper_data_test.py)
+== Operational Data Test (oper_data_test.py) ==
 The test checks controller's operational store. The Flow addition action and deletion action from Data Store.
 When flow is added via REST, it is added to config store and then pushed to switch. When it's successfully pushed to switch, it is also moved to operational store. Same goes with deletion. You can specify number of flows added by parameter
-* --flows : number of the flows which are add to switch. The default value is 100
+* <code>--flows</code> : number of the flows which are add to switch. The default value is 100
 
-=== Switch restart (sw_restart_test.py) ===
+== Switch restart (sw_restart_test.py) ==
 The test for a flow addition to switch after the switch has been restarted. After switch is restarted, it should get flow configuration from controller operational datastore. Speed by which is configuration pushed to restarted switch may vary so you can specifiy wait time, and number of retries by wait time, and number of retries by
-* sw_restart_test.py --wait WAIT_TIME (default is 30)
-* sw_restart_test.py --retry NO_RETRIES (default is 1)
+* <code>sw_restart_test.py --wait WAIT_TIME</code> (default is 30)
+* <code>sw_restart_test.py --retry NO_RETRIES</code> (default is 1)
 
 You can also specify that flows are added by xmls from /xmls folder. If you don't specify this parameter, default xml template will be used
-* sw_restart_test.py --xmls XMLS (default is generic template)
+* <code>sw_restart_test.py --xmls XMLS</code> (default is generic template)
