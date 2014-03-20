@@ -154,9 +154,11 @@ You should see something like this:
     }
 }</pre>
 
-=Editing Netconf Client Configuration in the Controller Config File =
+=Editing Netconf Client Configuration in the Current Controller Config File =
 
-Configuration for different controller modules can be added into the controller's current configuration located in 'configuration/current/controller.currentconfig.xml'. To add the above configuration, insert the following stanza into the <modules></modules> section of the configuration file:
+'''It is not clear this method works as of 02/12/2014. See https://bugs.opendaylight.org/show_bug.cgi?id=416''' 
+
+Configuration for different controller modules can be added into the controller's current configuration located in 'configuration/current/controller.currentconfig.xml'. It it important to notice that initially the file controller.currentconfig.xml does not exist whether pulling and compiling from source code or downloading the zipped distribution, it is created after you run the controller the first time. Create the controller.currentconfig.xml file or if the controller.currentconfig.xml exists and have a configuration such as [[OpenDaylight Controller:Config:Examples:Netconf:Example Configuration]], insert the following stanza into the <modules></modules> section to add the above configuration:
 
 <source>
  <module>
@@ -189,3 +191,275 @@ Configuration for different controller modules can be added into the controller'
 To change the configuration for a different target Netconf server, edit the <name/>, <address/>, <port/>, <tcp-only/>, <username/> and <password/> entities.
 
 An example configuration file can be found in [[OpenDaylight Controller:Config:Examples:Netconf:Example Configuration]]
+
+=Editing Netconf Client Configuration by Creating Initial Controller Config File =
+
+In the case of building from source, create a file to hold the netconf client configuration in the directory ./opendaylight/distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/configuration/initial/ . This file will hold the netconf server configuration the client will attempt to connect.
+
+Files in this directory follow a naming system. Simply choose a non-used number, followed by a dash ('-') and a descriptive word, for example, 02-libnetconfd.xml. In this file insert the configuration of the server. 
+
+<pre>
+
+<snapshot>
+  <configuration>
+    <data xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+      <modules xmlns="urn:opendaylight:params:xml:ns:yang:controller:config">
+	<module>
+	  <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">prefix:sal-netconf-connector</type>
+	  <name>libnetconfd</name>
+	  <port xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">830</port>
+	  <username xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">repenno</username>
+	  <worker-thread-group xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">
+	    <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:netty">prefix:netty-threadgroup</type>
+	    <name>global-worker-group</name>
+	  </worker-thread-group>
+	  <address xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">10.0.1.27</address>
+	  <tcp-only xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">false</tcp-only>
+	  <event-executor xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">
+	    <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:netty">prefix:netty-event-executor</type>
+	    <name>global-event-executor</name>
+	  </event-executor>
+	  <password xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">welcome</password>
+	  <boss-thread-group xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">
+	    <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:netty">prefix:netty-threadgroup</type>
+	    <name>global-boss-group</name>
+	  </boss-thread-group>
+	  <dom-registry xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">
+	    <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:md:sal:dom">prefix:dom-broker-osgi-registry</type>
+	    <name>dom-broker</name>
+	  </dom-registry>
+	</module>
+      </modules>
+    </data>
+  </configuration>
+  <required-capabilities>
+    <![CDATA[urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf?module=odl-sal-netconf-connector-cfg&revision=2013-10-28]]>
+  </required-capabilities>
+</snapshot>
+
+</pre>
+
+Restart the controller.
+
+If everything goes as planned you should see a similar console log ''after some time'':
+
+<pre>
+
+2014-02-12 04:42:10.043 PST [pool-23-thread-1] INFO  o.o.c.s.c.n.NetconfDevice#libnetconfd - Starting Netconf Client on: /10.0.1.27:830
+
+</pre>
+
+And you should be able to see the description of the node through RESTconf
+
+<small>
+<pre>
+
+Request: http://<controller-ip>:8080/restconf/operational/opendaylight-inventory:nodes
+
+Response:
+
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<nodes xmlns="urn:opendaylight:inventory">
+<node>
+<initial-capability xmlns="urn:opendaylight:netconf-node-inventory">urn:ietf:params:netconf:capability:url:1.0?scheme=scp,file</initial-capability>
+<initial-capability xmlns="urn:opendaylight:netconf-node-inventory">urn:ietf:params:xml:ns:yang:ietf-netconf-acm?module=ietf-netconf-acm&amp;revision=2012-02-22</initial-capability>
+<initial-capability xmlns="urn:opendaylight:netconf-node-inventory">urn:ietf:params:netconf:capability:writable-running:1.0</initial-capability>
+<initial-capability xmlns="urn:opendaylight:netconf-node-inventory">urn:ietf:params:netconf:capability:with-defaults:1.0?basic-mode=explicit&amp;also-supported=report-all,report-all-tagged,trim,explicit</initial-capability>
+<initial-capability xmlns="urn:opendaylight:netconf-node-inventory">urn:ietf:params:netconf:capability:candidate:1.0</initial-capability>
+<initial-capability xmlns="urn:opendaylight:netconf-node-inventory">urn:ietf:params:xml:ns:yang:ietf-netconf-monitoring?module=ietf-netconf-monitoring&amp;revision=2010-10-04</initial-capability>
+<initial-capability xmlns="urn:opendaylight:netconf-node-inventory">urn:ietf:params:xml:ns:yang:ietf-netconf-notifications?module=ietf-netconf-notifications&amp;revision=2011-08-07</initial-capability>
+<initial-capability xmlns="urn:opendaylight:netconf-node-inventory">urn:ietf:params:xml:ns:yang:ietf-inet-types?module=ietf-inet-types&amp;revision=2010-09-24</initial-capability>
+<initial-capability xmlns="urn:opendaylight:netconf-node-inventory">urn:ietf:params:xml:ns:netconf:notification:1.0?module=notifications&amp;revision=2008-07-14</initial-capability>
+<initial-capability xmlns="urn:opendaylight:netconf-node-inventory">urn:ietf:params:xml:ns:yang:ietf-netconf-with-defaults?module=ietf-netconf-with-defaults&amp;revision=2010-06-09</initial-capability>
+<initial-capability xmlns="urn:opendaylight:netconf-node-inventory">urn:ietf:params:netconf:capability:rollback-on-error:1.0</initial-capability>
+<initial-capability xmlns="urn:opendaylight:netconf-node-inventory">urn:ietf:params:xml:ns:yang:ietf-yang-types?module=ietf-yang-types&amp;revision=2010-09-24</initial-capability>
+<initial-capability xmlns="urn:opendaylight:netconf-node-inventory">urn:ietf:params:netconf:capability:validate:1.1</initial-capability>
+<initial-capability xmlns="urn:opendaylight:netconf-node-inventory">urn:ietf:params:netconf:capability:notification:1.0</initial-capability>
+<initial-capability xmlns="urn:opendaylight:netconf-node-inventory">urn:ietf:params:netconf:capability:startup:1.0</initial-capability>
+<initial-capability xmlns="urn:opendaylight:netconf-node-inventory">urn:ietf:params:netconf:capability:validate:1.0</initial-capability>
+<initial-capability xmlns="urn:opendaylight:netconf-node-inventory">urn:ietf:params:netconf:base:1.0</initial-capability>
+<initial-capability xmlns="urn:opendaylight:netconf-node-inventory">urn:ietf:params:netconf:base:1.1</initial-capability>
+<initial-capability xmlns="urn:opendaylight:netconf-node-inventory">urn:ietf:params:xml:ns:netmod:notification?module=nc-notifications&amp;revision=2008-07-14</initial-capability>
+<initial-capability xmlns="urn:opendaylight:netconf-node-inventory">http://netconfcentral.org/ns/toaster?module=toaster&amp;revision=2009-11-20</initial-capability>
+<initial-capability xmlns="urn:opendaylight:netconf-node-inventory">urn:ietf:params:xml:ns:netconf:base:1.0?module=ietf-netconf&amp;revision=2011-03-08</initial-capability>
+<initial-capability xmlns="urn:opendaylight:netconf-node-inventory">urn:ietf:params:netconf:capability:interleave:1.0</initial-capability>
+<id>libnetconfd</id>
+<connected xmlns="urn:opendaylight:netconf-node-inventory">true</connected>
+</node>
+</nodes>
+
+</pre>
+</small>
+
+A Wireshark capture on TCP port 830 (configured port on file) should appear as:
+[[File:Netconf.png|framed|left]]
+
+= Creating Netconf session between Opendaylight and libnetconfd/netopeer Netconf Server =
+
+# Download, compile and install libnetconfd/netopeer. The instructions below are for Ubuntu 12.04
+# Configure netconf client and server as described in:
+
+[[OpenDaylight_Controller:Config:Examples:Netconf#Editing_Netconf_Client_Configuration_by_Creating_Initial_Controller_Config_File|Editing_Netconf_Client_Configuration_by_Creating_Initial_Controller_Config_File]]
+
+
+<pre>
+
+In general you should expect that compiling libnetconf and netopeer in Ubuntu will somewhat bumpy. 
+
+Folks on libnetconf google groups helped a lot. 
+
+
+10. Install libxml2 (http://xmlsoft.org/)
+20. Install libxslt
+
+	You might find this error when 
+
+	config.status: executing libtool commands
+	/bin/rm: cannot remove 'libtoolT': No such file or directory
+
+	Solution:
+
+	edit file <configure> and change this line:
+
+	$RM "$cfgfile"
+
+	to
+
+	$RM -f "$cfgfile"
+
+
+30. Install libssh2 (www.libssh2.org/)
+
+  It will need openssl or libgcrypt
+
+40. Install libdbus-dev package
+
+	(Important) Do not replace current dbus on Ubuntu by the one in (dbus.freedesktop.org). it is a critical part of the system. I did that and had to recover/reinstall Ubuntu. 
+
+	sudo apt-get install libdbus-1-dev
+
+	Always make sure you are installing the correct package
+
+	sudo apt-get update
+	sudo apt-cache search libdbus
+
+
+50. Install doxygen
+
+	sudo apt-get install doxygen
+
+51 Install libcurl-dev
+
+	sudo apt-get install libcurl4-gnutls-dev
+
+
+60. Pull, Compile and Install libnetconf (code.google.com/p/libnetconf/)
+
+	git clone https://code.google.com/p/libnetconf/
+
+	  At the time of writing:
+	  - If you disable notifications (as below) in libnetconf, netopeer will not compile
+
+	  $ ./configure --disable-notifications
+
+	The step below is very important otherwise when it is time to test you will hit an access denied issue.
+
+	./configure --with-nacm-recovery-uid=uid
+
+	the uid above is the uid of the person that will use netopeer-cli to test drive the server. In my case it was 1000 (use <id> command in Unix), therefore
+
+	./configure --with-nacm-recovery-uid=1000
+
+	make
+	make install
+
+70. Pull netopeer, you will get 4 directories.
+
+	git clone https://code.google.com/p/netopeer/
+
+71 Compiling server-sl
+
+	You will need to install libevent
+
+	sudo apt-get install libevent-dev
+
+	 Compiling Multi-Level server
+	  netopeer/server: ./configure --sysconfdir=/etc
+	  make
+	  make doc (without this step install script fails)
+	  sudo make install
+
+80 Compiling cli
+
+	If you get this error:
+
+	checking for readline in -lreadline... no
+	configure: error: Missing libreadline
+
+	You might need to install ncurses (http://ftp.gnu.org/pub/gnu/ncurses/) and readline (http://ftp.gnu.org/gnu/readline/). 
+        If you already have these installed, you might need the dev version of the libraries.
+
+	sudo apt-get install libncurses5-dev
+	sudo apt-get install libreadline-dev
+
+	At the time of this writing I could not find a 64-bit readline package so I downloaded and compiled version 6.2
+
+	After each step you should do <sudo ldconfig>
+
+	Finally ./configure LIBS=-lncurses CPPFLAGS=-I/usr/local/include/libxml2
+
+90. Patch your SSHd configuration. 
+
+	The netconf server (single-level, for instance) will be called automagically by sshd when a netconf client connects. In Ubuntu the file is /etc/ssh/sshd_config
+
+	Port 830
+	Subsystem netconf /usr/local/bin/netopeer-server-sl
+
+	Restart SSH
+
+	sudo service ssh stop
+	sudo service ssh start
+
+	If sshd does not start probably the configuration file has a problem. 
+
+	Try sudo /usr/sbin/sshd -p 22 -D -d -e to see any issues.
+
+100. Access denied issue in server-sl
+
+	Issue:
+
+	netconf> edit running-config
+	edit: no such command, type 'help' for more information.
+	netconf> edit-config running
+
+	  Type the edit configuration data (close editor by Ctrl-D):
+	<toaster xmlns="http://netconfcentral.org/ns/toaster"/>
+
+	NETCONF error: access-denied (application) - creating "toaster" data node is not permitted.
+
+	Solution (David Kupka):
+
+	This is correct behavior as defined in Section 3.7.1 of RFC 6536 (http://tools.ietf.org/html/rfc6536#section-3.7.1).
+
+	In libnetconf documentation there is page that should help You configure the Access Control Module: http://libnetconf.googlecode.com/git/doc/doxygen/html/dd/d59/nacm.html
+
+	See previous step on libnetconf and uid
+
+</pre>
+
+== Debugging ==
+
+A simple way to check both connectivity and whether Netconf Server is up and running is to use SSH as described in [http://tools.ietf.org/search/rfc6242 Using the NETCONF Protocol over Secure Shell (SSH)]. For example:
+
+ssh -s repenno@10.0.1.27 -p 830 netconf
+
+=== Configuring Netconf logging ===
+
+Edit file logback.xml. If compiling from source it will be:
+
+./opendaylight/distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/configuration/logback.xml
+
+Add the following two lines:
+
+ <logger name="org.opendaylight.controller.netconf" level="DEBUG" />
+ <logger name="org.opendaylight.controller.sal.connect.netconf" level="DEBUG" />
