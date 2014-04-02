@@ -26,7 +26,7 @@ Switch only deals with *non lldp* ethernet packets.
 |-
 ! Source Mac !! Target Mac !! L2 Switch Action !! Comments
 |-
-| Unknown || Unknown || Learn source, Broadcase packet on all external port minus ingress ||
+| Unknown || Unknown || Learn source, Broadcast packet on all external port minus ingress ||
 |-
 | Unknown || Known || Learn source, Unicast packet to the target || L2 Switch is essentially ''teleporting'' the packet to the ''node'' where the target is ''attached''. Attachment point is where the target is physically attached.
 |-
@@ -34,3 +34,12 @@ Switch only deals with *non lldp* ethernet packets.
 |-
 | Known || Known || Unicast the packet to the target, find the shortest path between source and destination and install mac-to-mac flows on all the nodes in that path||
 |}
+
+=Logic choices=
+The L2 Switch maintains '''mac-port''' mapping for all mac addresses it learns about. This mapping is a canonical view of the network and not per switch. The ''port'' for a ''mac'' is the ''port'' where the ''mac'' is physically connected (not accounting for a repeater or an external switch scenario but it shouldn't matter there too).
+To keep this mapping true, the controller must not receive duplicate packet-in from 2 different switch. 
+*Why?* Lets say, ARP Request arrives from a host on *node 1* at *port 1*. The switch doesnt identify the target, so it punts the message to the controller. The controller learns about host and maps it to ''node1:port1''.
+Then controller broadcasts the packet on all its ports (minus ingress). Say one of these ports were an ''internal'' port connected to *port 1* on *node 2*. *node 2* will get the packet and say it also doesnt know about the target, it will punt the same message back to controller. Now this time controller will get the message with same source but ingress port as *node2:port1*.
+The question is, should we update the mapping?
+If no, since host is *not* really connected at this port, we miss the case when a host genuinely moves to a new location
+If yes, then we wont be able to optimally find shortest path between 2 hosts and hence not program flows appropriately.
