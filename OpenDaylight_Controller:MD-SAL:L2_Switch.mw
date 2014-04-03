@@ -2,11 +2,8 @@
 
 This is MD-SAL based implementation of a learning switch with optimizations in how packet is forwarded. 
 
-When a packet comes in, '''L2Switch''' learns about the source's mac address.  If it knows about the destination, it ''teleports'' the packet to destination.  Otherwise, it sends a broadcast message on all ''external'' ports in the network. <br>
-:Teleporting means that the packet is sent to the destination without flooding.
-:Internal ports consist of switch-to-switch ports and switch-to-controller ports.  External ports are all the remaining ports, which are potentially connected to hosts.
-<br>
-''Teleporting'' and using only ''external'' ports for broadcasting is an optimization over "flooding" which a typical learning switch would do.
+When a packet comes in, '''L2Switch''' learns about the source's mac address if it doesnt already know about. It then checks if it knows where the target is. If it knows about the target, it ''teleports'' the packet to target. If it doesnt know about the target, it sends a broadcast message on all ''external'' ports in the network.
+''Teleporting'' and using '''only''' ''external'' ports for broadcasting is an optimization over "flooding" which a typical learning switch would do.
 
 =Switch actions=
 
@@ -28,49 +25,42 @@ Switch only deals with *non lldp* ethernet packets.
 =Implementation Details=
 
 ==Components==
-[[File:Sample_L2Switch_Using_MD-SAL.png|1000px]] 
-<br>
-'''PacketHandler''' examines Ethernet packets to find information about Mac-Port pairings.<br>
-:informs '''AddressTracker''' about new Mac-Port pairings.<br>
-:informs '''FlowWriterService''' about new flows, when the source & destination of a packet are known.<br>
-:uses '''InventoryService''' to determine ''external'' ports and only send packets to those ports when flooding packets in the network.<br>
-'''AddressTracker''' stores the Mac-Port pairings in the MD-SAL data tree.<br>
-'''InventoryService''' provides information about the nodes and node connectors in the network.<br>
-'''FlowWriterService''' adds packet forwarding (mac-to-mac) flows to the MD-SAL data tree.<br>
-:uses '''NetworkGraphDijkstra''' to determine all the intermediate nodes along a path.<br>
-'''TopologyLinkDataChangeHandler''' listens to topology updates and informs '''NetworkGraphDijkstra''' of these updates.<br>
-'''NetworkGraphDijkstra''' maintains the network graph and computes the shortest path between each node.<br>
+<TBD> 
+Add component diagram and explain
+{| class="wikitable"
+|-
+! Header text !! Header text !! Header text
+|-
+| Example || Example || Example
+|-
+| Example || Example || Example
+|-
+| Example || Example || Example
+|}
+==How do we determine external ports in the network==
 
-==Determining the external ports in the network==
+External ports are ports that don't point to another switch in the network. In other words, they are potentially pointing to a host. 
+To determine those, we find all the links from topology data. These give us all the ports where one node (switch) connects to another - internal ports. We also get a list of all available ports on all nodes using inventory data - internal + external ports.
+The difference of the 2 lists give us external ports.
 
-Definition of External Ports -- ports that potentially point to a host.  All the ports that are NOT connected to another switch or the controller.  <br>
-To determine external ports: <br>
-# Find the list of all node-to-node (switch-to-switch) internal ports.  This is done by looking at all the links from the Topology data.
-# Find the list of all ports in the network.  This is done by looking at the Inventory data.
-# The difference between List#1 and List#2 is a list of external ports and switch-to-controller (internal) ports.
-# Switch-to-controller ports have special properties and can be easily removed from List#3.  This gives us the list of external ports.
-<br>
-Will this ever compute an incorrect list of external ports? <br>
-Yes, topology can change at any given time and its possible that by the time we calculated the external ports, one of them became internal!  <br>
-In such scenario, will will broadcast a packet on this new internal port and that packet will bounce back to controller. Based on this packet, it appears that the host is now connected to the switch that bounced the message, which is incorrect.  Our current implementation would just ignore this packet as explained in the section [[OpenDaylight Controller:MD-SAL:L2 Switch#Why_we_dont_update_attachment_point]].
+Now topology can change. Its possible that by the time we calculated the external ports, one of them became internal! In such scenario what will happen is when we send a broadcast message on this port, that message will bounce back to controller. Based on this message, it would appear to the controller that the host is connected to switch that bounced the message which is incorrect. Our current implementation would just ignore this packet as explained in the section [[OpenDaylight Controller:MD-SAL:L2 Switch#Why_we_dont_update_attachment_point|Why we dont update attachment point]].
 
-==Finding the shortest path between 2 nodes==
+==How do we find shortest path between 2 nodes==
 <TBD>
 Consult with Amit and add details
 
-==Why we do not update attachment point==
-The L2 Switch maintains '''mac-port''' mapping for all mac addresses in the network -- this mapping is a canonical view of the network and not per switch. The ''port'' for a ''mac'' is the ''port'' where the ''mac'' is physically connected (not accounting for a repeater or an external switch scenario but it shouldn't matter there too). <br>
-<br>
-In order for the mac-port mapping to remain correct, the controller must not receive '''duplicate packets from 2 different switches'''. <br>
-<br>
-'''Why will receive duplicate packets from 2 different switches cause incorrect mac-port mappings?''' <br>
-It's easiest to explain with an example.  Let's say Host is connected to node1 on port1. <br>
-Host sends out an ARP request, which the switch sends to the controller (because it doesn't know destination mac).  The controller will map this host's mac to '''node1:port1'''.  This is correct! <br>
-The problem occurs when the controller forwards the original host's ARP request to node2 using port1 (so node2:port1 connects controller to node2).  If node2 doesn't contain the destination mac, it will pass the ARP request back to controller.  This packed has host's mac but the associated ingress would be '''node2:port1'''<br>
-<br>
-'''The question is:  Should we update mac-port mapping?''' and change mac-port association from '''node1-port1''' to '''node2-port1'''.<br>
-:If '''no''', we correctly operate in the given example since host is '''not''' really connected at this port.  However, we will not operate correctly when a host genuinely moves to a new location.
-:If '''yes''', then there will be cases when our mac-port mapping gets corrupted.  We won't be able to optimally find shortest path between 2 hosts and hence not program flows appropriately.
+==Why we dont update attachment point==
+The L2 Switch maintains '''mac-port''' mapping for all mac addresses it learns about. This mapping is a canonical view of the network and not per switch. The ''port'' for a ''mac'' is the ''port'' where the ''mac'' is physically connected (not accounting for a repeater or an external switch scenario but it shouldn't matter there too).
+To keep this mapping true, the controller must not receive duplicate packet-in from 2 different switch. 
+
+'''Why?'''
+Lets say, ARP Request arrives from a host on '''node 1''' at '''port 1'''. The switch doesnt identify the target, so it punts the message to the controller. The controller learns about host and maps it to ''node1:port1''.
+Then controller broadcasts the packet on all its ports (minus ingress). Say one of these ports were an ''internal'' port connected to '''port 1''' on '''node 2'''. '''node 2''' will get the packet and say it also doesnt know about the target, it will punt the same message back to controller. Now this time controller will get the message with same source but ingress port as *node2:port1*.
+
+'''The question is, should we update mac-port mapping?'''
+And change the host location from '''node1-port1''' to '''node2-port1'''.
+If '''no''', since host is '''not''' really connected at this port, we miss the case when a host genuinely moves to a new location.
+If '''yes''', then we wont be able to optimally find shortest path between 2 hosts and hence not program flows appropriately.
 
 =Assumptions=
 
@@ -89,24 +79,15 @@ The problem occurs when the controller forwards the original host's ARP request 
 
 * Setup mininet
 * Copy model and impl jars to plugins directory
-* Start opendaylight using '''openflowplugin''' distribution (not controller)
+* Start opendaylight
 * Stop ARPHandler and SimpleForwardingManager
-<source>
-osgi> ss | grep arp
-     17	ACTIVE      org.opendaylight.controller.arphandler_0.5.2.SNAPSHOT
-     true
-osgi> ss | grep simple
-    177	ACTIVE      org.opendaylight.controller.samples.simpleforwarding_0.4.2.SNAPSHOT
-    true
-osgi> stop 17
-osgi> stop 177</source><br>
 * Start mininet with a topology of your choice. For eg:
-<source>
+:<source>
 sudo mn --controller=remote,ip=<controller_ip> --topo linear,2 --switch ovsk,protocols=OpenFlow13
-</source><br>
+</source>
 * Do pingall in mininet console. This should generate network traffic between hosts. Pings should work.
-* All learn map-port mapping can be accessed at
-<source>http://localhost:8080/restconf/operational/l2-address-tracker:l2-addresses/</source>
+* All learn map-port mapping can be accessed at <TBD> Check with Alex and update
+:<source>http://localhost:8080/restconf/operational/host-tracker:hosts</source>
 
 =Items for discussion=
 
