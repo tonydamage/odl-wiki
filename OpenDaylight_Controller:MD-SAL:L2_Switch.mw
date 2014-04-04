@@ -2,8 +2,11 @@
 
 This is MD-SAL based implementation of a learning switch with optimizations in how packet is forwarded. 
 
-When a packet comes in, '''L2Switch''' learns about the source's mac address if it doesnt already know about. It then checks if it knows where the target is. If it knows about the target, it ''teleports'' the packet to target. If it doesnt know about the target, it sends a broadcast message on all ''external'' ports in the network.
-''Teleporting'' and using '''only''' ''external'' ports for broadcasting is an optimization over "flooding" which a typical learning switch would do.
+When a packet comes in, '''L2Switch''' learns about the source's mac address.  If it knows about the destination, it ''teleports'' the packet to destination.  Otherwise, it sends a broadcast message on all ''external'' ports in the network. <br>
+:Teleporting means that the packet is sent to the destination without flooding.
+:Internal ports consist of switch-to-switch ports and switch-to-controller ports.  External ports are all the remaining ports, which are potentially connected to hosts.
+<br>
+''Teleporting'' and using only ''external'' ports for broadcasting is an optimization over "flooding" which a typical learning switch would do.
 
 =Switch actions=
 
@@ -25,18 +28,30 @@ Switch only deals with *non lldp* ethernet packets.
 =Implementation Details=
 
 ==Components==
-<TBD> 
-Add component diagram and explain
+<br>
+'''PacketHandler''' examines Ethernet packets to find information about Mac-Port pairings.<br>
+:informs '''AddressTracker''' about new Mac-Port pairings.<br>
+:informs '''FlowWriterService''' about new flows, when the source & destination of a packet are known.<br>
+:uses '''InventoryService''' to determine ''external'' ports and only send packets to those ports when flooding packets in the network.<br>
+'''AddressTracker''' stores the Mac-Port pairings in the MD-SAL data tree.<br>
+'''InventoryService''' provides information about the nodes and node connectors in the network.<br>
+'''FlowWriterService''' adds packet forwarding (mac-to-mac) flows to the MD-SAL data tree.<br>
+:uses '''NetworkGraphDijkstra''' to determine all the intermediate nodes along a path.<br>
+'''TopologyLinkDataChangeHandler''' listens to topology updates and informs '''NetworkGraphDijkstra''' of these updates.<br>
+'''NetworkGraphDijkstra''' maintains the network graph and computes the shortest path between each node.<br>
 
-==How do we determine external ports in the network==
+==Determining the external ports in the network==
 
-External ports are ports that don't point to another switch in the network. In other words, they are potentially pointing to a host. 
-To determine those, we find all the links from topology data. These give us all the ports where one node (switch) connects to another - internal ports. We also get a list of all available ports on all nodes using inventory data - internal + external ports.
-The difference of the 2 lists give us external ports.
+Definition of External Ports -- ports that potentially point to a host.  All the ports that are NOT connected to another switch or the controller.  <br>
+To determine external ports: <br>
+# Find the list of all node-to-node (switch-to-switch) internal ports.  This is done by looking at all the links from the Topology data.
+# Find the list of all ports in the network.  This is done by looking at the Inventory data.
+# The difference between List#1 and List#2 is a list of external ports and switch-to-controller (internal) ports.
+# Switch-to-controller ports have special properties and can be easily removed from List#3.  This gives us the list of external ports.
+<br>
+Topology can change at any given time. Its possible that by the time we calculated the external ports, one of them became internal! In such scenario what will happen is when we send a broadcast message on this port, that message will bounce back to controller. Based on this message, it would appear to the controller that the host is connected to switch that bounced the message which is incorrect. Our current implementation would just ignore this packet as explained in the section [[OpenDaylight Controller:MD-SAL:L2 Switch#Why_we_dont_update_attachment_point|Why we dont update attachment point]].
 
-Now topology can change. Its possible that by the time we calculated the external ports, one of them became internal! In such scenario what will happen is when we send a broadcast message on this port, that message will bounce back to controller. Based on this message, it would appear to the controller that the host is connected to switch that bounced the message which is incorrect. Our current implementation would just ignore this packet as explained in the section [[OpenDaylight Controller:MD-SAL:L2 Switch#Why_we_dont_update_attachment_point|Why we dont update attachment point]].
-
-==How do we find shortest path between 2 nodes==
+==Finding the shortest path between 2 nodes==
 <TBD>
 Consult with Amit and add details
 
@@ -77,8 +92,8 @@ If '''yes''', then we wont be able to optimally find shortest path between 2 hos
 sudo mn --controller=remote,ip=<controller_ip> --topo linear,2 --switch ovsk,protocols=OpenFlow13
 </source>
 * Do pingall in mininet console. This should generate network traffic between hosts. Pings should work.
-* All learn map-port mapping can be accessed at <TBD> Check with Alex and update
-:<source>http://localhost:8080/restconf/operational/host-tracker:hosts</source>
+* All learn map-port mapping can be accessed at
+:<source>http://localhost:8080/restconf/operational/l2-address-tracker:l2-addresses/</source>
 
 =Items for discussion=
 
