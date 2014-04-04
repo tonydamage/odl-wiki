@@ -28,7 +28,7 @@ Switch only deals with *non lldp* ethernet packets.
 =Implementation Details=
 
 ==Components==
-<Component diagram> <br>
+<br>
 '''PacketHandler''' examines Ethernet packets to find information about Mac-Port pairings.<br>
 :informs '''AddressTracker''' about new Mac-Port pairings.<br>
 :informs '''FlowWriterService''' about new flows, when the source & destination of a packet are known.<br>
@@ -56,17 +56,19 @@ Topology can change at any given time. Its possible that by the time we calculat
 Consult with Amit and add details
 
 ==Why we dont update attachment point==
-The L2 Switch maintains '''mac-port''' mapping for all mac addresses it learns about. This mapping is a canonical view of the network and not per switch. The ''port'' for a ''mac'' is the ''port'' where the ''mac'' is physically connected (not accounting for a repeater or an external switch scenario but it shouldn't matter there too).
-To keep this mapping true, the controller must not receive duplicate packet-in from 2 different switch. 
-
-'''Why?'''
-Lets say, ARP Request arrives from a host on '''node 1''' at '''port 1'''. The switch doesnt identify the target, so it punts the message to the controller. The controller learns about host and maps it to ''node1:port1''.
-Then controller broadcasts the packet on all its ports (minus ingress). Say one of these ports were an ''internal'' port connected to '''port 1''' on '''node 2'''. '''node 2''' will get the packet and say it also doesnt know about the target, it will punt the same message back to controller. Now this time controller will get the message with same source but ingress port as *node2:port1*.
-
-'''The question is, should we update mac-port mapping?'''
-And change the host location from '''node1-port1''' to '''node2-port1'''.
-If '''no''', since host is '''not''' really connected at this port, we miss the case when a host genuinely moves to a new location.
-If '''yes''', then we wont be able to optimally find shortest path between 2 hosts and hence not program flows appropriately.
+==Why we do not update attachment point==
+The L2 Switch maintains '''mac-port''' mapping for all mac addresses in the network -- this mapping is a canonical view of the network and not per switch. The ''port'' for a ''mac'' is the ''port'' where the ''mac'' is physically connected (not accounting for a repeater or an external switch scenario but it shouldn't matter there too). <br>
+<br>
+In order for the mac-port mapping to remain correct, the controller must not receive '''duplicate packets from 2 different switches'''. <br>
+<br>
+'''Why will receive duplicate packets from 2 different switches cause incorrect mac-port mappings?''' <br>
+Host is connected to node1 on port1. <br>
+Host sends out an ARP request, which the switch sends to the controller (because it doesn't know destination mac).  The controller will map this host's mac to '''node1:port1'''.  This is correct! <br>
+The problem occurs when the controller forwards the original host's ARP request to node2 using port1 (so node2:port1 connects controller to node2).  If node2 doesn't contain the destination mac, it will pass the ARP request back to controller.  The packet that comes to controller would be from host but the ingress would be ''node2:port1''' and this is incorrect! <br>
+<br>
+'''The question is:  Should we update mac-port mapping?''' and change the host location from '''node1-port1''' to '''node2-port1'''.<br>
+:If '''no''', since host is '''not''' really connected at this port, we miss the case when a host genuinely moves to a new location.
+:If '''yes''', then there will be cases when our mac-port mapping gets corrupted.  We won't be able to optimally find shortest path between 2 hosts and hence not program flows appropriately.
 
 =Assumptions=
 
