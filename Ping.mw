@@ -11,7 +11,7 @@ Check that the used Yang tools version is >= 0.5.8-SNAPSHOT.
 <pre>
 vi controller/opendaylight/commons/opendaylight/pom.xml
 ...
-<yang.version>0.5.8-SNAPSHOT</yang.version>
+<yangtools.version>0.5.8-SNAPSHOT</yangtools.version>
 ...
 </pre>
 
@@ -108,7 +108,8 @@ Now compile and generate the APIs and the bundle.
 Copy the bundle into the plugins directory of compiled ODL controller in order to run it.
  
 <pre>
-cp ./target/model-ping-1.1-SNAPSHOT.jar ../../../distribution/opendaylight/target \ /distribution.opendaylight-osgipackage/opendaylight/plugins/ \
+cp ./target/model-ping-1.1-SNAPSHOT.jar ../../../distribution/opendaylight/target/\
+distribution.opendaylight-osgipackage/opendaylight/plugins/\
 org.opendaylight.controller.model.model-ping-1.1-SNAPSHOT.jar
 </pre>
 
@@ -176,6 +177,11 @@ In the pom.xml we have defined dependency to the Yang model previously created a
    </plugins>
  </build>
  <dependencies>
+    <dependency>
+      <groupId>org.osgi</groupId>
+      <artifactId>org.osgi.core</artifactId>
+      <scope>provided</scope>
+    </dependency>
    <dependency>
      <groupId>org.opendaylight.controller.model</groupId>
      <artifactId>model-ping</artifactId>
@@ -294,10 +300,6 @@ public class PingProvider extends AbstractBindingAwareProvider {
 
     public PingProvider() {
         pingImpl = new PingImpl();
-    }
-
-    @Override
-    public void onSessionInitialized(ConsumerContext session) {
     }
 
     @Override
@@ -601,7 +603,8 @@ We need to import the Ping service package (exported by Ping service project). I
               javax.xml.bind,
               org.slf4j,
               org.apache.catalina.filters,
-              org.codehaus.jackson.jaxrs,
+              com.fasterxml.jackson.jaxrs.base,
+              com.fasterxml.jackson.jaxrs.json,
               !org.codehaus.enunciate.jaxrs
             </Import-Package>
             <Web-ContextPath>/controller/nb/v2</Web-ContextPath>
@@ -927,3 +930,41 @@ Compile everything from command line.
  mvn clean install
 
 Or use the 'opendaylight-asembleit' in eclipse.
+
+==== Comments ====
+Problem #1: After defining ping.yang and the pom.xml, mvn clean install gave the below error:
+<pre>
+~/controller/opendaylight/md-sal/model/model-ping:$ mvn clean install
+[INFO] Scanning for projects...
+[ERROR] The build could not read 1 project -> [Help 1]
+[ERROR]
+[ERROR] The project org.opendaylight.controller.model:model-ping:1.1-SNAPSHOT (/home/ubuntu/controller/opendaylight/md-sal/model/model-ping/pom.xml) has 1 error
+[ERROR] Non-resolvable parent POM for org.opendaylight.controller.model:model-parent:1.1-SNAPSHOT: Could not find artifact org.opendaylight.controller:sal-parent:pom:1.1-SNAPSHOT @ org.opendaylight.controller.model:model-parent:1.1-SNAPSHOT, /home/ubuntu/.m2/repository/org/opendaylight/controller/model/model-parent/1.1-SNAPSHOT/model-parent-1.1-SNAPSHOT.pom, line 3, column 13 -> [Help 2]
+[ERROR]
+[ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.
+[ERROR] Re-run Maven using the -X switch to enable full debug logging.
+[ERROR]
+[ERROR] For more information about the errors and possible solutions, please read the following articles:
+[ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/ProjectBuildingException
+[ERROR] [Help 2] http://cwiki.apache.org/confluence/display/MAVEN/UnresolvableModelException
+</pre>
+
+Solution:
+Remove the <relativePath></relativePath> entry from the pom.xml.  The pom.xml should be:
+<pre>
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+ xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+ xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+ http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <parent>
+    <artifactId>model-parent</artifactId>
+    <groupId>org.opendaylight.controller.model</groupId>
+    <version>1.1-SNAPSHOT</version>
+  </parent>
+   
+  <modelVersion>4.0.0</modelVersion>
+  <artifactId>model-ping</artifactId>
+  <packaging>bundle</packaging>
+</project>
+</pre>
