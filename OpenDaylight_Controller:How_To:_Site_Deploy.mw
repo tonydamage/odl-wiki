@@ -10,8 +10,10 @@ Note: this page doesn't discuss how to set up parameterized site:deploy, that is
 
 ===Adding Report Generation to parent pom===
 
-#If not already defined, add the following lines to the properties section:<blockquote><br/><sitedeploy>${nexusproxy}/sites/site/${project.groupId}</sitedeploy><br/><enunciate.version>1.26.2</enunciate.version></blockquote>
-#If not already present, add in the following repository section before the <build> section:
+*If not already defined, add the following lines to the properties section:
+ <sitedeploy>${nexusproxy}/sites/site/${project.groupId}</sitedeploy>
+ <enunciate.version>1.26.2</enunciate.version></blockquote>
+*If not already present, add in the following repository section before the <build> section:
   <repositories>
       <repository>
           <id>opendaylight-release</id>
@@ -24,4 +26,37 @@ Note: this page doesn't discuss how to set up parameterized site:deploy, that is
           <url>${nexusproxy}/repositories/opendaylight.snapshot/</url>
       </repository>
   </repositories>
-#In the <build> section, add the maven site plugin:
+*In the <build> section, add the maven site plugin:
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-site-plugin</artifactId>
+        <version>3.1</version>
+        <dependencies>
+            <!-- add support for WebDAV -->
+            <dependency>
+                <groupId>org.apache.maven.wagon</groupId>
+                <artifactId>wagon-webdav-jackrabbit</artifactId>
+                <version>2.2</version>
+            </dependency>
+            <!-- force slf4j 1.6.x or it fails due to missing class StaticLoggerBinder -->
+            <dependency>
+                <groupId>org.slf4j</groupId>
+                <artifactId>slf4j-api</artifactId>
+                <version>1.6.1</version>
+            </dependency>
+        </dependencies>
+      </plugin>
+*After the <build> section, add the reporting section:
+  <reporting>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-javadoc-plugin</artifactId>
+        <configuration>
+          <links>
+            <link>${sitedeploy}/api</link>
+          </links>
+        </configuration>
+      </plugin>
+    </plugins>
+  </reporting>
