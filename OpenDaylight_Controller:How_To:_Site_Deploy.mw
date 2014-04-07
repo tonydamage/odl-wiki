@@ -67,4 +67,40 @@ Note: this page doesn't discuss how to set up parameterized site:deploy, that is
     </site>
 note: in the above, replace opendove-master with your particular project's site id (opendove uses opendove-release and opendove-master) and let Andy (tykeal) know your choice so he can make sure the necessary system support is in place
 ===Clean Up Other Poms===
-*Remove the nexusproxy parameter, reportistories and distributionManagement sections from any other project poms.
+*Remove the nexusproxy parameter, reportistories and distributionManagement sections and javadoc plugin section from any other project poms.
+
+===Set up enunciate in Poms that need to generate REST API doucmentation===
+
+*Add the following to the properties section
+        <enunciate.version>1.26.2</enunciate.version>
+*If not present, add the enunciate plugin to the plugins section:
+            <plugin>
+                <groupId>org.codehaus.enunciate</groupId>
+                <artifactId>maven-enunciate-plugin</artifactId>
+                <version>${enunciate.version}</version>
+                <configuration>
+                    <configFile>enunciate.xml</configFile>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>docs</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+===Create enunciate.xml File where needed===
+*Create a enunciate with the following contents:
+ <enunciate label="full" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:noNamespaceSchemaLocation="http://enunciate.codehaus.org/schemas/enunciate-1.26.xsd">
+   <services>
+     <rest defaultRestSubcontext="/controller/nb/v2/opendove/odmc"/>
+   </services>
+   <modules>
+     <docs docsDir="rest" title="OpenDOVE NB REST API" includeExampleXml="false" includeExampleJson="true"/>
+   </modules>
+ </enunciate>
+In the above:
+# replace the defaultRestSubcontext attribute with the proper root URI point for the particular project
+# replace the title attribute with the correct title for the particular project
+# set the includeExampleXml and includeExampleJson attributes correctly
