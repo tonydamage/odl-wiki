@@ -65,11 +65,25 @@ Still in design, the idea will be to bring up small to large topologies of 16-32
 * Test Steps:
 ** 1. Download latest controller base distribution. See [[CrossProject:Integration_Group:Controller_Artifacts|Controller Artifacts for testing]]
 ** 2. Set controller Log level to ERROR, edit opendaylight/configuration/logback.xml 
-** 3. Start controller with recommended options: run.sh -of13 -Xmx4g -Xms2g
-** 3. Start mininet with tree topology of 15 switches: '''sudo mn --controller=remote,ip=<controllerIP> --topo tree,4''' or custom topology
-** 4. Check learned topology through GUI or NB API:  GET http://<controllerIP>:8080/controller/nb/v2/topology/default
-** 5. Monitor CPU and RAM
-** 6. Repeat the test increasing the number of switches, like -tree,5 (31 switches)
+** 3. Start controller with recommended options: run.sh -of13 -Xms2g -Xmx4g
+** 4. Start mininet with tree topology of 15 switches: '''sudo mn --controller=remote,ip=<controllerIP> --topo tree,4''' or custom topology
+** 5. Check RESTCONF inventory with: 
+<pre>
+curl --user "admin":"admin" -H "Accept: application/json" -H "Content-type: application/json" -X GET http://<controllerIP>:8080/restconf/operational/opendaylight-inventory:nodes (|grep "openflow:")
+</pre>
+** 6. Check AD-SAL topology through GUI or NB API:
+<pre>
+curl --user "admin":"admin" -H "Accept: application/json" -H "Content-type: application/json" -X GET http://<controllerIP>:8080/controller/nb/v2/topology/default (|grep "openflow:")
+</pre>
+** 7. Do a ping test in mininet: mininet> pingall
+** 8. Check hosts are learned and flows are created:
+<pre>
+curl --user "admin":"admin" -H "Accept: application/json" -H "Content-type: application/json" -X GET http://<controllerIP>:8080/controller/nb/v2/hosttracker/default/hosts/active
+curl --user "admin":"admin" -H "Accept: application/json" -H "Content-type: application/json" -X GET http://<controllerIP>:8080/controller/nb/v2/statistics/default/flow
+</pre>
+
+** 9. Monitor CPU and RAM
+** 10. Repeat the test increasing the number of switches, like -tree,5 (31 switches)
 
 === CBench Test ===
 Still in design, the idea will be to bring up small to large topologies of 16-32-64-128-256-... switches and verify the controller can properly learn topology: switches, ports and links. Also measure CPU and RAM consumed on each iteration. We can also configure mininet to bring a custom topology close to a data center.
