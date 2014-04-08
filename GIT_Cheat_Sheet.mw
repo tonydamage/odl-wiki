@@ -1,0 +1,64 @@
+__TOC__
+
+=Overview=
+
+This page is intended to provide some quick tips on getting started with GIT as well as provide some help tips. For more detailed description of git commands please search this wiki for addition pages on pulling, hacking and pushing code, such as this page [[GettingStarted:Pulling,_Hacking,_and_Pushing_All_the_Code_from_the_CLI]]. 
+=GITK=
+GITK is a graphically tool that can help visually compare how any of your local and remote branches align with eachother, as well as perform some of the basic tasks defined below. See [[GettingStarted:Development Environment Setup]] for details on how to install.
+= GIT Commands =
+The following GIT commands assume you have set up a gerrit account [[OpenDaylight_Controller:Gerrit_Setup]] for SSH access. These git commands should be run from the git repository root directory unless noted. The git repository root directory is the directory which contains the .git file (e.g. the 'controller' folder which is created when cloning the controller for example).
+====Download Source====
+*Git clone copies down the initial source
+<pre>git clone ssh://<user_name>@git.opendaylight.org:29418/<repository>.git</pre>
+e.g.
+<pre>git clone ssh://john_doe@git.opendaylight.org:29418/controller.git</pre>
+
+''Note: This command can be run from any directory. It will create a .git directory under the folder that the command is run from. This folder will become the .git repository root underwhich other .git commands should be run.''
+====Automatically Generate Change IDs====
+*Set up your git source to automatically generate change IDs
+<pre>scp -p -P 29418 $<user_name>@git.opendaylight.org:hooks/commit-msg .git/hooks/;chmod 755 .git/hooks/commit-msg;</pre>
+====To Pull Down New Source ====
+Retrieves new source from the repository. Note, if you have a local branch (see below) then this simply pulls the new source from the local head. See below for a sample workflow to update your local branch.
+<pre>git pull</pre>
+====Get Information About your Current GIT Repository Status====
+Provides information about what local / remote branch you are tied too, distance from the head of the remote master branch, number of outstanding commits etc.
+<pre>git status</pre>
+====Create Branch====
+Creates a local branch in which you can do work. A local branch essentially places a marker in the master code stream at the time the branch was created. Creating a local branch from master allows you to quickly reset and pull down the latest source without loosing any modifications you made.
+<pre>git branch <branch_name></pre>
+''Note: You can name a branch anything you want, such as a feature name, gerrit ID, or bug_zilla ID.''
+==== Switching to and from a Branch ====
+You can quickly switch to and from a branch in your .git repository by running:
+<pre>git checkout <branch_name></pre>
+To switch back to the master branch, you can run
+<pre> git checkout master</pre>
+====Download the Latest Source to your Branch ====
+To download the latest committed source to your branch from main you need to perform an action called "rebasing". Additionally, because your local branch uses your local master (NOT the remote master) as its master you need to first download the latest source to your local master. Assuming you are starting in your branch repository:
+<pre>git checkout master  #switch to master
+git pull    #download latest source from remote master
+git checkout <branch_name>  #check your local branch out
+git rebase #pull in all of the source from master, and then replay your changes on top</pre>
+
+====Commit your Change====
+To commit your change ( i.e. stage the files you have modified to prepare them to get pushed to gerrit so others can access the changes), follow these steps.
+#Add your files to the git index by running:<br><pre>git add <file_name></pre>''You can optionally skip this step and add the -a flag below to automatically add all modified files to the index.''
+#Mark the files in the index as a "Commit" by running the following commands:<br><pre>git commit -s  #The -s adds a "signed off" statement in the commit message. This is is required to push the commit to gerrit.</pre>''Note you can add the -a argument to add all modified files to the index here, skipping the step above.''
+#Add a comment to the editor that pops up. Note, the first line will be displayed as the subject. It is suggested that if your commit fixes a bug, that you start the subject with BUG <bug_zilla_id>. This should then be followed by a quick description of the change and your sign-off id (which should have been automatically added due to the -s argument above). For example:<pre>Bug 12345 - Fixed Version in Pom.xml
+
+Modified the pom file to fix the version mismatch.
+
+Signed-off-by: jdoe <john.doe@example.com>
+</pre>
+''Note this will automatically create a new change ID (gerrit work item) when pushed. See below if you wish to add another patch to an existing change ID.
+*Finally push the commit to the remote system (and create a gerrit item).
+**To push a publicly visible work item (and thus kick off a Jenkins build):<br><pre>git push</pre>
+**To push a draft, which will only be visible to you and those who you add as a reviewer (and DONT start a jenkins build):<br><pre>git push ssh://<user_name>@git.opendaylight.org:29418/<repository>.git HEAD:refs/drafts/master</pre>e.g.<br><pre>git push ssh://johndoe@git.opendaylight.org:29418/controller.git HEAD:refs/drafts/master</pre>
+====To Add an Additional Patch to an Existing Change ID====
+There maybe times when you want to add additional files to an existing change ID. In this case you can follow these steps:
+#Add (stage) files to the git index using the 'git add' or '-a' option as defined above.
+#Commit files, but this time use the --amend argument for the git commit, indicating that we need to add files to an existing commit.<pre>git commit -a --amend -s</pre>''Note the optional -a argument for adding all files to the git index'<br>When the editor opens, the change ID should already be present in the description. This ID is the last change ID in your git repository. You can optionally modify the change ID to match the gerrit ticket that would would like to associate the change to.
+#Push out your change publicly using 'git push' or keep it as a draft by specifying the draft (see previous example).
+====To Discard a Change from a Local Branch====
+When removing changes form your local branch you want to be careful to not go back too far in history. <pre>git reset --hard HEAD~#</pre> where the # can be replaced with any positive, non-zero number. This numer indicates how many commits you want to remove. This will delete the changes associated with the commit from this branch, overwriting any local changes. e.g.<pre>git reset --hard HEAD~2   # goes back two changes</pre>
+=Further Reading=
+Googling for 'GIT' can provide many hits. One site which provides a simple and easy to understand overview is  [https://www.atlassian.com/git/ Atlassian]
