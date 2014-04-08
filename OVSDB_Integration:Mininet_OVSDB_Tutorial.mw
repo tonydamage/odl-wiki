@@ -1,14 +1,9 @@
 
-===THIS IS A DRAFT DOCUMENT. ACTIVE WORK IN PROGRESS.===
-
-Please excuse changes, the project is in flux as development continues.
-See irc.freenode.net #opendaylight-ovsdb and the [https://lists.opendaylight.org/pipermail/ovsdb-dev/ OVSDB-Dev Listserv] for immediate development information and questions.
-
 === Pre-Requisite Environment ===
 
 See the OVSDB YouTube Channel for getting started videos and other tutorials:
 
-* [[https://wiki.opendaylight.org/view/OVSDB_Integration:Design|OVSDB Integration Architecture]]
+
 * [http://www.youtube.com/channel/UCMYntfZ255XGgYFrxCNcAzA OpenDaylight OVSDB YouTube Channel]
 * [http://networkstatic.net/installing-mininet-opendaylight-open-vswitch/ Preparing the OVSDB Development Environment]
 
@@ -22,77 +17,35 @@ nearly all vendors support OVSDB in various hardware platforms. The OpenDaylight
 This tutorial is for developers, those learning the OpenDaylight controller or just SDN in general. The following example uses the Northbound API to perform some basic management plane functions as follows:
 
 * Add/modify/delete Bridges (switches/datapaths).
-* Add/modify/delete ports/interfaces which attach to bridges. Ports can be provisioned with any supported characteristics such as VLANs, Tunnel Encaps [GRE, VXLAN, CAPWAP] Tags, Trunks, LACP, external_id etc.
+* Add/modify/delete ports/interfaces which attach to bridges. Ports can be provisioned with any supported characteristics such as VLANs, Tunnel Encaps [GRE, VXLAN, (CAPWAP] Tags, Trunks, LACP, external_id etc. 
+''(Note: CAPWAP is depreciated in OVS but still supported in the OVSDB project as long as it is in upstream OVS)''
 * Attach ports to a datapath (bridge). In mininet this will create a link between two emulated switches.
 * Add/modify/delete the OVSDB manager and the OpenFlow controller managing the OVS implementation.
 
-== Clone the OVSDB Repo and Insert into Controller ==
+== Pull the ODL Virtualization Distribution ==
 
+=== Run OpenDaylight OVSDB Plugin with OpenFlow v1.0 ===
 
-Pull the entire controller first and then clone the OVSDB directory:
+ curl -O http://nexus.opendaylight.org/content/repositories/opendaylight.release/org/opendaylight/integration/distributions-virtualization/0.1.1/distributions-virtualization-0.1.1-osgipackage.zip
+ unzip distributions-virtualization-0.1.1-osgipackage.zip
+ cd opendaylight/config.ini
+  ./run.sh
 
-<pre>git clone https://git.opendaylight.org/gerrit/p/controller.git
-cd controller
-mvn clean install
-cd opendaylight
-git clone https://git.opendaylight.org/gerrit/p/ovsdb.git
-cd ovsdb/neutron
-mvn clean install
-cp target/ovsdb*jar ../../distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/plugins/
-cd ../northbound/ovsdb/
-mvn clean install
-cp target/ovsdb*jar ../../../distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/plugins/
-cd ../../ovsdb
-mvn clean install
-cp target/ovsdb*jar ../../distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/plugins/
-cd ..
-../../distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/run.sh</pre>
+=== OpenDaylight OVSDB Plugin  with OpenFlow v1.3 ===
 
-or you can use this script after the controller is built.
+ curl -O http://nexus.opendaylight.org/content/repositories/opendaylight.release/org/opendaylight/integration/distributions-virtualization/0.1.1/distributions-virtualization-0.1.1-osgipackage.zip
+ unzip distributions-virtualization-0.1.1-osgipackage.zip
+ 
+Open config.ini in an editor and uncomment # ovsdb.of.version=1.3
+ cd opendaylight/
+ Uncomment:
+ # ovsdb.of.version=1.3
+  ./run.sh -Xmx2048m -XX:MaxPermSize=512m -virt ovsdb -of13
 
-<pre>git clone https://git.opendaylight.org/gerrit/p/controller.git
-cd controller
-mvn clean install
-cd opendaylight
-git clone https://git.opendaylight.org/gerrit/p/ovsdb.git
-cd ovsdb</pre>
-Once completed with the controller build, paste the following lame little script into your console. If it is the first time you may need to adjust the sleep values or run by hand depending on the amount of artifacts requiring download. Again, this is for dev. We will crank out better installers as time permits.
-<pre> touch makemvn.sh
-echo '#!/bin/bash
-cd neutron
-echo "Refreshing ovsdb/neutron.."
-pwd
-mvn clean install
-sleep 40
-cp target/ovsdb*jar ../../distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/plugins/
-cd ../northbound/ovsdb/
-echo "Refreshing northbound/ovsdb.. "
-pwd
-mvn clean install
-sleep 40
-cp target/ovsdb*jar ../../../distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/plugins/
-cd ../../ovsdb
-echo "Refreshing ovsdb/ovsdb.."
-pwd
-mvn clean install
-sleep 40
-cp target/ovsdb*jar ../../distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/plugins/
-cd ..
-echo "done!"
-pwd' > makemvn.sh
-chmod +x makemvn.sh
-. ./makemvn.sh</pre>
+== Download a Test VM or Mininet ==
 
-Finally if you only want to run the distribution with OVSDB integrated clone the following and build either the "Base" or "Virtualization" directories.
-<pre>git clone https://git.opendaylight.org/gerrit/integration
-#Choose your build base or virtualization be
- changing to those directories and run:
-integration/distributions/ {base or virtualization} 
-mvn clean install
-cd integration/distributions/virtualization/target/generated-resources/opendaylight
-./run.sh</pre>
-
-== Download Mininet ==
+*Download pre-built ODL VM
+[http://www.opendaylight.org/software/downloads OpenDaylight Image Downloads]
 
 *Download Mininet
 [http://mininet.org/download/ Mininet.org]
@@ -100,7 +53,11 @@ cd integration/distributions/virtualization/target/generated-resources/opendayli
 [https://www.virtualbox.org/wiki/Downloads VirtualBox.org]
 We recommend using Postman for making API calls as you can download the same APIs we are using.
 
-[https://www.getpostman.com/collections/6a477a38d322b573719d Postman OVSDB API call for importation (updated 11/24)]
+[https://git.opendaylight.org/gerrit/gitweb?p=ovsdb.git;a=tree;f=resources/commons;h=6c56fbcf6daf619bee1f0562d3cbb06623217493;hb=HEAD Postman API Collections]
+
+Please watch the following video for an example of using Postman for OVSDB API calls.
+
+[http://www.youtube.com/watch?v=8iWhMVlflwE OVSDB YouTube Channel]
 
 == Setting up the OVS Manager ==
 
@@ -110,7 +67,7 @@ The following is the simple topology which is created by Mininet. In this tutori
 
 In the mininet CLI the only provisioning needed is to enable remote management of Open vSwitch. There are two options:
 
-1. ''Passive Listener'' - In the passive management mode, the controller will initiate a connection to the OVS element that is listening on a spcified port using the ovs-vsctl client.
+1. ''Passive Listener'' - In the passive management mode, the controller will initiate a connection to the OVS element that is listening on a specified port using the ovs-vsctl client.
 ovs-vsctl set-manager ptcp:6640
 
 This configuration in the OVS client will appear as follows:
@@ -121,7 +78,7 @@ This configuration in the OVS client will appear as follows:
 2. ''Active Manager'' - The OVS element can be set to attach to an active Daylight management controller. In this model, the controller is listening on a specified port. The IANA registered port for OVS is 6640.
 <pre>sudo ovs-vsctl set-manager tcp:192.168.254.128:6640</pre>
 
-After the host is connected to the controller. The OVS configuration will reflect the established connection with a bolean value in the "Manager" table in the "is_connected" column of "true".
+After the host is connected to the controller. The OVS configuration will reflect the established connection with a boolean value in the "Manager" table in the "is_connected" column of "true".
 
 <pre>root@mininet-vm:~# ovs-vsctl show
 987c42d0-eab0-43d9-a32b-4246973706c2
@@ -129,7 +86,7 @@ After the host is connected to the controller. The OVS configuration will reflec
         is_connected: true</pre>
 
 
-In both scenarios, the initiator sends an echo request in order to establish a persistent connection. This connection is refershed every 5 seconds. If an echo request times out, the persistent connection will be disconnected. The OVS switch will continue to initialize a channel to the OVSDB manager using echo requests every 5 seconds as long as the manager table is configured to do so.
+In both scenarios, the initiator sends an echo request in order to establish a persistent connection. This connection is refreshed every 5 seconds. If an echo request times out, the persistent connection will be disconnected. The OVS switch will continue to initialize a channel to the OVSDB manager using echo requests every 5 seconds as long as the manager table is configured to do so.
 
 == Start and Attach Mininet ==
 
