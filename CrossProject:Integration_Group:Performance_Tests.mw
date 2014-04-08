@@ -79,19 +79,29 @@ Next steps 7&8 are designed to test AD-SAL ARP Handler and Simple Forwarding app
 * 8. Check hosts are learned and flows are created:
 <pre>
 curl --user "admin":"admin" -H "Accept: application/json" -H "Content-type: application/json" -X GET http://<controllerIP>:8080/controller/nb/v2/hosttracker/default/hosts/active
-curl --user "admin":"admin" -H "Accept: application/json" -H "Content-type: application/json" -X GET http://<controllerIP>:8080/controller/nb/v2/statistics/default/flow</pre>
+curl --user "admin":"admin" -H "Accept: application/json" -H "Content-type: application/json" -X GET http://<controllerIP>:8080/controller/nb/v2/statistics/default/flow
+</pre>
 * 9. Monitor CPU and RAM
 * 10. Repeat the test increasing the number of switches, like -tree,5 (31 switches)
 
 === CBench Test ===
 Still in design, the idea will be to bring up small to large topologies of 16-32-64-128-256-... switches and verify the controller can properly learn topology: switches, ports and links. Also measure CPU and RAM consumed on each iteration. We can also configure mininet to bring a custom topology close to a data center.
  
-* Test Steps:
-** 1. Download latest controller base distribution. See [[CrossProject:Integration_Group:Controller_Artifacts|Controller Artifacts for testing]]
-** 2. Also download the OF plugin reactive forwarding bundle from same link and follow link instructions to install it
-** 3. Configure controller according to requirements above and start it with -of13 option (new openflow plugin)
-** 4. Start Cbench test with 16 switches: '''cbench -c <controllerIP> -p 6633 -m 10000 -l 10 -s 16 -M 1000'''
-** 5. Monitor CPU and RAM
-** 6. Repeat the test increasing the number of switches (-s 32), and number of Mac/switch (-M 2000)
+Test Steps:
+* 1. Download latest controller base distribution. See [[CrossProject:Integration_Group:Controller_Artifacts|Controller Artifacts for testing]]
+* 2. Download the OF plugin reactive forwarding bundle from same link and follow link instructions to install it in opendayligh/plugins
+* 3 Delete two AD-SAL bundles Simple Forwarding and Arp Handler that interfere with MD-SAL Cbench measurements:
+<pre>
+> rm plugins/org.opendaylight.controller.samples.simpleforwarding-0.4.2-SNAPSHOT.jar
+> rm plugins/org.opendaylight.controller.arphandler-0.5.2-SNAPSHOT.jar
+</pre>
+* 4. Set controller Log level to ERROR, edit opendaylight/configuration/logback.xml 
+* 5. Start controller with recommended options: run.sh -of13 -Xms2g -Xmx4g
+* 6. Initiate the drop test in the controller. There are two types of drop tests: RPC (programming flows directly through an RPC to the OF Plugin) and data store (programming flows by writing them into the MD-SAL config space, from where they are picked up by the FRM and programmed into the plugin). For the data store performance, the latter is of interest.
+** To turn on the RPC drop test, type from the controller’s OSGI console: > dropAllPacketsRpc on
+** To turn on the data store drop test, type from the controller’s OSGI console: > dropAllPackets on
+* 7. Start Cbench test with 16 switches: '''cbench -c <controllerIP> -p 6633 -m 1000 -l 10 -s 16 -M 1000'''
+* 8. Monitor CPU and RAM
+* 9. Repeat the test increasing the number of switches (-s 32), and number of Mac/switch (-M 2000)
 
 [[Category:Integration Group]]
