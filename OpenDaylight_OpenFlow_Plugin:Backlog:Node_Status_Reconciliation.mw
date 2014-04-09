@@ -68,3 +68,40 @@ Most of the values required from configuration can be in form of time-to-wait an
 * '''retry to push config content''' to switch if primary push fails
 
 Some of those are conflicting. In case that the switch gets disconnected again then all waiting operations should be cancelled.
+
+
+==Completely different approach - allow inconsistency between operational and config by default==
+We have already usecase covering preconfiguring flows, which means inconsistency untill device emerges.
+Lets have the FRM removed from commitHandlers and make it listen to dataChange in config and operational context of dataStore. And also flows managed by controller/FRM will have cookie field filled and timeouts set to 0 (never expires). Following scenarios would arise.
+
+=== Application writes a flow into config ===
+FRM gets notified upon data changed. 
+If there is corresponding device connected, FRM will push flow and statistic harvester mechanizm will deliver result into operational context.
+If there is no device - no action.
+
+In case of update or removal FRM behaves the same.
+
+=== Device appears in operational context ===
+FRM gets notified upon data changed. Here FRM could probably wait a few seconds till 
+If there is underlying flow in config, FRM will push it to device.
+
+=== Flow appears in operational context ===
+FRM gets notified upon data changed.
+If there is cookie present, FRM will look up corresponding flow in config and:
+* if not found - remove it from device
+* if found - do nothing / update if different (might be configurable)
+No cookie means the flow is not managed by controller and wont be touched by FRM.
+
+=== Flow/device disappears from operational ===
+FRM gets notified upon data changed. No action.
+
+=== Unmanaged flows ===
+Flows can be pushed to device via restconf by directly invoking SalFlowService, and also removed and updated this way. Those flows are expected to have timeouts specified and no cookies (eventuall collissions with cookies of managed flows will result into update, removal or keeping the flow).
+
+=== Remaining issues ===
+In case of device disconnection the corresponding operational context is suppossed to get cleared. But this context is build via statitics harvest so either the stats should be stored somewhere else or disconected devices might get an inactive flag. Or statistics will get lost together with device. But this is more related to statistic manager expected statistic lifecycle.
+
+Fail handling - in case the flow add/update/remove action fails, then FRM should try again after some timeout or end up with error log?
+
+=== Conclusion ===
+Taking this approach most of the inconsistent situations have simple solution and preconfiguration will be supported too.
