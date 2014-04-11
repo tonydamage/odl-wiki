@@ -3,9 +3,14 @@
 
 ==After executing db_setup, you have encountered the error "Failed to setup database"?==
 The error could be due to the below reasons
-* Not a Root user 
-  You may not be user with root permissions, please switch to such a previleage and execute again
-
+* Access Restriction
+  The user who owns /usr/local/vtn/ directory and installs VTN coordinator, can only start db_setup.
+  Example : 
+  The directory should appear as below (assuming the user as "vtn"):
+  # ls -l /usr/local/
+    drwxr-xr-x. 12 vtn  vtn  4096 Mar 14 21:53 vtn
+  If the user doesnot own /usr/local/vtn/ then, please run the below command (assuming the username as vtn),
+                 chown -R vtn:vtn /usr/local/vtn
 * Postgres not Present 
   1.In case of Fedora/CentOS/RHEL, please check if /usr/pgsql/<version> directory is present and also ensure the commands 
     initdb, createdb,pg_ctl,psql are working. If, not please re-install postgres packages
@@ -21,34 +26,46 @@ The error could be due to the below reasons
 
 ==What are the things to check after vtn_start?==
 * list of coordinator processes
-    command: ps -ef | grep unc
-    postgres 29176 29171  0 18:50 ?        00:00:00 postgres: autovacuum launcher process
-    root     29206     1  0 18:50 ?        00:00:00 /usr/local/vtn/sbin/uncd
-    root     29221 29206  0 18:50 ?        00:00:00 drvodcd -Pcore.uncd.pid=29206 -Pcore.ipc.notify=uncd,launcher,0 -DR
-    root     29243 29206  0 18:50 ?        00:00:00 phynwd -Pcore.uncd.pid=29206 -Pcore.ipc.notify=uncd,launcher,0 -DR
-    root     29259 29206  0 18:50 ?        00:00:00 lgcnwd -Pcore.uncd.pid=29206 -Pcore.ipc.notify=uncd,launcher,0 -DR
-    postgres 29278 29171  0 18:50 ?        00:00:00 postgres: uncdbuser uncdb 127.0.0.1(50531) idle
-    postgres 29279 29171  0 18:50 ?        00:00:00 postgres: uncdbuser uncdb 127.0.0.1(50532) idle
-    postgres 29280 29171  0 18:50 ?        00:00:00 postgres: uncdbuser uncdb 127.0.0.1(50533) idle
-    postgres 29281 29171  0 18:50 ?        00:00:00 postgres: uncdbuser uncdb 127.0.0.1(50534) idle
-    postgres 29284 29171  0 18:50 ?        00:00:00 postgres: uncdbuser uncdb 127.0.0.1(50536) idle
-    
-* Issue the curl command to fetch version and ensure rthe process is able to respond.
+* Run the below command ensure the Coordinator daemons are running.
+     Command:   /usr/local/vtn/bin/unc_dmctl status
+                Name         Type      IPC Channel      PID
+        -------------------- ------------ ---------------- --------
+             drvodcd       DRIVER          drvodcd    15972
+              lgcnwd      LOGICAL           lgcnwd    16010
+              phynwd     PHYSICAL           phynwd    15996
 
     
-==Things to do when the processes are not getting listed in process table.==
-* Please execute /usr/local/bin/vtn_stop and check process table if there are any coordinator process still running. This could error if the directory /usr/local/vtn was removed without vtn_stop. In such situations, Please kill all coordinator process and retry.
-   
-* Check the log file /usr/local/vtn/var/uncd/uncd_start.err for any particular startup errors.
-   
-* Check the log file /usr/local/vtn/var/db/pg_log/postgres*.log to ensure that database startup was successful, if else please re-configure database and attempt the start again.
-      
-* Check the log file /usr/local/vtn/var/uncd/log/pfcd_message.log for the failure of any particular daemon, If the log messages indicate the failure of a particular daemon, please check the log file of the particular daemon for more details /usr/local/vtn/var/<daemon>/log/pfcd_message.log
+* Issue the curl command to fetch version and ensure the process is able to respond.
 
-* Mail the error to vtn-dev mailing list with the tar file of the /usr/local/vtn/var directory for debugging.
+==How to debug a startup failure? ==
+The following activities take place in order during startup
+* Database server is started after setting virtual memory to required value
+     Any database startup errors will be reflected in any of the below logs
+    /usr/local/vtn/var/dbm/unc_db_script.log.
+    /usr/local/vtn/var/db/pg_log/postgresql-*.log (the pattern will have the date)
+
+* uncd daemon is kicked off, The daemon in turn kicks off the rest of the daemons.
+     Any  uncd startup failures will be reflected in /usr/local/vtn/var/uncd/uncd_start.err.
+     please refer to the file for any errors.
 
 ==After setting up the apache tomcat server, what are the aspects that should be checked.==
      Please check if catalina is running.
 
+     The command ps -ef | grep catalina | grep -v grep should list a catalina process
+
 ==If you encounter an erroneous situation where the REST API is always failing.==
     Please ensure the firewall settings for port:8080 and enable the same.
+
+== How to debug a REST API returning a failure message? ==
+   Please check the /usr/share/java/apache-tomcat-7.0.39/logs/core/core.log for failure details.
+
+== REST API for VTN configuration fails, how to debug? ==
+The default log level for all daemons is "INFO", to debug the situation TRACE or DEBUG logs may be needed.
+To increase the log level for individual daemons, please use the commands suggested below
+
+   /usr/local/vtn/bin/lgcnw_control loglevel trace -- upll daemon log 
+   /usr/local/vtn/bin/phynw_control loglevel trace -- uppl daemon log 
+   /usr/local/vtn/bin/unc_control loglevel trace -- uncd daemon log 
+   /usr/local/vtn/bin/drvodc_control loglevel trace -- Driver daemon log 
+
+After setting the log levels, the operation can be repeated and the log files can be referred for debugging.
