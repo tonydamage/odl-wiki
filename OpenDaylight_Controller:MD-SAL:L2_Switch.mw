@@ -50,7 +50,9 @@ To determine external ports: <br>
 # The difference between List#1 and List#2 is a list of external ports and switch-to-controller (internal) ports.
 # Switch-to-controller ports have special properties and can be easily removed from List#3.  This gives us the list of external ports.
 <br>
-Topology can change at any given time. Its possible that by the time we calculated the external ports, one of them became internal! In such scenario what will happen is when we send a broadcast message on this port, that message will bounce back to controller. Based on this message, it would appear to the controller that the host is connected to switch that bounced the message which is incorrect. Our current implementation would just ignore this packet as explained in the section [[OpenDaylight Controller:MD-SAL:L2 Switch#Why_we_dont_update_attachment_point|Why we dont update attachment point]].
+Will this ever compute an incorrect list of external ports? <br>
+Yes, topology can change at any given time and its possible that by the time we calculated the external ports, one of them became internal!  <br>
+In such scenario, will will broadcast a packet on this new internal port and that packet will bounce back to controller. Based on this packet, it appears that the host is now connected to the switch that bounced the message, which is incorrect.  Our current implementation would just ignore this packet as explained in the section [[OpenDaylight Controller:MD-SAL:L2 Switch#Why_we_dont_update_attachment_point]].
 
 ==Finding the shortest path between 2 nodes==
 <TBD>
@@ -62,12 +64,12 @@ The L2 Switch maintains '''mac-port''' mapping for all mac addresses in the netw
 In order for the mac-port mapping to remain correct, the controller must not receive '''duplicate packets from 2 different switches'''. <br>
 <br>
 '''Why will receive duplicate packets from 2 different switches cause incorrect mac-port mappings?''' <br>
-Host is connected to node1 on port1. <br>
+It's easiest to explain with an example.  Let's say Host is connected to node1 on port1. <br>
 Host sends out an ARP request, which the switch sends to the controller (because it doesn't know destination mac).  The controller will map this host's mac to '''node1:port1'''.  This is correct! <br>
-The problem occurs when the controller forwards the original host's ARP request to node2 using port1 (so node2:port1 connects controller to node2).  If node2 doesn't contain the destination mac, it will pass the ARP request back to controller.  The packet that comes to controller would be from host but the ingress would be ''node2:port1''' and this is incorrect! <br>
+The problem occurs when the controller forwards the original host's ARP request to node2 using port1 (so node2:port1 connects controller to node2).  If node2 doesn't contain the destination mac, it will pass the ARP request back to controller.  This packed has host's mac but the associated ingress would be '''node2:port1'''<br>
 <br>
-'''The question is:  Should we update mac-port mapping?''' and change the host location from '''node1-port1''' to '''node2-port1'''.<br>
-:If '''no''', since host is '''not''' really connected at this port, we miss the case when a host genuinely moves to a new location.
+'''The question is:  Should we update mac-port mapping?''' and change mac-port association from '''node1-port1''' to '''node2-port1'''.<br>
+:If '''no''', we correctly operate in the given example since host is '''not''' really connected at this port.  However, we will not operate correctly when a host genuinely moves to a new location.
 :If '''yes''', then there will be cases when our mac-port mapping gets corrupted.  We won't be able to optimally find shortest path between 2 hosts and hence not program flows appropriately.
 
 =Assumptions=
@@ -85,17 +87,35 @@ The problem occurs when the controller forwards the original host's ARP request 
 
 =How to run L2Switch=
 
-* Setup mininet
-* Copy model and impl jars to plugins directory
-* Start opendaylight
-* Stop ARPHandler and SimpleForwardingManager
-* Start mininet with a topology of your choice. For eg:
-:<source>
-sudo mn --controller=remote,ip=<controller_ip> --topo linear,2 --switch ovsk,protocols=OpenFlow13
+* Setup mininet ([[CrossProject:Integration_Group:Test_VMs|how to setup test VMs?]])
+* Get  controller and openflowplugin projects from odl git repo and build them locally([[GettingStarted:Pulling,_Hacking,_and_Pushing_All_the_Code_from_the_CLI|how to?]])
+* Copy model(l2switch-model-1.1-SNAPSHOT.jar) and impl(l2switch-impl-1.1-SNAPSHOT.jar) jars to plugins directory of  '''openflowplugin''' distribution (not controller)
+<source>
+$cp controller/opendaylight/md-sal/samples/l2switch/model/target/l2switch-model-1.1-SNAPSHOT.jar openflowplugin/distribution/base/target/distributions-openflowplugin-base-0.0.3-SNAPSHOT-osgipackage/opendaylight/plugins/
+
+$cp controller/opendaylight/md-sal/samples/l2switch/implementation/target/l2switch-impl-1.1-SNAPSHOT.jar openflowplugin/distribution/base/target/distributions-openflowplugin-base-0.0.3-SNAPSHOT-osgipackage/opendaylight/plugins/
 </source>
+* Start opendaylight using '''openflowplugin''' distribution
+<source>
+$./openflowplugin/distribution/base/target/distributions-openflowplugin-base-0.0.3-SNAPSHOT-osgipackage/opendaylight/run.sh
+</source>
+* Stop ARPHandler and SimpleForwardingManager
+<source>
+osgi> ss | grep arp
+     17	ACTIVE      org.opendaylight.controller.arphandler_0.5.2.SNAPSHOT
+     true
+osgi> ss | grep simple
+    177	ACTIVE      org.opendaylight.controller.samples.simpleforwarding_0.4.2.SNAPSHOT
+    true
+osgi> stop 17
+osgi> stop 177</source><br>
+* Start mininet with a topology of your choice. For eg:
+<source>
+sudo mn --controller=remote,ip=<controller_ip> --topo linear,2 --switch ovsk,protocols=OpenFlow13
+</source><br>
 * Do pingall in mininet console. This should generate network traffic between hosts. Pings should work.
 * All learn map-port mapping can be accessed at
-:<source>http://localhost:8080/restconf/operational/l2-address-tracker:l2-addresses/</source>
+<source>http://localhost:8080/restconf/operational/l2-address-tracker:l2-addresses/</source>
 
 =Items for discussion=
 
