@@ -2,36 +2,62 @@ These instructions should enable you to use the CLI to pull and push to the git 
 
 ==Starting From Scratch==
 
-# Pull the code from the command line and build it with these [[OpenDaylight Controller:Pulling, Hacking, and Pushing the Code from the CLI|instructions]]. The short version is:
-## Pull the code: <tt>git clone ssh://<username>@git.opendaylight.org:29418/controller.git</tt>
-## Build the code: <tt>cd controller && mvn clean install</tt> ''You can also build from opendaylight/distribution/opendaylight, but it just builds the distribution as opposed to building everything''
 # Download and install Eclipse ("for Java EE Developers", "for Java Developers" and "for RCP and RAP Developers" all seem to work)
+# Increase the memory for the Eclipse installation by modifiying the eclipse.ini file in the same directory as the eclipse executable.
+#*Change the -Xmx setting to be AT least 1G, recommended 2GB.  (i.e.    -Xmx2048m ).  ''Note: This file may be in a different location depending on your OS. Refere to eclipse documentation if you don't see the file.'' 
 # Install Eclipse Maven Integration
 ## From Eclipse, go to Help => Install New Software...
 ## Paste "http://download.eclipse.org/technology/m2e/releases" into the "Work with:" field
 ## Select m2e and (optionally) m2e - slf4j both ''(1.4.0 is current as of the writing of these instructions)''
 ## Click Next, OK and Finish else until things install
-# Restart Eclipse when it asks
+## Restart Eclipse when it asks
 # Install Eclipse Xtend plugin
 ## From Eclipse, go to Help => Install New Software...
 ## Paste "http://download.eclipse.org/modeling/tmf/xtext/updates/composite/releases" into the "Work with:" field
 ## Select Xtend SDK and Xtend M2E extensions under Xtend-2.4.3 ''(2.4.3 is the most recent version as of the writing of these instructions)''
 ## Click Next, OK and Finish else until things install
-# Restart Eclipse when it asks
-# Import all of the OpenDaylight projects
-## From Eclipse, go to File => Import => Maven => Existing Maven Projects
-## Browse to the root directory of the git repository
-## All of the projects should be selected by default, just click Finish
-## It may ask you to install Tycho, do so if it asks
-## It may also complain about jacoco, you should be able to ignore those errors
-# If the projects still have errors, they are usually because for whatever reason Eclipse didn't properly import the java for the xtend files. To fix this:
-## Figure out what class seems to be missing.
-## Find the xtend file for that class and open in it in Eclipse. (I find using the CLI helps me figure out where it is. For example <tt>find . -name "FlowProgrammerAdapter.xtend"</tt>.)
-## That should cause the xtend file to be compiled and then Eclipse should find it.
+## Restart Eclipse when it asks
+#Install Eclipse Tycho integration
+## From Eclipse, go to Help => Install New Software...
+## Paste http://repo1.maven.org/maven2/.m2e/connectors/m2eclipse-tycho/0.7.0/N/0.7.0.201309291400/ into the "Work with:" field.
+##Select the Tycho Project Configurators. Click Next, OK, Finish etc until it installs.
+##Restart Eclipse when it asks.
 
 ==Eclipse Maven Integration (m2e) version==
 
 Previously, there were issues with m2e 1.3 and we recommended using 1.2, but those issues have been fixed and everything should works as expected with the most recent m2e version, 1.4.
+
+==Importing the Source Into Eclipse==
+# Pull the code from the command line and build it with these [[OpenDaylight Controller:Pulling, Hacking, and Pushing the Code from the CLI|instructions]]. The short version is:
+## Pull the code: <tt>git clone ssh://<username>@git.opendaylight.org:29418/controller.git</tt>
+## Build the code: <tt>cd controller && mvn clean install</tt> ''You can also build from opendaylight/distribution/opendaylight, but it just builds the distribution as opposed to building everything''<br>The long version is available here [[GettingStarted:Pulling,_Hacking,_and_Pushing_All_the_Code_from_the_CLI]].
+# Import all of the OpenDaylight projects into eclipse
+## From Eclipse, go to File => Import => Maven => Existing Maven Projects
+## Browse to the root directory of the git repository
+## All of the projects should be selected by default, just click Finish
+## It may ask you to install Tycho, do so if it asks ''(This should be a 1 time deal. Make sure you have enough memory allocated otherwise it can cause Eclipse to hang and eventually crash)''
+## It may also complain about jacoco, you should be able to ignore those errors
+
+== Help - I still have Red X's! (i.e. Eclipse compile errors) ==
+*The first thing to try when you still have eclipse compile errors is to right click the offending projects and choose:
+**Maven -> Update Projects       <-- This will cause eclipse to reevaluate the pom.xml and possibly pull in missing (runtime generated) files.
+**Refresh    <-- Causes eclipse to scan the project directory and pull in any files that were manipulated (generated etc) outside of eclipse.
+*If you still have compile errors, then you may need to run mvn clean install from the command line the offending projects. Yang and xtend source files are only generated when maven is invokved directly (either by right clicking and choosing Run -> mvn generate-sources or via the command line).
+
+== To Remotely Debug the Controller ==
+To remotely debug the controller you need to:
+# Start the controller with the -debug flag passed to the run.sh script. <pre>./run.sh -debug   </pre>''This starts the controller, opening up port 8000 for debugging.''
+#In Eclipse choose Run->"Debug Configurations" 
+#*Under "Remote Java Application" choose a standard connection type, and enter the hostname (localhost or remote controller name) and port (8000 by default).
+#*Under the "Source" tab click "Add" and then "Java Project". This will give you a list of all java projects in the workspace. Select them all and click OK a few times to close out of the dialogs. <br>''Note: this should only be required once per debug configuration.''
+#*Click debug to launch the debugger.
+
+==Alternative way without m2eclipse plugin - for CLI-fans==
+Sometimes m2eclipse plugin does weird things like compiling in infinite loop, updating dependencies when they need to be frozen and the other way around. If you want to omit m2eclipse plugin completely, you can. Of course the xtend plugin is still needed.
+# pull code from git
+# run in folder with pom:
+#: <code>mvn eclipse:eclipse -DdownloadSources=true</code>
+# start eclipse and import ''existing project'' (navigate to folder with pom)
 
 ==Debugging Weird Errors==
 
@@ -45,12 +71,6 @@ If Eclipse starts giving you lots of weird errors that seem to make no sense, tr
 # If that doesn't work closing, deleting and the reimporting all of the OpenDaylight projects seems to help when nothing else does
 #* while you have the projects not imported into Eclipse, it doesn't hurt to do a build from the CLI as well
 
-==Alternative way without m2eclipse plugin - for CLI-fans==
-Sometimes m2eclipse plugin does weird things like compiling in infinite loop, updating dependencies when they need to be frozen and the other way around. If you want to omit m2eclipse plugin completely, you can. Of course the xtend plugin is still needed.
-# pull code from git
-# run in folder with pom:
-#: <code>mvn eclipse:eclipse -DdownloadSources=true</code>
-# start eclipse and import ''existing project'' (navigate to folder with pom)
 
 ===Frequent gotchas===
 * eclipse needs to setup a classpath variable M2_REPO pointing to local repository. Can be done manually or via 
