@@ -1,4 +1,17 @@
-== How to use Restconf ==
+= How to use Restconf =
+==Known Issues==
+There are several known issues that have come to light recently.
+*restconf/modules throws an exception and returns with an internal server error. See [https://bugs.opendaylight.org/show_bug.cgi?id=735 Bug 735]
+*restconf/streams throws an exception and returns with an internal server error. See[https://bugs.opendaylight.org/show_bug.cgi?id=566 Bug 566]
+*Successful POST to restconf/config returns no content and results in an exception on the OSGi command line.
+:*This is an issue where the code which looks up the model is failing to find some of the generate YANG class files and thus results in a null pointer exception. A bug has not been filed yet.
+*A Successful DELETE to restconf/config/<identifier> results in no return content and an exception on the OSGI command line.
+:*This is an issue where the code which looks up the model is failing to find some of the generated YANG class files and thus results in a null pointer exception. A bug has not been filed yet.
+*Getting an exception return (500 error) when trying to make an RPC which has no inputs.
+:*This is a known issue. If you have content-type defined when you make an RPC call which has no input then you will be directed to a java method which expects non-null/empty input and thus fails accordingly. Removing the content-type header results in the rest call getting routed to a different java method which expects an empty body and thus there is success.
+*My cancel-toast method in the MD-SAL toaster example is still failing with an exception
+:*This is a bug in either the toaster or MD-SAL core code. Essentially the cancel-toaster call returns a null future object, which the rpc caller chokes on (i.e. doesn't null check). While the simple fix is to change the toaster to return a non-null future, we should consider enhancing the RPC caller to gracefully handle null futures. No bug has been filed on this yet.
+==Operations ==
 ==== Overview before operations ====
 Restconf allows access to datastores locating in controller. There are two datastores: 
 * '''Config''' – contains data inserted via controller
@@ -134,7 +147,7 @@ Content-Type: application/yang.data+json
 <br />
 For further information read [http://tools.ietf.org/html/draft-bierman-netconf-restconf-02 RESTCONF RFC]
 
-== How it works ==
+= How it works =
 Restconf uses these base classes:
 * '''InstanceIdentifier''' represents path in data tree.
 * '''ConsumerSession''' is used for invoking RPCs.
@@ -167,7 +180,7 @@ The second picture shows PUT operation with URI restconf/config/M:N where M is m
 # Restconf begins transaction and puts CompositeNode with InstanceIdentifier into it. Response on client's request is status code which depends on result from transaction.
 <br />
 <br />
-== Something from real world ==
+= Something from real world =
 '''1. Create new flow on switch ''openflow:1'' in ''table 2'''''
 * HTTP request
 <pre>
