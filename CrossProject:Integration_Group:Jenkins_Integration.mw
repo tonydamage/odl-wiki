@@ -54,7 +54,7 @@ Go to '''Manage Jenkins''' > '''Manage Plugins''' and select '''Available''' tab
 Search and select following packages:
 
 * Conditional Buildstep Plugin
-* EnvInjec Plugin
+* EnvInject Plugin
 * Gerrit Trigger
 * Git Client Plugin
 * GIT Plugin
@@ -70,114 +70,28 @@ Select Restart Jenkins when installation is complete at the bottom:
 
 == Slave Jenkins Install ==
 
-Slave Jenkins will be installed on the rest of the VMs that are part of the test bed. In this example the controller VM.
+Slave Jenkins will be installed on the other VMs that are part of the test bed. In this example the controller VM.
 
 === 1. Setup SSH access Master to Slave ===
 
-Generate SSH key pair for user jenkins in the Jenkins Master:
+Generate SSH key pair in Jenkins Master (if they are not available under ~/.ssh), set the right file permissions and move the Master public key to the Slave (controller VM):
 
 <pre>
-~\> sudo su - jenkins
-~\> ssh-keygen 
-Generating public/private rsa key pair.
-Enter file in which to save the key (/var/lib/jenkins/.ssh/id_rsa): 
-Created directory '/var/lib/jenkins/.ssh'.
-Enter passphrase (empty for no passphrase): 
-Enter same passphrase again: 
-Your identification has been saved in /var/lib/jenkins/.ssh/id_rsa.
-Your public key has been saved in /var/lib/jenkins/.ssh/id_rsa.pub.
-The key fingerprint is:
-1d:b8:ef:a4:c5:fe:65:d0:29:c6:ed:c9:21:c0:a5:fe jenkins@odl-test-desktop
-The key's randomart image is:
-+--[ RSA 2048]----+
-|            .    |
-|         o o     |
-|        . =      |
-|         + + o . |
-|        S o * =  |
-|         o o * o |
-|          = E *  |
-|         *   o   |
-|        . o..    |
-+-----------------+
+~\> cd ~
+~\> ssh-keygen
+~\> chmod 700 .ssh
+~\> cd .ssh
+~/.ssh\> chmod 600 id_rsa
+~/.ssh\> ssh-copy-id <controllerUser>@<controllerIP>
 </pre>
 
-Move the Master public key to the Slave (controller VM):
+Check the SSH key is properly installed by connecting to controller and verifying no password is being asked:
 
 <pre>
-~\> ssh-copy-id jenkins@10.1.19.33
-The authenticity of host '10.1.19.33 (10.1.19.33)' can't be established.
-ECDSA key fingerprint is 0d:2b:a6:07:81:9a:d2:ce:42:d7:75:d8:19:c1:fb:b4.
-Are you sure you want to continue connecting (yes/no)? yes
-Warning: Permanently added '10.1.19.33' (ECDSA) to the list of known hosts.
-jenkins@10.1.19.33's password: 
-Now try logging into the machine, with "ssh 'jenkins@10.1.19.33'", and check in:
-
-  ~/.ssh/authorized_keys
-
-</pre>
-
-Note that controller VM has already a user called jenkins but it could be any name.
-
-Finally check the SSH key is properly installed by connecting to controller and verifying no password is being asked:
-
-<pre>
-~\> ssh jenkins@10.1.19.33
+~/.ssh\> ssh <controllerUser>@<controllerIP>
 Welcome to Ubuntu 12.04.4 LTS (GNU/Linux 3.11.0-15-generic x86_64)
 </pre>
 
-=== 2. Setup  Master Jenkins credentials ===
-
-Configure Master Jenkins credentials. From Jenkins main menu go to '''Credentials''' > '''Global credentials''' and select '''Add some credential''':
-
-<br/> [[File:6-Jenkins-Credentials.png|600px]] <br/><br/>
-
-=== 3. Configure Slave Jenkins ===
-
-Second go to '''mange Jenkins''' > '''Manage Nodes''', press on '''New Node''' from left menu and fill as follows:
-
-<br/> [[File:7-Jenkins-Slave.png|900px]] <br/><br/>
-
-Verify Slave Jenkins is online:
-
-<br/> [[File:8-Jenkins-Nodes.png|900px]] <br/><br/>
-
-== Verify Jenkins Integration ==
-
-Now lets create a Jenkins job to verify Jenkins integration. In this example we are going to define a job that will poll the Integration Jenkins at LF for new edition build, when this happens it will download the newest base edition, install it and run it in the controller VM. 
-
-=== 1. Create a Job ===
-
-From Jenkins main page click on '''Create new Job''', and fill the Job name and description. After that configure the job to run in the controller VM:
-
-<br/> [[File:9-Jenkins-Conf-1.png|900px]] <br/><br/>
-
-Note that in this example we will be passing one parameter, the artifact bundle version, to the automation.
-
-=== 2. Configure the trigger ===
-
-In the same configuration page configure the job trigger:
-
-<br/> [[File:10-Jenkins-Conf-2.png|900px]] <br/><br/>
-
-The URL to poll is:  https://jenkins.opendaylight.org/integration/job/integration-project-centralized-integration/lastSuccessfulBuild/buildNumber
-
-=== 3. Configure the build ===
-
-In this case the build consists on running a shell a script to update the controller:
-
-<br/> [[File:11-Jenkins-Conf-3.png|900px]] <br/><br/>
-
-Save the job
-
-=== 4. Run the Job ===
-
-From Jenkins main page, click on the START (green arrow) icon in the same row as the job definition:
-
-<br/> [[File:12-Jenkins-Job.png|900px]] <br/><br/>
-
-If all goes well, you should see a BLUE circle and a Sun like in the picture above
-
-You can check plenty of test jobs in our Integration Jenkins page: https://jenkins.opendaylight.org/integration/
+=== 2. Configure Master Jenkins credentials ===
 
 [[Category:Integration Group]]
