@@ -240,3 +240,18 @@ Configuration file contains
  
   </configuration>
  </snapshot>
+
+== API changes ==
+In order to provide multiple instances of modules from openflowjava there is an API change. Previously OFPlugin got access to SwitchConnectionProvider exposed by OFJava and injected collection of configurations so that for each configuration new instance of tcp listening server was created.
+Now those configurations are provided by configSubsystem and configured modules (wrapping the original SwitchConnectionProvider) are injected into OFPlugin (wrapping SwitchConnectionHandler).
+
+== Providing config file (IT, local distribution/base, integration/distributions/base) ==
+=== openflowplugin-it ==
+Here the whole configuration is contained in one file (controller.xml). Required entries needed in order to startup and wire OEPlugin + OFJava are simply added there.
+
+=== OFPlugin/distribution/base ===
+Here new config file has been added (src/main/resources/configuration/initial/42-openflow-protocol-impl.xml) and is being copied to config/initial subfolder of build.
+
+=== integration/distributions/build ===
+In order to push the actual config into config/initial subfolder of distributions/base in integration project there was a new artifact in OFPlugin created - '''openflowplugin-controller-config''', containing only the config xml file under src/main/resources. 
+Another change was committed into integration project. During build this config xml is being extracted and copied to the final folder in order to be accessible during controller run.
