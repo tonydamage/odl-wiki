@@ -1,0 +1,151 @@
+= Migration (2014-01-16) =
+Migration covered startup and module wiring of openflowplugin and opeflowjava projects. 
+* https://git.opendaylight.org/gerrit/#/c/5884/ - config subsystem integration
+* https://git.opendaylight.org/gerrit/#/c/6232/ - additional config distribution
+* https://git.opendaylight.org/gerrit/#/c/6233/ - provided configs (integration)
+Here is description of steps:
+
+== Model provided modules by yang ==
+'''General model (interfaces)''' - openflow-plugin-cfg.yang. 
+* the provided module is defined (<tt>identity openflow-provider</tt>) 
+* and target implementation is assigned (<tt>...OpenflowPluginProvider</tt>)
+ module openflow-provider {
+    yang-version 1;
+    namespace "urn:opendaylight:params:xml:ns:yang:openflow:common:config";
+    prefix "ofplugin-cfg";
+ 
+    import config {prefix config; revision-date 2013-04-05; }
+    description
+        "openflow-plugin-custom-config";
+    revision "2014-03-26" {
+        description
+            "Initial revision";
+    }
+    identity openflow-provider{
+        base config:service-type;
+        config:java-class "org.opendaylight.openflowplugin.openflow.md.core.sal.OpenflowPluginProvider";
+    }
+ }
+
+'''Implementation model''' - openflow-plugin-cfg-impl.yang
+* the implementation of module is defined (<tt>identity openflow-provider-impl</tt>)
+** class name of generated implementation is defined (ConfigurableOpenFlowProvider)
+* via augmentation the configuration of module is defined:
+** this module requires instance of binding-aware-broker (<tt>container binding-aware-broker</tt>)
+** and list of openflow-switch-connection-provider (those are provided by openflowjava, one plugin instance will orchester multiple openflowjava modules)
+ module openflow-provider-impl {
+    yang-version 1;
+    namespace "urn:opendaylight:params:xml:ns:yang:openflow:common:config:impl";
+    prefix "ofplugin-cfg-impl";
+ 
+    import config {prefix config; revision-date 2013-04-05;}
+    import openflow-provider {prefix openflow-provider;}
+    import openflow-switch-connection-provider {prefix openflow-switch-connection-provider;revision-date 2014-03-28;}
+    import opendaylight-md-sal-binding { prefix md-sal-binding; revision-date 2013-10-28;}
+ 
+ 
+    description
+        "openflow-plugin-custom-config-impl";
+ 
+    revision "2014-03-26" {
+        description
+            "Initial revision";
+    }
+ 
+    identity openflow-provider-impl {
+        base config:module-type;
+        config:provided-service openflow-provider:openflow-provider;
+        config:java-name-prefix ConfigurableOpenFlowProvider;
+    }
+ 
+    augment "/config:modules/config:module/config:configuration" {
+        case openflow-provider-impl {
+            when "/config:modules/config:module/config:type = 'openflow-provider-impl'";
+ 
+            container binding-aware-broker {
+                uses config:service-ref {
+                    refine type {
+                        mandatory true;
+                        config:required-identity md-sal-binding:binding-broker-osgi-registry;
+                    }
+                }
+            }
+            list openflow-switch-connection-provider {
+                uses config:service-ref {
+                    refine type {
+                        mandatory true;
+                        config:required-identity openflow-switch-connection-provider:openflow-switch-connection-provider;
+                    }
+                }
+            }
+        }
+    }
+ }
+
+== Generating config and sal classes out of yangs ==
+I order to involve suitable code generators, this is needed in pom:
+ <build> ...
+   <plugins>
+     <plugin>
+       <groupId>org.opendaylight.yangtools</groupId>
+       <artifactId>yang-maven-plugin</artifactId>
+       <executions>
+         <execution>
+           <goals>
+             <goal>generate-sources</goal>
+           </goals>
+           <configuration>
+             <codeGenerators>
+               <generator>
+                 <codeGeneratorClass>
+                   org.opendaylight.controller.config.yangjmxgenerator.plugin.JMXGenerator
+                 </codeGeneratorClass>
+                 <outputBaseDir>${project.build.directory}/generated-sources/config</outputBaseDir>
+                 <additionalConfiguration>
+                   <namespaceToPackage1>
+                     urn:opendaylight:params:xml:ns:yang:controller==org.opendaylight.controller.config.yang
+                   </namespaceToPackage1>
+                 </additionalConfiguration>
+               </generator>
+               <generator>
+                 <codeGeneratorClass>
+                   org.opendaylight.yangtools.maven.sal.api.gen.plugin.CodeGeneratorImpl
+                 </codeGeneratorClass>
+                 <outputBaseDir>${project.build.directory}/generated-sources/sal</outputBaseDir>
+               </generator>
+               <generator>
+                 <codeGeneratorClass>org.opendaylight.yangtools.yang.unified.doc.generator.maven.DocumentationGeneratorImpl</codeGeneratorClass>
+                 <outputBaseDir>${project.build.directory}/site/models</outputBaseDir>
+               </generator>
+             </codeGenerators>
+             <inspectDependencies>true</inspectDependencies>
+           </configuration>
+         </execution>
+       </executions>
+       <dependencies>
+         <dependency>
+           <groupId>org.opendaylight.controller</groupId>
+           <artifactId>yang-jmx-generator-plugin</artifactId>
+           <version>0.2.5-SNAPSHOT</version>
+         </dependency>
+         <dependency>
+           <groupId>org.opendaylight.yangtools</groupId>
+           <artifactId>maven-sal-api-gen-plugin</artifactId>
+           <version>${yangtools.version}</version>
+           <type>jar</type>
+         </dependency>
+       </dependencies>
+     </plugin>
+     ...
+* JMX generator (target/generated-sources/config)
+* sal CodeGeneratorImpl (target/generated-sources/sal)
+* documentation generator (target/site/models): [https://jenkins.opendaylight.org/openflowplugin/job/openflowplugin-merge/ws/openflowplugin/target/site/models/openflow-provider.html openflow-provider.html], [https://jenkins.opendaylight.org/openflowplugin/job/openflowplugin-merge/ws/openflowplugin/target/site/models/openflow-provider-impl.html openflow-provider-impl.html]
+
+== Altering generated files ==
+Those files were generated under src/main/java in package as referred in yangs (if exist, generator will not overwrite them):
+* ConfigurableOpenFlowProviderModuleFactory
+*: here the '''instantiateModule''' methods are extended in order to inject osgi BundleContext into module, so it can be injected into final implementation - '''OpenflowPluginProvider'''
+*: <tt>module.setBundleContext(bundleContext);</tt>
+* ConfigurableOpenFlowProviderModule
+*: here the '''createInstance''' method is extended in order to inject osgi BundleContext into module implementation
+*: <tt>pluginProvider.setContext(bundleContext);</tt>
