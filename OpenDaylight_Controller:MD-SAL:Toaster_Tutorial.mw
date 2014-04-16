@@ -3,18 +3,11 @@ This tutorial presents a walk through of the [https://wiki.opendaylight.org/view
 == Objective ==
 The main objective is to provide the reader a better understanding of the MD-SAL infrastructure within the OpenDaylight controller. 
 The Toaster sample implementation is a suitable example because it provides the model of a programmable toaster, a sample consumer application that uses MD-SAL APIs, a sample service provider that implements Toaster, and a unit test suite.
-
-== Toaster Step-By-Step==
-We are putting together documentation where we build up the toaster from scratch to cover different scenarios ( much like the [https://wiki.opendaylight.org/view/Ping Ping] example ). 
-
-The below remaining documentation provides an overview of the complete toaster example, along with instructions on how to interact with the pre-built toaster in the product.
-
-This page will help provide context about what code needs to be added / modified depending on what you want to accomplish. If you would like to see how we can progress from a simple Toaster model, to an advanced modeling structure, head over to [[OpenDaylight Controller:MD-SAL:Toaster Step-By-Step]]
-
 == Prerequisites ==
 The Toaster example is part of the OpenDaylight controller, so in order to access the source code with its dependencies please check [https://wiki.opendaylight.org/view/OpenDaylight_Controller:Installation ODL Installation Guide]
 
 It's located in ''controller.git'' under ''opendaylight/md-sal/samples''.
+
 
 == Structure ==
 We will address three contexts in this tutorial:
@@ -165,7 +158,7 @@ setNotificationProvider(getNotificationServiceDependency());
 
 * Toaster-Consumer, in order to receive notifications from the provider through MD-SAL registers through 
 <pre>
-getNotificationServiceDependency().registerNotificationListener(ToastDone.class, consumer);
+setNotificationServiceDependency().registerNotificationListener(ToastDone.class, consumer);
 </pre>
 
 ==== DataBroker dependency ====
@@ -346,11 +339,12 @@ To run the converter , the below code has to be added to the (''toaster-provider
             </plugin>
 </pre>
 
-This will generate Java files  and place them in ''src/main/yang-gen-config'' and ''src/main/yang-gen-sal'' folders.
+This will generate Java files  and place them in ''generated-sources/config'' and ''generated-sources/sal'' folders.
 * The generated files to note, located in ''generated-sources/config'' folders are ''ToasterProviderModule.java'' respectively ''ToasterConsumerModule.java'', these are initially generated but once manually edited they don't get overwritten by the code generator. 
 
 
 * The '''createInstance()'''  method of the generated file is implemented manually, and this is where the dependencies methods mentioned in the [[#Dependencies with MD-SAL| Dependencies with MD-SAL]] section are manually added.
+
 
 == The unit test ==
 The toaster example contains a unit test located under the''sample-toaster-it'' project, ''src/main/test'' folder.
@@ -372,77 +366,3 @@ The 'special' RPC '''make-hash-brown-toast-rpc''' declared in the ''toaster-cons
 === Getting Provider Runtime data exposed to config-subsystem ===
 The '''toasts-made''' declared in the ''toaster-provider-impl.yang'' is accessed through JMX:
 <pre>platformMBeanServer.getAttribute(providerOn, "ToastsMade");</pre>
-
-==Making Some Toast - i.e. Running the Toaster==
-There are four bundles providing different functionality for the toaster.
-
-To simply expose your toaster via rest conf and use the MD-SAL as a simple repository for config / data you only need to have the sample-toaster bundle deployed. To do this:
-
-==== Start the Controller ====
-*Build a controller and start it via the run.sh
-*:''Note: All four toaster bundles are shipped automatically with the default controller distribution. You can delete the sample-toaster bundles from the controller/opendaylight/distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/plugins directory if you want only load the required bundle.
-====Create a toaster via Restconf====
-To create the controller you will do a REST post (you will need a rest client such as PostMan for google chrome).
-:<code>HTTP Method => POST
- URL => http://localhost:8080/restconf/config 
- Header =>   Content-Type: application/yang.data+json  
- Body =>  
- {
-    "toaster:toaster" :
-    {
-      "toaster:toasterManufacturer" : "General Electric",
-      "toaster:toasterModelNumber" : "123",
-      "toaster:toasterStatus" : "up"
-     }
- }
- </code>
-:''Note: You will likely see an exception on the OSGi terminal, and the return error code will be a 204, "No data returned". This means it succeeded!''
-==== Get the existing toaster via Restconf ====
-To get the current toaster via REST conf you will do an HTTP get.
-:<code>HTTP Method => GET
- URL => http://localhost:8080/restconf/config/toaster:toaster 
- </code>
-This should return json defining the toaster, and should provide similar values to what you posted.
-==== Modify the existing toaster ====
-:<code>HTTP Method => PUT
- URL => http://localhost:8080/restconf/config/toaster:toaster
- Header =>   Content-Type: application/yang.data+json  
- Body =>  
- {
-    "toaster": {
-        "toasterStatus": "up",
-        "toasterManufacturer": "kkoushik",
-        "toasterModelNumber": "123"
-    }
- }
- </code>
-
-====To Delete the Toaster====
-To delete the current toaster via REST conf you will do an HTTP DELETE.
-:<code>HTTP Method => DELETE
- URL => http://localhost:8080/restconf/config/toaster:toaster 
- </code>
-==== To Make Toast (i.e. invoke the make-toast rpc call)====
-To make toast via the Restconf you will perform an HTTP POST to an operations URL.
-:<code>HTTP Method => POST
- URL => http://localhost:8080/restconf/operations/toaster:make-toast 
- Header =>   Content-Type: application/yang.data+json  
- Body =>  
- {
-   "input" :
-   {
-      "toaster:toasterDoneness" : "10",
-      "toaster:toasterToastType":"wheat-bread" 
-   }
- }
- </code>
-''even thought the toast type is defaulted in the yang model, you still have to provide it.''
-====To Cancel Toast (i.e. invoke the cancel-toast which hs no arguments)====
-You may want to cancel the make-toast operation part of the way through! You do this by invoking a restconf REST call in a very similar way as you invoke the make-toast.
-<pre>
-URL => http://localhost:8080/restconf/operations/toaster:cancel-toast
-HTTP Method => POST
-</pre>
-
-Note: There is a bug in the way the RestconfImpl class processes / routes the REST requests. If you define the Content-Type header, then the rest call is routed to a method which expects a non-empty body. In this case though we don't have any input, so our body should be empty. Thus an exception is thrown. In order to make the cancel-toast call work successfully, you need to invoke the above call, with NO content-type define. By doing that you route the request to a different method, which expects an empty body.<br>
-Note 2: When you successfully invoke this call with no headers, you will still get an error. This is due to a null future being returned in our implementation above. You can though put a breakpoint in the cancel toast call at this point and have that breakpoint activated.
