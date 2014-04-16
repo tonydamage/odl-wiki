@@ -367,3 +367,56 @@ The '''toasts-made''' declared in the ''toaster-provider-impl.yang'' is accessed
 <pre>platformMBeanServer.getAttribute(providerOn, "ToastsMade");</pre>
 
 ==Making Some Toast - i.e. Running the Toaster==
+There are four bundles providing different functionality for the toaster.
+
+To simply expose your toaster via rest conf and use the MD-SAL as a simple repository for config / data you only need to have the sample-toaster bundle deployed. To do this:
+
+==== Start the Controller ====
+*Build a controller and start it via the run.sh
+*:''Note: All four toaster bundles are shipped automatically with the default controller distribution. You can delete the sample-toaster bundles from the controller/opendaylight/distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/plugins directory if you want only load the required bundle.
+====Create a toaster via Restconf====
+To create the controller you will do a REST post (you will need a rest client such as PostMan for google chrome).
+:<code>HTTP Method => POST
+ URL => http://localhost:8080/restconf/config 
+ Header =>   Content-Type: application/yang.data+json  
+ Body =>  
+ {
+    "toaster:toaster" :
+    {
+      "toaster:toasterManufacturer" : "General Electric",
+      "toaster:toasterModelNumber" : "123",
+      "toaster:toasterStatus" : "up"
+     }
+ }
+ </code>
+:''Note: You will likely see an exception on the OSGi terminal, and the return error code will be a 204, "No data returned". This means it succeeded!''
+==== Get the existing toaster via Restconf ====
+To get the current toaster via REST conf you will do an HTTP get.
+:<code>HTTP Method => GET
+ URL => http://localhost:8080/restconf/config/toaster:toaster 
+ </code>
+This should return json defining the toaster, and should provide similar values to what you posted.
+==== Modify the existing toaster ====
+''The exact put syntax is presently unknown''
+====To Delete the Toaster====
+To delete the current toaster via REST conf you will do an HTTP DELETE.
+:<code>HTTP Method => DELETE
+ URL => http://localhost:8080/restconf/config/toaster:toaster 
+ </code>
+==== To Make Toast (i.e. invoke the make-toast rpc call)====
+To make toast via the Restconf you will perform an HTTP POST to an operations URL.
+:<code>HTTP Method => POST
+ URL => http://localhost:8080/restconf/operations/toaster:make-toast 
+ Header =>   Content-Type: application/yang.data+json  
+ Body =>  
+ {
+   "input" :
+   {
+      "toaster:toasterDoneness" : "10",
+      "toaster:toasterToastType":"wheat-bread" 
+   }
+ }
+ </code>
+''even thought the toast type is defaulted in the yang model, you still have to provide it.''
+====To Cancel Toast (i.e. invoke the cancel-toast which hs no arguments)====
+To cancel toast is very similar to make toast, except you need to REMOVE the content-type header. If you provide it there is a bug that will route the call to the wrong http method which expects valid input arguments. Also note an additional bug will actually still result in an exception being returned to REST, however the cancelToast method will now actually get called.
