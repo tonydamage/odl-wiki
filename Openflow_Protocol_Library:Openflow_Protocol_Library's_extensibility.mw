@@ -26,16 +26,24 @@ methods.
 '''NOTE:''' DeserializerRegistryInjector is not OFGeneralDeserializer descendand. It is a standalone interface.
 
 
+'''MessageCodeKey and EnhancedMessageCodeKey''' <br />
+These keys are used as for deserializer lookup in DeserializerRegistry. <br />
+MessageCodeKey should be used in general, when it is enough to identify corresponding deserializer by its value and Object class. EnhancedMessageCodeKey should be used in cases, when one value for Object class is not enough.
+
+MessageCodeKey has these fields:
+* ''short version'' – Openflow wire version number
+* ''int value'' – value read from byte message
+* ''Class<?> clazz - class of object being creating
+
+EnhancedMessageCodeKey extends MessageCodeKey and has one more field:
+* ''int value2'' – more specific distinguisher (usually specific type of ''value'')
+
+
 === Scenario walkthrough ===
 [1] The scenario starts in a custom bundle which wants to extend library's functionality. The custom bundle creates deserializers which implement exposed OFDeserializer / HeaderDeserializer interfaces (wrapped under OFGeneralDeserializer unifying super interface).
-* '''OFDeserializer''' is the main deserialization interface - provides deserialize(),
-* '''HeaderDeserializer''' provides deserializeHeader() - which is used in Multipart messages (OFPMP_TABLE_FEATURES type),
-* '''DeserializerRegistryInjector''' provides injectDeserializerRegistry() method. Its purpose is described in [3].
-[2] Created deserializers are paired with '''MessageCodeKey'''-s, which are used for deserializer lookup. MessageCodeKey contains information about:
-* '''msgVersion''' (Openflow protocol wire version),
-* '''value''' (value read from byte message - used as a distinguisher),
-* '''clazz''' (class of object that is being created by the deserializer).
-In special cases, it might not be enough to have only one distinguishing value. Oxm match fields are such case. One needs to know oxm_class and also oxm_field to be able to determine which match entry it is. In this case, one can use '''EnhancedMessageCodeKey'''.<br />
+
+[2] Created deserializers are paired with '''MessageCodeKey'''-s, which are used for deserializer lookup. <br />
+In special cases, it might not be enough to have only one distinguishing value. Oxm match fields are such case. One needs to know oxm_class and also oxm_field to be able to determine which match entry it is. In this case, it is needed to use '''EnhancedMessageCodeKey'''.<br />
 
 [3] Paired deserializers are passed to the OF Library via '''SwitchConnectionProvider'''''.registerCustomDeserializer(key, impl)''. Library registers the deserializer.
 * While registering, Library checks if the deserializer is an instance of '''DeserializerRegistryInjector''' interface. If yes, the DeserializerRegistry (which stores all deserializer references) is injected into the deserializer.
@@ -117,18 +125,13 @@ MessageTypeKey has these fields:
 * ''Class<E> msgType'' – DTO class
 
 EnhancedMessageTypeKey extends MessageTypeKey and has one more field:
-* ''Class<E> msgType2'' – more specific distinguisher (usually specific class of msgType)
+* ''Class<E> msgType2'' – more specific distinguisher (usually specific type of msgType)
 
 
 === Scenario walkthrough === 
-* [1] Serialization extensbility principles are similar to the deserialization principles. The scenario starts in a custom bundle. The custom bundle creates serializers which implement exposed OFSerializer / HeaderSerializer interfaces (wrapped under OFGeneralSerializer unifying super interface).
-* '''OFSerializer''' is the main serialization interface - provides serialize(),
-* '''HeaderSerializer''' provides serializeHeader() - which is used in Multipart messages (OFPMP_TABLE_FEATURES type),
-* '''SerializerRegistryInjector''' provides injectSerializerRegistry() method. Its purpose is described in [3].
-** There are some cases that need specific methods. For this purpose one can create interfaces that extend OpenflowDeserializer / OpenflowSerializer and use those.
-[2] Created serializers are paired with '''MessageTypeKey'''-s, which are used for serializer lookup. MessageTypeKey contains information about:
-* '''msgVersion''' (Openflow protocol wire version),
-* '''msgType''' (DataObject/message type - used as a distinguisher).
+[1] Serialization extensbility principles are similar to the deserialization principles. The scenario starts in a custom bundle. The custom bundle creates serializers which implement exposed OFSerializer / HeaderSerializer interfaces (wrapped under OFGeneralSerializer unifying super interface).
+
+[2] Created serializers are paired with '''MessageTypeKey'''-s, which are used for serializer lookup. <br />
 In special cases, it might not be enough to have only one distinguishing type. Oxm match fields are such case. One needs to know oxm_class and also oxm_field to be able to determine which match entry it is. In this case, one can use '''EnhancedMessageTypeKey'''.<br />
 
 [3] Paired serializers are passed to the OF Library via '''SwitchConnectionProvider'''''.registerCustomSerializer(key, impl)''. Library registers the serializer.
