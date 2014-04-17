@@ -1,4 +1,43 @@
+== Introduction ==
+Entry point for the extensibility is SwitchConnectionProvider.
+SwitchConnectionProvider contains methods for (de)serializer registration. To
+register deserializer it is needed to use .registerCustomDeserializer(key, impl).
+To register serializer one must use .registerCustomSerializer(key, impl).
+Registration can occur either during configuration or at runtime.
+
+Impl is (de)serializer implementation and
+must implement OFGeneralDeserializer / OFGeneralSerializer interface. These
+interfaces are only empty unifying interfaces. Therefore it is needed to use their descendants that contain appropriate
+methods.
+
 == Deserialization extensibility ==
+=== External interface & class description ===
+<u>'''OFGeneralDeserializer:'''</u>
+* '''OFDeserializer<E extends DataObject>'''
+** ''deserialize(ByteBuf)'' – deserializes given ByteBuf
+* '''HeaderDeserializer<E extends DataObject>'''
+** ''deserializeHeaders(ByteBuf)'' - deserializes only E headers (used in Multipart TableFeatures messages)
+
+
+'''DeserializerRegistryInjector'''
+* ''injectDeserializerRegistry(DeserializerRegistry)'' – injects deserializer registry into deserializer. Useful when custom deserializer needs access to other deserializers.
+
+'''NOTE:''' DeserializerRegistryInjector is not OFGeneralDeserializer descendand. It is a standalone interface.
+
+
+'''MessageTypeKey and EnhancedMessageTypeKey''' <br />
+These keys are used as for serializer lookup in SerializerRegistry. <br />
+MessageTypeKey should be used in general, when it is enough to identify corresponding serializer by its DTO class. EnhancedMessageTypeKey should be used in cases, when one DTO class is not enough.
+
+MessageTypeKey has these fields:
+* ''short version'' – Openflow wire version number
+* ''Class<E> msgType'' – DTO class
+
+EnhancedMessageTypeKey extends MessageTypeKey and has one more field:
+* ''msgType2'' – more specific distinguisher (usually specific class of msgType)
+
+
+=== Scenario walkthrough ===
 [1] The scenario starts in a custom bundle which wants to extend library's functionality. The custom bundle creates deserializers which implement exposed OFDeserializer / HeaderDeserializer interfaces (wrapped under OFGeneralDeserializer unifying super interface).
 * '''OFDeserializer''' is the main deserialization interface - provides deserialize(),
 * '''HeaderDeserializer''' provides deserializeHeader() - which is used in Multipart messages (OFPMP_TABLE_FEATURES type),
@@ -18,6 +57,53 @@ This is particularly useful when the deserializer needs access to other deserial
 [[File:Extensibility2.png | center | 800px | Proposed extensibility]]
 
 
+=== Possible openflow extensions and their keys ===
+There are three vendor specific extensions in
+Openflow v1.0 and nine in Openflow v1.3. These shall be identified by MessageCodeKey with version, value
+and object class from the table below:
+ 
+<div  align="left">
+{|
+|-
+|                          
+{| class="wikitable"
+|-
+! Vendor !! version !! value !! Object class
+|-
+| message || 1 || 4 || ExperimenterMessage.class
+|-
+| action || 1 || 0xFFFF || ExperimenterAction.class
+|-
+| stats message || TBD || TBD || TBD 
+|}
+|
+{| class="wikitable"
+|-
+! Experimenter !! version !! value !! value2 !! Object class
+|-
+| message || 4 || 4 || - || ExperimenterMessage.class
+|-
+| match entry || 4 || oxm_class || oxm_field || MatchEntries.class
+|-
+| action || 4 || 0xFFFF || - || ExperimenterAction.class
+|-
+| instruction || 4 || 0xFFFF || - || ExperimenterInstruction.class
+|-
+| multipart || TBD || || ||  
+|-
+| multipart - table features || TBD || || ||  
+|-
+| meter band type || TBD || || ||  
+|-
+| queue property || TBD || || ||  
+|-
+| error || TBD || || ||  
+|}
+|}
+</div>
+In case when more distinguishers are needed, use EnhancedMessageCodeKey instead of MessageCodeKey.
+
+
 == Serialization extensibility ==
 * [1] Serialization extensbility principles are similar to the deserialization principles. The scenario starts in a custom bundle. The custom bundle creates serializers which implement exposed OFSerializer / HeaderSerializer interfaces (wrapped under OFGeneralSerializer unifying super interface).
 * '''OFSerializer''' is the main serialization interface - provides serialize(),
@@ -33,3 +119,29 @@ In special cases, it might not be enough to have only one distinguishing type. O
 * While registering, Library checks if the serializer is an instance of '''SerializerRegistryInjector''' interface. If yes, the SerializerRegistry (which stores all serializer references) is injected into the serializer.
 This is particularly useful when the serializer needs access to other deserializers. For example IntructionsSerializer needs access to ActionsSerializer in order to be able to process OFPIT_WRITE_ACTIONS/OFPIT_APPLY_ACTIONS instructions.
 <br />
+
+
+== Internal description ==
+==== SwitchConnectionProvider ====
+SwitchConnectionProvider constructs and
+initializes both deserializer and serializer registries with default
+(de)serializers. It also injects the DeserializerRegistry into the
+DeserializationFactory, the SerializerRegistry into the SerializationFactory. <br />
+When call to register custom (de)serializer
+is made, SwitchConnectionProvider calls register method on appropriate registry.
+
+==== DeserializerRegistry / SerializerRegistry ====
+Both registries contain init() method to initialize default (de)serializers. <br />
+Registration checks if key or (de)serializer
+implementation are not null. If at least one of the is null,
+NullPointerException is thrown. Else the (de)serializer implementation is
+checked if it is (De)SerializerRegistryInjector instance. If it is an instance
+of this interface, the registry is injected into this (de)serializer
+implementation.
+ 
+GetSerializer(key) or GetDeserializer(key)
+performs registry lookup. Because there are two separate interfaces that might
+be put into the registry, the registry uses their unifying super interface.
+Get(De)Serializer(key) method casts the super interface to desired type. There
+is also a null check for the (de)serializer received from the registry. If the
+deserializer wasn’t found, NullPointerException with key description is thrown.
