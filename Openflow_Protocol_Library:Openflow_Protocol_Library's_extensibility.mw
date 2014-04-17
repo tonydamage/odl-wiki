@@ -10,6 +10,7 @@ must implement OFGeneralDeserializer / OFGeneralSerializer interface. These
 interfaces are only empty unifying interfaces. Therefore it is needed to use their descendants that contain appropriate
 methods.
 
+
 == Deserialization extensibility ==
 === External interface & class description ===
 <u>'''OFGeneralDeserializer:'''</u>
@@ -23,18 +24,6 @@ methods.
 * ''injectDeserializerRegistry(DeserializerRegistry)'' – injects deserializer registry into deserializer. Useful when custom deserializer needs access to other deserializers.
 
 '''NOTE:''' DeserializerRegistryInjector is not OFGeneralDeserializer descendand. It is a standalone interface.
-
-
-'''MessageTypeKey and EnhancedMessageTypeKey''' <br />
-These keys are used as for serializer lookup in SerializerRegistry. <br />
-MessageTypeKey should be used in general, when it is enough to identify corresponding serializer by its DTO class. EnhancedMessageTypeKey should be used in cases, when one DTO class is not enough.
-
-MessageTypeKey has these fields:
-* ''short version'' – Openflow wire version number
-* ''Class<E> msgType'' – DTO class
-
-EnhancedMessageTypeKey extends MessageTypeKey and has one more field:
-* ''msgType2'' – more specific distinguisher (usually specific class of msgType)
 
 
 === Scenario walkthrough ===
@@ -105,6 +94,33 @@ In case when more distinguishers are needed, use EnhancedMessageCodeKey instead 
 
 
 == Serialization extensibility ==
+=== External interface & class description ===
+<u>'''OFGeneralSerializer:'''</u>
+* '''OFSerializer<E extends DataObject>'''
+** ''serialize(E,ByteBuf)'' – serializes E into given ByteBuf
+* '''HeaderSerializer<E extends DataObject>'''
+** ''serializeHeaders(E,ByteBuf)'' – serializes E headers (used in Multipart TableFeatures messages)
+
+
+'''SerializerRegistryInjector'''
+* ''injectSerializerRegistry(SerializerRegistry)'' – injects serializer registry into serializer. Useful when custom serializer needs access to other serializers.
+
+'''NOTE:''' SerializerRegistryInjector is not OFGeneralSerializer descendand.
+
+
+'''MessageTypeKey and EnhancedMessageTypeKey''' <br />
+These keys are used as for serializer lookup in SerializerRegistry. <br />
+MessageTypeKey should be used in general, when it is enough to identify corresponding serializer by its DTO class. EnhancedMessageTypeKey should be used in cases, when one DTO class is not enough.
+
+MessageTypeKey has these fields:
+* ''short version'' – Openflow wire version number
+* ''Class<E> msgType'' – DTO class
+
+EnhancedMessageTypeKey extends MessageTypeKey and has one more field:
+* ''Class<E> msgType2'' – more specific distinguisher (usually specific class of msgType)
+
+
+=== Scenario walkthrough === 
 * [1] Serialization extensbility principles are similar to the deserialization principles. The scenario starts in a custom bundle. The custom bundle creates serializers which implement exposed OFSerializer / HeaderSerializer interfaces (wrapped under OFGeneralSerializer unifying super interface).
 * '''OFSerializer''' is the main serialization interface - provides serialize(),
 * '''HeaderSerializer''' provides serializeHeader() - which is used in Multipart messages (OFPMP_TABLE_FEATURES type),
@@ -119,6 +135,56 @@ In special cases, it might not be enough to have only one distinguishing type. O
 * While registering, Library checks if the serializer is an instance of '''SerializerRegistryInjector''' interface. If yes, the SerializerRegistry (which stores all serializer references) is injected into the serializer.
 This is particularly useful when the serializer needs access to other deserializers. For example IntructionsSerializer needs access to ActionsSerializer in order to be able to process OFPIT_WRITE_ACTIONS/OFPIT_APPLY_ACTIONS instructions.
 <br />
+
+
+=== Possible openflow extensions and their keys ===
+There are three vendor specific extensions in
+Openflow v1.0 and nine Openflow v1.3. These shall be identified by MessageTypeKey with version and
+msgType class from the table below:
+
+  
+<div  align="left">
+{|
+|-
+|                      
+{| class="wikitable"
+|-
+! Message type !! version !! msgType(DTO class)
+|-
+| Vendor message || 1 || ExperimenterMessage.class
+|-
+| Vendor action || 1 || ExperimenterAction.class
+|-
+| Stats message || TBD || TBD
+|}
+|
+{| class="wikitable"
+|-
+! Experimenter !! version !! msgType !! msgType2
+|-
+| message || 4 || ExperimenterMessage.class || -
+|-
+| match entry || 4 || $OXM_CLASS.class || $OXM_FIELD.class
+|-
+| action || 4 || ExperimenterAction.class || -
+|-
+| instruction || 4 || ExperimenterInstruction.class || -
+|-
+| multipart || TBD || ||  
+|-
+| multipart - table features || TBD || ||
+|-
+| meter band type || TBD || ||  
+|-
+| queue property || TBD || ||   
+|-
+| error || TBD || ||  
+|}
+|}
+</div>  
+ 
+In case when more
+distinguishers are needed, use EnhancedMessageTypeKey instead of MessageTypeKey.
 
 
 == Internal description ==
