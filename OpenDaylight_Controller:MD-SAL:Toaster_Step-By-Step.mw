@@ -533,7 +533,7 @@ The 2 yang files generate several classes, of note are the 2 that are generated 
 These 2 classes are intended to be checked into Git.
 
 ====Implement the ToasterProviderModule====
-The '''ToasterProviderModule''' class is mostly complete. The ''ToasterProviderModule.createInstance()'' method needs to be implemented to instantiate and wire the OpendaylightToaster:
+The '''ToasterProviderModule''' class is mostly complete. The ''ToasterProviderModule.createInstance()'' method needs to be implemented to instantiate and wire the '''OpendaylightToaster''':
 
 <pre>
     @Override
@@ -564,9 +564,13 @@ The '''ToasterProviderModule''' class is mostly complete. The ''ToasterProviderM
     }
 </pre>
 
-In the above code, the '''RpcProviderRegistry''' dependency has already been injected by the MD-SAL and is available via the ''getRpcRegistryDependency()'' method defined in the generated base class.
+In the above code, the '''RpcProviderRegistry''' dependency has already been injected by the MD-SAL and is available via the ''getRpcRegistryDependency()'' method defined in the generated base class. The return type of ''createInstance()'' is '''AutoCloseable''' although the intent is to return a '''ToasterData''' instance so we must wrap the '''OpendaylightToaster ''' in an '''AutoCloseable''' instance.
 
- 
+QUESTION: An AutoCloseable return type is not well defined and it is unclear what actual interface type this method is suppose to return. Am I suppose to return a ToasterData? A ToasterService? <br>
+QUESTION: Can this code be reduced to just instantiating the OpendaylightToaster and returning it? 
+*Have return type be ToasterData. The MD-SAL can wrap in AutoCloseable on return, if needed, if the returned instance doesn't implement AutoCloseable.
+*Can the MD-SAL be smart enough to auto register the returned instance as an RPC service? The OpendaylightToaster implements RpcService via the ToasterService interface - the MD-SAL should have the info necessary to register it via addRpcImplementation.   
+  
 TODO: Do a new clean / build - new files generated <br>
 
 TODO: Define a netconf configuration data file in configuration/initial which defines  the modules and services - see example. This becomes the startup config starts the wiring process<br>
