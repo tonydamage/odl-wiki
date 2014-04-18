@@ -101,6 +101,9 @@ Prerequisites: Install maven plugin for Eclipse
 <logger name="org.opendaylight.openflowplugin.learningswitch" level="TRACE"/>
 </pre>
 
+== Update on dependencies ==
+As the released version is getting outdated, it is preferable to use the latest version
+[http://nexus.opendaylight.org/content/repositories/opendaylight.snapshot/org/opendaylight/integration/distributions-base/ OpenDaylight Base Edition SNAPSHOTs] (grab latest SNAPSHOT).
 
 =Starting up the Environment=
 * Run the controller:
@@ -193,6 +196,24 @@ After starting injecting packets, you should see a gradual drop in the number of
   - h1 ping h2
   - pingall
 - observe ws, flows ..
+
+= Troubleshooting =
+There are several points which might cause the learning application not to work.
+* outdated controller - see [[#Update_on_dependencies | Update on dependencies]]
+* omitting '''-of13''' option at startup - there are at least 3 subprojecs providing executable controller as build result:
+*# [http://nexus.opendaylight.org/content/repositories/opendaylight.snapshot/org/opendaylight/integration/distributions-base controller integration build] - needs '''-of13''' option
+*# [http://nexus.opendaylight.org/content/repositories/opendaylight.snapshot/org/opendaylight/controller/distribution.opendaylight pure controller distribution build] - does not contain required openflowplugin at all
+*# [http://nexus.opendaylight.org/content/repositories/opendaylight.snapshot/org/opendaylight/openflowplugin/distributions-openflowplugin-base openflowplugin distribution build] - contains only *: the required plugin and does not accept the -of13 option
+*: please, make sure to use the '''controller integration build'''
+* hitting new bug - if application is not producing any feedback, then
+** do all poststartup checks as described in [[#Starting_up_the_Environment | Starting up the Environment]], there are known issues caused by single core systems rendering into race condition between bundles and might eventually result into not started bundles or started but not working bundles
+** if nothing suspicious in osgi console or log (''<folder containing run.sh>/logs/opendaylight.log'') occures, try restarting whole controller
+* using cpqd implementation of virtual switch requires to add a flow to each switch forcing it to send all packets up to controller (openvswitch does that by default).
+*: this can be achieved by entering this command into osgi console (add corresponding flow to switch where datapathId=1, into fist table):
+*: <code>addMDFlow openflow:1 f54 0</code>
+* some builds might break the initial handshake step and prevent switch from registering, then
+*: check, if controller can see your switches via rest (instructions on how to setup headers and authentication are [[OpenDaylight_OpenFlow_Plugin::End_to_End_Inventory | here]])
+*: and use the following as url http://localhost:8080/restconf/operational/opendaylight-inventory:nodes/
 
 =Related Content =
 * [[File:Os2014-md-sal-tutorial.pdf|2014 OpenDaylight Summit presentation]]
