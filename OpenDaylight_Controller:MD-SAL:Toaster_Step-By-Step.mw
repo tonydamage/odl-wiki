@@ -631,10 +631,10 @@ The '''ToasterProviderModule''' class is mostly complete. The ''ToasterProviderM
 In the above code, the '''RpcProviderRegistry''' dependency has already been injected by the MD-SAL and is available via the ''getRpcRegistryDependency()'' method defined in the generated base class. The return type of ''createInstance()'' is '''AutoCloseable''' although the intent is to return a '''ToasterData''' instance so we must wrap the '''OpendaylightToaster ''' in an '''AutoCloseable''' instance.
 
 --------
-QUESTION: An AutoCloseable return type is not well defined and it is unclear what actual interface type this method is suppose to return. Am I suppose to return a ToasterData? A ToasterService? <br>
-QUESTION: Can this code be reduced to just instantiating the OpendaylightToaster and returning it? 
+'''QUESTION: An AutoCloseable return type is not well defined and it is unclear what actual interface type this method is suppose to return. Am I suppose to return a ToasterData? A ToasterService?''' <br>
+'''QUESTION: Can this code be reduced to just instantiating the OpendaylightToaster and returning it?
 *Have return type be ToasterData. The MD-SAL can wrap in AutoCloseable on return, if needed, if the returned instance doesn't implement AutoCloseable.
-*Can the MD-SAL be smart enough to auto register the returned instance as an RPC service? The OpendaylightToaster implements RpcService via the ToasterService interface - the MD-SAL should have the info necessary to register it via addRpcImplementation.
+*Can the MD-SAL be smart enough to auto register the returned instance as an RPC service? The OpendaylightToaster implements RpcService via the ToasterService interface - the MD-SAL should have the info necessary to register it via addRpcImplementation.'''
 --------
 
 ====Define the initial XML configuration====
@@ -699,7 +699,7 @@ On startup, the XML files in the ''configuration/initial'' directory are loaded 
 
 ===Invoke make-toast via RestConf===
 
-Its final time to make some delicious wheat toast! To invoke the make toast via the Restconf you will perform an HTTP POST to an operations URL.
+It's finally time to make some delicious wheat toast! To invoke the make toast via the Restconf you will perform an HTTP POST to an operations URL.
 <pre>
 HTTP Method => POST
 URL => http://localhost:8080/restconf/operations/toaster:make-toast 
@@ -713,7 +713,9 @@ Body =>
   }
 }
 </pre>
-''Note: Even though the toast type and doneness is defaulted in the yang model, you still have to provide their values here.'' '''Question: Is that correct? Seems like if the values are defaulted in the yang data model, we shouldn't be forced to specify them. Even if we are, we need to clarify the error message.'''
+''Note: Even though the toast type and doneness is defaulted in the yang model, you still have to provide their values here.'' 
+<br>'''Question: Is that correct? Seems like if the values are defaulted in the yang data model, we shouldn't be forced to specify them. Even if we are, we need to clarify the error message.'''
+<br>'''Question: Haven't tested the mandatory flag for leaf data - is it honored?'''
 
 ===cancel-toast via RestConf===
 If you don't like burnt toast, you may want to cancel the make-toast operation part of the way through! You do this by invoking a restconf REST call in a very similar way as you invoke the make-toast.
@@ -727,7 +729,105 @@ Note 2: When you successfully invoke this call with no headers, you will still g
 
 = Part 3: Additional Attributes in the Implementation - Count my toast! =
 
-Under construction - please come back soon!
+For statistical purposes, we'd like to keep track of how many pieces of toast the toaster has made over time.  We need an attribute, '''toasts-made''', to track the count and a way to obtain the count. Whenever we '''make-toast''', we want to increment '''toasts-made'''.<br>
+
+==Define the toasts-made attribute==
+We'll define '''toasts-made''' as statistical state data on the toaster provider service implementation since that is where '''make-toast''' happens. This is achieved by augmenting the toaster-provider-impl module's '''config:state''' in ''toaster-provider-impl.yang'':
+<pre>
+augment "/config:modules/config:module/config:state" {
+        case toaster-provider-impl {
+            when "/config:modules/config:module/config:type = 'toaster-provider-impl'";
+
+            leaf toasts-made {
+                type uint32;
+            }
+
+        }
+    }
+</pre>
+
+The MD-SAL makes state data accessible via JMX.<br>
+
+'''QUESTION: could toasts-made be defined as part of the toaster container itself?'''<br>
+'''QUESTION: is state data also available via REST? via NetConf?<br>
+
+Run 'mvn clean install' to generate the source. 3 additional classes are generated under ''src/main/yang-gen-config'':
+*'''ToasterProviderRuntimeMXBean''' - interface that defines the ''getToastsMade()'' method to provide access to the '''toasts-made''' attribute.
+*'''ToasterProviderRuntimeRegistration''' - concrete class that wraps a '''ToasterProviderRuntimeMXBean''' registration.
+*'''ToasterProviderRuntimeRegistrator''' - concrete class that registers a '''ToasterProviderRuntimeMXBean''' implementation with the MD-SAL.
+
+==Implement the toasts-made attribute==
+
+Now that we've defined the data model for the '''toasts-made''' attribute we need to provide an implementation to update it. Since the '''OpenDaylightToaster''' makes toast, we'll implement it there.<br>
+
+The '''ToasterProviderRuntimeMXBean''' provides the interface for '''toasts-made''' so we need to modify '''OpenDaylightToaster''' to implement the '''ToasterProviderRuntimeMXBean''' interface:
+
+<pre>
+public class OpendaylightToaster implements ToasterData, ToasterService, ToasterProviderRuntimeMXBean, AutoCloseable {
+    ...
+    private final AtomicLong toastsMade = new AtomicLong(0);
+
+    @Override
+    public Long getToastsMade() {
+        return toastsMade.get();
+    }
+
+    ...
+    private class MakeToastTask implements Callable<RpcResult<Void>> {
+        ...
+
+        @Override
+        public RpcResult<Void> call() throws InterruptedException {
+            Thread.sleep(1000 * toastRequest.getToasterDoneness());
+
+            ...
+            toastsMade.incrementAndGet();
+            ...
+
+            return Rpcs.<Void> getRpcResult(true, null, Collections.<RpcError> emptySet());
+        }
+    }
+}
+</pre>
+
+==Register the ToasterProviderRuntimeMXBean service==
+
+We need to do a final step to register the '''OpendaylightToaster''' as the '''ToasterProviderRuntimeMXBean''' service. We do this in the '''ToasterProviderModule''' via the '''ToasterProviderRuntimeRegistrator''' returned by the base class's ''getRootRuntimeBeanRegistratorWrapper()'' method:
+
+<pre>
+    public java.lang.AutoCloseable createInstance() {
+        final OpendaylightToaster opendaylightToaster = new OpendaylightToaster();
+        ...
+    
+        // Register runtimeBean for toaster statistics via JMX
+        final ToasterProviderRuntimeRegistration runtimeReg = getRootRuntimeBeanRegistratorWrapper().register(
+                opendaylightToaster);
+
+        ...
+        final class AutoCloseableToaster implements AutoCloseable, ToasterData {
+            @Override
+            public void close() throws Exception {
+                ...
+                runtimeReg.close();
+                ...
+            }
+            ...
+        }
+    }
+</pre>
+
+Note: we also have to close the '''ToasterProviderRuntimeRegistration''' when the '''OpendaylightToaster''' instance is closed.
+
+== Accessing toasts-made via JMX==
+The toasts-made attribute that we added is available via MBeans through the java management beans. You can programmatically access these through the mbean platform (see [https://wiki.opendaylight.org/view/Toaster_MD-SAL_Sample:Toaster_Tutorial#Getting_Provider_Runtime_data_exposed_to_config-subsystem] ) or via jConsole.
+*''JConsole is utility shipped with each JDK and is located in the bin directory of your java home folder.''
+*First, start the controller using the -jmx flag.<pre>./run.sh -jmx</pre>This flag enables controller allowing jconsole to attach.<Br><br>
+Launch JConsole, double click on the jconsole application under <pre>$JAVA_HOME/bin/jconsole</pre>. ''Note: Path may change based on OS and installation''
+*Connect to the running eclipse process either by selecting the application, or specifing the "hostname:1088" in the remote connect dialog. For more information on JMX check out this document: [https://wiki.opendaylight.org/images/8/89/Jconsole.pdf].
+*Once connected, navigate to the "MBeans" tab.
+:*Expand the "org.opendalight.controller->RuntimeBean->toaster-provider-impl->toster-provider-impl" nodes.
+*Select "Attributes". You will now see the "ToastsMade" attribute displayed and this attribute will change when the make-toast RPC call is executed.
+<Br>'''Question: It seems like we should be able to access this information via restconf as well. Is that true? When we question /restconf/config/toaster-provider-impl:toaster-provider-impl it should be displayed.... Is that true? Is it a different URL since it is an augmentation of modules/module?
 
 = Part 4: Notifications - Tell me when my Toast is done! =
 
