@@ -339,7 +339,7 @@ Running 'mvn install', we see the following additional classes generated:
 
 We've defined the data model interface for the RPC calls - now we must provide the implementation. We'll create a class called OpendaylightToaster which implements the ToasterService interface: 
 <pre>
-public class OpendaylightToaster implements ToasterService, AutoCloseable {
+public class OpendaylightToaster implements ToasterData, ToasterService, AutoCloseable {
     private final ExecutorService executor;
     private Future<RpcResult<Void>> currentTask;
 
@@ -373,6 +373,16 @@ public class OpendaylightToaster implements ToasterService, AutoCloseable {
 
     @Override
     public void close() throws Exception {
+    }
+    
+    @Override
+    public synchronized Toaster getToaster() {
+        ToasterBuilder tb = new ToasterBuilder();
+        tb.setToasterManufacturer(toasterManufacturer) 
+           .setToasterModelNumber(toasterModelNumber) 
+           .setToasterStatus(currentTask == null ? ToasterStatus.Up : ToasterStatus.Down);
+
+        return tb.build();
     }
 
     private class MakeToastTask implements Callable<RpcResult<Void>> {
