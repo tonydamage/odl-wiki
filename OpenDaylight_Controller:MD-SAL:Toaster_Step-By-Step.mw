@@ -337,7 +337,7 @@ Running 'mvn install', we see the following additional classes generated:
 
 ===Implement the RPC methods===
 
-We've defined the data model interface for the RPC calls - now we must provide the implementation. We'll create a class called OpendaylightToaster which implements the ToasterService interface: 
+We've defined the data model interface for the RPC calls - now we must provide the implementation. We'll create a class called OpendaylightToaster which implements the ToasterService and ToasterData interfaces: 
 <pre>
 public class OpendaylightToaster implements ToasterData, ToasterService, AutoCloseable {
     private final ExecutorService executor;
@@ -405,9 +405,14 @@ public class OpendaylightToaster implements ToasterData, ToasterService, AutoClo
 }
 </pre>
 
+The ''makeToast'' method simply sleeps for the number of seconds specified by 'toasterDoneness' and returns.
+
+QUESTION: Does it need to implement ToasterData? 
+QUESTION: The Toaster instance returned from getToaster() is essentially a hard-coded instance. The code in the actual toaster sample in the controller project also updates the Toaster instance's status and stores it in the DataBroker service.  However this Toaster instance isn't returned from REST GET and nor is the OpenDaylightToaster aware of the Toaster created via REST. There's seems to be a disconnect between the OpenDaylightToaster and RestConf CRUD.
+
 ===Wiring the ToasterService implementation===
 
-We've implemented the ToasterService - now we have to get our OpenDaylightSwire up our service with the MD-SAL. There's a couple ways to do this - we're going to use the MD-SAL's config subsystem which provides the most flexibility. We first need to describe our service and what dependent services it needs for the MD_SAL to process. This is defined in... you guessed it, yang.
+We've implemented the ToasterService - now we have to get our OpendaylightToaster instantiated and wired up with the MD-SAL. There's a couple ways to do this - we're going to use the MD-SAL's config subsystem which provides the most flexibility. We first need to describe our OpendaylightToaster service and what dependent services it needs for the MD_SAL to process. This is defined in... you guessed it, yang.
 
 We define a toaster-provider.yang file as follows:
 <pre>
@@ -435,6 +440,92 @@ module toaster-provider {
         config:java-class "org.opendaylight.yang.gen.v1.http.netconfcentral.org.ns.toaster.rev091120.ToasterData";
     }
 }
+</pre>
+
+The toaster-provider identity is a '''service-type''' which means it's basically acting as an interface for the toaster module.
+
+Next we need to define the/an implementation of the toaster-provider service yang interface:
+<pre>
+module toaster-provider-impl {
+    yang-version 1;
+    namespace "urn:opendaylight:params:xml:ns:yang:controller:config:toaster-provider:impl";
+    prefix "toaster-provider-impl";
+
+    import config { prefix config; revision-date 2013-04-05; }
+    import toaster-provider { prefix toaster-provider; revision-date 2014-01-31; }
+    import opendaylight-md-sal-binding { prefix mdsal; revision-date 2013-10-28; }
+
+    description
+        "This module contains the base YANG definitions for toaster-provider impl implementation.";
+
+    revision "2014-01-31" {
+        description
+            "Initial revision.";
+    }
+
+    // This is the definition of a service implementation
+    identity toaster-provider-impl {
+            base config:module-type;
+            config:provided-service toaster-provider:toaster-provider;
+            config:java-name-prefix ToasterProvider;
+    }
+
+    //augments the configuration,  
+    augment "/config:modules/config:module/config:configuration" {
+        case toaster-provider-impl {
+            when "/config:modules/config:module/config:type = 'toaster-provider-impl'";
+
+            //Wires dependent services into this class - in this case the RPC registry service
+            container rpc-registry {
+                uses config:service-ref {
+                    refine type {
+                        mandatory true;
+                        config:required-identity mdsal:binding-rpc-registry;
+                    }
+                }
+            }           
+        }
+    }
+}
+</pre>
+
+The toaster-provider-impl identity is a '''module-type''' which is effectively providing an implementation of the toaster-provider service interface. The augmentation of ''modules/module/configuration'' adds configuration information for the toaster-provider-impl. 'rpc-registry' defines a dependency of the toaster-provider-impl on the MD-SAL's RPC registry service.   (TODO - need more info here?)
+
+These 2 yang files generate several classes, of note are the 2 that are generated under src/man/yang:
+
+*'''ToasterProviderModule''' -  concrete class whose ''createInstance()'' method provides the OpendaylightToaster instance.
+*'''ToasterProviderModuleFactory''' - concrete class that creates '''ToasterProviderModule''' instances.  
+
+These 2 classes are intended to be checked into Git and the ''ToasterProviderModule.createInstance()'' method needs to be implemented to instantiate the OpendaylightToaster:
+
+<pre>
+    @Override
+    public java.lang.AutoCloseable createInstance() {
+        final OpendaylightToaster opendaylightToaster = new OpendaylightToaster();
+
+        // Register our OpendaylightToaster instance as the RPC implementation for the ToasterService.
+        final BindingAwareBroker.RpcRegistration<ToasterService> rpcRegistration = getRpcRegistryDependency()
+                .addRpcImplementation(ToasterService.class, opendaylightToaster);
+
+        // Wrap toaster as AutoCloseable and close registrations to md-sal at
+        // close()
+        final class AutoCloseableToaster implements AutoCloseable, ToasterData {
+
+            @Override
+            public void close() throws Exception {
+                rpcRegistration.close();
+                opendaylightToaster.close();
+            }
+
+            @Override
+            public Toaster getToaster() {
+                return opendaylightToaster.getToaster();
+            }
+        }
+
+        AutoCloseable ret = new AutoCloseableToaster();
+        return ret;
+    }
 </pre>
 
 = Part 3: Notifications - Tell me when my Toast is done! =
