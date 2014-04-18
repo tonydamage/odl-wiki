@@ -760,7 +760,7 @@ Now that we've defined the data model for the '''toasts-made''' attribute we nee
 The '''ToasterProviderRuntimeMXBean''' provides the interface for '''toasts-made''' so we need to modify '''OpenDaylightToaster''' to implement the '''ToasterProviderRuntimeMXBean''' interface:
 
 <pre>
-public class OpendaylightToaster implements ToasterData, ToasterService, '''ToasterProviderRuntimeMXBean''', AutoCloseable {
+public class OpendaylightToaster implements ToasterData, ToasterService, ToasterProviderRuntimeMXBean, AutoCloseable {
     ...
     private final AtomicLong toastsMade = new AtomicLong(0);
 
@@ -785,6 +785,23 @@ public class OpendaylightToaster implements ToasterData, ToasterService, '''Toas
         }
     }
 }
+</pre>
+
+==Register the ToasterProviderRuntimeMXBean service==
+
+We need to do a final step to register the '''OpendaylightToaster''' as the '''ToasterProviderRuntimeMXBean''' service. We do this in the '''ToasterProviderModule''' via the '''ToasterProviderRuntimeRegistrator''' returned by the base class's ''getRootRuntimeBeanRegistratorWrapper()'' method:
+
+<pre>
+    public java.lang.AutoCloseable createInstance() {
+        final OpendaylightToaster opendaylightToaster = new OpendaylightToaster();
+        ...
+    
+        // Register runtimeBean for toaster statistics via JMX
+        final ToasterProviderRuntimeRegistration runtimeReg = getRootRuntimeBeanRegistratorWrapper().register(
+                opendaylightToaster);
+
+        ...
+    }
 </pre>
 
 = Part 4: Notifications - Tell me when my Toast is done! =
