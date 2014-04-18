@@ -15,6 +15,12 @@ Part 1 of the toaster service will define a simple toaster service which will en
 *You can create a project anywhere, but to keep things co-located I would recommend creating a new project under controller/opendaylight/md-sal/samples. 
 :*Create a new folder here. Lets call it Toaster.
 :*Under the new folder define a src/main/yang directory.
+<pre>
+cd controller/opendaylight/md-sal/samples
+mkdir Toaster
+cd Toaster
+vi pom.xml
+</pre>
 :*Under the new folder, define a pom.xml file which has the following contents:
 <pre>
  <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -83,6 +89,11 @@ The yang-maven-plugin is used to generate java source from yang definition files
 Optionally at this point, you can import this project into Eclipse.
 
 ===Define the Yang Datamodel ===
+<pre>
+mkdir -p src/main/yang
+cd src/main/yang
+vi toaster.yang
+</pre>
 *Under the src/main/yang directory create a toaster.yang file with the following contents:
 <pre>
   //This file contains a YANG data definition. This data model defines
@@ -199,7 +210,10 @@ Optionally at this point, you can import this project into Eclipse.
 </pre>
 
 ==Build & Deploy ==
-
+<pre>
+cd ../../..
+mvn clean install
+</pre>
 We are now ready to build the toaster data model bundle. After running 'mvn install', you will see java class files generated under src/main/yang-gen-sal.  Classes of note:
 
 * '''Toaster''' - an interface that represents the toaster container with methods to obtain the leaf node data.
@@ -208,6 +222,11 @@ We are now ready to build the toaster data model bundle. After running 'mvn inst
 * '''$YangModelBindingProvider''', '''$YangModuleInfoImpl''' - these are used internally by MD-SAL to wire the toaster module for use. More on this later.  
 
 To deploy, copy the bundle jar under target to the distribution plugin directory and invoke run.sh.
+<pre>
+cp target/single-toaster-1.1-SNAPSHOT.jar ../../../distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/plugins
+cd ../../../distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight
+./run.sh
+</pre>
 
 ==Using the Toaster with RestConf ==
 
@@ -571,7 +590,77 @@ QUESTION: Can this code be reduced to just instantiating the OpendaylightToaster
 *Have return type be ToasterData. The MD-SAL can wrap in AutoCloseable on return, if needed, if the returned instance doesn't implement AutoCloseable.
 *Can the MD-SAL be smart enough to auto register the returned instance as an RPC service? The OpendaylightToaster implements RpcService via the ToasterService interface - the MD-SAL should have the info necessary to register it via addRpcImplementation.   
   
-TODO: Do a new clean / build - new files generated <br>
+====Define the initial XML configuration====
+
+The final step is to specify a netconf  XML file  that defines the initial configuration for the toaster provider service. This tells the MD-SAL about the toaster provider service, which module will provide the implementation, and how to configure the implementation. This file initiates he wiring process in he MD-SAL.
+<pre>
+<snapshot>
+    <configuration>
+        <data xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+            <modules xmlns="urn:opendaylight:params:xml:ns:yang:controller:config">
+
+				<!-- Spring Bean equiv -->
+                <module>
+                    <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:config:toaster-provider:impl">
+                        prefix:toaster-provider-impl
+                    </type>
+					<!-- name is like an ID in a spring file - can have many IDs -->
+                    <name>toaster-provider-impl</name>
+
+                    <rpc-registry>
+                        <type xmlns:binding="urn:opendaylight:params:xml:ns:yang:controller:md:sal:binding">binding:binding-rpc-registry</type>
+                        <name>binding-rpc-broker</name>
+                    </rpc-registry>
+
+                    <!-- <notification-service>
+                        <type xmlns:binding="urn:opendaylight:params:xml:ns:yang:controller:md:sal:binding">
+                            binding:binding-notification-service
+                        </type>
+                        <name>binding-notification-broker</name>
+                    </notification-service> -->
+                </module>
+
+                <!-- <module>
+                    <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:config:toaster-consumer:impl">
+                        prefix:toaster-consumer-impl
+                    </type>
+                    <name>toaster-consumer-impl</name>
+
+                    <rpc-registry>
+                        <type xmlns:binding="urn:opendaylight:params:xml:ns:yang:controller:md:sal:binding">binding:binding-rpc-registry</type>
+                        <name>binding-rpc-broker</name>
+                    </rpc-registry>
+
+                    <notification-service>
+                        <type xmlns:binding="urn:opendaylight:params:xml:ns:yang:controller:md:sal:binding">
+                            binding:binding-notification-service
+                        </type>
+                        <name>binding-notification-broker</name>
+                    </notification-service>
+                </module> -->
+            </modules>
+
+            <services xmlns="urn:opendaylight:params:xml:ns:yang:controller:config">
+				<!-- OSGI service export -->
+                <service>
+                    <type xmlns:toaster="urn:opendaylight:params:xml:ns:yang:controller:config:toaster-provider">toaster:toaster-provider</type>
+                    <instance>
+                        <name>toaster-provider</name>
+                        <provider>/modules/module[type='toaster-provider-impl'][name='toaster-provider-impl']</provider>
+                    </instance>
+                </service>
+            </services>
+        </data>
+    </configuration>
+
+    <!-- Specify the capabilities for netconf -->
+    <required-capabilities>
+        <capability>urn:opendaylight:params:xml:ns:yang:controller:md:sal:binding?module=opendaylight-md-sal-binding&amp;revision=2013-10-28</capability>
+        <capability>urn:opendaylight:params:xml:ns:yang:controller:config:toaster-consumer:impl?module=toaster-consumer-impl&amp;revision=2014-01-31</capability>
+        <capability>urn:opendaylight:params:xml:ns:yang:controller:config:toaster-provider:impl?module=toaster-provider-impl&amp;revision=2014-01-31</capability>
+    </required-capabilities>
+</snapshot>
+</pre>
 
 TODO: Define a netconf configuration data file in configuration/initial which defines  the modules and services - see example. This becomes the startup config starts the wiring process<br>
 
