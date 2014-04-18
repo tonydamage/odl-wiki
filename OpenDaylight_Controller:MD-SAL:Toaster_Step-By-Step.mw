@@ -762,11 +762,10 @@ Now that we've defined the data model for the '''toasts-made''' attribute we nee
 
 The '''ToasterProviderRuntimeMXBean''' provides the interface for '''toasts-made''' so we need to modify '''OpenDaylightToaster''' to implement the '''ToasterProviderRuntimeMXBean''' interface:
 
-<pre>
+<code>
 public class OpendaylightToaster implements ToasterData, ToasterService, ToasterProviderRuntimeMXBean, AutoCloseable {
     ...
-    private final AtomicLong toastsMade = new AtomicLong(0);
-
+    private final AtomicLong toastsMade = new AtomicLong(0);<br>
     @Override
     public Long getToastsMade() {
         return toastsMade.get();
@@ -781,14 +780,14 @@ public class OpendaylightToaster implements ToasterData, ToasterService, Toaster
             Thread.sleep(1000 * toastRequest.getToasterDoneness());
 
             ...
-            toastsMade.incrementAndGet();
+            '''toastsMade.incrementAndGet();
             ...
 
             return Rpcs.<Void> getRpcResult(true, null, Collections.<RpcError> emptySet());
         }
     }
 }
-</pre>
+</code>
 
 ==Register the ToasterProviderRuntimeMXBean service==
 
@@ -820,7 +819,7 @@ Note: we also have to close the '''ToasterProviderRuntimeRegistration''' when th
 
 == Accessing toasts-made via JMX==
 The toasts-made attribute that we added is available via MBeans through the java management beans. You can programmatically access these through the mbean platform (see [https://wiki.opendaylight.org/view/Toaster_MD-SAL_Sample:Toaster_Tutorial#Getting_Provider_Runtime_data_exposed_to_config-subsystem] ) or via jConsole.
-*''JConsole is utility shipped with each JDK and is located in the bin directory of your java home folder.''
+*''JConsole is a utility shipped with each JDK and is located in the bin directory of your java home folder.''
 *First, start the controller using the -jmx flag.<pre>./run.sh -jmx</pre>This flag enables controller allowing jconsole to attach.<Br><br>Launch JConsole, double click on the jconsole application under <pre>$JAVA_HOME/bin/jconsole</pre>''Note: Path may change based on OS and installation''
 *Connect to the running eclipse process either by selecting the application, or specifing the "hostname:1088" in the remote connect dialog. For more information on JMX check out this document: [https://wiki.opendaylight.org/images/8/89/Jconsole.pdf].
 *Once connected, navigate to the "MBeans" tab.
@@ -830,7 +829,65 @@ The toasts-made attribute that we added is available via MBeans through the java
 
 = Part 4: Notifications - Tell me when my Toast is done! =
 
-Under construction - please come back soon! test
+When a piece of toast is made we'd like for the '''OpenDaylightToaster''' to provide a notification when it's done, or was cancelled, or encountered an error.
+
+==Define the toastDone notification==
+
+We'll define a notification called '''toastDone''' in the toaster module:
+<pre>
+   notification toastDone {
+      description
+        "Indicates that the toast in progress has completed.";
+      leaf toastStatus {
+        type enumeration {
+          enum "done" {
+            value 0;
+            description "The toast is done.";
+          }
+          enum "cancelled" {
+            value 1;
+            description
+              "The toast was cancelled.";
+          }
+          enum "error" {
+            value 2;
+            description
+              "The toaster service was disabled or the toaster is broken.";
+          }
+        }
+        description
+          "Indicates the final toast status";
+      }
+   }  // notification toastDone
+</pre>
+
+Run 'mvn clean install' to generate the source. 3 additional classes are generated under ''src/main/yang-gen-sal'':
+
+*'''ToastDone''' - interface for the '''toastDone''' notification that defines a ''getToastStatus()'' method.
+*'''ToastDoneBuilder''' - concrete class for building a '''ToastDone''' instance.
+*'''ToasterListener''' - interface for consumers of the '''toastDone''' notification to implement that defines an ''onToastDone(ToastDone)'' method.
+
+==Wire the OpenDaylightToaster for notification==
+
+The '''OpenDaylightToaster''' needs access to the MD-SAL's '''NotificationProviderService''' in order to send notifications. We need to specify the '''NotificationProviderService''' as a dependency in the toaster-provider-impl module by adding an entry to the '''config:configuration''' augmentation: 
+<code>
+     augment "/config:modules/config:module/config:configuration" {
+        case toaster-consumer-impl {
+            when "/config:modules/config:module/config:type = 'toaster-consumer-impl'";
+            ...
+            '''container notification-service {
+                '''uses config:service-ref {
+                    '''refine type {
+                        '''mandatory true;
+                        '''config:required-identity mdsal:binding-notification-service;
+                    '''}
+                '''}
+            '''}
+        }
+    }
+</code>
+
+==Send the notification==
 
 = Part 5: ODL Controller Extension - Using MD-Sal  =
 
