@@ -438,4 +438,11 @@ To make toast via the Restconf you will perform an HTTP POST to an operations UR
  </code>
 ''even thought the toast type is defaulted in the yang model, you still have to provide it.''
 ====To Cancel Toast (i.e. invoke the cancel-toast which hs no arguments)====
-To cancel toast is very similar to make toast, except you need to REMOVE the content-type header. If you provide it there is a bug that will route the call to the wrong http method which expects valid input arguments. Also note an additional bug will actually still result in an exception being returned to REST, however the cancelToast method will now actually get called.
+You may want to cancel the make-toast operation part of the way through! You do this by invoking a restconf REST call in a very similar way as you invoke the make-toast.
+<pre>
+URL => http://localhost:8080/restconf/operations/toaster:cancel-toast
+HTTP Method => POST
+</pre>
+
+Note: There is a bug in the way the RestconfImpl class processes / routes the REST requests. If you define the Content-Type header, then the rest call is routed to a method which expects a non-empty body. In this case though we don't have any input, so our body should be empty. Thus an exception is thrown. In order to make the cancel-toast call work successfully, you need to invoke the above call, with NO content-type define. By doing that you route the request to a different method, which expects an empty body.<br>
+Note 2: When you successfully invoke this call with no headers, you will still get an error. This is due to a null future being returned in our implementation above. You can though put a breakpoint in the cancel toast call at this point and have that breakpoint activated. '''Question: See above in the implementation code for the question. Ultimately should we be returning null futures? Doesn't seem like the downstream code can handle it.'''
