@@ -15,6 +15,14 @@ Part 1 of the toaster service will define a simple toaster service which will en
 *You can create a project anywhere, but to keep things co-located I would recommend creating a new project under controller/opendaylight/md-sal/samples. 
 :*Create a new folder here. Lets call it Toaster.
 :*Under the new folder define a src/main/yang directory.
+<pre>
+cd controller/opendaylight/md-sal/samples
+mkdir Toaster
+cd Toaster
+mkdir -p src/main/yang
+cd src/main/yang
+vi pom.xml
+</pre>
 :*Under the new folder, define a pom.xml file which has the following contents:
 <pre>
  <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
@@ -271,7 +279,7 @@ Part 2 of the toaster example will be adding some behavior to the toaster. Havin
 
 ===Define the yang RPC===
 
-In the toaster.yang file, we will define 2 RPC methods, make-toast and cancel-toast:
+In the ''toaster.yang'' file, we will define 2 RPC methods, make-toast and cancel-toast:
 
 <pre>
     //This defines a Remote Procedure Call (rpc). RPC provide the ability to initiate an action
@@ -314,7 +322,7 @@ In the toaster.yang file, we will define 2 RPC methods, make-toast and cancel-to
     }  // rpc cancel-toast
 </pre>
 
-Running 'mvn install', we see the following additional classes generated:
+Running 'mvn clean install', we see the following additional classes generated:
 
 *'''ToasterService''' - an interface that extends '''RpcService''' and defines the RPC methods corresponding to the yang data model.
 *'''MakeToastInput''' - an interface defining a DTO providing the input parameters for the make-toast call. 
@@ -399,6 +407,7 @@ QUESTION: The Toaster instance returned from getToaster() is essentially a hard-
 
 We've implemented the ToasterService - now we have to get our OpendaylightToaster instantiated and wired up with the MD-SAL. There's a couple ways to do this - we're going to use the MD-SAL's config subsystem which provides the most flexibility. We first need to describe our OpendaylightToaster service and what dependent services it needs for the MD_SAL to process. This is defined in... you guessed it, yang.
 
+====Define the yang toaster provider service interface====
 We define a ''toaster-provider.yang'' file as follows:
 <pre>
 module toaster-provider {
@@ -429,6 +438,7 @@ module toaster-provider {
 
 The toaster-provider identity is a '''service-type''' which means it's basically acting as an interface for the toaster module.
 
+====Define the yang toaster provider service implementation====
 Next we need to define the/an implementation of the toaster-provider service yang interface in the ''toaster-provider-impl.yang'' file:
 <pre>
 module toaster-provider-impl {
@@ -476,12 +486,62 @@ module toaster-provider-impl {
 
 The toaster-provider-impl identity is a '''module-type''' which is effectively providing an implementation of the toaster-provider service interface at the ''/modules/module'' level in the MD_SAL's configuration data tree. The augmentation of ''modules/module/configuration'' adds configuration information for the toaster-provider-impl data node. 'rpc-registry' defines a dependency of the toaster-provider-impl module on the MD-SAL's RPC registry service.   (TODO - need more info here?)
 
-These 2 yang files generate several classes, of note are the 2 that are generated under src/man/yang:
+====Generate the yang toaster provider source====
+
+To generate the java source files that facilitate the service wiring, we need to add another code generator, '''JmxGenerator''', to the yang-maven-plugin configuration in addition to the '''CodeGeneratorImpl''':
+<code>
+    <plugin>
+       <groupId>org.opendaylight.yangtools</groupId>
+       <artifactId>yang-maven-plugin</artifactId>
+       <executions>
+          <execution>
+             <id>config</id>
+             <goals><goal>generate-sources</goal></goals>
+             <configuration>
+                <codeGenerators>
+                   '''<generator>
+                      '''<codeGeneratorClass>                                 
+                          '''org.opendaylight.controller.config.yangjmxgenerator.plugin.JMXGenerator
+                      '''</codeGeneratorClass>
+                      '''<outputBaseDir>${jmxGeneratorPath}</outputBaseDir>
+                      '''<additionalConfiguration>
+                          '''<namespaceToPackage1>                                                   
+                             '''urn:opendaylight:params:xml:ns:yang:controller==org.opendaylight.controller.config.yang
+                          '''</namespaceToPackage1>
+                      '''</additionalConfiguration>
+                   '''</generator>
+                   <generator>
+                       define the CodeGeneratorImpl...
+                   </generator>
+               </codeGenerators>
+               <inspectDependencies>true</inspectDependencies>
+            </configuration>
+          </execution>
+       </executions>
+       <dependencies>
+          '''<dependency>
+             '''<groupId>org.opendaylight.controller</groupId>
+             '''<artifactId>yang-jmx-generator-plugin</artifactId>
+             '''<version>${config.version}</version>
+          '''</dependency>
+          <dependency>
+             <groupId>org.opendaylight.yangtools</groupId>
+             <artifactId>maven-sal-api-gen-plugin</artifactId>
+             <version>${yangtools.version}</version>
+          </dependency>
+       </dependencies>
+    </plugin>
+</code>  
+
+The 2 yang files generate several classes, of note are the 2 that are generated under src/man/yang:
 
 *'''ToasterProviderModule''' -  concrete class whose ''createInstance()'' method provides the OpendaylightToaster instance.
 *'''ToasterProviderModuleFactory''' - concrete class instantiated internally by MD_SAL that creates '''ToasterProviderModule''' instances.  
 
-These 2 classes are intended to be checked into Git and the ''ToasterProviderModule.createInstance()'' method needs to be implemented to instantiate and wire the OpendaylightToaster:
+These 2 classes are intended to be checked into Git.
+
+====Implement the ToasterProviderModule====
+The '''ToasterProviderModule''' class is mostly complete. The ''ToasterProviderModule.createInstance()'' method needs to be implemented to instantiate and wire the '''OpendaylightToaster''':
 
 <pre>
     @Override
@@ -508,13 +568,17 @@ These 2 classes are intended to be checked into Git and the ''ToasterProviderMod
             }
         }
 
-        AutoCloseable ret = new AutoCloseableToaster();
-        return ret;
+        return new AutoCloseableToaster();
     }
 </pre>
 
-TODO: Add new pom.xml dependencies on md-sal core - also need to add the JMXGenerator <br>
+In the above code, the '''RpcProviderRegistry''' dependency has already been injected by the MD-SAL and is available via the ''getRpcRegistryDependency()'' method defined in the generated base class. The return type of ''createInstance()'' is '''AutoCloseable''' although the intent is to return a '''ToasterData''' instance so we must wrap the '''OpendaylightToaster ''' in an '''AutoCloseable''' instance.
 
+QUESTION: An AutoCloseable return type is not well defined and it is unclear what actual interface type this method is suppose to return. Am I suppose to return a ToasterData? A ToasterService? <br>
+QUESTION: Can this code be reduced to just instantiating the OpendaylightToaster and returning it? 
+*Have return type be ToasterData. The MD-SAL can wrap in AutoCloseable on return, if needed, if the returned instance doesn't implement AutoCloseable.
+*Can the MD-SAL be smart enough to auto register the returned instance as an RPC service? The OpendaylightToaster implements RpcService via the ToasterService interface - the MD-SAL should have the info necessary to register it via addRpcImplementation.   
+  
 TODO: Do a new clean / build - new files generated <br>
 
 TODO: Define a netconf configuration data file in configuration/initial which defines  the modules and services - see example. This becomes the startup config starts the wiring process<br>
