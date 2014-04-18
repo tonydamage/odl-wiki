@@ -478,10 +478,54 @@ module toaster-provider-impl {
 
 The toaster-provider-impl identity is a '''module-type''' which is effectively providing an implementation of the toaster-provider service interface at the ''/modules/module'' level in the MD_SAL's configuration data tree. The augmentation of ''modules/module/configuration'' adds configuration information for the toaster-provider-impl data node. 'rpc-registry' defines a dependency of the toaster-provider-impl module on the MD-SAL's RPC registry service.   (TODO - need more info here?)
 
-====Build the yang source====
+====Generate the yang toaster provider source====
 
+To generate the java source files that facilitate the service wiring, we need to add another code generator, '''JmxGenerator''', to the yang-maven-plugin configuration in addition to the '''CodeGeneratorImpl''':
+<code>
+    <plugin>
+       <groupId>org.opendaylight.yangtools</groupId>
+       <artifactId>yang-maven-plugin</artifactId>
+       <executions>
+          <execution>
+             <id>config</id>
+             <goals><goal>generate-sources</goal></goals>
+             <configuration>
+                <codeGenerators>
+                   '''<generator>
+                      '''<codeGeneratorClass>                                 
+                          '''org.opendaylight.controller.config.yangjmxgenerator.plugin.JMXGenerator
+                      '''</codeGeneratorClass>
+                      '''<outputBaseDir>${jmxGeneratorPath}</outputBaseDir>
+                      '''<additionalConfiguration>
+                          '''<namespaceToPackage1>                                                   
+                             '''urn:opendaylight:params:xml:ns:yang:controller==org.opendaylight.controller.config.yang
+                          '''</namespaceToPackage1>
+                      '''</additionalConfiguration>
+                   '''</generator>
 
-These 2 yang files generate several classes, of note are the 2 that are generated under src/man/yang:
+                   define the CodeGeneratorImpl...
+
+               </codeGenerators>
+               <inspectDependencies>true</inspectDependencies>
+            </configuration>
+          </execution>
+       </executions>
+       <dependencies>
+          '''<dependency>
+             '''<groupId>org.opendaylight.controller</groupId>
+             '''<artifactId>yang-jmx-generator-plugin</artifactId>
+             '''<version>${config.version}</version>
+          '''</dependency>
+          <dependency>
+             <groupId>org.opendaylight.yangtools</groupId>
+             <artifactId>maven-sal-api-gen-plugin</artifactId>
+             <version>${yangtools.version}</version>
+          </dependency>
+       </dependencies>
+    </plugin>
+</code>  
+
+The 2 yang files generate several classes, of note are the 2 that are generated under src/man/yang:
 
 *'''ToasterProviderModule''' -  concrete class whose ''createInstance()'' method provides the OpendaylightToaster instance.
 *'''ToasterProviderModuleFactory''' - concrete class instantiated internally by MD_SAL that creates '''ToasterProviderModule''' instances.  
@@ -518,7 +562,6 @@ These 2 classes are intended to be checked into Git and the ''ToasterProviderMod
     }
 </pre>
 
-TODO: Add new pom.xml dependencies on md-sal core - also need to add the JMXGenerator <br>
 
 TODO: Do a new clean / build - new files generated <br>
 
