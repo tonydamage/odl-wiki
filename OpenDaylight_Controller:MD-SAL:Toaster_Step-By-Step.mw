@@ -377,22 +377,31 @@ Running 'mvn clean install', we see the following additional classes generated:
 
 We've defined the data model interface for the RPC calls - now we must provide the implementation. We'll create a class called OpendaylightToaster which implements the ToasterService and ToasterData interfaces: 
 <pre>
-public class OpendaylightToaster implements ToasterData, ToasterService, AutoCloseable {
+public class OpendaylightToaster implements ToasterData, ToasterService {
     private final ExecutorService executor;
-    private Future<RpcResult<Void>> currentTask;
+    
+    /** Note: This is thread safe because of the synchronized statements on the public methods. 
+          However those public synchronized statements perform global locks. If you have multiple methods
+          that need to be synchronized, but not on the same objects, it would be more performant to
+          use an internal locking object and synchronize only where you need. */
+    private Future<RpcResult<Void>> currentTask; 
 
     public OpendaylightToaster() {
         executor = Executors.newFixedThreadPool(1);
     }
 
+    /** Provides the implementation for the cancel toast call */
     @Override
     public synchronized Future<RpcResult<Void>> cancelToast() {
         if (currentTask != null) {
             currentTask.cancel(true);
         }
-        return null; //QUESTION: cancel toast call always throws an example because the caller of this method expects non-null return. Is returning null suppose to be valid?
+        return null; 
+        //QUESTION: cancel toast call always throws an example because the caller 
+        //of this method expects non-null return. Is returning null suppose to be valid?
     }
 
+     /** Provides the implementation for the make toast call */
     @Override
     public synchronized Future<RpcResult<Void>> makeToast(MakeToastInput input) {
         log.debug("makeToast - Received input for toast");
@@ -400,6 +409,9 @@ public class OpendaylightToaster implements ToasterData, ToasterService, AutoClo
         if (currentTask != null) {
             return inProgressError();
         }
+        //Notice that we are offloading the actual call to another thread, allowing this thread to return immediately.
+        //The MD-SAL design encourages asynchronus programming. If the caller needs to block until the call is 
+        //complete then they can leverage the blocking methods on the Future.
         currentTask = executor.submit(new MakeToastTask(input));
         return currentTask;
     }
@@ -410,10 +422,6 @@ public class OpendaylightToaster implements ToasterData, ToasterService, AutoClo
     }
 
     @Override
-    public void close() throws Exception {
-    }
-    
-    @Override
     public synchronized Toaster getToaster() {
         ToasterBuilder tb = new ToasterBuilder();
         tb.setToasterManufacturer(toasterManufacturer) 
@@ -423,6 +431,8 @@ public class OpendaylightToaster implements ToasterData, ToasterService, AutoClo
         return tb.build();
     }
 
+    //This inner class defines a runnable which gets submitted to the executor. In general
+    // this logic should probably be split out into a seperate java class to enable easier testing.
     private class MakeToastTask implements Callable<RpcResult<Void>> {
         final MakeToastInput toastRequest;
 
