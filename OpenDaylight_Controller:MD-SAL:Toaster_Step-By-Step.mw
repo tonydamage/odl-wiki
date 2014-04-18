@@ -1,9 +1,11 @@
 __TOC__
 
 =Overview=
-The following documentation will take you through creating a "toaster" plugin. We will start with simple definitions of a toaster that enable CRUD (create/read/update/delete) of configuration data only, and advance to a sophisticated model that has both remote procedure calls, notifications and a specialized ODL controller which provides additional business logic.
+The following documentation will take you through creating a "toaster" plugin from scratch. We will start with simple definitions of a toaster that enable CRUD (create/read/update/delete) of configuration data only, and advance to a sophisticated model that has both remote procedure calls, notifications and a specialized ODL controller which provides additional business logic.
 
-'''NOTE: The follow documentation is a work in progress and may have embedded questions and answers. Look for QUESTION to find existing questions.'''
+<br><br>'''If you are looking for an overview of the prebuilt Toaster sample, along with discussions of how the classes interact with eachother, check out the [https://wiki.opendaylight.org/view/OpenDaylight_Controller:MD-SAL:Toaster_Tutorial Toaster Tutorial]'''
+
+<br><br>'''NOTE: The follow documentation is a work in progress and may have embedded questions and answers. Look for QUESTION to find existing questions.'''
 
 ====Toaster Parts====
 There are four parts that make up this toaster step-by-step example. During this example we illustrate how the yang model is providing abstraction for us, and how MD-SAL provides the plumbing (wiring) to hook everything up.
@@ -261,7 +263,7 @@ To create the toaster instance,  issue a REST POST (you will need a rest client 
      }
  }
  </code>
-:''Note: You will likely see an exception on the OSGi terminal, and the return error code will be a 204, "No data returned". This means it succeeded!'' '''QUESTION: What if any is the expected output? Seems like we should be returning the content that we posted or something. Either way we definitely need to address the exception.'''
+:''Note: You will likely see an exception on the OSGi terminal, and the return error code will be a 204, "No data returned". This means it succeeded!'' '''QUESTION: What if any is the expected output? Seems like we should be returning the content that we posted or something. Either way we definitely need to address the exception. [https://bugs.opendaylight.org/show_bug.cgi?id=442 Bug 422] captures a similar error.'''
 
 === Get the Toaster ===
 
@@ -294,7 +296,7 @@ To delete the current toaster via REST,  issue an HTTP DELETE:
  URL => http://localhost:8080/restconf/config/toaster:toaster 
  </code>
 
-QUESTION: An exception prints out in the osgi terminal when you do a post or delete - do we understand the cause? What is the expected return for the post / delete?
+QUESTION: An exception prints out in the osgi terminal when you do a post or delete - do we understand the cause? What is the expected return for the post / delete? [https://bugs.opendaylight.org/show_bug.cgi?id=442 Bug 422] captures a similar error.'
 
 == How Does MD-SAL Know about my Toaster? ==
 So by just defining a yang data model file and deploying a bundle containing the generated classes, we were able to perform CRUD operations on the toaster. We didn't write a single line of java code. You might be wondering how the MD-SAL managed to wire it together. If so, read on.
@@ -637,7 +639,8 @@ QUESTION: Can this code be reduced to just instantiating the OpendaylightToaster
 
 ====Define the initial XML configuration====
 
-The final step is to specify a netconf  XML file  that defines the initial configuration for the toaster provider service. This tells the MD-SAL about the toaster provider service, which module will provide the implementation, and how to configure the implementation. This file initiates the wiring process in the MD-SAL.
+We have now defined the initial toaster (toaster.yang), an "interface" to the provider (toaster-provider.yang) and an implementation (toaster-provider-impl.yang). Everything we have done so far is define "possible" implementation for the toaster. The last step is to actually tell MD-SAL to create instances of these data models and hook them up. To do this configuration we actually use netconf. 
+This xml file defines the initial configuration for the toaster provider service. First it tells MD-SAL about the toaster provider module, which implementation to use, and then finally how to configure the implementation. Finally it advertises the newly created toaster service out to MD-SAL as a "service" so other can pull it in.
 <pre>
 <snapshot>
     <configuration>
@@ -654,7 +657,7 @@ The final step is to specify a netconf  XML file  that defines the initial confi
                     <!-- Specify the rpc-registry dependency as defined in the augments clause -->
                     <rpc-registry>
                         <type xmlns:binding="urn:opendaylight:params:xml:ns:yang:controller:md:sal:binding">binding:binding-rpc-registry</type>
-                        <name>binding-rpc-broker</name>
+                        <name>binding-rpc-broker</name>   <!-- this unique ID appears to come from distributions/opendaylight/src/main/resources/configuration/initial/01-md-sal.xml configuration file, which is wiring up and exposing the core MD-SAL services. -->
                     </rpc-registry>
                 </module>
             </modules>
@@ -688,13 +691,39 @@ The '''modules''' section specifies the toaster-provider-impl module and its dep
 
 The '''services''' section specifies the toaster-provider service interface and the toaster-provider-impl module as the implementation to instantiate and register.
 
-This XML file must be put into the runtime ''configuration/initial'' directory. 
+This XML file must be put into the runtime ''configuration/initial'' directory (i.e. controller/opendaylight/distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/configuration/initial ).
 
 On startup, the XML files in the ''configuration/initial'' directory are loaded by the '''ConfigPersisterActivator'''. A '''ConfigPusher''' instance is instantiated to push the configs via the NetConf subsystem to the '''ConfigRegistryImpl'''.  When processing the toaster-provider-impl module in the toaster config file, the '''ToasterProviderModuleFactory''' class is located and instantiated and the ''createModule'' method is called to create a '''ToasterProviderModule''' instance. The ''ToasterProviderModule.getInstance'' method is then called to create the service instance.
 
+'''QUESTION: There doesn't seem to be any output to tell you when a netconf file fails to get parsed or processed due to bad text. Where would this be printed?'''
+
 ===Invoke make-toast via RestConf===
 
+It's finally time to make some delicious wheat toast! To invoke the make toast via the Restconf you will perform an HTTP POST to an operations URL.
+<pre>
+HTTP Method => POST
+URL => http://localhost:8080/restconf/operations/toaster:make-toast 
+Header =>   Content-Type: application/yang.data+json  
+Body =>  
+{
+  "input" :
+  {
+     "toaster:toasterDoneness" : "10",
+     "toaster:toasterToastType":"wheat-bread" 
+  }
+}
+</pre>
+''Note: Even though the toast type and doneness is defaulted in the yang model, you still have to provide their values here.'' '''Question: Is that correct? Seems like if the values are defaulted in the yang data model, we shouldn't be forced to specify them. Even if we are, we need to clarify the error message.'''
+
 ===cancel-toast via RestConf===
+If you don't like burnt toast, you may want to cancel the make-toast operation part of the way through! You do this by invoking a restconf REST call in a very similar way as you invoke the make-toast.
+<pre>
+URL => http://localhost:8080/restconf/operations/toaster:cancel-toast
+HTTP Method => POST
+</pre>
+
+Note: There is a bug in the way the RestconfImpl class processes / routes the REST requests. If you define the Content-Type header, then the rest call is routed to a method which expects a non-empty body. In this case though we don't have any input, so our body should be empty. Thus an exception is thrown. In order to make the cancel-toast call work successfully, you need to invoke the above call, with NO content-type define. By doing that you route the request to a different method, which expects an empty body. '''QUESTION: Definitely seems like there is an bug here. We should all content types with empty bodies for these calls.'''<br>
+Note 2: When you successfully invoke this call with no headers, you will still get an error. This is due to a null future being returned in our implementation above. You can though put a breakpoint in the cancel toast call at this point and have that breakpoint activated. '''Question: See above in the implementation code for the question. Ultimately should we be returning null futures? Doesn't seem like the downstream code can handle it.'''
 
 = Part 3: Additional Attributes in the Implementation - Count my toast! =
 
