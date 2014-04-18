@@ -911,6 +911,33 @@ opendaylightToaster.setNotificationProvider(getNotificationServiceDependency());
 ==Send the notification==
 
 The '''OpendaylightToaster''' is now ready to send notifications.
+<code>
+ public class OpendaylightToaster implements ToasterData, ToasterService, ToasterProviderRuntimeMXBean, AutoCloseable {
+    ...
+    <br>
+    private void cancelToastImpl() {
+        currentTask.cancel(true);
+        '''ToastDoneBuilder toastDone = new ToastDoneBuilder();
+        '''toastDone.setToastStatus(ToastStatus.Cancelled);
+        '''notificationProvider.publish(toastDone.build());
+    }
+    ...
+    <br>
+    private class MakeToastTask implements Callable<RpcResult<Void>> {
+        ...
+        @Override
+        public RpcResult<Void> call() throws InterruptedException {
+            Thread.sleep(1000 * toastRequest.getToasterDoneness());
+            ...
+            '''ToastDoneBuilder notifyBuilder = new ToastDoneBuilder();
+            '''notifyBuilder.setToastStatus(ToastStatus.Done);
+            '''notificationProvider.publish(notifyBuilder.build());
+            ...
+            return Rpcs.<Void> getRpcResult(true, null, Collections.<RpcError> emptySet());
+        }
+    }
+ }
+</code>
 
 = Part 5: ODL Controller Extension - Using MD-Sal  =
 
