@@ -712,6 +712,14 @@ Body =>
 ''Note: Even though the toast type and doneness is defaulted in the yang model, you still have to provide their values here.'' '''Question: Is that correct? Seems like if the values are defaulted in the yang data model, we shouldn't be forced to specify them. Even if we are, we need to clarify the error message.'''
 
 ===cancel-toast via RestConf===
+If you don't like burnt toast, you may want to cancel the make-toaster operation part of the way through! You do this by invoking a restconf REST call in a very similar way as you invoke the make-toast.
+<pre>
+URL => http://localhost:8080/restconf/operations/toaster:cancel-toast
+HTTP Method => POST
+</pre>
+
+Note: There is a bug in the way the RestconfImpl class processes / routes the REST requests. If you define the Content-Type header, then the rest call is routed to a method which expects a non-empty body. In this case though we don't have any input, so our body should be empty. Thus an exception is thrown. In order to make the cancel-toast call work successfully, you need to invoke the above call, with NO content-type define. By doing that you route the request to a different method, which expects an empty body. '''QUESTION: Definitely seems like there is an bug here. We should all content types with empty bodies for these calls.'''<br>
+Note 2: When you successfully invoke this call with no headers, you will still get an error. This is due to a null future being returned in our implementation above. You can though put a breakpoint in the cancel toast call at this point and have that breakpoint activated. '''Question: See above in the implementation code for the question. Ultimately should we be returning null futures? Doesn't seem like the downstream code can handle it.'''
 
 = Part 3: Additional Attributes in the Implementation - Count my toast! =
 
