@@ -830,7 +830,7 @@ The toasts-made attribute that we added is available via MBeans through the java
 
 = Part 4: Notifications - Tell me when my Toast is done! =
 
-When a piece of toast is made we'd like to provide a notification when it's done, or was cancelled, or encountered an error.
+When a piece of toast is made we'd like for the '''OpenDaylightToaster''' to provide a notification when it's done, or was cancelled, or encountered an error.
 
 ==Define the toastDone notification==
 
@@ -867,6 +867,29 @@ Run 'mvn clean install' to generate the source. 3 additional classes are generat
 *'''ToastDone''' - interface for the '''toastDone''' notification that defines a ''getToastStatus()'' method.
 *'''ToastDoneBuilder''' - concrete class for building a '''ToastDone''' instance.
 *'''ToasterListener''' - interface for consumers of the '''toastDone''' notification to implement that defines an ''onToastDone(ToastDone)'' method.
+
+==Wire the OpenDaylightToaster for notification==
+
+The '''OpenDaylightToaster''' needs access to the MD-SAL's '''NotificationProviderService''' in order to send notifications. We need to specify the '''NotificationProviderService''' as a dependency in the toaster-provider-impl module by adding an entry to the '''config:configuration''' augmentation: 
+<code>
+     augment "/config:modules/config:module/config:configuration" {
+        case toaster-consumer-impl {
+            when "/config:modules/config:module/config:type = 'toaster-consumer-impl'";
+
+            ...
+
+            '''container notification-service {
+                '''uses config:service-ref {
+                    '''refine type {
+                        '''mandatory true;
+                        '''config:required-identity mdsal:binding-notification-service;
+                    '''}
+                '''}
+            '''}
+        }
+    }
+</code>
+==Send the notification==
 
 = Part 5: ODL Controller Extension - Using MD-Sal  =
 
