@@ -333,6 +333,70 @@ Running 'mvn install', we see the following additional classes generated:
 *'''MakeToastInput''' - an interface defining a DTO providing the input parameters for the make-toast call. 
 *'''MakeToastInputBuilder''' - a concrete class for creating MakeToastInput instances.
 
+===Implement the RPC methods===
+
+We've defined the data model interface for the RPC calls - now we must provide the implementation. We'll create a class called OpendaylightToaster which implements the ToasterService interface: 
+<pre>
+public class OpendaylightToaster implements ToasterService, AutoCloseable {
+    private final ExecutorService executor;
+    private Future<RpcResult<Void>> currentTask;
+
+    public OpendaylightToaster() {
+        executor = Executors.newFixedThreadPool(1);
+    }
+
+    @Override
+    public synchronized Future<RpcResult<Void>> cancelToast() {
+        if (currentTask != null) {
+            cancelToastImpl();
+        }
+        return null;
+    }
+
+    @Override
+    public synchronized Future<RpcResult<Void>> makeToast(MakeToastInput input) {
+        log.debug("makeToast - Received input for toast");
+ 
+        if (currentTask != null) {
+            return inProgressError();
+        }
+        currentTask = executor.submit(new MakeToastTask(input));
+        return currentTask;
+    }
+
+    private Future<RpcResult<Void>> inProgressError() {
+        RpcResult<Void> result = Rpcs.<Void> getRpcResult(false, null, Collections.<RpcError> emptySet());
+        return Futures.immediateFuture(result);
+    }
+
+    private void cancelToastImpl() {
+        currentTask.cancel(true);
+    }
+
+    @Override
+    public void close() throws Exception {
+    }
+
+    private class MakeToastTask implements Callable<RpcResult<Void>> {
+        final MakeToastInput toastRequest;
+
+        public MakeToastTask(MakeToastInput toast) {
+            toastRequest = toast;
+        }
+
+        @Override
+        public RpcResult<Void> call() throws InterruptedException {
+            Thread.sleep(1000 * toastRequest.getToasterDoneness());
+
+            log.debug("Toast Done");
+           
+            currentTask = null;
+            return Rpcs.<Void> getRpcResult(true, null, Collections.<RpcError> emptySet());
+        }
+    }
+}
+</pre>
+
 = Part 3: Notifications - Tell me when my Toast is done! =
 
 Under construction - please come back soon!
