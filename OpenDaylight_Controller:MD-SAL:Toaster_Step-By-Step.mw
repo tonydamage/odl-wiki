@@ -723,7 +723,53 @@ Note 2: When you successfully invoke this call with no headers, you will still g
 
 = Part 3: Getting Toaster Status (Operational Data) =
 
-Under construction.
+During part 3 we will modify the OpendaylightToaster to update the "toasterStatus" field, changing it from "up" to "down" and vice-versa as toast is started/finished. The first step is to modify the toaster-provider-impl.yang to tie the data-broker service into our provider.
+===Add the Data Broker Service ===
+
+The first step is to head back to the toaster-provider-impl.yang file, and modify it to tie in the data-broker service. Open up the toaster-provider-impl.yang file, and add the bolded text to the 'augment "/config:modules/config:module/config:configuration" section.
+<code>
+ ...
+    //augments the configuration,  
+    augment "/config:modules/config:module/config:configuration" {
+        case toaster-provider-impl {
+            when "/config:modules/config:module/config:type = 'toaster-provider-impl'";
+ <br>
+            //Wires dependent services into this class - in this case the RPC registry service
+            container rpc-registry {
+                uses config:service-ref {
+                    refine type {
+                        mandatory true;
+                        config:required-identity mdsal:binding-rpc-registry;
+                    }
+                }
+            }
+            
+            '''//wires in the data-broker service 
+            '''container data-broker {
+            '''    uses config:service-ref {
+            '''        refine type {
+            '''            mandatory false;
+            '''            config:required-identity mdsal:binding-data-broker;
+            '''        }
+            '''    }
+            '''}
+            
+        }
+    }
+ ...
+</code>
+Rebuild the source code (mvn clean install) and you should now see that your org.opendaylight.controller.config.yang.config.toaster_provider.impl.AbstractToasterProviderModule has two new methods: getDataBroker()  and getDataBrokerDependency(). Additionally, a "DataBroker" and  DataBrokerBuilder files were generated.<br><Br>'''QUESTION: What are these classes used for?'''
+=== Modify the OpendaylightToaster ===
+Now we need to modify our OpendaylightToaster to pass the data broker service in. Add the getter methods, which are in bold to the OpendaylightToaster.java
+<code>
+ ...
+   private DataBrokerService dataBrokerService;<br>
+   public void setDataProvider(DataBrokerService salDataProvider) {
+        this.dataBrokerService = salDataProvider;
+    }
+ ...
+</code>
+Now that we have passed the DataBrokerService into our toaster, we need to use our service and update the status when we are making toast. Since we want to update the status from many locations (making toast, canceling toast, and initializing the status) we will create an update status method.
 
 = Part 4: Additional Attributes in the Implementation - Count my toast! =
 
