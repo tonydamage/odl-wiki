@@ -887,46 +887,65 @@ In our updateStatus method we leverage the existing getToaster() method call whi
 <code>
      ...
      @Override
-    public synchronized Future<RpcResult<Void>> cancelToast() {
-        if (currentTask != null) {
-            currentTask.cancel( true );
-            currentTask = null;
-            '''updateStatus();
+    public Future<RpcResult<Void>> cancelToast() {
+        synchronized( taskLock )
+        {
+            if (currentTask != null) {
+                currentTask.cancel(true);
+                currentTask = null;
+            }
         }
-        return null;
+        '''updateStatus();'''
+        //Always return success from the cancel toast call.
+        return Futures.immediateFuture( Rpcs.<Void>getRpcResult(true, Collections.<RpcError> emptySet()) ); 
     }
     ...
     @Override
-    public synchronized Future<RpcResult<Void>> makeToast(MakeToastInput input) {
-        log.debug("makeToast - Received input for toast");
-        logToastInput(input);
-        if (currentTask != null) {
-            return inProgressError();
+    public Future<RpcResult<Void>> makeToast(MakeToastInput input) {
+        log.debug("makeToast - Received input for toast");       
+        boolean inProgress = false;
+        synchronized( taskLock )
+        {
+            if (currentTask != null) {
+                inProgress = true;
+            }
+            else
+            {
+                currentTask = executor.submit(new MakeToastTask(input));
+            }
         }
-        currentTask = executor.submit(new MakeToastTask(input));
-        '''updateStatus();
+        if( inProgress )
+        {
+            RpcResult<Void> result = Rpcs.<Void> getRpcResult(false, null, Collections.<RpcError> emptySet());
+            return Futures.immediateFuture(result);
+        }        
+        '''updateStatus();'''
         return currentTask;
     }
     ...
-    private class MakeToastTask implements Callable<RpcResult<Void>> {<br>
-        final MakeToastInput toastRequest;<br>
+    private class MakeToastTask implements Callable<RpcResult<Void>> {
+        final MakeToastInput toastRequest;
         public MakeToastTask(MakeToastInput toast) {
             toastRequest = toast;
-        }<br>
+        }
         @Override
         public RpcResult<Void> call() throws InterruptedException {
-            Thread.sleep(1000 * toastRequest.getToasterDoneness()); <br>
-            log.debug("Toast Done");
-            logToastInput(toastRequest);
-            toastsMade.incrementAndGet();
-            currentTask = null;
-            '''updateStatus();
-            return Rpcs.<Void> getRpcResult(true, null, Collections.<RpcError> emptySet());
+            //make toast just sleeps for 1 second per doneness level.
+            Thread.sleep(1000 * toastRequest.getToasterDoneness());
+            log.debug("Toast Done");           
+            synchronized( taskLock )
+            {
+                //mark the toaster is "available" for more toasting.
+                currentTask = null;
+            }
+            '''updateStatus();'''
+            return Rpcs.<Void>getRpcResult(true, null, Collections.<RpcError> emptySet());
         }
     }
     ...
     public void setDataProvider(DataBrokerService salDataProvider) {
          this.dataBrokerService = salDataProvider;
+         '''updateStatus();'''
      }
      ...
 </code>
