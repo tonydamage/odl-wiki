@@ -865,22 +865,22 @@ Now that we have passed the DataBrokerService into our toaster, we need to use o
         ...
         private static final InstanceIdentifier<Toaster>  toasterIID = InstanceIdentifier.builder(Toaster.class).build();<br>
         private void updateStatus() {
-        if (dataBrokerService != null) {
-            //We start a transaction, such that our remove and put calls are atomic. 
-            final DataModificationTransaction t = dataBrokerService.beginTransaction();
-            //NOTE: We are interacting with the operational data store, as opposed to the config data store.
-            //therefore to access this data you would go to the operational rest endpoint, instead of the config endpoint
-            t.removeOperationalData(toasterIID);
-            t.putOperationalData(toasterIID, getToaster());   //QUESTION: Why do we pass config information into the operational data? Can we safely assume there is only 1 instance? I think so...<br>
-            try {
-                t.commit().get();
-            } catch (InterruptedException | ExecutionException e) {
-                log.warn("Failed to update toaster status, operational otherwise", e);
+            if (dataBrokerService != null) {
+                //We start a transaction, such that our remove and put calls are atomic. 
+                final DataModificationTransaction t = dataBrokerService.beginTransaction();
+                //NOTE: We are interacting with the operational data store, as opposed to the config data store.
+                //therefore to access this data you would go to the operational rest endpoint, instead of the config endpoint
+                t.removeOperationalData(toasterIID);
+               t.putOperationalData(toasterIID, getToaster());   //QUESTION: Why do we pass config information into the operational data? Can we safely assume there is only 1 instance? I think so...<br>
+                try {
+                    t.commit().get();
+                } catch (InterruptedException | ExecutionException e) {
+                    log.warn("Failed to update toaster status, operational otherwise", e);
+                }
+            } else {
+                log.trace("No data provider configured, not updating status");
             }
-        } else {
-            log.trace("No data provider configured, not updating status");
         }
-    }
     ...
 </code>
 In our updateStatus method we leverage the existing getToaster() method call which determines the status of the toaster by checking the "currentTask" inner variable. We then persist that information in our data broker by creating a transaction which removes the existing values, and then saves the new data into the operational data store. Now modify the following methods, adding a call to updateStatus().
