@@ -394,67 +394,110 @@ touch src/main/java/org/opendaylight/toaster/OpendaylightToaster.java
 Here is the contents of the class: 
 
 <pre>
+package org.opendaylight.toaster;
+
+import java.util.Collections;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+
+import org.opendaylight.controller.sal.common.util.Rpcs;
+import org.opendaylight.yang.gen.v1.http.netconfcentral.org.ns.toaster.rev091120.DisplayString;
+import org.opendaylight.yang.gen.v1.http.netconfcentral.org.ns.toaster.rev091120.MakeToastInput;
+import org.opendaylight.yang.gen.v1.http.netconfcentral.org.ns.toaster.rev091120.Toaster;
+import org.opendaylight.yang.gen.v1.http.netconfcentral.org.ns.toaster.rev091120.Toaster.ToasterStatus;
+import org.opendaylight.yang.gen.v1.http.netconfcentral.org.ns.toaster.rev091120.ToasterBuilder;
+import org.opendaylight.yang.gen.v1.http.netconfcentral.org.ns.toaster.rev091120.ToasterData;
+import org.opendaylight.yang.gen.v1.http.netconfcentral.org.ns.toaster.rev091120.ToasterService;
+import org.opendaylight.yangtools.yang.binding.DataObject;
+import org.opendaylight.yangtools.yang.binding.InstanceIdentifier;
+import org.opendaylight.yangtools.yang.common.RpcError;
+import org.opendaylight.yangtools.yang.common.RpcResult;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.google.common.util.concurrent.Futures;
+
 public class OpendaylightToaster implements ToasterData, ToasterService {
     private final ExecutorService executor;
-    
-    /** Note: This is thread safe because of the synchronized statements on the public methods. 
-          However those public synchronized statements perform global locks. If you have multiple methods
-          that need to be synchronized, but not on the same objects, it would be more performant to
-          use an internal locking object and synchronize only where you need. */
-    private Future<RpcResult<Void>> currentTask; 
+
+    private static final Logger log = LoggerFactory.getLogger(OpendaylightToaster.class);
+
+    //As you will see we are using multiple threads here. Therefore we need to be careful
+    //about concurrency. In this case we use the taskLock to provide synchronization
+    //for the current task.
+    private Future<RpcResult<Void>> currentTask;
+    private Object taskLock = new Object();
 
     //constants used by the "getToaster()" call. QUESTION: Why are these values hard-coded? Shouldn't the values come in from REST? 
     private static final DisplayString toasterManufacturer = new DisplayString("Opendaylight");
     private static final DisplayString toasterModelNumber = new DisplayString("Model 1 - Binding Aware");
 
     public OpendaylightToaster() {
+        //in true production we should consider passing around and using a common thread pool.
         executor = Executors.newFixedThreadPool(1);
     }
 
     /** Provides the implementation for the cancel toast call */
     @Override
-    public synchronized Future<RpcResult<Void>> cancelToast() {
-        if (currentTask != null) {
-            currentTask.cancel(true);
-            currentTask = null;
+    public Future<RpcResult<Void>> cancelToast() {
+        synchronized( taskLock )
+        {
+            if (currentTask != null) {
+                currentTask.cancel(true);
+                currentTask = null;
+            }
         }
-        return null; 
-        //QUESTION: cancel toast call always throws an example because the caller 
-        //of this method expects non-null return. Is returning null suppose to be valid?
+        //Always return success from the cancel toast call.
+        return Futures.immediateFuture( Rpcs.<Void>getRpcResult(true, Collections.<RpcError> emptySet()) ); 
     }
 
      /** Provides the implementation for the make toast call */
     @Override
-    public synchronized Future<RpcResult<Void>> makeToast(MakeToastInput input) {
+    public Future<RpcResult<Void>> makeToast(MakeToastInput input) {
         log.debug("makeToast - Received input for toast");
- 
-        if (currentTask != null) {
-            return inProgressError();
+        
+        boolean inProgress = false;
+        synchronized( taskLock )
+        {
+            if (currentTask != null) {
+                inProgress = true;
+            }
+            else
+            {
+                //Notice that we are moving the actual call to another thread, allowing this thread to return immediately.
+                //The MD-SAL design encourages asynchronus programming. If the caller needs to block until the call is 
+                //complete then they can leverage the blocking methods on the Future interface.
+                currentTask = executor.submit(new MakeToastTask(input));
+            }
         }
-        //Notice that we are offloading the actual call to another thread, allowing this thread to return immediately.
-        //The MD-SAL design encourages asynchronus programming. If the caller needs to block until the call is 
-        //complete then they can leverage the blocking methods on the Future.
-        currentTask = executor.submit(new MakeToastTask(input));
+        if( inProgress )
+        {
+            //return an error since we are already toasting some toast.
+            RpcResult<Void> result = Rpcs.<Void> getRpcResult(false, null, Collections.<RpcError> emptySet());
+            return Futures.immediateFuture(result);
+        }
         return currentTask;
     }
 
-    private Future<RpcResult<Void>> inProgressError() {
-        RpcResult<Void> result = Rpcs.<Void> getRpcResult(false, null, Collections.<RpcError> emptySet());
-        return Futures.immediateFuture(result);
-    }
-
     @Override
-    public synchronized Toaster getToaster() {
+    public Toaster getToaster() {
+        boolean isUp = true;
+        synchronized( taskLock )
+        {
+            isUp = currentTask == null;
+        }
         ToasterBuilder tb = new ToasterBuilder();
+        //QUESTION: Why do we hardcode the manufactuer and model number?
         tb.setToasterManufacturer(toasterManufacturer) 
            .setToasterModelNumber(toasterModelNumber) 
-           .setToasterStatus(currentTask == null ? ToasterStatus.Up : ToasterStatus.Down);
-
+           .setToasterStatus(isUp ? ToasterStatus.Up : ToasterStatus.Down);
         return tb.build();
     }
 
     //This inner class defines a runnable which gets submitted to the executor. In general
-    // this logic should probably be split out into a seperate java class to enable easier testing.
+    // this logic should probably be split out into a separate java class to enable easier testing.
     private class MakeToastTask implements Callable<RpcResult<Void>> {
         final MakeToastInput toastRequest;
 
@@ -464,12 +507,17 @@ public class OpendaylightToaster implements ToasterData, ToasterService {
 
         @Override
         public RpcResult<Void> call() throws InterruptedException {
+            //make toast just sleeps for 1 second per doneness level.
             Thread.sleep(1000 * toastRequest.getToasterDoneness());
 
             log.debug("Toast Done");
            
-            currentTask = null;
-            return Rpcs.<Void> getRpcResult(true, null, Collections.<RpcError> emptySet());
+            synchronized( taskLock )
+            {
+                //mark the toaster is "available" for more toasting.
+                currentTask = null;
+            }
+            return Rpcs.<Void>getRpcResult(true, null, Collections.<RpcError> emptySet());
         }
     }
 }
