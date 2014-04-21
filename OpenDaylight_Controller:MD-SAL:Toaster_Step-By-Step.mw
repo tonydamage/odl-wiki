@@ -720,51 +720,51 @@ We don't need to modify or implement anything in '''ToasterProviderModuleFactory
 
 We have now defined the toaster data model (toaster.yang), an "interface" for the toaster provider service (toaster-provider.yang) and an implementation (toaster-provider-impl.yang). As we've seen, the toaster data model is usable at this point and can be accessed via REST. However, if the toaster provider bundle is deployed at this point, the '''make-toast''' RPC service wouldn't be available. Everything we have done so far is to define the service interface and a "possible" implementation. The last step is to actually tell MD-SAL to "deploy" the implementation, i.e. create an instance of the service ('''OpenDaylightToaster'''), resolve dependencies and advertise it for consumption/use. 
 
-To do this, we need to create an xml file that defines the initial configuration for the toaster provider service deployment. The xml is actually a netconf edit-config with the toaster provider ''yin'' (yang-to-xml) as its payload ('''QUESTION: is this correct?''').  First it tells MD-SAL about the toaster provider service, which implementation to use, and then finally how to configure the implementation. Create an xml file named "03-Toaster.xml " and paste it into the configuration/initial folder of the distribution that you are running (i.e. controller/opendaylight/distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/configuration/initial). ''''QUESTION: Does the 03 prefix matter? ''Note: Be sure to save this xml file off. If you rebuild the distribution.opendaylight project, this folder will be deleted, including your file.''
+To do this, we need to create an xml file that defines the initial configuration for the toaster provider service deployment. The xml is actually a netconf edit-config with the toaster provider ''yin'' (yang-to-xml) as its payload ('''QUESTION: is this correct?''').  First it tells MD-SAL about the toaster provider service, which implementation to use, and then finally how to configure the implementation. Create an xml file named "03-Toaster.xml " and paste it into the configuration/initial folder of the distribution that you are running (i.e. controller/opendaylight/distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/configuration/initial). <br>''Note: Be sure to save this xml file off. If you rebuild the distribution.opendaylight project, this folder will be deleted, including your file.''<br>''''QUESTION: Does the 03 prefix matter?
 <pre>
 <snapshot>
     <configuration>
         <data xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
             <modules xmlns="urn:opendaylight:params:xml:ns:yang:controller:config">
-                <!-- Specify the configuration for the toaster-provider-impl module as defined in the 
-                        toaster-provider-impl.yang file -->
+
+                <!-- defines an implementation -->
                 <module>
                     <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:config:toaster-provider:impl">
                         prefix:toaster-provider-impl
                     </type>
+                    
                     <name>toaster-provider-impl</name>
 
-                    <!-- Specify the rpc-registry dependency as defined in the augments clause -->
                     <rpc-registry>
                         <type xmlns:binding="urn:opendaylight:params:xml:ns:yang:controller:md:sal:binding">binding:binding-rpc-registry</type>
-                        <name>binding-rpc-broker</name>   <!-- this unique ID appears to come from distributions/opendaylight/src/main/resources/configuration/initial/01-md-sal.xml configuration file, which is wiring up and exposing the core MD-SAL services. -->
+                        <name>binding-rpc-broker</name>
                     </rpc-registry>
+
                 </module>
             </modules>
 
             <services xmlns="urn:opendaylight:params:xml:ns:yang:controller:config">
-                <!-- Specify the toaster-provider  service registration as defined in the toaster-provider.yang -->
+                <!-- exports and advertises the above module as a service -->
                 <service>
-                    <!-- Service type is the toaster-provider interface -->
                     <type xmlns:toaster="urn:opendaylight:params:xml:ns:yang:controller:config:toaster-provider">toaster:toaster-provider</type>
                     <instance>
                         <name>toaster-provider</name>
-                        <!-- Specify the toaster-provider-impl module as the implementation of the service - an xpath expression that references the  
-                                toaster-provider-imp module defined above-->
                         <provider>/modules/module[type='toaster-provider-impl'][name='toaster-provider-impl']</provider>
                     </instance>
                 </service>
             </services>
         </data>
+
     </configuration>
 
-    <!-- Specify the capabilities for netconf -->
     <required-capabilities>
-        <capability>urn:opendaylight:params:xml:ns:yang:controller:md:sal:binding?module=opendaylight-md-sal-binding&amp;revision=2013-10-28</capability>
-        <capability>urn:opendaylight:params:xml:ns:yang:controller:config:toaster-consumer:impl?module=toaster-consumer-impl&amp;revision=2014-01-31</capability>
-        <capability>urn:opendaylight:params:xml:ns:yang:controller:config:toaster-provider:impl?module=toaster-provider-impl&amp;revision=2014-01-31</capability>
+        <capability>urn:opendaylight:params:xml:ns:yang:controller:md:sal:binding?module=opendaylight-md-sal-binding&amp;amp;revision=2013-10-28</capability>
+        <capability>urn:opendaylight:params:xml:ns:yang:controller:config:toaster-provider?module=toaster-provider&amp;amp;revision=2014-01-31</capability>
+        <capability>urn:opendaylight:params:xml:ns:yang:controller:config:toaster-provider:impl?module=toaster-provider-impl&amp;amp;revision=2014-01-31</capability>
     </required-capabilities>
+
 </snapshot>
+
 </pre>
 
 The '''modules''' section specifies the toaster-provider-impl module and its dependency configuration as defined in the ''toaster-provider-impl.yang'' file. The rpc-registry implementation is provided by MD-SAL and is needed for the '''OpenDaylightToaster'''.
