@@ -774,6 +774,33 @@ Now we need to modify our OpendaylightToaster to pass the data broker service in
  ...
 </code>
 Now that we have passed the DataBrokerService into our toaster, we need to use our service and update the status when we are making toast. Since we want to update the status from many locations (making toast, canceling toast, and initializing the status) we will create an update status method.
+<code>
+        ...
+        private static final InstanceIdentifier<Toaster>  toasterIID = InstanceIdentifier.builder(Toaster.class).build();<br>
+        private void updateStatus() {
+        if (dataBrokerService != null) {
+            //We start a transaction, such that our remove and put calls are atomic. 
+            final DataModificationTransaction t = dataBrokerService.beginTransaction();
+            t.removeOperationalData(toasterIID);
+            t.putOperationalData(toasterIID, getToaster());   //QUESTION: Why do we pass config information into the operational data? Can we safely assume there is only 1 instance? I think so...<br>
+            try {
+                t.commit().get();
+            } catch (InterruptedException | ExecutionException e) {
+                log.warn("Failed to update toaster status, operational otherwise", e);
+            }
+        } else {
+            log.trace("No data provider configured, not updating status");
+        }
+    }
+    ...
+</code>
+In our updateStatus method we leverage the existing getToaster() method call which determines the status of the toaster by checking the "currentTask" inner variable. We then persist that information in our data broker by creating a transaction which removes the existing values, and then saves the new data into the operational data store. Now modify the following methods, adding a call to updateStatus().
+*
+The last step is to pass the data broker service into the toaster inside of the ToasterProviderModule class. Do this by modifying the ToasterProviderModule.java file:
+<code>
+
+
+</code>
 
 = Part 4: Additional Attributes in the Implementation - Count my toast! =
 
