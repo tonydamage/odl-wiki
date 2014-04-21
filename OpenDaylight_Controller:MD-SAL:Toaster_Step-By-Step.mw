@@ -221,18 +221,14 @@ vi toaster.yang
 </pre>
 
 ==Build & Deploy ==
-<pre>
-cd ../../..  #after running this command you should be in the root sample-toaster directory.
-mvn clean install
-</pre>
-We are now ready to build the toaster data model bundle. After running 'mvn install', you will see java class files generated under src/main/yang-gen-sal.  Classes of note:
+We are now ready to build the toaster data model bundle. After running 'mvn install', you will see java class files generated under ''src/main/yang-gen-sal''.  Classes of note:
 
 * '''Toaster''' - an interface that represents the toaster container with methods to obtain the leaf node data.
 * '''ToasterData''' - an interface that represents the top-level toaster module with one method ''getToaster()'' that returns the singleton toaster instance.
 * '''WheatBread''', '''WhiteBread''', etc' - abstract classes that represent the various toast types.
 * '''$YangModelBindingProvider''', '''$YangModuleInfoImpl''' - these are used internally by MD-SAL to wire the toaster module for use. More on this later.  
 
-First you will want to remove the pre-developed toaster example from the plugins directory (this is a one time step, unless you rebuild the distributions.opendaylight project).
+To deploy, first you will want to remove the pre-developed toaster example from the plugins directory (this is a one time step, unless you rebuild the distributions.opendaylight project).
 <pre>
 #note the below line removes 3 jars related to the toaster sample.
 rm ../../../distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/plugins/org.opendaylight.controller.samples.sample-toaster*
@@ -272,6 +268,8 @@ To get the current toaster instance via REST,  issue an HTTP GET:
  URL => http://localhost:8080/restconf/config/toaster:toaster 
  </code>
 This should return json defining the toaster, and should provide similar values to what you posted.
+<br>
+*If you add "Accept: application/yang.data+xml" in the request headers, XML will be returned instead of json.
 
 === Update the Toaster ===
 
@@ -301,19 +299,9 @@ QUESTION: An exception prints out in the osgi terminal when you do a post or del
 == How Does MD-SAL Know about my Toaster? ==
 So by just defining a yang data model file and deploying a bundle containing the generated classes, we were able to perform CRUD operations on the toaster. We didn't write a single line of java code. You might be wondering how the MD-SAL managed to wire it together. If so, read on.
 
-The magic is done via the ''META-INF/yang/toaster.yang'' and ''META-INF/services/org.opendaylight.yangtools.yang.binding.YangModelBindingProvider'' files that are inserted into the toaster bundle by the yang-maven-plugin (to see this files, examine the target/classes/META-INF/... directory after running a build). 
+The magic is done via the ''META-INF/yang/toaster.yang'' and ''META-INF/services/org.opendaylight.yangtools.yang.binding.YangModelBindingProvider'' files that are inserted into the toaster bundle by the yang-maven-plugin (to see these files, examine the target/classes/META-INF/... directory after running a build). 
 *The ''toaster.yang'' file is copied from the src/main/yang directory. 
 *The ''org.opendaylight.yangtools.yang.binding.YangModelBindingProvider'' file contains the fully-qualfied name of the toaster's generated '''$YangModelBindingProvider''' class. The MD-SAL's '''ModuleInfoBundleTracker''' class in the config subsystem scrapes the ''META-INF/services/org.opendaylight.yangtools.yang.binding.YangModelBindingProvider'' resource from bundles on startup and reads the class name(s) defined in the file.  For each YangModelBindingProvider class specified, the MD-SAL creates an instance and calls ''getModuleInfo()'' to return the singleton '''$YangModuleInfoImpl''' instance. This class has methods to obtain static configuration information about the yang module, e.g. name, revision, imports etc, as well as a ''getModuleSourceStream()'' method that provides an input stream to the ''META-INF/yang/toaster.yang'' file. Once the MD-SAL knows about a yang module and its definitions, it can wire it up to RestConf and other parts of the system.
-
-
-
-
-
-
-
-<br>
-<br>
-<br>
 
 = Part 2: Enabling Remote Procedure Calls - Lets make some toast!=
 
@@ -493,7 +481,7 @@ module toaster-provider {
 }
 </pre>
 
-The toaster-provider identity is a '''service-type''' which means it's basically acting as an interface for the toaster module. You can find the referenced config module in "config.yang" file in the controller project.
+The '''toaster-provider identity''' is a ''service-type'' which means it's basically acting as an interface for the toaster module. You can find the referenced config module in "config.yang" file in the controller project.
 
 ====Define the yang toaster provider service implementation====
 Next we need to define the/an implementation of the toaster-provider service yang interface in the ''toaster-provider-impl.yang'' file:
@@ -541,7 +529,7 @@ module toaster-provider-impl {
 }
 </pre>
 
-The toaster-provider-impl identity is a '''module-type''' which is effectively providing an implementation of the toaster-provider service interface located at the ''/modules/module'' level in the MD-SAL's configuration data tree. The augmentation of ''modules/module/configuration'' adds configuration information for the toaster-provider-impl data node. 'rpc-registry' defines a dependency of the toaster-provider-impl module on the MD-SAL's RPC registry service.   (TODO - need more info here?)
+The '''toaster-provider-impl identity''' is a ''module-type'' which is effectively providing an implementation of the toaster-provider service interface located at the ''/modules/module'' level in the MD-SAL's configuration data tree. The augmentation of ''modules/module/configuration'' adds configuration information for the toaster-provider-impl data node. '''rpc-registry''' defines a dependency of the toaster-provider-impl module on the MD-SAL's RPC registry service which we'll need to register our toaster provider service.   (TODO - need more info here?)
 
 ====Generate the yang toaster provider source====
 
@@ -595,7 +583,7 @@ Run a 'mvn clean install' to generate the new sources files. The 2 yang files ge
 *'''ToasterProviderModule''' -  concrete class whose ''createInstance()'' method provides the OpendaylightToaster instance.
 *'''ToasterProviderModuleFactory''' - concrete class instantiated internally by MD_SAL that creates '''ToasterProviderModule''' instances.  
 
-These 2 classes are intended to be checked into Git as they will contain manually written code.
+'''Note''': these 2 classes are intended to be checked into Git as they will contain manually written code.
 
 ====Implement the ToasterProviderModule====
 The '''ToasterProviderModule''' class is mostly complete. The ''ToasterProviderModule.createInstance()'' method needs to be implemented to instantiate and wire the '''OpendaylightToaster''':
@@ -630,6 +618,8 @@ The '''ToasterProviderModule''' class is mostly complete. The ''ToasterProviderM
 
 In the above code, the '''RpcProviderRegistry''' dependency has already been injected by the MD-SAL and is available via the ''getRpcRegistryDependency()'' method defined in the generated base class. The return type of ''createInstance()'' is '''AutoCloseable''' although the intent is to return a '''ToasterData''' instance so we must wrap the '''OpendaylightToaster ''' in an '''AutoCloseable''' instance.
 
+We don't need to modify or implement anything in '''ToasterProviderModuleFactory''' for this example.
+ 
 --------
 '''QUESTION: An AutoCloseable return type is not well defined and it is unclear what actual interface type this method is suppose to return. Am I suppose to return a ToasterData? A ToasterService?''' <br>
 '''QUESTION: Can this code be reduced to just instantiating the OpendaylightToaster and returning it?
@@ -639,8 +629,9 @@ In the above code, the '''RpcProviderRegistry''' dependency has already been inj
 
 ====Define the initial XML configuration====
 
-We have now defined the initial toaster (toaster.yang), an "interface" to the provider (toaster-provider.yang) and an implementation (toaster-provider-impl.yang). Everything we have done so far is define "possible" implementation for the toaster. The last step is to actually tell MD-SAL to create instances of these data models and hook them up. To do this configuration we actually use netconf. 
-This xml file defines the initial configuration for the toaster provider service. First it tells MD-SAL about the toaster provider module, which implementation to use, and then finally how to configure the implementation. Finally it advertises the newly created toaster service out to MD-SAL as a "service" so other can pull it in.
+We have now defined the toaster data model (toaster.yang), an "interface" for the toaster provider service (toaster-provider.yang) and an implementation (toaster-provider-impl.yang). As we've seen, the toaster data model is usable at this point and can be accessed via REST. However, if the toaster provider bundle is deployed at this point, the '''make-toast''' RPC service wouldn't be available. Everything we have done so far is to define the service interface and a "possible" implementation. The last step is to actually tell MD-SAL to "deploy" the implementation, i.e. create an instance of the service ('''OpenDaylightToaster'''), resolve dependencies and advertise it for consumption/use. 
+
+To do this, we need to create an xml file that defines the initial configuration for the toaster provider service deployment. The xml is actually a netconf edit-config with the toaster provider ''yin'' (yang-to-xml) as its payload ('''QUESTION: is this correct?''').  First it tells MD-SAL about the toaster provider service, which implementation to use, and then finally how to configure the implementation. 
 <pre>
 <snapshot>
     <configuration>
@@ -687,13 +678,15 @@ This xml file defines the initial configuration for the toaster provider service
 </snapshot>
 </pre>
 
-The '''modules''' section specifies the toaster-provider-impl module and its dependency configuration as defined in the toaster-provider-impl.yang file. The rpc-registry implementation provided by MD-SAL is needed for the '''OpenDaylightToaster'''.
+The '''modules''' section specifies the toaster-provider-impl module and its dependency configuration as defined in the ''toaster-provider-impl.yang'' file. The rpc-registry implementation is provided by MD-SAL and is needed for the '''OpenDaylightToaster'''.
 
 The '''services''' section specifies the toaster-provider service interface and the toaster-provider-impl module as the implementation to instantiate and register.
 
 This XML file must be put into the runtime ''configuration/initial'' directory (i.e. controller/opendaylight/distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/configuration/initial ).
 
-On startup, the XML files in the ''configuration/initial'' directory are loaded by the '''ConfigPersisterActivator'''. A '''ConfigPusher''' instance is instantiated to push the configs via the NetConf subsystem to the '''ConfigRegistryImpl'''.  When processing the toaster-provider-impl module in the toaster config file, the '''ToasterProviderModuleFactory''' class is located and instantiated and the ''createModule'' method is called to create a '''ToasterProviderModule''' instance. The ''ToasterProviderModule.getInstance'' method is then called to create the service instance.
+On startup, the XML files in the ''configuration/initial'' directory are loaded by the '''ConfigPersisterActivator'''. A '''ConfigPusher''' instance is instantiated to push the configs via the NetConf subsystem to the '''ConfigRegistryImpl'''.  When processing the toaster-provider-impl module in the toaster config file, the '''ToasterProviderModuleFactory''' class is located and instantiated and the ''createModule'' method is called to create a '''ToasterProviderModule''' instance. The ''ToasterProviderModule.getInstance'' method is then called to create the '''OpenDaylightToaster'''.
+
+For a detailed walk-through on how to make a 'config-subsystem aware' project please visit https://wiki.opendaylight.org/view/OpenDaylight_Controller:Config:Examples:Sample_Project
 
 '''QUESTION: There doesn't seem to be any output to tell you when a netconf file fails to get parsed or processed due to bad text. Where would this be printed?'''
 
@@ -763,30 +756,32 @@ Now that we've defined the data model for the '''toasts-made''' attribute we nee
 The '''ToasterProviderRuntimeMXBean''' provides the interface for '''toasts-made''' so we need to modify '''OpenDaylightToaster''' to implement the '''ToasterProviderRuntimeMXBean''' interface:
 
 <code>
-public class OpendaylightToaster implements ToasterData, ToasterService, ToasterProviderRuntimeMXBean, AutoCloseable {
+ public class OpendaylightToaster implements ToasterData, ToasterService, '''ToasterProviderRuntimeMXBean''', AutoCloseable {
     ...
-    private final AtomicLong toastsMade = new AtomicLong(0);<br>
-    @Override
-    public Long getToastsMade() {
-        return toastsMade.get();
-    }
-
+    '''private final AtomicLong toastsMade = new AtomicLong(0);
     ...
+    <br>
+    '''@Override
+    '''public Long getToastsMade() {
+        '''return toastsMade.get();
+    '''}
+    <br>
+    ...
+    <br>
     private class MakeToastTask implements Callable<RpcResult<Void>> {
         ...
-
         @Override
         public RpcResult<Void> call() throws InterruptedException {
             Thread.sleep(1000 * toastRequest.getToasterDoneness());
-
             ...
-            '''toastsMade.incrementAndGet();
+            <br>
+            '''toastsMade.incrementAndGet();'''
+            <br>
             ...
-
             return Rpcs.<Void> getRpcResult(true, null, Collections.<RpcError> emptySet());
         }
     }
-}
+ }
 </code>
 
 ==Register the ToasterProviderRuntimeMXBean service==
@@ -829,7 +824,7 @@ The toasts-made attribute that we added is available via MBeans through the java
 
 = Part 4: Notifications - Tell me when my Toast is done! =
 
-When a piece of toast is made we'd like for the '''OpenDaylightToaster''' to provide a notification when it's done, or was cancelled, or encountered an error.
+When a piece of toast is made we'd like for the '''OpenDaylightToaster''' to provide a notification when it's done, or is cancelled, or encountered an error. This can be consumed by an implementation of the '''ToasterListener''' interface or by an external netconf client.
 
 ==Define the toastDone notification==
 
@@ -875,6 +870,7 @@ The '''OpenDaylightToaster''' needs access to the MD-SAL's '''NotificationProvid
         case toaster-consumer-impl {
             when "/config:modules/config:module/config:type = 'toaster-consumer-impl'";
             ...
+            <br>
             '''container notification-service {
                 '''uses config:service-ref {
                     '''refine type {
@@ -887,7 +883,79 @@ The '''OpenDaylightToaster''' needs access to the MD-SAL's '''NotificationProvid
     }
 </code>
 
+Run 'mvn clean install' to generate the source.
+
+The generated '''AbstractToasterProviderModule''' class should now have a ''getNotificationServiceDependency()'' method. We can access that method in our '''ToasterProviderModule''' implementation.
+<br><br>
+First we add a class member for '''NotificationProviderService''' to '''OpenDaylightToaster''' with a setter:
+<pre>
+private NotificationProviderService notificationProvider;
+
+public void setNotificationProvider(NotificationProviderService salService) {
+        this.notificationProvider = salService;
+    }
+</pre>
+
+Next, in ''ToasterProviderModule.createInstance()'', inject the '''NotificationProviderService''' into the                 '''OpenDaylightToaster''':
+<pre>
+opendaylightToaster.setNotificationProvider(getNotificationServiceDependency());
+</pre>
+
+Finally we need to add the dependency for the 'notification-service' to the toaster-provider-impl module in the initial configuration XML file as we did earlier with the 'rpc-registry':
+<code>
+ <snapshot>
+    <configuration>
+        <data xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+            <modules xmlns="urn:opendaylight:params:xml:ns:yang:controller:config">
+                <!-- Specify the configuration for the toaster-provider-impl module as defined in the 
+                        toaster-provider-impl.yang file -->
+                <module>
+                    ...
+                    '''<notification-service>
+                        '''<type xmlns:binding="urn:opendaylight:params:xml:ns:yang:controller:md:sal:binding">
+                            '''binding:binding-notification-service
+                        '''</type>
+                        '''<name>binding-notification-broker</name>
+                    '''</notification-service>
+                </module>
+            </modules>
+            ...
+        </data>
+    </configuration>
+    ...
+ </snapshot>
+</code>
+
 ==Send the notification==
+
+The '''OpendaylightToaster''' is now ready to send notifications.
+<code>
+ public class OpendaylightToaster implements ToasterData, ToasterService, ToasterProviderRuntimeMXBean, AutoCloseable {
+    ...
+    <br>
+    private void cancelToastImpl() {
+        currentTask.cancel(true);
+        '''ToastDoneBuilder toastDone = new ToastDoneBuilder();
+        '''toastDone.setToastStatus(ToastStatus.Cancelled);
+        '''notificationProvider.publish(toastDone.build());
+    }
+    ...
+    <br>
+    private class MakeToastTask implements Callable<RpcResult<Void>> {
+        ...
+        @Override
+        public RpcResult<Void> call() throws InterruptedException {
+            Thread.sleep(1000 * toastRequest.getToasterDoneness());
+            ...
+            '''ToastDoneBuilder notifyBuilder = new ToastDoneBuilder();
+            '''notifyBuilder.setToastStatus(ToastStatus.Done);
+            '''notificationProvider.publish(notifyBuilder.build());
+            ...
+            return Rpcs.<Void> getRpcResult(true, null, Collections.<RpcError> emptySet());
+        }
+    }
+ }
+</code>
 
 = Part 5: ODL Controller Extension - Using MD-Sal  =
 
