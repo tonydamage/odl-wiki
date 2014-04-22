@@ -862,7 +862,7 @@ Before another build (mvn clean install). You will now see that there is a new m
     }
 </code>
 
-The last step is to modify the intial configuration of our toaster (remember the 03-Toaster.xml file?) to pass in the RPC registry service. Modify this file to add the following bolded lines:
+The last step is to modify the initial configuration of our toaster (remember the 03-Toaster.xml file?) to pass in the RPC registry service. Modify this file to add the following bolded lines:
 <code>
   <module>
       <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:config:toaster-provider:impl">
@@ -883,6 +883,47 @@ The last step is to modify the intial configuration of our toaster (remember the
    
    </module>
 </code>
+
+Thats it! We are now ready to deploy our updated bundles and try out our makeToast and cancel toast calls.
+
+===Invoke make-toast via RestConf===
+
+It's finally time to make some delicious wheat toast! To invoke the make toast via the Restconf you will perform an HTTP POST to an operations URL.
+<pre>
+HTTP Method => POST
+URL => http://localhost:8080/restconf/operations/toaster:make-toast 
+Header =>   Content-Type: application/yang.data+json  
+Body =>  
+{
+  "input" :
+  {
+     "toaster:toasterDoneness" : "10",
+     "toaster:toasterToastType":"wheat-bread" 
+  }
+}
+</pre>
+''Note: Even though the toast type and doneness is defaulted in the yang model, you still have to provide their values here.'' 
+<br>'''Question: Is that correct? Seems like if the values are defaulted in the yang data model, we shouldn't be forced to specify them. Even if we are, we need to clarify the error message.'''
+<br>'''Question: Haven't tested the mandatory flag for leaf data - is it honored?'''
+
+===Invoke cancel-toast via RestConf===
+If you don't like burnt toast, you may want to cancel the make-toast operation part of the way through! You do this by invoking a restconf REST call in a very similar way as you invoke the make-toast.
+<pre>
+URL => http://localhost:8080/restconf/operations/toaster:cancel-toast
+HTTP Method => POST
+</pre>
+
+Note: There is a bug in the way the RestconfImpl class processes / routes the REST requests. If you define the Content-Type header, then the rest call is routed to a method which expects a non-empty body. In this case though we don't have any input, so our body should be empty. Thus an exception is thrown. In order to make the cancel-toast call work successfully, you need to invoke the above call, with NO content-type define. By doing that you route the request to a different method, which expects an empty body.
+
+=== See the update Toaster Status ===
+To see the updated toaster status, invoke the makeToast call (with a doneness of 10 to get the longest delay) and then immediately invoke the get to retrieve the Operational Status of the Toaster. You should now see:
+{
+    toaster: {
+        toasterManufacturer: "Opendaylight"
+        toasterModelNumber: "Model 1 - Binding Aware"
+        toasterStatus: "Down"
+   }
+}
 
 = [DEPRECATED]Part 1: Simple Toaster CRUD Service - What Toaster do you have? (Config Data)=
 
