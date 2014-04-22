@@ -863,7 +863,7 @@ Now we need to modify our OpendaylightToaster to pass the data broker service in
     }
  ...
 </code>
-Now that we have passed the DataBrokerService into our toaster, we need to use our service and update the status when we are making toast. Since we want to update the status from many locations (making toast, canceling toast, and initializing the status) we will create an update status method.
+Now we use the '''DataBrokerService''' and update the status when we are making toast. Since we want to update the status from several locations (making toast, canceling toast, and initializing the status) we will create an ''updateStatus'' method.
 <code>
         ...
         private static final InstanceIdentifier<Toaster>  toasterIID = InstanceIdentifier.builder(Toaster.class).build();<br>
@@ -874,7 +874,7 @@ Now that we have passed the DataBrokerService into our toaster, we need to use o
                 //NOTE: We are interacting with the operational data store, as opposed to the config data store.
                 //therefore to access this data you would go to the operational rest endpoint, instead of the config endpoint
                 t.removeOperationalData(toasterIID);
-               t.putOperationalData(toasterIID, getToaster());   //QUESTION: Why do we pass config information into the operational data? Can we safely assume there is only 1 instance? I think so...<br>
+               t.putOperationalData(toasterIID, getToaster()); 
                 try {
                     t.commit().get();
                 } catch (InterruptedException | ExecutionException e) {
@@ -886,7 +886,8 @@ Now that we have passed the DataBrokerService into our toaster, we need to use o
         }
     ...
 </code>
-In our updateStatus method we leverage the existing getToaster() method call which determines the status of the toaster by checking the "currentTask" inner variable. We then persist that information in our data broker by creating a transaction which removes the existing values, and then saves the new data into the operational data store. Now modify the following methods, adding a call to updateStatus().
+In the ''updateStatus()'' method we leverage the existing ''getToaster()'' method call which determines the status of the toaster by checking the "currentTask" member. We then persist that information in the data broker by creating a transaction which removes the existing values, and then saves the new data into the operational data store. Now modify the following methods, adding a call to ''updateStatus()''.
+<br>'''QUESTION: Why do we pass config information into the operational data? Can we safely assume there is only 1 instance? I think so...
 <code>
      ...
      @Override
@@ -952,7 +953,7 @@ In our updateStatus method we leverage the existing getToaster() method call whi
      }
      ...
 </code>
-The last step in modifying the code is to pass the data broker service into the toaster inside of the ToasterProviderModule class. Do this by modifying the ToasterProviderModule.java file:
+The next step is to inject the '''DataBrokerService'''  into the toaster inside of the ''ToasterProviderModule.createInstance()'' method:
 <code>
       ...
       public java.lang.AutoCloseable createInstance() {
@@ -962,7 +963,7 @@ The last step in modifying the code is to pass the data broker service into the 
       }
       ...
 </code>
-Finally, you have wired up the code to pass along the data broker service but we still need to pass the data broker in during the initial configuration. To do this you must modify the 03-toaster-sample.xml file, adding the following XML into module defining the  toaster-provider-impl.
+Finally, we need to modify the initial configuration xml file to add the '''data-broker''' dependency for the toaster-provider-impl module:
 <code>
       ...
       <module>
@@ -978,16 +979,16 @@ Finally, you have wired up the code to pass along the data broker service but we
       </module>
       ...
 </code>
-You have now successfully wired in the data broker service to our toaster, and update. The next step is to try it out!
+
 ====Getting the Operational Status ====
 To get the operational status of the toaster you need to do a simple GET to the operational datastore.
 <pre>
   HTTP Method: GET
   HTTP URL: http://localhost:8080/restconf/operational/toaster:toaster
 </pre>
-You should see the information store in the update status in the return. To see the toaster status change, perform a rest call to "make-toast" (see above) with a doneness of 10. Then within 10 seconds make the rest call to the operational datastore to see toaster status change to down. <Br>''Note: If 10 seconds is not enough time, consider modifying the java code to extend delay for each doneness level''.
+You should see the toaster status in the response. To see the toaster status change, perform a rest call to "make-toast" (see above) with a doneness of 10. Then within 10 seconds make the rest call to the operational datastore to see toaster status change to "down". 
 <br>
-''Note 2: You do NOT need to create a toaster in the "config" datastore in order to access this data in the operational data store. Right now they seem to be independent entities... '''QUESTION: Should they be? Or should we force them to be tied together? Or should we just have one endpoint, /restconf/data as discussed here? http://tools.ietf.org/html/draft-ietf-netconf-restconf-00#section-4.3.1'''
+''Note: You do NOT need to create a toaster in the "config" datastore in order to access this data in the operational data store. Right now they seem to be independent entities... '''QUESTION: Should they be? Or should we force them to be tied together? Or should we just have one endpoint, /restconf/data as discussed here? http://tools.ietf.org/html/draft-ietf-netconf-restconf-00#section-4.3.1'''
 
 = Part 4: Additional Attributes in the Implementation - Count my toast! (JMX Access)=
 
