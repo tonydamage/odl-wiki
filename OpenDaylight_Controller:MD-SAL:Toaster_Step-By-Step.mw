@@ -1170,7 +1170,7 @@ module kitchen-service {
 </pre>
 
 Note that ''config:java-class'' doesn't have to be backed by a yang data model. The MD-SAL also allows a hand-coded java interface.
-<br>
+<br><br>
 Next define the kitchen service implementation and its dependencies in ''kitchen-service-impl.yang'':
 <pre>
 module kitchen-service-impl {
@@ -1266,6 +1266,42 @@ Add the pom dependencies for the yang imports:
        <artifactId>sal-binding-config</artifactId>
     </dependency>
 </pre>
+
+Finally, add the kitchen service and module definitions to the initial configuration xml created in a previous section:
+<code>
+ <snapshot>
+    <configuration>
+        <data xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+            <modules xmlns="urn:opendaylight:params:xml:ns:yang:controller:config">
+               ...
+               '''<module>
+                  '''<type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:config:kitchen-service:impl">
+                     '''prefix:kitchen-service-impl
+                  '''</type>
+                  '''<name>kitchen-service-impl</name>
+                  <br>
+                  '''<rpc-registry>
+                     '''<type xmlns:binding="urn:opendaylight:params:xml:ns:yang:controller:md:sal:binding">binding:binding-rpc-registry</type>
+                     '''<name>binding-rpc-broker</name>
+                  '''</rpc-registry>
+                '''</module>
+            </modules>
+            <br>
+            <services xmlns="urn:opendaylight:params:xml:ns:yang:controller:config">
+               ...
+               '''<service>
+                  '''<type xmlns:toaster="urn:opendaylight:params:xml:ns:yang:controller:config:kitchen-service">toaster:kitchen-service</type>
+                  '''<instance>
+                     '''<name>kitchen-service</name>
+                     '''<provider>/modules/module[type='kitchen-service-impl'][name='kitchen-service-impl']</provider>
+                  '''</instance>
+              '''</service>                
+            </services>
+        </data>
+    </configuration>
+    ...
+ </snapshot>
+</code>
 
 = Part 6: Notifications - Tell me when my Toast is done! (Notifications)=
 
