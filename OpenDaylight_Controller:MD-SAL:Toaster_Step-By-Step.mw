@@ -1064,7 +1064,8 @@ The toasts-made attribute that we added is available via MBeans through the java
 We've seen how we can use RestConf to access the ToasterService RPC methods. In this section we'll show how to access the ToasterService programmatically from within the controller.
 <br>
 We'll create a new service called '''KitchenService''' that provides a method to make breakfast. This service will access the ToasterService to provide the toast for our breakfast.
-
+<br>
+Note: create a new project/bundle for this. In the pre-built toaster sample, it's toaster-consumer.
 ==Define the KitchenService interface==
 
 For the sake of brevity, we'll hand-code the KitchenService data model and interface instead of defining it in yang and having the classes generated. 
@@ -1080,6 +1081,148 @@ public interface KitchenService {
     boolean makeBreakfast( EggsType eggs, Class<? extends ToastType> toast, int toastDoneness );
 }
 </pre>
+
+Our breakfast only includes eggs with the toast for simplicity - a complete breakfast may also include bacon or sausage and coffee. Eggs, breakfast meat, coffee etc could also be separate data models with corresponding services like the ToasterService - we leave that as an exercise for the reader.
+
+==Define the KitchenService implementation==
+
+Next we create a class, '''KitchenServiceImp''', to implement the interface and access the ToasterService to make the toast:
+<pre>
+package org.opendaylight.controller.sample.kitchen.impl;
+
+import java.util.concurrent.ExecutionException;
+
+import org.opendaylight.controller.sample.kitchen.api.EggsType;
+import org.opendaylight.controller.sample.kitchen.api.KitchenService;
+import org.opendaylight.yang.gen.v1.http.netconfcentral.org.ns.toaster.rev091120.MakeToastInputBuilder;
+import org.opendaylight.yang.gen.v1.http.netconfcentral.org.ns.toaster.rev091120.ToastType;
+import org.opendaylight.yang.gen.v1.http.netconfcentral.org.ns.toaster.rev091120.ToasterService;
+import org.opendaylight.yangtools.yang.common.RpcResult;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+public class KitchenServiceImpl implements KitchenService {
+
+    private static final Logger log = LoggerFactory.getLogger( KitchenServiceImpl.class );
+
+    private final ToasterService toaster;
+
+    public KitchenServiceImpl(ToasterService toaster) {
+        this.toaster = toaster;
+    }
+
+    @Override
+    public boolean makeBreakfast( EggsType eggs, Class<? extends ToastType> toast, int toastDoneness ) {
+
+        // Access the ToasterService to make the toast.
+        // We don't actually make the eggs for this example - sorry.
+        MakeToastInputBuilder toastInput = new MakeToastInputBuilder();
+        toastInput.setToasterDoneness( (long) toastDoneness);
+        toastInput.setToasterToastType( toast );
+
+        try {
+            RpcResult<Void> result = toaster.makeToast( toastInput.build() ).get();
+
+            if( result.isSuccessful() ) {
+                log.trace( "Toast was successfully finished" );
+            } else {
+                log.warn( "Toast was not successfully finished" );
+            }
+
+            return result.isSuccessful();
+        } catch( InterruptedException | ExecutionException e ) {
+            log.warn( "Error occurred during toast creation" );
+        }
+        return false;
+    }
+}
+</pre>
+
+==Wiring the KitchenService implementation==
+
+Similar to the toaster provider service, we'll describe the kitchen service interface and implementation in yang and provide the initial configuration xml so the MD-SAL can wire it up.
+
+===Define the kitchen service yang===
+
+We'll define the kitchen service interface in ''kitchen-service.yang'':
+<pre>
+module kitchen-service {
+    yang-version 1;
+    namespace "urn:opendaylight:params:xml:ns:yang:controller:config:kitchen-service";
+    prefix "kitchen-service";
+
+    import config { prefix config; revision-date 2013-04-05; }
+
+    description
+        "This module contains the base YANG definitions for kitchen-service services.";
+
+    revision "2014-01-31" {
+        description
+            "Initial revision.";
+    }
+
+    // This is the definition of a service
+    identity kitchen-service {
+        base "config:service-type";
+        config:java-class "org.opendaylight.controller.sample.kitchen.api.KitchenService";
+    }
+}
+</pre>
+
+Note that ''config:java-class'' doesn't have to be backed by a yang data model. The MD-SAL also allows a hand-coded java interface.
+<br>
+Next define the kitchen service implementation and its dependencies in ''kitchen-service-impl.yang'':
+<pre>
+module kitchen-service-impl {
+
+    yang-version 1;
+    namespace "urn:opendaylight:params:xml:ns:yang:controller:config:kitchen-service:impl";
+    prefix "kitchen-service-impl";
+
+    import config { prefix config; revision-date 2013-04-05; }
+    import rpc-context { prefix rpcx; revision-date 2013-06-17; }
+
+    import kitchen-service { prefix kitchen-service; revision-date 2014-01-31; }
+    import opendaylight-md-sal-binding { prefix mdsal; revision-date 2013-10-28; }
+
+    description
+        "This module contains the base YANG definitions for
+        kitchen-service impl implementation.";
+
+    revision "2014-01-31" {
+        description
+            "Initial revision.";
+    }
+
+    // This is the definition of a service implementation
+    identity kitchen-service-impl {
+            base config:module-type;
+            config:provided-service kitchen-service:kitchen-service;
+            config:java-name-prefix KitchenService;
+    }
+
+    augment "/config:modules/config:module/config:configuration" {
+        case kitchen-service-impl {
+            when "/config:modules/config:module/config:type = 'kitchen-service-impl'";
+
+            container rpc-registry {
+                uses config:service-ref {
+                    refine type {
+                        mandatory true;
+                        config:required-identity mdsal:binding-rpc-registry;
+                    }
+                }
+            }
+        }
+    }
+}
+</pre>
+ 
+Add the yang-maven-plugin to the pom.xml:
+<pre>
+
+</pre>
+
 Under construction - please come back soon!
 
 = Part 6: Notifications - Tell me when my Toast is done! (Notifications)=
