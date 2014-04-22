@@ -888,13 +888,7 @@ In the ''updateStatus()'' method we leverage the existing ''getToaster()'' metho
      ...
      @Override
     public Future<RpcResult<Void>> cancelToast() {
-        synchronized( taskLock )
-        {
-            if (currentTask != null) {
-                currentTask.cancel(true);
-                currentTask = null;
-            }
-        }
+        ...
         '''updateStatus();'''
         //Always return success from the cancel toast call.
         return Futures.immediateFuture( Rpcs.<Void>getRpcResult(true, Collections.<RpcError> emptySet()) ); 
@@ -903,41 +897,18 @@ In the ''updateStatus()'' method we leverage the existing ''getToaster()'' metho
     @Override
     public Future<RpcResult<Void>> makeToast(MakeToastInput input) {
         log.debug("makeToast - Received input for toast");       
-        boolean inProgress = false;
-        synchronized( taskLock )
-        {
-            if (currentTask != null) {
-                inProgress = true;
-            }
-            else
-            {
-                currentTask = executor.submit(new MakeToastTask(input));
-            }
-        }
-        if( inProgress )
-        {
-            RpcResult<Void> result = Rpcs.<Void> getRpcResult(false, null, Collections.<RpcError> emptySet());
-            return Futures.immediateFuture(result);
-        }        
+        ...       
         '''updateStatus();'''
         return currentTask;
     }
     ...
     private class MakeToastTask implements Callable<RpcResult<Void>> {
-        final MakeToastInput toastRequest;
-        public MakeToastTask(MakeToastInput toast) {
-            toastRequest = toast;
-        }
+        ...
         @Override
         public RpcResult<Void> call() throws InterruptedException {
             //make toast just sleeps for 1 second per doneness level.
             Thread.sleep(1000 * toastRequest.getToasterDoneness());
-            log.debug("Toast Done");           
-            synchronized( taskLock )
-            {
-                //mark the toaster is "available" for more toasting.
-                currentTask = null;
-            }
+            ...
             '''updateStatus();'''
             return Rpcs.<Void>getRpcResult(true, null, Collections.<RpcError> emptySet());
         }
