@@ -137,7 +137,7 @@ As we mentioned above, we will be defining three seperate .yang files to build u
 #toaster-provider.yang - This fine defines another layer in the abstraction of the toaster service. This yang file defines an abstraction of any implementations that may exist. It specifically ties the implementations to the ToasterService java class which, in our example is generated from the Toaster.yang file.
 #toaster-provider-impl.yang - This fine defines one ''possible'' implementation of the toaster service. Additionally, the toaster-provider-impl.yang links to services provided by the MD-SAL framework, specifically the data-broker, which will be used to keep the operational data of our toaster up to date.
 
-====toaster.yang====
+===toaster.yang===
 The toaster.yang defines the north-bound data model. Basically it outlines what attributes, RPCs and notifications the northbound client can access via restconf etc. To get started, lets create the src/main/yang source folder. From the odl-toaster directory run this command:
 
 <code>
@@ -262,7 +262,7 @@ You can see above that we marked all three of the attributes as operational, ins
 
 At this point we should compile the yang data model to generate some java source files.
 
-====Build the Toaster ====
+===Build the Toaster ===
 We are now ready to build the toaster data model bundle. To do this, run the following command from the odl-toaster directory.
 <pre>mvn clean install</pre>
 ''Note: You really only need to run 'mvn install' here since we have nothing to clean, but running a clean will not harm anything and is a good practice to ensure your generated code is cleaned up correctly so new code can be generated.''<br>
@@ -272,7 +272,7 @@ After running 'mvn clean install', you will see java class files generated under
 * '''WheatBread''', '''WhiteBread''', etc' - abstract classes that represent the various toast types.
 * '''$YangModelBindingProvider''', '''$YangModuleInfoImpl''' - these are used internally by MD-SAL to wire the toaster module for use. More on this later.  
 
-==== toaster-provider.yang ====
+=== toaster-provider.yang ===
 
 The toaster provider yang model provides an interface for all possible providers. It gets tied to the ToasterData interface that we just generated.
 
@@ -305,7 +305,7 @@ The toaster provider yang model provides an interface for all possible providers
 
 Next up lets define a provider implementation and then compile the source code again.
 
-==== toaster-provider-impl.yang ====
+=== toaster-provider-impl.yang ===
 
 The toaster provider impl provides an implementation for the toaster. It is in this yang file that we define the required dependencies (DataBroker service in this case) as well as any extensions to the state of the provider. For now we define a simple provider which uses the DataBroker service.
 
@@ -360,7 +360,7 @@ ToasterProviderModuleFactory - concrete class instantiated internally by MD_SAL 
 
 Note: these 2 classes are stored under src/main/java and are intended to be checked into Git as they will contain manually written code.
 
-== Implementing the OpendaylightToaster ==
+=== Implementing the OpendaylightToaster ===
 
 So far we have defined multiple yang files to define the toaster API and implementations. After running mvn clean install we have a bunch of generated code on our hands. At this point we need to create the logic which will provide the operational data for our toaster. Go ahead and create a java class named "OpendaylightToaster" under the src/main/java folder in the org.opendaylight.toaster package.
 
@@ -428,7 +428,7 @@ So far we have defined multiple yang files to define the toaster API and impleme
 
 You can see that our opendaylight toaster is not doing much right. However, when the data-broker service is set into our toaster, we immediately put in (update) the initial operational state. The remaining java code that we need to write will tie our OpendaylightToaster to the ToasterProviderModule allowing MD-SAL to construct the correct instance, if the config requires it.
 
-====Implement the ToasterProviderModule====
+===Implement the ToasterProviderModule===
 The '''ToasterProviderModule''' class is mostly complete from the code generation. The ''ToasterProviderModule.createInstance()'' method needs to be implemented to instantiate and wire the '''OpendaylightToaster''':
 
 <pre>
@@ -462,7 +462,7 @@ In the above code, the '''DataBroker''' dependency has already been injected by 
  
 <br>Note: A future enhancement in this area may be to simplify the registration process here by performing more of the registrations etc automatically. Today this is how you need to perform these registrations.
 
-====Define the initial XML configuration====
+===Define the initial XML configuration===
 
 We have now defined the toaster data model (toaster.yang), an "interface" for the toaster provider service (toaster-provider.yang) and an implementation (toaster-provider-impl.yang). As we've seen, the toaster data model is usable at this point and can be accessed via REST. However, if the toaster provider bundle is deployed at this point, the '''make-toast''' RPC service wouldn't be available. Everything we have done so far is to define the service interface and a "possible" implementation. The last step is to actually tell MD-SAL to "deploy" the implementation, i.e. create an instance of the service ('''OpenDaylightToaster'''), resolve dependencies and advertise it for consumption/use. 
 
@@ -540,6 +540,28 @@ cp target/odl-toaster-1.1-SNAPSHOT.jar ../../../distribution/opendaylight/target
 cd ../../../distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight
 ./run.sh
 </pre>
+
+== Getting the Operational Status of the Toaster ==
+To get the operational status of the toaster you will make a call to the RESTCONF service provided by MD-SAL.  You do this by performing a GET to the operational data store.
+
+<pre>
+  HTTP Method: GET
+  HTTP URL: http://localhost:8080/restconf/operational/toaster:toaster
+</pre>
+
+You should see the following response:
+
+<pre>
+{
+    toaster: {
+        toasterManufacturer: "Opendaylight"
+        toasterModelNumber: "Model 1 - Binding Aware"
+        toasterStatus: "Up"
+   }
+}
+</pre>
+
+''Note: If you want XML instead of json, add '''Accept: application/yang.data+xml''' to the headers of the request.''
 
 = Part 1: Simple Toaster CRUD Service - What Toaster do you have? (Config Data)=
 
