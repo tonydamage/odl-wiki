@@ -19,126 +19,15 @@ There are several parts that make up this toaster step-by-step example. During t
 
 = Part 1: Defining an Operational Toaster =
 
-Part 1 of this tutorial will walk you through defining a data model which maps to a toaster, and exposes operational data only about the given toaster. The toaster model will be made up of three yang files, a couple of modified java classes, and a number of auto-generated java files. Before we get too far though, we need to set up our project.
-
-===Create a New Project===
-
-*Ensure you have downloaded the controller code. See [[OpenDaylight_Controller:Pulling,_Hacking,_and_Pushing_the_Code_from_the_CLI]].
-*You can create a project anywhere, but to keep things co-located I would recommend creating a new project under controller/opendaylight/md-sal/samples. 
-:*Create a new folder here. Lets call it ODLToaster.
-:''Note: There are a few definitions that our project will inherit from parent poms in this tree. Check out the "Effective Pom" view in eclipse to see the details of everything inherited.''
-
-<pre>
-cd controller/opendaylight/md-sal/samples
-mkdir odl-toaster
-cd odl-toaster
-vi pom.xml
-</pre>
-:*Under the new folder, define a pom.xml file which has the following contents:
-<pre>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
-  <modelVersion>4.0.0</modelVersion>
-  <parent>
-    <artifactId>sal-samples</artifactId>
-    <groupId>org.opendaylight.controller.samples</groupId>
-    <version>1.1-SNAPSHOT</version>
-  </parent>
-  <artifactId>odl-toaster</artifactId>
-  <packaging>bundle</packaging>
-
-  <build>
-    <plugins>
-      <plugin>
-        <groupId>org.opendaylight.yangtools</groupId>
-        <artifactId>yang-maven-plugin</artifactId>
-        <executions>
-          <execution>
-            <goals>
-              <goal>generate-sources</goal>
-            </goals>
-            <configuration>
-              <yangFilesRootDir>src/main/yang</yangFilesRootDir>
-              <codeGenerators>
-                <generator>
-                  <codeGeneratorClass>org.opendaylight.yangtools.maven.sal.api.gen.plugin.CodeGeneratorImpl</codeGeneratorClass>
-                  <outputBaseDir>${salGeneratorPath}</outputBaseDir>
-                </generator>
-                <generator>
-                  <codeGeneratorClass>
-                    org.opendaylight.controller.config.yangjmxgenerator.plugin.JMXGenerator
-                  </codeGeneratorClass>
-                  <outputBaseDir>${jmxGeneratorPath}</outputBaseDir>
-                  <additionalConfiguration>
-                    <namespaceToPackage1>
-                      urn:opendaylight:params:xml:ns:yang:controller==org.opendaylight.controller.config.yang
-                    </namespaceToPackage1>
-                  </additionalConfiguration>
-                </generator>
-              </codeGenerators>
-              <inspectDependencies>true</inspectDependencies>
-            </configuration>
-          </execution>
-        </executions>
-        <dependencies>
-          <dependency>
-            <groupId>org.opendaylight.yangtools</groupId>
-            <artifactId>maven-sal-api-gen-plugin</artifactId>
-            <version>${yangtools.version}</version>
-            <type>jar</type>
-          </dependency>
-          <dependency>
-            <groupId>org.opendaylight.controller</groupId>
-            <artifactId>yang-jmx-generator-plugin</artifactId>
-            <version>${config.version}</version>
-          </dependency>
-        </dependencies>
-      </plugin>
-    </plugins>
-  </build>
-  <dependencies>
-    <dependency>
-      <groupId>org.opendaylight.yangtools</groupId>
-      <artifactId>yang-binding</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>org.opendaylight.controller</groupId>
-      <artifactId>sal-common-util</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>org.opendaylight.yangtools</groupId>
-      <artifactId>yang-common</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>org.opendaylight.controller</groupId>
-      <artifactId>config-api</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>org.opendaylight.controller</groupId>
-      <artifactId>sal-binding-config</artifactId>
-    </dependency>
-  </dependencies>
-</project>
-</pre>
-
-The yang-maven-plugin is used to generate java source from yang definition files. Much of the plugin's configuration is boilerplate. Tags of specific interest:
-
-* '''yangFilesRootDir''' - specifies the directory under the project to locate yang files to process. This defaults to src/main/yang.
-* '''codeGeneratorClass''' - specifies the code generator to use.  CodeGeneratorImpl is used to generate classes that represent the yang data model constructs.
-* '''outputBaseDir''' - specifies the output directory for the generated classes. In the controller project we specify the ${salGeneratorPath} property which is defined in the root pom as src/main/yang-gen-sal.  
-  
-Optionally at this point, you can import this project into Eclipse (you will need to import the maven project from the toaster directory directly since we did not add this project to any parent pom files).
-
-== Define the Toaster API, and Implementation ==
-
-As mentioned above, we will be defining three seperate .yang files to build up our toaster model. Each of these files offer another level of abstraction between the north-bound client and the south-bound implementation. We use multiple yang files here to really emphasize that the MD-SAL is providing the plumbing while the yang data models are providing the abstractions. The three yang files we will be creating are:
+Part 1 of this tutorial will walk you through defining a data model which maps to a toaster, and a service that provides the operational data about the given toaster. The toaster model and service will be made up of three yang files, some new and modified java classes, and a number of auto-generated java files. Each of the yang files offer another level of abstraction between the north-bound client and the south-bound implementation. It is important to note that the MD-SAL is provides the plumbing while the yang data models provide the abstractions. 
 
 #''toaster.yang'' - This file defines the north bound data model. Specifically, it defines the abstraction of a toaster that is visible to north-bound clients (e.g. the restconf API).
 #''toaster-provider.yang'' - This file defines the interface for a toaster service that provides its operational data and RPC. This file defines an abstraction for any implementation of the service.
 #''toaster-provider-impl.yang'' - This fine defines an implementation of the toaster service the services it needs from the MD-SAL framework, e.g. the data-broker, which is used to store the operational data of the toaster.
 
-===toaster.yang===
-The ''toaster.yang'' file defines the north-bound data model. Basically it defines what attributes, RPCs and notifications the northbound client can access via restconf etc. This file is located in the ''sample-toaster'' project under the ''src/main/yang source'' folder. 
+== Define the Toaster yang data model ==
+
+The first yang file, ''toaster.yang'', defines the north bound abstraction of the toaster data model, specifically its attributes, RPCs and notifications, that can be accessed by north-bound clients (e.g. the restconf API). This file is located in the ''sample-toaster'' project under the ''src/main/yang source'' folder. 
 <pre>
   //This file contains a YANG data definition. This data model defines
   //a toaster, which is based on the SNMP MIB Toaster example 
@@ -253,7 +142,7 @@ You can see above that we marked all three of the leaf attributes on the toaster
 * Operational - Operational data stores are used to show the running state (read only) view of the devices, network, service that you might be looking at. In our case we have a service called toaster which is available - the manufacture, model and status of the toaster are all provided by the underlying toaster and can not be configured (later we will add a configuration attribute). 
 * Config - Config data stores are generally used to configure the device in someway. For example if you wanted to configure the resource in some way, such as applying a policy or other configuration then you would use this data store. More on this type of data later.
 
-===Generate the yang toaster data model source===
+==Generate the yang toaster data model source==
 At this point we can compile the yang data model to generate the java source files. To do this, we need to specify the ''yang-maven-plugin'' in the pom.xml:
 <pre>
  <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"''
@@ -311,7 +200,7 @@ Now you will see java class files generated under ''src/main/yang-gen-sal''.  Cl
 * '''WheatBread''', '''WhiteBread''', etc' - abstract classes that represent the various toast types.
 * '''$YangModelBindingProvider''', '''$YangModuleInfoImpl''' - these are used internally by MD-SAL to wire the toaster module for use. More on this later.
 
-=== toaster-provider.yang ===
+== toaster-provider.yang ==
 
 The ''toaster provider.yang'' file defines the interface for the toaster provider service. This file is located in the ''sample-toaster-provider'' project under the ''src/main/yang'' folder.
 
@@ -344,7 +233,7 @@ The ''toaster provider.yang'' file defines the interface for the toaster provide
 
 The '''toaster-provider''' identity is a ''service-type'' which means it's basically acting as an interface for the toaster module. You can find the referenced config module in "config.yang" file in the controller project.
 
-=== toaster-provider-impl.yang ===
+== toaster-provider-impl.yang ==
 
 The ''toaster-provider-impl.yang'' file defines an implementation of the toaster provider service. This file is located in the sample-toaster-provider project under the src/main/yang folder.
 <pre>
@@ -393,7 +282,7 @@ module toaster-provider-impl {
 
 The '''toaster-provider-impl''' identity is a ''module-type'' which is effectively providing an implementation of the toaster-provider service interface located at the ''/modules/module'' level in the MD-SAL's configuration data tree. The augmentation of ''modules/module/configuration'' adds configuration information for the toaster-provider-impl data node. '''data-broker ''' defines a dependency of the toaster-provider-impl module on the MD-SAL's DataBroker service which we'll need to access the toaster's operational data.
 
-===Generate the yang toaster provider source===
+==Generate the yang toaster provider source==
 
 To generate the java source files that facilitate the service wiring, we need to add another code generator, '''JmxGenerator''', to the yang-maven-plugin configuration in the pom.xml in addition to the '''CodeGeneratorImpl''':
 <code>
@@ -456,7 +345,7 @@ After running mvn clean install you should see two files generated:
 
 '''Note''': these 2 classes are stored under src/main/java and are intended to be checked into Git as they will contain manually written code.
 
-=== Implementing the OpendaylightToaster ===
+== Implementing the OpendaylightToaster ==
 
 So far we have defined multiple yang files to define the toaster API and implementations. After running mvn clean install we have a bunch of generated code on our hands. At this point we need to create the logic which will provide the operational data for our toaster. Go ahead and create a java class named "OpendaylightToaster" under the src/main/java folder in the org.opendaylight.toaster package.
 
@@ -672,6 +561,7 @@ The magic is done via some generated files. Under ''target/classes/META-INF/yang
 *The ''toaster.yang'' file is copied from the src/main/yang directory. 
 *The ''org.opendaylight.yangtools.yang.binding.YangModelBindingProvider'' file contains the fully-qualfied name of the toaster's generated '''$YangModelBindingProvider''' class. The MD-SAL's '''ModuleInfoBundleTracker''' class in the config subsystem scrapes the ''META-INF/services/org.opendaylight.yangtools.yang.binding.YangModelBindingProvider'' resource from bundles on startup and reads the class name(s) defined in the file.  For each YangModelBindingProvider class specified, the MD-SAL creates an instance and calls ''getModuleInfo()'' to return the singleton '''$YangModuleInfoImpl''' instance. This class has methods to obtain static configuration information about the yang module, e.g. name, revision, imports etc, as well as a ''getModuleSourceStream()'' method that provides an input stream to the ''META-INF/yang/toaster.yang'' file. Once the MD-SAL knows about a yang module and its definitions, it can wire it up to RestConf and other parts of the system.
 <br><br><br>
+
 = Part 2: Enabling Remote Procedure Calls - Lets make some toast! (RPC)=
 Part 2 of the toaster example will be adding some behavior to the toaster. Having a toaster is cool but we'd really like it to make some toast for us. To accomplish this, we will define an RPC (Remote Procedure Call) in the toaster yang data model and write an implementation. 
 
