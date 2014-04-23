@@ -256,14 +256,64 @@ You can see above that we marked all three of the leaf attributes on the toaster
 At this point we can compile the yang data model to generate some java source files.
 
 ===Build the Toaster ===
-We are now ready to build the toaster data model bundle. To do this, run the following command from the odl-toaster directory.
+We are now ready to build the toaster data model bundle. To do this, we need to specify the ''yang-maven-plugin'' in the pom.xml:
+<pre>
+ <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+               xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  ...
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.opendaylight.yangtools</groupId>
+        <artifactId>yang-maven-plugin</artifactId>
+        <executions>
+          <execution>
+            <goals>
+              <goal>generate-sources</goal>
+            </goals>
+            <configuration>
+              <yangFilesRootDir>src/main/yang</yangFilesRootDir>
+              <codeGenerators>
+                <generator>
+                  <codeGeneratorClass>org.opendaylight.yangtools.maven.sal.api.gen.plugin.CodeGeneratorImpl</codeGeneratorClass>
+                  <outputBaseDir>${salGeneratorPath}</outputBaseDir>
+                </generator>
+              </codeGenerators>
+              <inspectDependencies>true</inspectDependencies>
+            </configuration>
+          </execution>
+        </executions>
+        <dependencies>
+          <dependency>
+            <groupId>org.opendaylight.yangtools</groupId>
+            <artifactId>maven-sal-api-gen-plugin</artifactId>
+            <version>${yangtools.version}</version>
+            <type>jar</type>
+          </dependency>
+      </plugin>
+    </plugins>
+  </build>
+  <dependencies>
+    <dependency>
+      <groupId>org.opendaylight.yangtools</groupId>
+      <artifactId>yang-binding</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.opendaylight.yangtools</groupId>
+      <artifactId>yang-common</artifactId>
+    </dependency>
+  </dependencies>
+ </project>
+</pre>
+
+To do this, run the following command from the odl-toaster directory.
 <pre>mvn clean install</pre>
 ''Note: You really only need to run 'mvn install' here since we have nothing to clean, but running a clean will not harm anything and is a good practice to ensure your generated code is cleaned up correctly so new code can be generated.''<br>
 After running 'mvn clean install', you will see java class files generated under ''src/main/yang-gen-sal''.  Classes of note:
 * '''Toaster''' - an interface that represents the toaster container with methods to obtain the leaf node data.
 * '''ToasterData''' - an interface that represents the top-level toaster module with one method ''getToaster()'' that returns the singleton toaster instance.
 * '''WheatBread''', '''WhiteBread''', etc' - abstract classes that represent the various toast types.
-* '''$YangModelBindingProvider''', '''$YangModuleInfoImpl''' - these are used internally by MD-SAL to wire the toaster module for use. More on this later.  
+* '''$YangModelBindingProvider''', '''$YangModuleInfoImpl''' - these are used internally by MD-SAL to wire the toaster module for use. More on this later.
 
 === toaster-provider.yang ===
 
