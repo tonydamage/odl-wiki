@@ -1130,14 +1130,34 @@ module kitchen-service-impl {
 In the pom.xml, we need to add the yang-maven-plugin with the JMXGenerator similar as we did earlier for the toaster provider pom file.
 
 === Implement the KitchenServiceModule===
-After running 'mvn clean install', several source files will be generated multiples similar to the toaster provide, of which we only need to modify the '''KitchenServiceModule''' class to instantiate the '''KitchenServiceImpl''' instance and wire it:
+After running 'mvn clean install', several source files will be generated multiples similar to the toaster provide, of which we only need to modify the ''KitchenServiceModule.createInstance()'' class to instantiate the '''KitchenServiceImpl''' instance and wire it:
 <pre>
     @Override
     public java.lang.AutoCloseable createInstance() {
-        //retrieves the toaster service from the MD-SAL
-        ToasterService toasterService = getRpcRegistryDependency().getRpcService(ToasterService.class);<br>
-        final KitchenServiceImpl kitchen = new KitchenServiceImpl( toasterService );<br>
-        return null; //TODO - missing the remainder of the implementation....
+        ToasterService toasterService = getRpcRegistryDependency().getRpcService(ToasterService.class);
+
+        final KitchenServiceImpl kitchenService = new KitchenServiceImpl(toasterService);
+
+        final KitchenServiceRuntimeRegistration runtimeReg =
+                getRootRuntimeBeanRegistratorWrapper().register( kitchenService );
+
+                final class AutoCloseableKitchenService implements AutoCloseable, KitchenService {
+
+            @Override
+            public void close() throws Exception {
+                runtimeReg.close();
+                log.info("Toaster consumer (instance {}) torn down.", this);
+            }
+
+            @Override
+            public boolean makeBreakfast( EggsType eggs, Class<? extends ToastType> toast, int toastDoneness ) {
+                return kitchenService.makeBreakfast( eggs, toast, toastDoneness );
+            }
+        }
+
+        AutoCloseable ret = new AutoCloseableKitchenService();
+        log.info("KitchenService (instance {}) initialized.", ret );
+        return ret;
     }
 </pre>
 
