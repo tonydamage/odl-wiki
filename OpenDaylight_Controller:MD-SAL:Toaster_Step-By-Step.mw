@@ -464,17 +464,13 @@ In the above code, the '''DataBroker''' dependency has already been injected by 
 
 ===Define the initial XML configuration===
 
-We have now defined the toaster data model (toaster.yang), an "interface" for the toaster provider service (toaster-provider.yang) and an implementation (toaster-provider-impl.yang). At this point, if the 2 bundles were deployed, the configuration of the toaster data model would be accessible via REST however the operational data and RPC provided by the '''OpenDaylightToaster''' service would not be accessible. What we have done so far is to define the service interface and a "possible" implementation. The last step is to actually tell MD-SAL to "deploy" the implementation, i.e. create an instance of the ''OpenDaylightToaster'''service, resolve its dependencies and advertise it for consumption/use. 
+We have now defined the toaster data model (toaster.yang), an "interface" for the toaster provider service (toaster-provider.yang) and an implementation (toaster-provider-impl.yang). At this point, if the bundles were deployed, the configuration of the toaster data model would be accessible via REST however the operational data and RPC provided by the '''OpenDaylightToaster''' service would not be accessible. What we have done so far is to define the service interface and a "possible" implementation. The last step is to actually tell MD-SAL to "deploy" the implementation, i.e. create an instance of the '''OpenDaylightToaster''' service, resolve its dependencies and advertise it for consumption/use. 
 
 To do this, we need to create an xml file that defines the initial configuration for the toaster provider service deployment. The configuration is actually deployed internally using the netconf protocol. The xml is comprised of 2 main sections:  ''configuration'' and ''required-capabilities''.  The ''required-capabilities'' section is needed for the netconf ""hello" message and describes the yang modules that are needed by the services in order for them to function properly. Under the ''data'' section of ''configuration'' is where you define your service(s), implementation(s) and how to configure each implementation. This section is used in the subsequent netconf "edit-config" message.
 
-Create an xml file named "03-toaster-sample.xml" and put it into the ''configuration/initial'' folder of the distribution that you are running (i.e. controller/opendaylight/distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/configuration/initial). 
+Create an xml file named "03-toaster-sample.xml" with the following and put it into the ''configuration/initial'' folder of the distribution that you are running (i.e. controller/opendaylight/distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/configuration/initial). 
 
 <br>''Note: Be sure to save this xml file off. If you rebuild the distribution.opendaylight project, this folder will be deleted, including your file.''
-<br>
-The "03" prefix is significant. The files in ''configuration/initial'' are sorted by name thus allowing you control over the order in which they are deployed. While the file name doesn't actually need to be prefixed with a number, doing so allows for easier sorting and is the best practice/convention. You'll notice other files numbered this way. We choose "03" prefix for our toaster so it is higher than the existing internal MD-SAL config files and thus will be deployed last. You basically want to order the config files such that dependencies (as inferred by the ''required-capabilities'') are deployed first. Since the toaster is dependent on MD-SAL (specifically "01-md-sal.xml"), we deploy it last. Technically, the toaster config could actually be deployed first as the config subsystem will retry if a dependency is not yet present but it is more efficient on startup to explicitly define the ordering. 
-
-Here's the contents of the "03-toaster-sample.xml" : 
 <pre>
 <snapshot>
     <configuration>
@@ -512,8 +508,6 @@ Here's the contents of the "03-toaster-sample.xml" :
     </configuration>
 
     <required-capabilities>
-        <capability>urn:opendaylight:params:xml:ns:yang:controller:md:sal:binding?module=opendaylight-md-sal-binding&amp;amp;revision=2013-10-28</capability>
-        <capability>urn:opendaylight:params:xml:ns:yang:controller:config:toaster-provider?module=toaster-provider&amp;amp;revision=2014-01-31</capability>
         <capability>urn:opendaylight:params:xml:ns:yang:controller:config:toaster-provider:impl?module=toaster-provider-impl&amp;amp;revision=2014-01-31</capability>
     </required-capabilities>
 
@@ -521,11 +515,15 @@ Here's the contents of the "03-toaster-sample.xml" :
 
 </pre>
 
-The '''modules''' section specifies the toaster-provider-impl module and its dependency configuration as defined in the ''toaster-provider-impl.yang'' file. The data-broker implementation is provided by MD-SAL and is needed for the '''OpenDaylightToaster'''.
+The ''modules'' section specifies the toaster-provider-impl module and its dependency configuration as defined in the ''toaster-provider-impl.yang'' file. The data-broker implementation is provided by MD-SAL and is needed for the '''OpenDaylightToaster'''.
 
-The '''services''' section specifies the toaster-provider service interface and the toaster-provider-impl module as the implementation to instantiate and register.
+The ''services'' section specifies the toaster-provider service interface and the toaster-provider-impl module as the implementation to instantiate and register.
 
-This XML file must be put into the runtime ''configuration/initial'' directory (i.e. controller/opendaylight/distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/configuration/initial ).
+The ''required-capabilities'' section lists only the toaster-provider-impl yang module as a dependent capability. There are other dependent modules, eg toaster-provider,  opendaylight-md-sal-binding etc, but they are inferred by the imports in the ''toaster-provider-impl.yang'' file so they don't have to be explicitly specified. Each ''capability'' is a URI of the form:
+
+  ''<yang module namespace>''?module=''<yang module name>''&&revision=''<yang module revision>''
+
+The "03" prefix in the file name is significant. The files in ''configuration/initial'' are sorted by name thus allowing you control over the order in which they are deployed. While the file name doesn't actually need to be prefixed with a number, doing so allows for easier sorting and is the best practice/convention. You'll notice other files numbered this way. We choose "03" prefix for our toaster so it is higher than the existing internal MD-SAL config files and thus will be deployed last. You basically want to order the config files such that dependencies (as inferred by the ''required-capabilities'') are deployed first. Since the toaster is dependent on MD-SAL (specifically "01-md-sal.xml"), we deploy it last. Technically, the toaster config could actually be deployed first as the config subsystem will retry if a dependency is not yet present but it is more efficient on startup to explicitly define the ordering. 
 
 On startup, the XML files in the ''configuration/initial'' directory are loaded by the '''ConfigPersisterActivator'''. A '''ConfigPusher''' instance is instantiated to push the configs via the NetConf subsystem to the '''ConfigRegistryImpl'''.  When processing the toaster-provider-impl module in the toaster config file, the '''ToasterProviderModuleFactory''' class is located and instantiated and the ''createModule'' method is called to create a '''ToasterProviderModule''' instance. The ''ToasterProviderModule.createInstance'' method is then called to create and wire the '''OpenDaylightToaster'''.
 
