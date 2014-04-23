@@ -200,9 +200,81 @@ Now you will see java class files generated under ''src/main/yang-gen-sal''.  Cl
 * '''WheatBread''', '''WhiteBread''', etc' - abstract classes that represent the various toast types.
 * '''$YangModelBindingProvider''', '''$YangModuleInfoImpl''' - these are used internally by MD-SAL to wire the toaster module for use. More on this later.
 
-== toaster-provider.yang ==
+==Implement the operational Toaster provider (OpendaylightToaster)==
 
-The ''toaster provider.yang'' file defines the interface for the toaster provider service. This file is located in the ''sample-toaster-provider'' project under the ''src/main/yang'' folder.
+We've defined the data model for the toaster, now we need an implementation to provide the operational data. We'll create a class '''OpendaylightToaster''' in the ''sample-toaster-provider'' project under the ''src/main/java'' source folder. This class implements the auto-generated '''ToasterData''' interface.
+
+<code>
+ package org.opendaylight.toaster;
+     
+ import java.util.concurrent.ExecutionException;
+ import org.opendaylight.controller.sal.binding.api.data.DataBrokerService;
+ import org.opendaylight.controller.sal.binding.api.data.DataModificationTransaction;
+ import org.opendaylight.yang.gen.v1.http.netconfcentral.org.ns.toaster.rev091120.DisplayString;
+ import org.opendaylight.yang.gen.v1.http.netconfcentral.org.ns.toaster.rev091120.Toaster;
+ import org.opendaylight.yang.gen.v1.http.netconfcentral.org.ns.toaster.rev091120.Toaster.ToasterStatus;
+ import org.opendaylight.yang.gen.v1.http.netconfcentral.org.ns.toaster.rev091120.ToasterBuilder;
+ import org.opendaylight.yang.gen.v1.http.netconfcentral.org.ns.toaster.rev091120.ToasterData;
+ import org.opendaylight.yangtools.yang.binding.InstanceIdentifier;
+ import org.slf4j.Logger;
+ import org.slf4j.LoggerFactory;
+    
+ public class OpendaylightToaster implements ToasterData{
+   
+    private static final Logger LOG = LoggerFactory.getLogger(OpendaylightToaster.class);
+   
+    private static final InstanceIdentifier<Toaster>  TOASTER_IID = InstanceIdentifier.builder(Toaster.class).build();
+    
+    private DataBrokerService dataBrokerService;
+     
+    private static final DisplayString TOASTER_MANUFACTURER = new DisplayString("Opendaylight");
+    private static final DisplayString TOASTER_MODEL_NUMBER = new DisplayString("Model 1 - Binding Aware");
+     
+    public OpendaylightToaster() {
+    }
+     
+    @Overide
+    public Toaster getToaster() {
+        //note - we are simulating a device whose manufacture and model are fixed (embedded) into the hardware.
+        //This is why the manufacture and model number are hardcoded.
+        ToasterBuilder tb = new ToasterBuilder();
+        tb.setToasterManufacturer(TOASTER_MANUFACTURER) 
+           .setToasterModelNumber(TOASTER_MODEL_NUMBER) 
+           .setToasterStatus( ToasterStatus.Up );
+        return tb.build();
+    }
+    
+    public void setDataProvider(DataBrokerService salDataProvider) {
+         this.dataBrokerService = salDataProvider;
+         updateStatus();
+    }
+    
+    private void updateStatus() {
+        if (dataBrokerService != null) {
+            final DataModificationTransaction t = dataBrokerService.beginTransaction();
+            t.removeOperationalData(TOASTER_IID);
+            t.putOperationalData(TOASTER_IID, getToaster()); 
+            try {
+                t.commit().get();
+            } catch (InterruptedException | ExecutionException e) {
+                LOG.warn("Failed to update toaster status, operational otherwise", e);
+            }
+        } else {
+            LOG.trace("No data provider configured, not updating status");
+        }
+    }  
+ }
+</code>
+
+The MD-SAL's '''DataBrokerService''' interface is used to create the singleton operational Toaster instance.
+
+==Wiring the OpendaylightToaster service==
+
+We've implemented the toaster provider service - now we have to get our '''OpendaylightToaster''' instantiated and wired up with the MD-SAL. There's a couple ways to do this - we're going to use the MD-SAL's config subsystem which provides the most flexibility and provides the full benefits of the MD-SAL (for example: access through JMX or NETCONF to the available services and run-time related data). We first need to describe our '''OpendaylightToaster''' service and what dependent services it needs for the MD-SAL to process. This is defined in... you guessed it, yang.
+
+===Define the yang toaster provider service interface===
+
+We'll create a ''toaster-provider.yang'' file that defines the interface for the toaster provider service. This file is located in the ''sample-toaster-provider'' project under the ''src/main/yang'' folder.
 
 <pre>
  module toaster-provider {
@@ -233,9 +305,9 @@ The ''toaster provider.yang'' file defines the interface for the toaster provide
 
 The '''toaster-provider''' identity is a ''service-type'' which means it's basically acting as an interface for the toaster module. You can find the referenced config module in "config.yang" file in the controller project.
 
-== toaster-provider-impl.yang ==
+==Define the yang toaster provider service implementation==
 
-The ''toaster-provider-impl.yang'' file defines an implementation of the toaster provider service. This file is located in the sample-toaster-provider project under the src/main/yang folder.
+Next we need to define an implementation of the toaster-provider service yang interface in the ''toaster-provider-impl.yang'' file:
 <pre>
 module toaster-provider-impl {
     yang-version 1;
@@ -280,7 +352,7 @@ module toaster-provider-impl {
 }
 </pre>
 
-The '''toaster-provider-impl''' identity is a ''module-type'' which is effectively providing an implementation of the toaster-provider service interface located at the ''/modules/module'' level in the MD-SAL's configuration data tree. The augmentation of ''modules/module/configuration'' adds configuration information for the toaster-provider-impl data node. '''data-broker ''' defines a dependency of the toaster-provider-impl module on the MD-SAL's DataBroker service which we'll need to access the toaster's operational data.
+The '''toaster-provider-impl''' identity is a ''module-type'' which is effectively providing an implementation of the toaster-provider service interface located at the ''/modules/module'' level in the MD-SAL's configuration data tree. The augmentation of ''modules/module/configuration'' adds configuration information for the toaster-provider-impl data node. '''data-broker ''' defines a dependency of the toaster-provider-impl module on the MD-SAL's DataBroker service which is needed by the '''OpendaylightToaster'''.
 
 ==Generate the yang toaster provider source==
 
