@@ -1507,35 +1507,47 @@ Finally we need to add the dependency for the 'notification-service' to the toas
  </snapshot>
 </code>
 
-==Send the notification==
+==Implement notifications in KitchenServiceImpl==
 
-The '''OpendaylightToaster''' is now ready to send notifications.
+Next we modify the '''KitchenServiceImpl''' to implement the '''ToasterListener''' interface and the notification methods.
 <code>
- public class OpendaylightToaster implements ToasterData, ToasterService, ToasterProviderRuntimeMXBean, AutoCloseable {
+ public class KitchenServiceImpl implements KitchenService, KitchenServiceRuntimeMXBean, '''ToasterListener''' {
     ...
-    <br>
-    public Future<RpcResult<Void>> cancelToast() {
+    '''private volatile boolean toasterOutOfBread;
+
+    public KitchenServiceImpl(ToasterService toaster) {
+        this.toaster = toaster;
+    }
+
+    @Override
+    public boolean makeBreakfast( EggsType eggs, Class<? extends ToastType> toast, int toastDoneness ) {
+
+        '''if( toasterOutOfBread )
+        '''{
+            '''log.info( "We're out of toast but we can make eggs" );
+            '''return true;
+        '''}
+        <br>
         ...
-        updateStatus();
-        ToastDoneBuilder toastDone = new ToastDoneBuilder();
-        toastDone.setToastStatus(ToastStatus.Cancelled);
-        notificationProvider.publish(toastDone.build());
-        ...
+        return false;
     }
     ...
+    '''/**
+     '''* Implemented from the ToasterListener interface.
+     '''*/
+    '''@Override
+    '''public void onToasterOutOfBread( ToasterOutOfBread notification ) {
+        '''log.info( "ToasterOutOfBread notification" );
+        '''toasterOutOfBread = true;
+    '''}
     <br>
-    private class MakeToastTask implements Callable<RpcResult<Void>> {
-        ...
-        @Override
-        public RpcResult<Void> call() throws InterruptedException {
-            Thread.sleep(1000 * toastRequest.getToasterDoneness());
-            ...
-            '''ToastDoneBuilder notifyBuilder = new ToastDoneBuilder();
-            '''notifyBuilder.setToastStatus(ToastStatus.Done);
-            '''notificationProvider.publish(notifyBuilder.build());
-            ...
-            return Rpcs.<Void> getRpcResult(true, null, Collections.<RpcError> emptySet());
-        }
-    }
+    '''/**
+     '''* Implemented from the ToasterListener interface.
+     '''*/
+    '''@Override
+    '''public void onToasterRestocked( ToasterRestocked notification ) {
+        '''log.info( "ToasterRestocked notification - amountOfBread: " + notification.getAmountOfBread() );
+        '''toasterOutOfBread = false;
+    '''}
  }
 </code>
