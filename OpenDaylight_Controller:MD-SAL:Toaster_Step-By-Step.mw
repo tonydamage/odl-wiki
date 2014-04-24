@@ -898,14 +898,16 @@ In part 3 we will add some configuration data to our toaster. This configuration
 
 
 
-= Part 4: Additional Attributes in the Implementation - Count my toast! (JMX Access)=
+= Part 4: Add state data to the ToasterService implementation (JMX Access) - Count my toast!=
 
-For statistical purposes, we'd like to keep track of how many pieces of toast the toaster has made over time.  We need an attribute, '''toasts-made''', to track the count and a way to obtain the count. Whenever we '''make-toast''', we want to increment '''toasts-made'''.<br>
+For internal statistical purposes and troubleshooting, we'd like to keep track of how many pieces of toast the toaster has made over time.  We need an attribute, '''toasts-made''', to track the count and a way to obtain the count. Whenever we '''make-toast''', we want to increment '''toasts-made'''. In addition, we'd like a mechanism to clear the '''toasts-made''' count.
+
+To accomplish this, the MD-SAL provides the ability to define internal state data and RPC calls that is only accessible via JMX. 
 
 ==Define the toasts-made attribute==
-We'll define '''toasts-made''' as statistical state data on the toaster provider service implementation since that is where '''make-toast''' happens. This is achieved by augmenting the toaster-provider-impl module's '''config:state''' in ''toaster-provider-impl.yang'':
+We'll define '''toasts-made''' as statistical state data on the toaster provider service implementation since that is where '''make-toast''' happens. In addition, we'll define an RPC call, ''clear_toasts-made''. This is achieved by augmenting the toaster-provider-impl module's '''config:state''' in ''toaster-provider-impl.yang'':
 <pre>
-augment "/config:modules/config:module/config:state" {
+    augment "/config:modules/config:module/config:state" {
         case toaster-provider-impl {
             when "/config:modules/config:module/config:type = 'toaster-provider-impl'";
 
@@ -913,25 +915,36 @@ augment "/config:modules/config:module/config:state" {
                 type uint32;
             }
 
+            rpcx:rpc-context-instance "clear_toasts-made-rpc";
+        }
+    }
+
+    identity clear_toasts-made-rpc;
+
+    rpc clear_toasts-made  {
+        description
+          "JMX call to clear the toasts-made counter.";
+
+        input {
+            uses rpcx:rpc-context-ref {
+                refine context-instance {
+                    rpcx:rpc-context-instance clear_toasts-made-rpc;
+                }
+            }
         }
     }
 </pre>
 
-The MD-SAL makes state data accessible via JMX.<br>
-
-'''QUESTION: could toasts-made be defined as part of the toaster container itself?'''<br>
-'''QUESTION: is state data also available via REST? via NetConf?<br>
-
 Run 'mvn clean install' to generate the source. 3 additional classes are generated under ''src/main/yang-gen-config'':
-*'''ToasterProviderRuntimeMXBean''' - interface that defines the ''getToastsMade()'' method to provide access to the '''toasts-made''' attribute.
+*'''ToasterProviderRuntimeMXBean''' - JMX bean interface that defines the ''getToastsMade()'' method to provide access to the '''toasts-made''' attribute and the ''clearToastsMade()'' RPC method.
 *'''ToasterProviderRuntimeRegistration''' - concrete class that wraps a '''ToasterProviderRuntimeMXBean''' registration.
 *'''ToasterProviderRuntimeRegistrator''' - concrete class that registers a '''ToasterProviderRuntimeMXBean''' implementation with the MD-SAL.
 
 ==Implement the toasts-made attribute==
 
-Now that we've defined the data model for the '''toasts-made''' attribute we need to provide an implementation to update it. Since the '''OpenDaylightToaster''' makes toast, we'll implement it there.<br>
+Now that we've defined the data model for our state data and behavior we need to provide an implementation. Since the '''OpenDaylightToaster''' makes toast, we'll implement it there.
 
-The '''ToasterProviderRuntimeMXBean''' provides the interface for '''toasts-made''' so we need to modify '''OpenDaylightToaster''' to implement the '''ToasterProviderRuntimeMXBean''' interface:
+The '''ToasterProviderRuntimeMXBean''' provides the interface for access to the state data so we need to modify '''OpenDaylightToaster''' to implement the '''ToasterProviderRuntimeMXBean''' interface:
 
 <code>
  public class OpendaylightToaster implements ToasterData, ToasterService, '''ToasterProviderRuntimeMXBean''' {
@@ -939,11 +952,22 @@ The '''ToasterProviderRuntimeMXBean''' provides the interface for '''toasts-made
     '''private final AtomicLong toastsMade = new AtomicLong(0);
     ...
     <br>
+    '''/**
+     '''* Accessor method implemented from the ToasterProviderRuntimeMXBean interface.
+     '''*/
     '''@Override
     '''public Long getToastsMade() {
         '''return toastsMade.get();
     '''}
     <br>
+    '''/**
+     '''* JMX RPC call implemented from the ToasterProviderRuntimeMXBean interface.
+     '''*/
+    '''@Override
+    '''public void clearToastsMade() {
+        '''LOG.info( "clearToastsMade" );
+        '''toastsMade.set( 0 );
+    '''}
     ...
     <br>
     private class MakeToastTask implements Callable<RpcResult<Void>> {
