@@ -1236,6 +1236,7 @@ module kitchen-service-impl {
     // This is the definition of a service implementation
     identity kitchen-service-impl {
             base config:module-type;
+            config:java-name-prefix KitchenService;
     }
 
     augment "/config:modules/config:module/config:configuration" {
@@ -1258,7 +1259,7 @@ module kitchen-service-impl {
 In the pom.xml, we need to add the yang-maven-plugin with the JMXGenerator similar as we did earlier for the toaster provider pom file.
 
 === Implement the KitchenServiceModule===
-After running 'mvn clean install', several source files will be generated similar to the toaster provider, of which we only need to modify the ''KitchenServiceImplModule.createInstance()'' method to instantiate the '''KitchenServiceImpl''' instance and wire it:
+After running 'mvn clean install', several source files will be generated similar to the toaster provider, of which we only need to modify the ''KitchenServiceModule.createInstance()'' method to instantiate the '''KitchenServiceImpl''' instance and wire it:
 <pre>
     @Override
     public java.lang.AutoCloseable createInstance() {
@@ -1346,7 +1347,7 @@ We'll add an '''make-scrambled-with-wheat''' RPC definition to ''kitchen-service
     }
 </pre>  
 
-After re-generating the source, modify the '''KitchenServiceImpl''' to implement the generated interface '''KitchenServiceImplRuntimeMXBean''' that defines the ''makeScrambledWithWheat()'' method.
+After re-generating the source, modify the '''KitchenServiceImpl''' to implement the generated interface '''KitchenServiceRuntimeMXBean''' that defines the ''makeScrambledWithWheat()'' method.
 <pre>
     @Override
     public Boolean makeScrambledWithWheat() {
@@ -1356,7 +1357,7 @@ After re-generating the source, modify the '''KitchenServiceImpl''' to implement
 
 Next, modify the ''KitchenServiceModule.createInstance()'' to register the '''KitchenService''' with JMX and then close it in the auto close..
 <pre>
-    final KitchenServiceImplRuntimeRegistration runtimeReg =
+    final KitchenServiceRuntimeRegistration runtimeReg =
                                   getRootRuntimeBeanRegistratorWrapper().register( kitchenService );
     ...
     runtimeReg.close();
