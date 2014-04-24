@@ -933,19 +933,26 @@ The last step is to modify the MakeToastTask call method to use our new darkness
   private class MakeToastTask implements Callable<RpcResult<Void>> {
         ...
         @Override
-        public RpcResult<Void> call() throws InterruptedException {
-            // make toast just sleeps for 1 second per doneness level.
-            '''long darknessFactor = OpendaylightToaster.this.darknessFactor.get();'''
-            '''Thread.sleep(darknessFactor * toastRequest.getToasterDoneness());'''
-    
-            LOG.debug("Toast Done");
-     
-            synchronized (taskLock) {
-                // mark the toaster is "available" for more toasting.
-                currentTask = null;
-            }
-            return Rpcs.<Void> getRpcResult(true, null, Collections.<RpcError> emptySet());
-        }
+       public RpcResult<Void> call() throws InterruptedException {
+           // make toast just sleeps for 1 second per doneness level.
+           try
+           {
+               // make toast just sleeps for 1 second per doneness level.
+              ''' long darknessFactor = OpendaylightToaster.this.darknessFactor.get();
+             '''  Thread.sleep(darknessFactor * toastRequest.getToasterDoneness());
+           }
+           //TODO: Consider catch interruptedException and returning valid error case.
+           finally
+           {
+               synchronized (taskLock) {
+                   currentTask = null;
+                   updateStatus();
+               }
+           }
+           LOG.debug("Toast done");        
+   
+           return Rpcs.<Void> getRpcResult(true, null, Collections.<RpcError> emptySet());
+       }
     }
 </code>
 
@@ -961,6 +968,7 @@ We have successfully implemented the DataChangeListener interface. The final ste
 </code>
 At this point we can rebuild our source code and deploy our updated jar.
 <br>'''QUESTION: How does one unregister a listener if the bundle is stopped?'''
+
 == Changing the Darkness Factor ==
 To change the darkness factor we will use a REST call to the restconf service provided by MD-SAL.  Once your controller is started, perform the following PUT:
 <pre>
