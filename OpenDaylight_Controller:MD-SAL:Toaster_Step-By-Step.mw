@@ -1306,12 +1306,60 @@ We can access the kitchen-service-impl MBean via JConsole as we did earlier with
 
 = Part 6: Notifications - Oh no, the Toaster is out of bread!=
 
-A toaster can only make toast if it's supplied with bread. Currently, our '''OpenDaylightToaster''' has an infinite supply of bread which isn't very realistic in the real world. 
+This part will make use of the MD-SAL's unsolicited notification service to have the '''OpenDaylightToaster''' send notifications when significant events occur. The '''KitchenService''' will register for the notifications and act accordingly when received.
+
+A toaster can only make toast if it has supply of bread. Currently, our '''OpenDaylightToaster''' has an infinite supply of bread which isn't very realistic in the real world. 
 
 We'll modify the '''OpenDaylightToaster''' to have a finite stock of bread. We'll keep it simple and maintain an overall limit encompassing all types of bread instead of a limit per bread type.
 
-<pre>
+When called to make toast, if out of bread, a ''toasterOutOfBread'' notification will be sent.
+
+We'll also add an RPC call, ''restock-toaster'', that can be used to set the amount of bread in stock. In addition it will clear the ''toasts-made'' counter and send a ''toasterRestocked'' notification.
+
+==Define the notifications and RPC==
+
+We'll define the 2 notifications and RPC in the ''toaster.yang'' file.
+
+<code>
+ module toaster {
+    ... 
+    '''rpc restock-toaster {
+        '''description
+          '''"Restocks the toaster with the amount of bread specified.";
+        <br>  
+        '''input {
+            '''leaf amountOfBreadToStock {
+                '''type uint32;
+                '''description
+                  '''"Indicates the amount of bread to re-stock";
+            '''}
+        '''}
+    '''}
+    <br>
+    '''notification toasterOutOfBread {
+      '''description
+        '''"Indicates that the toaster has run of out bread.";
+    '''}  // notification toasterOutOfStock
+    <br>
+    '''notification toasterRestocked {
+      '''description
+        '''"Indicates that the toaster has run of out bread.";
+      '''leaf amountOfBread {
+        '''type uint32;
+        '''description
+          '''"Indicates the amount of bread that was re-stocked";
+      '''}
+    '''}  // notification toasterOutOfStock
+    
+  }  // module toaster
 </pre>
+
+After running 'mvn clean install', several new source files will be generated:
+ 
+<pre>
+private volatile long amountOfBreadInStock = 100;
+</pre>
+
 to provide a notification when it's done, or is cancelled, or encountered an error. This can be consumed by an implementation of the '''ToasterListener''' interface or by an external netconf client.
 
 ==Define the toastDone notification==
