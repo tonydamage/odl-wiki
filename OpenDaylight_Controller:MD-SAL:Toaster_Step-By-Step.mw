@@ -403,13 +403,13 @@ We also need to add dependencies in the pom.xml file so the ''opendaylight-md-sa
 </dependency>
 </pre>
 After running mvn clean install you should see two files generated:
-*'''ToasterProviderImplModule''' -  concrete class whose ''createInstance()'' method provides the OpendaylightToaster instance.
-*'''ToasterProviderImplModuleFactory''' - concrete class instantiated internally by MD_SAL that creates '''ToasterProviderModule''' instances.  
+*'''ToasterProviderlModule''' -  concrete class whose ''createInstance()'' method provides the OpendaylightToaster instance.
+*'''ToasterProviderModuleFactory''' - concrete class instantiated internally by MD_SAL that creates '''ToasterProviderModule''' instances.  
 
 '''Note''': these 2 classes are stored under src/main/java and are intended to be checked into Git as they will contain manually written code.
 
-===Implement the ToasterProviderImplModule===
-The '''ToasterProviderImplModule''' class is mostly complete from the code generation. Only the ''ToasterProviderImplModule.createInstance()'' method needs to be implemented to instantiate and wire the '''OpendaylightToaster''':
+===Implement the ToasterProviderModule===
+The '''ToasterProviderModule''' class is mostly complete from the code generation. Only the ''ToasterProviderModule.createInstance()'' method needs to be implemented to instantiate and wire the '''OpendaylightToaster''':
 
 <pre>
      @Override
@@ -434,7 +434,7 @@ The '''ToasterProviderImplModule''' class is mostly complete from the code gener
 
 In the above code, the '''DataBroker''' dependency has already been injected by the MD-SAL and is available via the ''getDataBrokerDependency()'' method defined in the generated base class. The return type of ''createInstance()'' is '''AutoCloseable'''. We have to return an AutoCloseable object so MD-SAL can inform our logic when it is trying to be shutdown.
 
-We don't need to modify or implement anything in '''ToasterProviderImplModuleFactory''' for this example.
+We don't need to modify or implement anything in '''ToasterProviderModuleFactory''' for this example.
  
 ''Note 1: A future enhancement in this area may be to simplify the registration process here by performing more of the registrations etc automatically. Today this is how you need to perform these registrations.''
 
@@ -492,7 +492,7 @@ The ''required-capabilities'' section lists only the toaster-provider-impl yang 
 
 The "03" prefix in the file name is significant. The files in ''configuration/initial'' are sorted by name thus allowing you control over the order in which they are deployed. While the file name doesn't actually need to be prefixed with a number, doing so allows for easier sorting and is the best practice/convention. You'll notice other files numbered this way. We choose "03" prefix for our toaster so it is higher than the existing internal MD-SAL config files and thus will be deployed last. You basically want to order the config files such that dependencies (as inferred by the ''required-capabilities'') are deployed first. Since the toaster is dependent on MD-SAL (specifically "01-md-sal.xml"), we deploy it last. Technically, the toaster config could actually be deployed first as the config subsystem will retry if a dependency is not yet present but it is more efficient on startup to explicitly define the ordering. 
 
-On startup, the XML files in the ''configuration/initial'' directory are loaded by the '''ConfigPersisterActivator'''. A '''ConfigPusher''' instance is instantiated to push the configs via the NetConf subsystem to the '''ConfigRegistryImpl'''.  When processing the toaster-provider-impl module in the toaster config file, the '''ToasterProviderImplModuleFactory''' class is located and instantiated and the ''createModule'' method is called to create a '''ToasterProviderImplModule''' instance. The ''ToasterProviderImplModule.createInstance'' method is then called to create and wire the '''OpenDaylightToaster'''.
+On startup, the XML files in the ''configuration/initial'' directory are loaded by the '''ConfigPersisterActivator'''. A '''ConfigPusher''' instance is instantiated to push the configs via the NetConf subsystem to the '''ConfigRegistryImpl'''.  When processing the toaster-provider-impl module in the toaster config file, the '''ToasterProviderModuleFactory''' class is located and instantiated and the ''createModule'' method is called to create a '''ToasterProviderModule''' instance. The ''ToasterProviderModule.createInstance'' method is then called to create and wire the '''OpenDaylightToaster'''.
 
 For a detailed walk-through on how to make a 'config-subsystem aware' project please visit https://wiki.opendaylight.org/view/OpenDaylight_Controller:Config:Examples:Sample_Project
 
@@ -774,7 +774,7 @@ The next step is to register our '''OpendaylightToaster''' as the provider for t
     }
 </code>
 
-Re-generate the source. The generated '''AbstractToasterProviderModule''' class will now have a ''getRpcRegistryDependency()'' method. We can access that method in the '''ToasterProviderImplModule''' implementation to register the '''OpenDaylightToaster''' with the RPC registry service:
+Re-generate the source. The generated '''AbstractToasterProviderModule''' class will now have a ''getRpcRegistryDependency()'' method. We can access that method in the '''ToasterProviderModule''' implementation to register the '''OpenDaylightToaster''' with the RPC registry service:
 <code>
     @Override
     public java.lang.AutoCloseable createInstance() {
@@ -957,7 +957,7 @@ The last step is to modify the MakeToastTask call method to use our new darkness
     }
 </code>
 
-We have successfully implemented the DataChangeListener interface. The final step is to register our listener with the databroker service in order to actually get routed the notifications. We will perform this registration in the ToasterProviderImplModule:
+We have successfully implemented the DataChangeListener interface. The final step is to register our listener with the databroker service in order to actually get routed the notifications. We will perform this registration in the ToasterProviderModule:
 <code>
    ...
    @Override
@@ -1054,14 +1054,14 @@ Run 'mvn clean install' to generate the source. 3 additional classes are generat
 *'''ToasterProviderRuntimeRegistration''' - concrete class that wraps a '''ToasterProviderRuntimeMXBean''' registration.
 *'''ToasterProviderRuntimeRegistrator''' - concrete class that registers a '''ToasterProviderRuntimeMXBean''' implementation with the MD-SAL.
 
-==Implement the toasts-made attribute==
+==Implement the state data  model==
 
 Now that we've defined the data model for our state data and behavior we need to provide an implementation. Since the '''OpenDaylightToaster''' makes toast, we'll implement it there.
 
-The '''ToasterProviderRuntimeMXBean''' provides the interface for access to the state data so we need to modify '''OpenDaylightToaster''' to implement the '''ToasterProviderImplRuntimeMXBean''' interface:
+The '''ToasterProviderRuntimeMXBean''' provides the interface for access to the state data so we need to modify '''OpenDaylightToaster''' to implement the '''ToasterProviderRuntimeMXBean''' interface:
 
 <code>
- public class OpendaylightToaster implements ToasterService, AutoCloseable, DataChangeListener''', ToasterProviderImplRuntimeMXBean''' {
+ public class OpendaylightToaster implements ToasterService, AutoCloseable, DataChangeListener''', ToasterProviderRuntimeMXBean''' {
     ...
     '''private final AtomicLong toastsMade = new AtomicLong(0);
     ...
@@ -1100,14 +1100,14 @@ The '''ToasterProviderRuntimeMXBean''' provides the interface for access to the 
 
 ==Register the ToasterProviderRuntimeMXBean service==
 
-We need to do a final step to register the '''OpendaylightToaster''' as the '''ToasterProviderImplRuntimeMXBean''' service. We do this in the '''ToasterProviderImplModule''' via the '''ToasterProviderImplRuntimeRegistrator''' returned by the base class's ''getRootRuntimeBeanRegistratorWrapper()'' method:
+We need to do a final step to register the '''OpendaylightToaster''' as the '''ToasterProviderRuntimeMXBean''' service. We do this in the '''ToasterProviderModule''' via the '''ToasterProviderRuntimeRegistrator''' returned by the base class's ''getRootRuntimeBeanRegistratorWrapper()'' method:
 
 <code>
     public java.lang.AutoCloseable createInstance() {
         final OpendaylightToaster opendaylightToaster = new OpendaylightToaster();
         ...
         // Register runtimeBean for toaster statistics via JMX
-        '''final ToasterProviderImplRuntimeRegistration runtimeReg = getRootRuntimeBeanRegistratorWrapper().register( opendaylightToaster);
+        '''final ToasterProviderRuntimeRegistration runtimeReg = getRootRuntimeBeanRegistratorWrapper().register( opendaylightToaster);
         ...
         final class AutoCloseableToaster implements AutoCloseable {
             @Override
@@ -1121,7 +1121,7 @@ We need to do a final step to register the '''OpendaylightToaster''' as the '''T
     }
 </code>
 
-Note: we also have to close the '''ToasterProviderImplRuntimeRegistration''' when the '''OpendaylightToaster''' instance is closed.
+Note: we also have to close the '''ToasterProviderRuntimeRegistration''' when the '''OpendaylightToaster''' instance is closed.
 
 == Accessing toasts-made via JMX==
 The toasts-made attribute that we added is available via MBeans through the java management beans. You can programmatically access these through the mbean platform or via JConsole.
@@ -1236,6 +1236,7 @@ module kitchen-service-impl {
     // This is the definition of a service implementation
     identity kitchen-service-impl {
             base config:module-type;
+            config:java-name-prefix KitchenService;
     }
 
     augment "/config:modules/config:module/config:configuration" {
@@ -1258,7 +1259,7 @@ module kitchen-service-impl {
 In the pom.xml, we need to add the yang-maven-plugin with the JMXGenerator similar as we did earlier for the toaster provider pom file.
 
 === Implement the KitchenServiceModule===
-After running 'mvn clean install', several source files will be generated similar to the toaster provider, of which we only need to modify the ''KitchenServiceImplModule.createInstance()'' method to instantiate the '''KitchenServiceImpl''' instance and wire it:
+After running 'mvn clean install', several source files will be generated similar to the toaster provider, of which we only need to modify the ''KitchenServiceModule.createInstance()'' method to instantiate the '''KitchenServiceImpl''' instance and wire it:
 <pre>
     @Override
     public java.lang.AutoCloseable createInstance() {
@@ -1346,7 +1347,7 @@ We'll add an '''make-scrambled-with-wheat''' RPC definition to ''kitchen-service
     }
 </pre>  
 
-After re-generating the source, modify the '''KitchenServiceImpl''' to implement the generated interface '''KitchenServiceImplRuntimeMXBean''' that defines the ''makeScrambledWithWheat()'' method.
+After re-generating the source, modify the '''KitchenServiceImpl''' to implement the generated interface '''KitchenServiceRuntimeMXBean''' that defines the ''makeScrambledWithWheat()'' method.
 <pre>
     @Override
     public Boolean makeScrambledWithWheat() {
@@ -1356,7 +1357,7 @@ After re-generating the source, modify the '''KitchenServiceImpl''' to implement
 
 Next, modify the ''KitchenServiceModule.createInstance()'' to register the '''KitchenService''' with JMX and then close it in the auto close..
 <pre>
-    final KitchenServiceImplRuntimeRegistration runtimeReg =
+    final KitchenServiceRuntimeRegistration runtimeReg =
                                   getRootRuntimeBeanRegistratorWrapper().register( kitchenService );
     ...
     runtimeReg.close();
@@ -1431,7 +1432,7 @@ After running 'mvn clean install', several new classes will be generated:
 Next we add code to the '''OpenDaylightToaster''' to implement the ''restockToaster'' RPC and to send the notifications.
 
 <code>
- public class OpendaylightToaster implements ToasterData, ToasterService, ToasterProviderRuntimeMXBean, AutoCloseable {
+ public class OpendaylightToaster implements ToasterService, ToasterProviderRuntimeMXBean, AutoCloseable, DataChangeListener {
     ...
     '''private NotificationProviderService notificationProvider;
     ...
@@ -1487,7 +1488,7 @@ Next we add code to the '''OpenDaylightToaster''' to implement the ''restockToas
         '''return Futures.immediateFuture(Rpcs.<Void> getRpcResult(true, Collections.<RpcError> emptySet()));
     '''}
     ...
-    '''private boolean checkIfOutOfBread()
+    '''private boolean outOfBread()
     '''{
         '''return amountOfBreadInStock.get() == 0;
     '''}
