@@ -463,17 +463,6 @@ Replace / edit the 03-toaster-sample.xml file and put in these contents:
 
                 </module>
             </modules>
-
-            <services xmlns="urn:opendaylight:params:xml:ns:yang:controller:config">
-                <!-- exports and advertises the above module as a service -->
-                <service>
-                    <type xmlns:toaster="urn:opendaylight:params:xml:ns:yang:controller:config:toaster-provider">toaster:toaster-provider</type>
-                    <instance>
-                        <name>toaster-provider</name>
-                        <provider>/modules/module[type='toaster-provider-impl'][name='toaster-provider-impl']</provider>
-                    </instance>
-                </service>
-            </services>
         </data>
 
     </configuration>
@@ -488,15 +477,13 @@ Replace / edit the 03-toaster-sample.xml file and put in these contents:
 
 The ''modules'' section specifies the toaster-provider-impl module and its dependency configuration as defined in the ''toaster-provider-impl.yang'' file. The data-broker implementation is provided by MD-SAL and is needed for the '''OpenDaylightToaster'''.
 
-The ''services'' section specifies the toaster-provider service interface and the toaster-provider-impl module as the implementation to instantiate and register.
-
-The ''required-capabilities'' section lists only the toaster-provider-impl yang module as a dependent capability. There are other dependent modules, eg toaster-provider,  opendaylight-md-sal-binding etc, but they are inferred by the imports in the ''toaster-provider-impl.yang'' file so they don't have to be explicitly specified. Each ''capability'' is a URI of the form:
+The ''required-capabilities'' section lists only the toaster-provider-impl yang module as a dependent capability. There are other dependent modules,  opendaylight-md-sal-binding etc, but they are inferred by the imports in the ''toaster-provider-impl.yang'' file so they don't have to be explicitly specified. Each ''capability'' is a URI of the form:
 
   ''<yang module namespace>''?module=''<yang module name>''&amp;amp;revision=''<yang module revision>''
 
 The "03" prefix in the file name is significant. The files in ''configuration/initial'' are sorted by name thus allowing you control over the order in which they are deployed. While the file name doesn't actually need to be prefixed with a number, doing so allows for easier sorting and is the best practice/convention. You'll notice other files numbered this way. We choose "03" prefix for our toaster so it is higher than the existing internal MD-SAL config files and thus will be deployed last. You basically want to order the config files such that dependencies (as inferred by the ''required-capabilities'') are deployed first. Since the toaster is dependent on MD-SAL (specifically "01-md-sal.xml"), we deploy it last. Technically, the toaster config could actually be deployed first as the config subsystem will retry if a dependency is not yet present but it is more efficient on startup to explicitly define the ordering. 
 
-On startup, the XML files in the ''configuration/initial'' directory are loaded by the '''ConfigPersisterActivator'''. A '''ConfigPusher''' instance is instantiated to push the configs via the NetConf subsystem to the '''ConfigRegistryImpl'''.  When processing the toaster-provider-impl module in the toaster config file, the '''ToasterProviderModuleFactory''' class is located and instantiated and the ''createModule'' method is called to create a '''ToasterProviderModule''' instance. The ''ToasterProviderModule.createInstance'' method is then called to create and wire the '''OpenDaylightToaster'''.
+On startup, the XML files in the ''configuration/initial'' directory are loaded by the '''ConfigPersisterActivator'''. A '''ConfigPusher''' instance is instantiated to push the configs via the NetConf subsystem to the '''ConfigRegistryImpl'''.  When processing the toaster-provider-impl module in the toaster config file, the '''ToasterProviderImplModuleFactory''' class is located and instantiated and the ''createModule'' method is called to create a '''ToasterProviderImplModule''' instance. The ''ToasterProviderImplModule.createInstance'' method is then called to create and wire the '''OpenDaylightToaster'''.
 
 For a detailed walk-through on how to make a 'config-subsystem aware' project please visit https://wiki.opendaylight.org/view/OpenDaylight_Controller:Config:Examples:Sample_Project
 
