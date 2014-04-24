@@ -1372,7 +1372,7 @@ Next we add code to the '''OpenDaylightToaster''' to implement the ''restockToas
     ...
     '''private NotificationProviderService notificationProvider;
     ...
-    '''private volatile long amountOfBreadInStock = 100;
+    '''private final AtomicLong amountOfBreadInStock = new AtomicLong( 100 );
     ...
     '''public void setNotificationProvider(NotificationProviderService salService) {
         '''this.notificationProvider = salService;
@@ -1413,7 +1413,7 @@ Next we add code to the '''OpenDaylightToaster''' to implement the ''restockToas
         '''LOG.info( "restockToaster: " + input );
         '''
         '''synchronized( taskLock ) {
-            '''amountOfBreadInStock = input.getAmountOfBreadToStock();
+            '''amountOfBreadInStock.set( input.getAmountOfBreadToStock() );
             '''toastsMade.set( 0 );
             '''
             '''ToasterRestocked reStockedNotification =
@@ -1426,7 +1426,7 @@ Next we add code to the '''OpenDaylightToaster''' to implement the ''restockToas
     ...
     '''private boolean checkIfOutOfBread()
     '''{
-        '''if( toastsMade.get() == amountOfBreadInStock ) {
+        '''if( amountOfBreadInStock.get() == 0 ) {
             '''LOG.info( "Toaster is out of bread!" );
             '''
             '''notificationProvider.publish( new ToasterOutOfBreadBuilder().build() );
@@ -1442,6 +1442,8 @@ Next we add code to the '''OpenDaylightToaster''' to implement the ''restockToas
         public RpcResult<Void> call() throws InterruptedException {
             ...
             toastsMade.incrementAndGet();
+
+            '''amountOfBreadInStock.getAndDecrement();
             '''checkIfOutOfBread();
             <br>
             // mark the toaster as "available" for more toasting.
