@@ -956,18 +956,40 @@ The last step is to modify the MakeToastTask call method to use our new darkness
     }
 </code>
 
-We have successfully implemented the DataChangeListener interface. The final step is to register our listener with the databroker service in order to actually get routed the notifications. In our example we perform this registration inside of our listener, in a real situation you would likely want to separate this logic out. In the OpendaylightToaster class, modify the setDataProvider 
+We have successfully implemented the DataChangeListener interface. The final step is to register our listener with the databroker service in order to actually get routed the notifications. We will perform this registration in the ToasterProviderImplModule:
 <code>
    ...
-   public void setDataProvider(DataBrokerService salDataProvider) {
-        this.dataBrokerService = salDataProvider;
-        '''dataBrokerService.registerDataChangeListener( TOASTER_IID, this );'''
-        updateStatus();
+   @Override
+    public java.lang.AutoCloseable createInstance() {
+        final OpendaylightToaster opendaylightToaster = new OpendaylightToaster();
+         
+        '''DataProviderService dataBrokerService = getDataBrokerDependency();
+       ''' opendaylightToaster.setDataProvider(dataBrokerService);
+        
+        '''final ListenerRegistration<DataChangeListener> dataChangeListenerRegistration = 
+        '''        dataBrokerService.registerDataChangeListener( OpendaylightToaster.TOASTER_IID, opendaylightToaster );
+        
+        // Register our OpendaylightToaster instance as the RPC implementation for the ToasterService.
+        final BindingAwareBroker.RpcRegistration<ToasterService> rpcRegistration = getRpcRegistryDependency()
+                .addRpcImplementation(ToasterService.class, opendaylightToaster);
+        
+        // Wrap toaster as AutoCloseable and close registrations to md-sal at
+        // close()
+        final class AutoCloseableToaster implements AutoCloseable {
+     
+            @Override
+            public void close() throws Exception {
+                '''dataChangeListenerRegistration.close(); //closes the listener registrations (removes it)
+                opendaylightToaster.close(); //allow closing of thread pools
+                rpcRegistration.close(); //unregisters this implementation.
+            }
+        }
+    
+        return new AutoCloseableToaster();
     }
     ...
 </code>
-At this point we can rebuild our source code and deploy our updated jar.
-<br>'''QUESTION: How does one unregister a listener if the bundle is stopped?'''
+We have now registered our toaster as a listener for changes to the toaster node and any node below it. Every MD-SAL registration method should return a registration object which implements AutoCloseable. This auto closeables should be closed when the bundle is shutting down to unregister listeners  / dependencies etc.
 
 == Changing the Darkness Factor ==
 To change the darkness factor we will use a REST call to the restconf service provided by MD-SAL.  Once your controller is started, perform the following PUT:
