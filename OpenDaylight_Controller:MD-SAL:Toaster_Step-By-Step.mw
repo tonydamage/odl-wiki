@@ -580,157 +580,147 @@ Running 'mvn clean install', we see the following additional classes generated:
 ===Implement the RPC methods===
 
 We've defined the data model interface for the RPC calls - now we must provide the implementation. We are going to modify our '''OpendaylightToaster''' class to implement the new '''ToasterService''' interface that was just generated. The entire code is shown for simplicity:
-<pre>
-public class OpendaylightToaster implements ToasterData, ToasterService, AutoCloseable {
-
-    private static final Logger LOG = LoggerFactory.getLogger(OpendaylightToaster.class);
-
-    private static final InstanceIdentifier<Toaster> TOASTER_IID = InstanceIdentifier.builder(Toaster.class).build();
-
-    private static final DisplayString TOASTER_MANUFACTURER = new DisplayString("Opendaylight");
-    private static final DisplayString TOASTER_MODEL_NUMBER = new DisplayString("Model 1 - Binding Aware");
-
-    private DataBrokerService dataProvider;
-
-    private final ExecutorService executor;
-
-    // As you will see we are using multiple threads here. Therefore we need to be careful about concurrency.
-    // In this case we use the taskLock to provide synchronization for the current task.
-    private volatile Future<RpcResult<Void>> currentTask;
-    private final Object taskLock = new Object();
-
-    public OpendaylightToaster() {
-        executor = Executors.newFixedThreadPool(1);
-    }
-
-    public void setNotificationProvider(NotificationProviderService salService) {
-        this.notificationProvider = salService;
-    }
-
-    public void setDataProvider(DataBrokerService salDataProvider) {
-        this.dataProvider = salDataProvider;
-        updateStatus();
-    }
-
-    /**
-     * Implemented from the AutoCloseable interface.
-     */
-    @Override
-    public void close() throws ExecutionException, InterruptedException {
-        // When we close this service we need to shutdown our executor!
-        executor.shutdown();
-
-        if (dataProvider != null) {
-            final DataModificationTransaction t = dataProvider.beginTransaction();
-            t.removeOperationalData(TOASTER_IID);
-            t.commit().get();
-        }
-    }
-
-    /**
-     * Implemented from the ToasterData interface.
-     */
-    @Override
-    public Toaster getToaster() {
-        boolean isUp = currentTask == null;
-
-        // note - we are simulating a device whose manufacture and model are
-        // fixed (embedded) into the hardware.
-        // This is why the manufacture and model number are hardcoded.
-        ToasterBuilder tb = new ToasterBuilder();
-        tb.setToasterManufacturer(TOASTER_MANUFACTURER).setToasterModelNumber(TOASTER_MODEL_NUMBER)
-                .setToasterStatus(isUp ? ToasterStatus.Up : ToasterStatus.Down);
-        return tb.build();
-    }
-
-    /**
-     * RestConf RPC call implemented from the ToasterService interface.
-     */
-    @Override
-    public Future<RpcResult<Void>> cancelToast() {
-        synchronized (taskLock) {
-            if (currentTask != null) {
-                currentTask.cancel(true);
-                currentTask = null;
-            }
-        }
-        // Always return success from the cancel toast call.
-        return Futures.immediateFuture(Rpcs.<Void> getRpcResult(true, Collections.<RpcError> emptySet()));
-    }
-
-    /**
-     * RestConf RPC call implemented from the ToasterService interface.
-     */
-    @Override
-    public Future<RpcResult<Void>> makeToast(MakeToastInput input) {
-        LOG.info("makeToast: " + input);
-
-        synchronized (taskLock) {
-            if (currentTask != null) {
-                // return an error since we are already toasting some toast.
-                LOG.info( "Toaster is already making toast" );
-
-                RpcResult<Void> result = Rpcs.<Void> getRpcResult(false, null, Arrays.asList(
-                        RpcErrors.getRpcError( null, null, null, null,
-                                               "Toaster is busy", null, null ) ) );
-                return Futures.immediateFuture(result);
-            }
-            else {
-                // Notice that we are moving the actual call to another thread,
-                // allowing this thread to return immediately.
-                // The MD-SAL design encourages asynchronus programming. If the
-                // caller needs to block until the call is
-                // complete then they can leverage the blocking methods on the
-                // Future interface.
-                currentTask = executor.submit(new MakeToastTask(input));
-            }
-        }
-
-        updateStatus();
-        return currentTask;
-    }
-
-    private void updateStatus() {
-        if (dataProvider != null) {
-            final DataModificationTransaction t = dataProvider.beginTransaction();
-            t.removeOperationalData(TOASTER_IID);
-            t.putOperationalData(TOASTER_IID, getToaster());
-
-            try {
-                t.commit().get();
-            } catch (InterruptedException | ExecutionException e) {
-                LOG.warn("Failed to update toaster status, operational otherwise", e);
-            }
-        } else {
-            LOG.trace("No data provider configured, not updating status");
-        }
-    }
-
-    private class MakeToastTask implements Callable<RpcResult<Void>> {
-
-        final MakeToastInput toastRequest;
-
-        public MakeToastTask(MakeToastInput toast) {
-            toastRequest = toast;
-        }
-
-        @Override
-        public RpcResult<Void> call() throws InterruptedException {
-            // make toast just sleeps for 1 second per doneness level.
-            Thread.sleep(1000 * toastRequest.getToasterDoneness());
-
-            LOG.debug("Toast done");
-
-            // mark the toaster is "available" for more toasting.
-            currentTask = null;
-
-            updateStatus();
-
-            return Rpcs.<Void> getRpcResult(true, null, Collections.<RpcError> emptySet());
-        }
-    }
-}
-</pre>
+<code>
+ public class OpendaylightToaster '''implements ToasterService, AutoCloseable''' {
+  
+   //making this public because this unique ID is required later on in other classes.
+   public static final InstanceIdentifier<Toaster>  TOASTER_IID = InstanceIdentifier.builder(Toaster.class).build();
+   private static final Logger LOG = LoggerFactory.getLogger(OpendaylightToaster.class);
+      
+   private static final DisplayString TOASTER_MANUFACTURER = new DisplayString("Opendaylight");
+   private static final DisplayString TOASTER_MODEL_NUMBER = new DisplayString("Model 1 - Binding Aware");
+    
+   '''private DataBrokerService dataProvider;
+  
+   '''private final ExecutorService executor;
+   
+   '''// As you will see we are using multiple threads here. Therefore we need to be careful about concurrency.
+   '''// In this case we use the taskLock to provide synchronization for the current task.
+   '''private volatile Future<RpcResult<Void>> currentTask;
+   '''private final Object taskLock = new Object();
+   
+   public OpendaylightToaster() {
+   '''    executor = Executors.newFixedThreadPool(1);
+   }
+    
+   '''/**
+    '''* Implemented from the AutoCloseable interface.
+    '''*/
+   '''@Override
+   '''public void close() throws ExecutionException, InterruptedException {
+   '''    // When we close this service we need to shutdown our executor!
+   '''    executor.shutdown();
+   '''
+   '''    if (dataProvider != null) {
+   '''        final DataModificationTransaction t = dataProvider.beginTransaction();
+   '''        t.removeOperationalData(TOASTER_IID);
+   '''        t.commit().get();
+   '''    }
+   '''}
+   
+   /**
+    * Implemented from the ToasterData interface.
+    */
+   private Toaster buildToaster() {
+     '''  boolean isUp = currentTask == null;
+    
+       // note - we are simulating a device whose manufacture and model are
+       // fixed (embedded) into the hardware.
+       // This is why the manufacture and model number are hardcoded.
+       ToasterBuilder tb = new ToasterBuilder();
+       tb.setToasterManufacturer(TOASTER_MANUFACTURER).setToasterModelNumber(TOASTER_MODEL_NUMBER)
+       '''        .setToasterStatus(isUp ? ToasterStatus.Up : ToasterStatus.Down);
+       return tb.build();
+   }
+   
+   '''/**
+   ''' * RestConf RPC call implemented from the ToasterService interface.
+   ''' */
+   '''@Override
+   '''public Future<RpcResult<Void>> cancelToast() {
+   '''    synchronized (taskLock) {
+   '''        if (currentTask != null) {
+   '''            currentTask.cancel(true);
+   '''            currentTask = null;
+   '''        }
+   '''    }
+   '''    // Always return success from the cancel toast call.
+   '''    return Futures.immediateFuture(Rpcs.<Void> getRpcResult(true, Collections.<RpcError> emptySet()));
+   '''}
+   
+   '''/**
+   ''' * RestConf RPC call implemented from the ToasterService interface.
+   ''' */
+   '''@Override
+   '''public Future<RpcResult<Void>> makeToast(MakeToastInput input) {
+   '''    LOG.info("makeToast: " + input);
+  
+   '''    synchronized (taskLock) {
+   '''        if (currentTask != null) {
+   '''            // return an error since we are already toasting some toast.
+   '''            LOG.info( "Toaster is already making toast" );
+   
+   '''            RpcResult<Void> result = Rpcs.<Void> getRpcResult(false, null, Arrays.asList(
+   '''                    RpcErrors.getRpcError( null, null, null, null,
+   '''                                           "Toaster is busy", null, null ) ) );
+   '''            return Futures.immediateFuture(result);
+   '''        }
+   '''        else {
+   '''            // Notice that we are moving the actual call to another thread,
+   '''            // allowing this thread to return immediately.
+   '''            // The MD-SAL design encourages asynchronus programming. If the
+   '''            // caller needs to block until the call is
+   '''            // complete then they can leverage the blocking methods on the
+   '''            // Future interface.
+   '''            currentTask = executor.submit(new MakeToastTask(input));
+   '''        }
+   '''    }
+  
+   '''    updateStatus();
+   '''    return currentTask;
+   '''}
+   
+   private void updateStatus() {
+       if (dataProvider != null) {
+           final DataModificationTransaction t = dataProvider.beginTransaction();
+           t.removeOperationalData(TOASTER_IID);
+           t.putOperationalData(TOASTER_IID, buildToaster());
+   
+           try {
+               t.commit().get();
+           } catch (InterruptedException | ExecutionException e) {
+               LOG.warn("Failed to update toaster status, operational otherwise", e);
+           }
+       } else {
+           LOG.trace("No data provider configured, not updating status");
+       }
+   }
+  
+   '''private class MakeToastTask implements Callable<RpcResult<Void>> {
+  
+  '''     final MakeToastInput toastRequest;
+ 
+ '''      public MakeToastTask(MakeToastInput toast) {
+ '''          toastRequest = toast;
+ '''      }
+  
+ '''      @Override
+  '''     public RpcResult<Void> call() throws InterruptedException {
+  '''         // make toast just sleeps for 1 second per doneness level.
+  '''         Thread.sleep(1000 * toastRequest.getToasterDoneness());
+  
+  '''         LOG.debug("Toast done");
+ 
+  '''         // mark the toaster is "available" for more toasting.
+  '''         currentTask = null;
+  
+  '''         updateStatus();
+  
+  '''         return Rpcs.<Void> getRpcResult(true, null, Collections.<RpcError> emptySet());
+  '''     }
+  ''' }  
+ }
+</code>
 In the above code you can see that we have implemented the ''makeToast'' and ''cancelToast'' methods, in addition to the ''close'' method from the AutoCloseable interface to ensure that we properly clean up our embedded threadpool. Refer to inline comments for more details on what is happening.
 
 === Register OpendaylightToaster with the RPC service ===
