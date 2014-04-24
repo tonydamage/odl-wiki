@@ -709,29 +709,34 @@ We've defined the data model interface for the RPC calls - now we must provide t
        }
    }
   
-   '''private class MakeToastTask implements Callable<RpcResult<Void>> {
+     '''private class MakeToastTask implements Callable<RpcResult<Void>> {
   
-  '''     final MakeToastInput toastRequest;
- 
- '''      public MakeToastTask(MakeToastInput toast) {
- '''          toastRequest = toast;
- '''      }
+  '''      final MakeToastInput toastRequest;
   
- '''      @Override
-  '''     public RpcResult<Void> call() throws InterruptedException {
-  '''         // make toast just sleeps for 1 second per doneness level.
-  '''         Thread.sleep(1000 * toastRequest.getToasterDoneness());
+  '''      public MakeToastTask(MakeToastInput toast) {
+  '''          toastRequest = toast;
+  '''      }
   
-  '''         LOG.debug("Toast done");
- 
-  '''         // mark the toaster is "available" for more toasting.
-  '''         currentTask = null;
+  '''      @Override
+  '''      public RpcResult<Void> call() throws InterruptedException {
+  '''          // make toast just sleeps for 1 second per doneness level.
+  '''          try
+  '''          {
+  '''              Thread.sleep(1000 * toastRequest.getToasterDoneness());
+  '''          }
+  '''          //TODO: Consider catch interruptedException and returning valid error case.
+  '''          finally
+  '''          {
+  '''              synchronized (taskLock) {
+  '''                  currentTask = null;
+  '''                  updateStatus();
+  '''              }
+  '''          }
+  '''          LOG.debug("Toast done");        
   
-  '''         updateStatus();
-  
-  '''         return Rpcs.<Void> getRpcResult(true, null, Collections.<RpcError> emptySet());
-  '''     }
-  ''' }  
+  '''          return Rpcs.<Void> getRpcResult(true, null, Collections.<RpcError> emptySet());
+  '''      }
+  '''  }  
  }
 </code>
 In the above code you can see that we have implemented the ''makeToast'' and ''cancelToast'' methods, in addition to the ''close'' method from the AutoCloseable interface to ensure that we properly clean up our embedded threadpool. Refer to inline comments for more details on what is happening.
