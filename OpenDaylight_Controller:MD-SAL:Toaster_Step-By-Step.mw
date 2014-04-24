@@ -218,7 +218,7 @@ Now you will see java class files generated under ''src/main/yang-gen-sal''.  Cl
 
 ==Implement the operational Toaster provider (OpendaylightToaster)==
 
-We've defined the data model for the toaster, now we need an implementation to provide the operational data. We'll create a class '''OpendaylightToaster'''. The final version of this class can be found in the ''sample-toaster-provider'' project under the ''src/main/java'' source folder. The reason this class is created in a separate project is it allows the API and implemention to be provided by different bundles, this allowing different bundles to define different implementations to the same interface. There is however nothing stopping us from putting everything into the same bundle if the implementation is proprietary. This class should implement the auto-generated '''ToasterData''' interface. '''QUESTION: Can we remove this fact given what we have learned? Doesn't seem like it is necessary to implement this interface.'''
+We've defined the data model for the toaster, now we need an implementation to provide the operational data. We'll create a class '''OpendaylightToaster'''. The final version of this class can be found in the ''sample-toaster-provider'' project under the ''src/main/java'' source folder. The reason this class is created in a separate project is it allows the API and implemention to be provided by different bundles, this allowing different bundles to define different implementations to the same interface. There is however nothing stopping us from putting everything into the same bundle if the implementation is proprietary.
 
 <code>
  package org.opendaylight.toaster;
@@ -235,12 +235,12 @@ We've defined the data model for the toaster, now we need an implementation to p
  import org.slf4j.Logger;
  import org.slf4j.LoggerFactory;
     
- public class OpendaylightToaster implements ToasterData{
+ public class OpendaylightToaster {
    
+    //making this public because this unique ID is required later on in other classes.
+    public static final InstanceIdentifier<Toaster>  TOASTER_IID = InstanceIdentifier.builder(Toaster.class).build();
     private static final Logger LOG = LoggerFactory.getLogger(OpendaylightToaster.class);
-   
-    private static final InstanceIdentifier<Toaster>  TOASTER_IID = InstanceIdentifier.builder(Toaster.class).build();
-     
+       
     private static final DisplayString TOASTER_MANUFACTURER = new DisplayString("Opendaylight");
     private static final DisplayString TOASTER_MODEL_NUMBER = new DisplayString("Model 1 - Binding Aware");
      
@@ -249,8 +249,7 @@ We've defined the data model for the toaster, now we need an implementation to p
     public OpendaylightToaster() {
     }
      
-    @Override
-    public Toaster getToaster() {
+    private Toaster buildToaster() {
         //note - we are simulating a device whose manufacture and model are fixed (embedded) into the hardware.
         //This is why the manufacture and model number are hardcoded.
         ToasterBuilder tb = new ToasterBuilder();
@@ -269,7 +268,7 @@ We've defined the data model for the toaster, now we need an implementation to p
         if (dataBrokerService != null) {
             final DataModificationTransaction t = dataBrokerService.beginTransaction();
             t.removeOperationalData(TOASTER_IID);
-            t.putOperationalData(TOASTER_IID, getToaster()); 
+            t.putOperationalData(TOASTER_IID, buildToaster()); 
             try {
                 t.commit().get();
             } catch (InterruptedException | ExecutionException e) {
