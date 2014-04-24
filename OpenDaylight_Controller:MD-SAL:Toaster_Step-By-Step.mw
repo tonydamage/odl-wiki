@@ -1388,7 +1388,7 @@ Next we add code to the '''OpenDaylightToaster''' to implement the ''restockToas
             if (currentTask != null) {
                 ...
             }
-            '''else if( checkIfOutOfBread() ) {
+            '''else if( outOfBread() ) {
                 '''RpcResult<Void> result = Rpcs.<Void> getRpcResult(false, null, Arrays.asList(
                         '''RpcErrors.getRpcError( null, null, null, null,
                                                '''"Toaster is out of bread", null, null ) ) );
@@ -1415,9 +1415,11 @@ Next we add code to the '''OpenDaylightToaster''' to implement the ''restockToas
             '''amountOfBreadInStock.set( input.getAmountOfBreadToStock() );
             '''toastsMade.set( 0 );
             '''
-            '''ToasterRestocked reStockedNotification =
-                '''new ToasterRestockedBuilder().setAmountOfBread( input.getAmountOfBreadToStock() ).build();
-            '''notificationProvider.publish( reStockedNotification );
+            '''if( amountOfBreadInStock.get() > 0 ) {
+                '''ToasterRestocked reStockedNotification =
+                    '''new ToasterRestockedBuilder().setAmountOfBread( input.getAmountOfBreadToStock() ).build();
+                '''notificationProvider.publish( reStockedNotification );
+            '''}
         '''}
         '''
         '''return Futures.immediateFuture(Rpcs.<Void> getRpcResult(true, Collections.<RpcError> emptySet()));
@@ -1425,14 +1427,7 @@ Next we add code to the '''OpenDaylightToaster''' to implement the ''restockToas
     ...
     '''private boolean checkIfOutOfBread()
     '''{
-        '''if( amountOfBreadInStock.get() == 0 ) {
-            '''LOG.info( "Toaster is out of bread!" );
-            '''
-            '''notificationProvider.publish( new ToasterOutOfBreadBuilder().build() );
-            '''return true;
-        '''}
-        '''
-        '''return false;
+        '''return amountOfBreadInStock.get() == 0;
     '''}
     <br>
     private class MakeToastTask implements Callable<RpcResult<Void>> {
@@ -1443,7 +1438,11 @@ Next we add code to the '''OpenDaylightToaster''' to implement the ''restockToas
             toastsMade.incrementAndGet();
             <br>
             '''amountOfBreadInStock.getAndDecrement();
-            '''checkIfOutOfBread();
+            '''if( outOfBread() ) {
+                '''LOG.info( "Toaster is out of bread!" );
+                '''
+                '''notificationProvider.publish( new ToasterOutOfBreadBuilder().build() );
+            '''}
             <br>
             // mark the toaster as "available" for more toasting.
             currentTask = null;
