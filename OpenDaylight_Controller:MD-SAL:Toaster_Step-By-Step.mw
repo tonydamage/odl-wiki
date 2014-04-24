@@ -1553,3 +1553,54 @@ Next we modify the '''KitchenServiceImpl''' to implement the '''ToasterListener'
 </code>
 
 The ''onToasterOutOfBread'' and ''onToasterRestocked'' notification methods simply set and clear the ''toasterOutOfBread''. When called to make breakfast, if ''toasterOutOfBread'', we can't make toast but attempt to make the eggs so someone can at least get something for breakfast.
+
+==Wire the KitchenServiceImpl for notifications==
+
+The '''KitchenServiceImpl''' needs to be registered with the MD-SAL's '''NotificationProviderService''' in order to receive notifications. We need to specify the ''notification-service'' as a dependency in the kitchen-service-impl module by adding an entry to the config:configuration augmentation:
+<code>
+    augment "/config:modules/config:module/config:configuration" {
+        case kitchen-service-impl {
+            when "/config:modules/config:module/config:type = 'kitchen-service-impl'";
+            ...
+            <br>
+            '''container notification-service {
+                '''uses config:service-ref {
+                    '''refine type {
+                        '''mandatory true;
+                        '''config:required-identity mdsal:binding-notification-service;
+                    '''}
+                '''}
+            '''}
+        }
+    }
+</code>
+
+Run 'mvn clean install' to generate the source.
+
+The generated '''AbstractKitchenServiceModule''' class should now have a ''getNotificationServiceDependency()'' method. We can access that method in the ''KitchenServiceModule.createInstance()'' method to inject the '''NotificationProviderService''' into the '''KitchenServiceImpl'''.
+
+<code>
+    public java.lang.AutoCloseable createInstance() {
+        ToasterService toasterService = getRpcRegistryDependency().getRpcService(ToasterService.class);
+
+        final KitchenServiceImpl kitchenService = new KitchenServiceImpl(toasterService);
+
+        '''final Registration<NotificationListener> toasterListenerReg =
+                '''getNotificationServiceDependency().registerNotificationListener( kitchenService );
+
+        final KitchenServiceRuntimeRegistration runtimeReg =
+                getRootRuntimeBeanRegistratorWrapper().register( kitchenService );
+
+        final class AutoCloseableKitchenService implements AutoCloseable, KitchenService {
+            @Override
+            public void close() throws Exception {
+                '''toasterListenerReg.close();
+                runtimeReg.close();
+                log.info("Toaster consumer (instance {}) torn down.", this);
+            }
+            ...
+        }
+        ...
+    }
+
+</code>
