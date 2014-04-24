@@ -1361,9 +1361,92 @@ After running 'mvn clean install', several new classes will be generated:
 *'''ToasterRestockedBuilder''' - a concrete class for creating '''ToasterRestocked''' instances.
 *'''ToasterOutOfBread''' - interface for consumers of the toaster notifications to implement that defines receipt methods for each notification type.
 
-<pre>
-private volatile long amountOfBreadInStock = 100;
-</pre>
+==Implement notifications and RPC in OpenDaylightToaster==
+
+Next we add code to the '''OpenDaylightToaster''' to implement the ''restockToaster''' RPC and to send the notifications.
+
+<code>
+ public class OpendaylightToaster implements ToasterData, ToasterService, ToasterProviderRuntimeMXBean, AutoCloseable {
+    ...
+    '''private volatile long amountOfBreadInStock = 100;
+    ...
+    /**
+     * RestConf RPC call implemented from the ToasterService interface.
+     */
+    @Override
+    public Future<RpcResult<Void>> makeToast(MakeToastInput input) {
+        ...
+        synchronized (taskLock) {
+            if (currentTask != null) {
+                ...
+            }
+            '''else if( checkIfOutOfBread() ) {
+                '''RpcResult<Void> result = Rpcs.<Void> getRpcResult(false, null, Arrays.asList(
+                        '''RpcErrors.getRpcError( null, null, null, null,
+                                               '''"Toaster is out of bread", null, null ) ) );
+                '''return Futures.immediateFuture(result);
+            '''}
+            else {
+                ...
+            }
+        }
+        <br>
+        updateStatus();
+        return currentTask;
+    }
+    <br>
+    '''/**
+     '''* RestConf RPC call implemented from the ToasterService interface.
+     '''* Restocks the bread for the toaster, resets the toastsMade counter to 0, and sends a
+     '''* ToasterRestocked notification.
+     '''*/
+    '''@Override
+    '''public Future<RpcResult<java.lang.Void>> restockToaster(RestockToasterInput input) {
+        '''LOG.info( "restockToaster: " + input );
+        '''
+        '''synchronized( taskLock ) {
+            '''amountOfBreadInStock = input.getAmountOfBreadToStock();
+            '''toastsMade.set( 0 );
+            '''
+            '''ToasterRestocked reStockedNotification =
+                '''new ToasterRestockedBuilder().setAmountOfBread( input.getAmountOfBreadToStock() ).build();
+            '''notificationProvider.publish( reStockedNotification );
+        '''}
+        '''
+        '''return Futures.immediateFuture(Rpcs.<Void> getRpcResult(true, Collections.<RpcError> emptySet()));
+    '''}
+    ...
+    '''private boolean checkIfOutOfBread()
+    '''{
+        '''if( toastsMade.get() == amountOfBreadInStock ) {
+            '''LOG.info( "Toaster is out of bread!" );
+            '''
+            '''notificationProvider.publish( new ToasterOutOfBreadBuilder().build() );
+            '''return true;
+        '''}
+        '''
+        '''return false;
+    '''}
+    <br>
+    private class MakeToastTask implements Callable<RpcResult<Void>> {
+        ...
+        @Override
+        public RpcResult<Void> call() throws InterruptedException {
+            ...
+            toastsMade.incrementAndGet();
+            '''checkIfOutOfBread();
+            <br>
+            // mark the toaster as "available" for more toasting.
+            currentTask = null;
+            updateStatus();
+            <br>
+            return Rpcs.<Void> getRpcResult(true, null, Collections.<RpcError> emptySet());
+        }
+    }
+}
+</code>
+
+
 
 to provide a notification when it's done, or is cancelled, or encountered an error. This can be consumed by an implementation of the '''ToasterListener''' interface or by an external netconf client.
 
