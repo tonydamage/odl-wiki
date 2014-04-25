@@ -1289,10 +1289,15 @@ After running 'mvn clean install', several source files will be generated simila
 
         final KitchenServiceImpl kitchenService = new KitchenServiceImpl(toasterService);
 
-        final class AutoCloseableKitchenService implements AutoCloseable {
+        final class AutoCloseableKitchenService implements KitchenService, AutoCloseable {
 
             @Override
             public void close() throws Exception {
+            }
+
+            @Override
+            public boolean makeBreakfast( EggsType eggs, Class<? extends ToastType> toast, int toastDoneness ) {
+                return kitchenService.makeBreakfast( eggs, toast, toastDoneness );
             }
         }
 
@@ -1300,6 +1305,8 @@ After running 'mvn clean install', several source files will be generated simila
         return ret;
     }
 </pre>
+
+Since we specified the provided service for the kitchen service implementation module in ''kitchen-service-impl.yang'', we must return an '''AutoCloseable''' instance that also implements the '''KitchenService''' interface. Otherwise this would result in a failure in the config subsystem.
 
 === Define initial configuration ===
 Finally, add the kitchen service and module definitions to the initial configuration xml created earlier:
