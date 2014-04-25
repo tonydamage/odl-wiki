@@ -862,11 +862,11 @@ To see the updated toaster status, invoke the ''make-toast'' call (with a donene
 
 = Part 3: Add some configuration data =
 
-In part 3 we will explore defining and enabling configuration attributes (as opposed to operational attributes) in our yang toaster file. In this section we are going to define a new configuration attribute on the toaster which will allow the user to modify number of seconds each level of doneness will take. More importantly, we will illustrate how our OpendaylightToaster can register for changes in that configuration data as well as how the user can set, update and delete that information.
+In part 3 we will explore defining and enabling configuration attributes (as opposed to operational attributes) in our yang toaster file. In this section we are going to define a new configuration attribute on the toaster which will allow the user to modify number of seconds each level of doneness will take. More importantly, we will illustrate how our '''OpendaylightToaster''' can register for changes in that configuration data as well as how the user can set, update and delete that information.
 
 == Add the configuration attribute to toaster.yang ==
 
-The first step to this process is to add our new attribute to the toaster.yang file. To do this, add the below text into the "toaster" container in our yang file, along side the other leaf nodes:
+The first step is to add a new attribute, '''darknessFactor''', to the ''toaster''container in the ''toaster.yang'' file.
 
 <code>
   container toaster {
@@ -884,11 +884,11 @@ The first step to this process is to add our new attribute to the toaster.yang f
  }
 </code>
 
-Now run 'mvn clean install' to generate an updated Toaster.java interface.
+Now run 'mvn clean install' to generate the updated '''Toaster''' interface.
 
 == Listening for Changes ==
 
-In order for our OpendaylightToaster to get notified when the configuration data changes we need to implement the DataChangeListener interface.
+In order for our '''OpendaylightToaster''' to get notified when the configuration data changes we need to implement the '''DataChangeListener''' interface.
 :''Note: There are multiple DataChangeListener interfaces. We must implement the <code>org.opendaylight.controller.sal.binding.api.data.DataChangeListener;</code> interface.''
 <code>
    ...
@@ -904,11 +904,11 @@ In order for our OpendaylightToaster to get notified when the configuration data
    }
 </code>
 
-The DataChangeListener interface has a single method, onDataChanged, which asses a change event. The change event can contain changes for multiple nodes (in the case of a list), but in our case we only have a single node that we are looking for. The next step is to extract from the change event, the updated data. Do this by providing the following implementation for the onDataChanged() method.
+The '''DataChangeListener''' interface has a single method, ''onDataChanged'', which passes a change event. The change event can contain changes for multiple nodes (in the case of a list), but in our case we only have a single node that we are looking for. The next step is to extract from the change event, the updated data. Do this by providing the following implementation for the ''onDataChanged'' method.
 
 <code>
    ...
-   //Thread safe holder for our darkness multiplier.
+   '''//Thread safe holder for our darkness multiplier.
    '''private AtomicLong darknessFactor = new AtomicLong( 1000 );
    ...
    @Override
@@ -926,7 +926,7 @@ The DataChangeListener interface has a single method, onDataChanged, which asses
     }
     ...
 </code>
-The last step is to modify the MakeToastTask call method to use our new darkness factor instead of a hardcoded value.
+The last step is to modify the '''MakeToastTask''' call method to use our new darkness factor instead of a hard-coded value.
 <code>
   private class MakeToastTask implements Callable<RpcResult<Void>> {
         ...
@@ -939,42 +939,29 @@ The last step is to modify the MakeToastTask call method to use our new darkness
               ''' long darknessFactor = OpendaylightToaster.this.darknessFactor.get();
              '''  Thread.sleep(darknessFactor * toastRequest.getToasterDoneness());
            }
-           //TODO: Consider catch interruptedException and returning valid error case.
-           finally
-           {
-               synchronized (taskLock) {
-                   currentTask = null;
-                   updateStatus();
-               }
+           catch( InterruptedException e ) {
+               ...
            }
-           LOG.debug("Toast done");        
-   
+           ...
            return Rpcs.<Void> getRpcResult(true, null, Collections.<RpcError> emptySet());
        }
     }
 </code>
 
-We have successfully implemented the DataChangeListener interface. The final step is to register our listener with the databroker service in order to actually get routed the notifications. We will perform this registration in the ToasterProviderModule:
+The final step is to register our listener with the '''DataProviderService''' service in order to receive the notifications. We will perform this registration in ''ToasterProviderModule.createInstance()'':
 <code>
-   ...
    @Override
     public java.lang.AutoCloseable createInstance() {
         final OpendaylightToaster opendaylightToaster = new OpendaylightToaster();
          
         '''DataProviderService dataBrokerService = getDataBrokerDependency();
-       ''' opendaylightToaster.setDataProvider(dataBrokerService);
+        '''opendaylightToaster.setDataProvider(dataBrokerService);
         
         '''final ListenerRegistration<DataChangeListener> dataChangeListenerRegistration = 
         '''        dataBrokerService.registerDataChangeListener( OpendaylightToaster.TOASTER_IID, opendaylightToaster );
-        
-        // Register our OpendaylightToaster instance as the RPC implementation for the ToasterService.
-        final BindingAwareBroker.RpcRegistration<ToasterService> rpcRegistration = getRpcRegistryDependency()
-                .addRpcImplementation(ToasterService.class, opendaylightToaster);
-        
-        // Wrap toaster as AutoCloseable and close registrations to md-sal at
-        // close()
-        final class AutoCloseableToaster implements AutoCloseable {
-     
+        <br>
+        ...
+        final class AutoCloseableToaster implements AutoCloseable {     
             @Override
             public void close() throws Exception {
                 '''dataChangeListenerRegistration.close(); //closes the listener registrations (removes it)
@@ -982,12 +969,11 @@ We have successfully implemented the DataChangeListener interface. The final ste
                 rpcRegistration.close(); //unregisters this implementation.
             }
         }
-    
-        return new AutoCloseableToaster();
+        ...
     }
-    ...
+    
 </code>
-We have now registered our toaster as a listener for changes to the toaster node and any node below it. Every MD-SAL registration method should return a registration object which implements AutoCloseable. This auto closeables should be closed when the bundle is shutting down to unregister listeners  / dependencies etc.
+We have now registered our toaster as a listener for changes to the toaster node and any node below it.
 
 == Changing the Darkness Factor ==
 To change the darkness factor we will use a REST call to the restconf service provided by MD-SAL.  Once your controller is started, perform the following PUT:
@@ -1005,7 +991,7 @@ To change the darkness factor we will use a REST call to the restconf service pr
 </pre>
 You should receive a return code of 200. If you perform a GET to the same URL, your should see the update darkness factor returned. At this point, if you perform the make-toast RPC call you should see the delay reflect the value of the darknessFactor * the doneness.
 
-'''NOTE: This is a known bug in restconf which allows your to PUT to attributes which we are NOT marked as configuration attributes inside the yang datamodel. In our example this is toasterManufacture, toasterModel, and toasterStatus. It is discouaged for developers to depend on this ability as it will be removed in the near future. Only attributes marked as <code>config: true</code> in the yang data model should be modified via restconf put/post/delete.
+'''NOTE: This is a known bug in restconf which allows you to PUT to attributes which we are NOT marked as configuration attributes (ie operational) in the yang data model, ie toasterManufacture, toasterModel, and toasterStatus. It is discouraged for developers to depend on this ability as it will be removed in the near future. Only attributes marked as <code>config: true</code> in the yang data model should be modified or accessed via ''/restconf/config'' get/put/post/delete.
 
 = Part 4: Add state data to the ToasterService implementation (JMX Access) - Count my toast!=
 
