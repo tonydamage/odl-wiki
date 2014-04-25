@@ -433,16 +433,16 @@ We don't need to modify or implement anything in '''ToasterProviderModuleFactory
 
 ==Define the initial XML configuration==
 
-We have now defined the toaster data model (toaster.yang), an "interface" for the toaster provider service (toaster-provider.yang) and an implementation (toaster-provider-impl.yang). At this point, if the bundles were deployed, the configuration of the toaster data model (which we haven't defined any config attributes yet) would be accessible via REST however the operational data and RPC provided by the '''OpenDaylightToaster''' service would not be accessible. What we have done so far is to define the service interface and a "possible" implementation. The last step is to actually tell MD-SAL to "deploy" the implementation, i.e. create an instance of the '''OpenDaylightToaster''' service, resolve its dependencies and advertise it for consumption/use. 
+We have now defined the toaster data model (toaster.yang) and a provider implementation (toaster-provider-impl.yang). At this point, if the bundles were deployed, the configuration of the toaster data model (although we haven't defined any config attributes yet) would be accessible via restconf however the operational data and RPC provided by the '''OpenDaylightToaster''' service would not be accessible. What we have done so far is to define the service implementation. The last step is to actually tell MD-SAL to "deploy" the implementation, i.e. create an instance of the '''OpenDaylightToaster''' service, resolve its dependencies and advertise it for consumption/use. 
 
-To do this, we need to create an xml file that defines the initial configuration for the toaster provider service deployment. The configuration is actually deployed internally using the netconf protocol. The xml is comprised of 2 main sections:  ''configuration'' and ''required-capabilities''.  The ''required-capabilities'' section is needed for the netconf ""hello" message and describes the yang modules that are needed by the services in order for them to function properly. Under the ''data'' section of ''configuration'' is where you define your service(s), implementation(s) and how to configure each implementation. This section is used in the subsequent netconf "edit-config" message.
+To do this, we need to create an xml file that defines the initial configuration of the toaster provider service deployment. The configuration is actually deployed internally using the netconf protocol. The xml is comprised of 2 main sections:  ''configuration'' and ''required-capabilities''.  The ''required-capabilities'' section is needed for the netconf ""hello" message and describes the yang modules that are needed by the services in order for them to function properly. Under the ''data'' section of ''configuration'' is where you define your services, implementation modules and how to configure each implementation. This section is used in the subsequent netconf "edit-config" message.
 
 Create an xml file named "03-toaster-sample.xml" with the following and put it into the ''configuration/initial'' folder of the distribution that you are running (i.e. controller/opendaylight/distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/configuration/initial).
 
 <br>''Note 1: Be sure to save this xml file off. If you rebuild the distribution.opendaylight project, this folder will be deleted, including your file.''
-<br>''Note 2: This file likely already exists out of the box. You can safely delete this file and create an empty file with the limited data below. As we proceed in this tutorial we will rebuild that file in its entirety. Also, the original version of the file is stored in the distribution/opendaylight/src/main/resources/configuration/initial directory just in case.
+<br>''Note 2: If you are performing the steps of this tutorial, you can safely delete the existing file and create an empty file with the limited data below. As we proceed in this tutorial we will rebuild that file in its entirety. Also, the original version of the file is stored in the distribution/opendaylight/src/main/resources/configuration/initial directory just in case.
 
-Replace / edit the 03-toaster-sample.xml file and put in these contents:
+Edit the 03-toaster-sample.xml file and put in the following content:
 
 <pre>
 <snapshot>
@@ -450,7 +450,7 @@ Replace / edit the 03-toaster-sample.xml file and put in these contents:
         <data xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
             <modules xmlns="urn:opendaylight:params:xml:ns:yang:controller:config">
 
-                <!-- defines an implementation -->
+                <!-- defines an implementation module -->
                 <module>
                     <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:config:toaster-provider:impl">
                         prefix:toaster-provider-impl
@@ -477,7 +477,7 @@ Replace / edit the 03-toaster-sample.xml file and put in these contents:
 
 </pre>
 
-The ''modules'' section specifies the toaster-provider-impl module and its dependency configuration as defined in the ''toaster-provider-impl.yang'' file. The data-broker implementation is provided by MD-SAL and is needed for the '''OpenDaylightToaster'''.
+Under the ''modules'' section, we specify the toaster-provider-impl module and its dependency configuration as defined in the ''toaster-provider-impl.yang'' file. The "type" element refers to the toaster-provider-impl module. The "data-broker" element refers to the DataBroker service by name. The actually implementation instance is provided by the MD-SAL at runtime.
 
 The ''required-capabilities'' section lists only the toaster-provider-impl yang module as a dependent capability. There are other dependent modules,  opendaylight-md-sal-binding etc, but they are inferred by the imports in the ''toaster-provider-impl.yang'' file so they don't have to be explicitly specified. Each ''capability'' is a URI of the form:
 
