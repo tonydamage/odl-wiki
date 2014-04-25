@@ -1710,4 +1710,34 @@ Finally we need to add the dependency for the 'notification-service' to the kitc
 
 ==Testing the notifications==
 
-TODO
+We'll first make the toaster run out of bread. The default amount of bread in stock is 100. Rather than taking the time to make 100 toasts, we'll first invoke the '''restock-toaster''' RPC via restconf to lower it to 3.
+<pre>
+HTTP Method => POST
+URL => http://localhost:8080/restconf/operations/toaster:restock-toaster 
+Header => Content-Type: application/yang.data+json  
+Body =>  
+{
+  "input" :
+  {
+     "toaster:amountOfBreadToStock" : "3"
+  }
+}
+</pre>  
+
+Next we'll make 3 breakfast orders to deplete the toaster's stock. 
+*Open JConsole
+*Navigate to the MBeans tab
+*Expand the ''org.opendaylight.controller->RuntimeBean->kitchen-service-impl->kitchen-service-imp->Operations'' node.
+*Click the '''makeScrambledWithWheat''' button 3 times.
+
+After the 3rd breakfast, the toaster will be out of bread and send the ''toasterOutOfBread'' notification to the kitchen service. You should see this message in the controller log/console:
+
+    ...KitchenServiceImpl - ToasterOutOfBread notification
+
+Click the '''makeScrambledWithWheat''' button again - the result should be true and you should see this message in the log:
+
+    ...KitchenServiceImpl - We're out of toast but we can make eggs
+
+Invoke '''restock-toaster''' again - you should see this message in the log:
+
+    ...KitchenServiceImpl - ToasterRestocked notification - amountOfBread: 3
