@@ -998,7 +998,9 @@ For internal statistical purposes and troubleshooting, we'd like to keep track o
 To accomplish this, the MD-SAL provides the ability to define internal state data and RPC calls that are only accessible via JMX. 
 
 ==Define the state data model==
-We'll define '''toasts-made''' as statistical state data on the toaster provider service implementation since that is where '''make-toast''' happens. In addition, we'll define an RPC call, '''clear-toasts-made'''. This is achieved by augmenting the toaster-provider-impl module's '''config:state''' in ''toaster-provider-impl.yang''.
+We'll define '''toasts-made''' as statistical state data on the toaster provider service implementation since that is where '''make-toast''' happens. In addition, we'll define an RPC call, '''clear-toasts-made'''. 
+
+In ''toaster-provider-impl.yang''
 <pre>
     import rpc-context { prefix rpcx; revision-date 2013-06-17; }
     ...
@@ -1029,6 +1031,10 @@ We'll define '''toasts-made''' as statistical state data on the toaster provider
         }
     }
 </pre>
+
+The augmentation of the ''modules/module/state'' hierarchy choice-type node adds schema nodes specific to the toaster-provider-impl module identity type (as indicated by the 'when' clause). This is where we define the state information that the MD-SAL will make available via JMX.
+
+'''toasts-made''' is a simple leaf node. The definition of '''clear-toasts-made''' deserves a little explanation. We define an identity, ''clear-toasts-made-rpc'', for the RPC so it can be referenced.  The ''input'' of the RPC reuses the ''rpc-context-ref'' grouping and inherits the ''context-instance'' leaf node that references the ''clear-toasts-made-rpc'' identity. Similarly, we define a node in the state augments clause that also references the ''clear-toasts-made-rpc'' identity. In this way, we tie the state data node to the RPC. 
 
 Run 'mvn clean install' to generate the source. 3 additional classes are generated under ''src/main/yang-gen-config'':
 *'''ToasterProviderRuntimeMXBean''' - JMX bean interface that defines the ''getToastsMade()'' method to provide access to the '''toasts-made''' attribute and the ''clearToastsMade()'' RPC method.
