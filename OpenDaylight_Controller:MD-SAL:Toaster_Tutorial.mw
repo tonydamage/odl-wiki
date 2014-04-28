@@ -113,26 +113,15 @@ Upon running a build of the ''sample-toaster'' project, the generated SAL APIs a
 == Plugin Context ==
 
 === Toaster Provider ===
-The set of interfaces generated from the Toaster's Yang data model in the previous section are implemented by the ''toaster-provider'' plugin through the '''OpendaylightToaster''' class, the implementation is done manually:
+The set of interfaces generated from the Toaster's Yang data model in the previous section are implemented by the ''toaster-provider'' plugin through the '''OpendaylightToaster''' class, the implementation is done manually. Below we highlight the RPCs and notification being implemented:
+* the OpendaylightToaster class:
 
 <code>
-   ''' public class OpendaylightToaster implements '''ToasterService,''' AutoCloseable {
-   '''  
+   ''' public class OpendaylightToaster implements '''ToasterService,''' AutoCloseable {  
    '''   .....
-   '''   
-   '''/**
-   ''' * RestConf RPC call implemented from the ToasterService interface.
-   ''' */
-   '''@Override
-   '''public Future<RpcResult<Void>> cancelToast() {
-   '''    ...
-   '''    ...
-   '''    return Futures.immediateFuture(Rpcs.<Void> getRpcResult(true, Collections.<RpcError> emptySet()));
-   '''}
-   '''  
-   '''/**
-   ''' * RestConf RPC call implemented from the ToasterService interface.
-   ''' */
+</code> 
+* The makeToast(...) RPC implementation and 'toastDone' notification:
+<code>
    '''@Override
    '''public Future<RpcResult<Void>> makeToast(MakeToastInput input) {
    '''    ...
@@ -161,8 +150,23 @@ The set of interfaces generated from the Toaster's Yang data model in the previo
    '''            return Rpcs.<Void> getRpcResult(true, null, Collections.<RpcError> emptySet());
    '''        }
    '''    }   
-  '''  }  
-  ''' }
+  '''  } 
+</code>
+* the cancelToast() RPC implementation: 
+<code>  
+   '''@Override
+   '''public Future<RpcResult<Void>> cancelToast() {
+   '''    ...
+   '''    cancelToastImpl();
+   '''    ...
+   '''    return Futures.immediateFuture(Rpcs.<Void> getRpcResult(true, Collections.<RpcError> emptySet()));
+   '''}
+   '''       private void cancelToastImpl() {
+   '''        currentTask.cancel(true);
+   '''        ToastDoneBuilder toastDone = new ToastDoneBuilder();
+   '''        toastDone.setToastStatus(ToastStatus.Cancelled);
+   '''        notificationProvider.publish(toastDone.build());
+   '''    }
 </code>
 
 === Toaster Consumer ===
