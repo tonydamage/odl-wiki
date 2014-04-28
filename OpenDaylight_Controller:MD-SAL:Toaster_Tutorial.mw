@@ -3,11 +3,27 @@ This tutorial presents a walk through of the [https://wiki.opendaylight.org/view
 == Objective ==
 The main objective is to provide the reader a better understanding of the MD-SAL infrastructure within the OpenDaylight controller. 
 The Toaster sample implementation is a suitable example because it provides the model of a programmable toaster, a sample consumer application that uses MD-SAL APIs, a sample service provider that implements Toaster, and a unit test suite.
+
+== Overview of Yang ==
+If you are new to Yang, the below links contain various overviews that you may find useful.
+
+*Yang Central: http://www.yang-central.org/twiki/bin/view/Main/YangDocuments - the first section  lists a bunch of tutorials.
+*Netconf Central: http://www.netconfcentral.org/ - this is more netconf oriented, but still contains useful information
+*Tail-F: a fairly good paper: http://www.tail-f.com/wordpress/wp-content/uploads/2013/02/Tail-f-Presentation-Netconf-Yang.pdf
+*http://www.slideshare.net/tailfsystems/netconf-yang-tutorial
+*A bunch of interesting netconf/yang pointers: http://trac.tools.ietf.org/wg/netconf/trac/wiki
+
+== Toaster Step-By-Step==
+We are putting together documentation where we build up the toaster from scratch to cover different scenarios ( much like the [https://wiki.opendaylight.org/view/Ping Ping] example ). 
+
+The below remaining documentation provides an overview of the complete toaster example, along with instructions on how to interact with the pre-built toaster in the product.
+
+This page will help provide context about what code needs to be added / modified depending on what you want to accomplish. If you would like to see how we can progress from a simple Toaster model, to an advanced modeling structure, head over to [[OpenDaylight Controller:MD-SAL:Toaster Step-By-Step]]
+
 == Prerequisites ==
 The Toaster example is part of the OpenDaylight controller, so in order to access the source code with its dependencies please check [https://wiki.opendaylight.org/view/OpenDaylight_Controller:Installation ODL Installation Guide]
 
 It's located in ''controller.git'' under ''opendaylight/md-sal/samples''.
-
 
 == Structure ==
 We will address three contexts in this tutorial:
@@ -73,7 +89,7 @@ The MD-SAL model-driven infrastructure allows developers of applications and plu
             </plugin>
 </code>                
             
-* the resulting generated SAL APIs are stored under ''{project.build.directory}/generated-sources/sal'' (for a complete guide of the code generator mappings see [[https://wiki.opendaylight.org/view/YANG_Tools:YANG_to_Java_Mapping Yang to Java Mapping]])
+* the resulting generated SAL APIs are stored under '''src/main/yang-gen-sal'' (for a complete guide of the code generator mappings see [[https://wiki.opendaylight.org/view/YANG_Tools:YANG_to_Java_Mapping Yang to Java Mapping]])
 :: the generated JAVA files contain interfaces and abstract classes (not all of them will be listed below, but those which reflect the correlation with the Yang model described in the Yang definition section above) :
 ::* '''interface ToasterData extends DataRoot''' (''Toaster.java'')  <- DATA definitions for toaster
 ::* '''interface ToasterService extends RpcService''' (''ToasterService.java'') <- SERVICE RPCs 
@@ -94,20 +110,9 @@ Upon running a build of the ''sample-toaster'' project, the generated SAL APIs a
 [[File:ToasterProviderConsumer.jpg]]
 
 == Config-subsystem Context ==
-In order to get the full benefits of the ODL Controller's subsystem (for example access through JMX or NETCONF to the available ''toaster'' services and run-time related data), the toaster provider and consumer plugins in our example have been defined as subsystem modules. 
-=== Definitions of service-type/module-type in YANG  ===
-Each definition consists of an YANG '''service''' definition file, and an '''module''' definition file (files are located in ''src/main/yang'' folders).
-The '''service-type''' acts as an interface while the '''module-type''' acts as the implementation of the interface:
-==== Toaster Provider definition ====
-* '''service-type''' declaration (in ''toaster-provider.yang''):
-<pre>
-identity toaster-provider {
-
-        base "config:service-type";
-
-        config:java-class "org.opendaylight.yang.gen.v1.http.netconfcentral.org.ns.toaster.rev091120.ToasterData";
-    }
-</pre>
+In order to get the full benefits of the ODL Controller's subsystem (for example access through JMX or NETCONF to the available ''toaster'' services and run-time related data), the toaster provider and consumer plugins in our example have been configured as subsystem modules. This configuration is done as a YANG module definition per each plugin, each configuration specifies the dependencies between our plugins and the rest of ODL (mainly with MD-SAL infrastructure services):
+=== Definitions of module-type in YANG  ===
+Each configuration file appears as a '''module''' definition (files are located in ''src/main/yang'' folders).
 
 * '''module-type''' declaration (in ''toaster-provider-impl.yang'')::
 <pre>
@@ -115,18 +120,6 @@ identity toaster-provider-impl {
             base config:module-type;
             config:provided-service toaster-provider:toaster-provider;
             config:java-name-prefix ToasterProvider;
-    }
-</pre>
-
-
-==== Toaster Consumer definition ====
-* '''service-type''' declaration (in ''toaster-consumer.yang''):
-<pre>
-identity toaster-consumer {
-
-        base "config:service-type";
-
-        config:java-class "org.opendaylight.controller.sample.toaster.provider.api.ToastConsumer";
     }
 </pre>
 
@@ -140,6 +133,8 @@ identity toaster-consumer-impl {
 </pre>
 
 === Dependencies with MD-SAL  ===
+As mentioned in the above section, the main purpose of creating the module's configuration files is to specify dependencies between our Toaster plugins and MD-SAL. 
+
 Both the Toaster-Consumer and Toaster-Provider have 'dependencies' on MD-SAL infrastructure services.
 We'll list the types of dependencies involved in our Toaster example:
 
@@ -158,7 +153,7 @@ setNotificationProvider(getNotificationServiceDependency());
 
 * Toaster-Consumer, in order to receive notifications from the provider through MD-SAL registers through 
 <pre>
-setNotificationServiceDependency().registerNotificationListener(ToastDone.class, consumer);
+getNotificationServiceDependency().registerNotificationListener(ToastDone.class, consumer);
 </pre>
 
 ==== DataBroker dependency ====
@@ -339,12 +334,11 @@ To run the converter , the below code has to be added to the (''toaster-provider
             </plugin>
 </pre>
 
-This will generate Java files  and place them in ''generated-sources/config'' and ''generated-sources/sal'' folders.
+This will generate Java files  and place them in ''src/main/yang-gen-config'' and ''src/main/yang-gen-sal'' folders.
 * The generated files to note, located in ''generated-sources/config'' folders are ''ToasterProviderModule.java'' respectively ''ToasterConsumerModule.java'', these are initially generated but once manually edited they don't get overwritten by the code generator. 
 
 
 * The '''createInstance()'''  method of the generated file is implemented manually, and this is where the dependencies methods mentioned in the [[#Dependencies with MD-SAL| Dependencies with MD-SAL]] section are manually added.
-
 
 == The unit test ==
 The toaster example contains a unit test located under the''sample-toaster-it'' project, ''src/main/test'' folder.
@@ -366,3 +360,77 @@ The 'special' RPC '''make-hash-brown-toast-rpc''' declared in the ''toaster-cons
 === Getting Provider Runtime data exposed to config-subsystem ===
 The '''toasts-made''' declared in the ''toaster-provider-impl.yang'' is accessed through JMX:
 <pre>platformMBeanServer.getAttribute(providerOn, "ToastsMade");</pre>
+
+==Making Some Toast - i.e. Running the Toaster==
+There are four bundles providing different functionality for the toaster.
+
+To simply expose your toaster via rest conf and use the MD-SAL as a simple repository for config / data you only need to have the sample-toaster bundle deployed. To do this:
+
+==== Start the Controller ====
+*Build a controller and start it via the run.sh
+*:''Note: All four toaster bundles are shipped automatically with the default controller distribution. You can delete the sample-toaster bundles from the controller/opendaylight/distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/plugins directory if you want only load the required bundle.
+====Create a toaster via Restconf====
+To create the controller you will do a REST post (you will need a rest client such as PostMan for google chrome).
+:<code>HTTP Method => POST
+ URL => http://localhost:8080/restconf/config 
+ Header =>   Content-Type: application/yang.data+json  
+ Body =>  
+ {
+    "toaster:toaster" :
+    {
+      "toaster:toasterManufacturer" : "General Electric",
+      "toaster:toasterModelNumber" : "123",
+      "toaster:toasterStatus" : "up"
+     }
+ }
+ </code>
+:''Note: You will likely see an exception on the OSGi terminal, and the return error code will be a 204, "No data returned". This means it succeeded!''
+==== Get the existing toaster via Restconf ====
+To get the current toaster via REST conf you will do an HTTP get.
+:<code>HTTP Method => GET
+ URL => http://localhost:8080/restconf/config/toaster:toaster 
+ </code>
+This should return json defining the toaster, and should provide similar values to what you posted.
+==== Modify the existing toaster ====
+:<code>HTTP Method => PUT
+ URL => http://localhost:8080/restconf/config/toaster:toaster
+ Header =>   Content-Type: application/yang.data+json  
+ Body =>  
+ {
+    "toaster": {
+        "toasterStatus": "up",
+        "toasterManufacturer": "kkoushik",
+        "toasterModelNumber": "123"
+    }
+ }
+ </code>
+
+====To Delete the Toaster====
+To delete the current toaster via REST conf you will do an HTTP DELETE.
+:<code>HTTP Method => DELETE
+ URL => http://localhost:8080/restconf/config/toaster:toaster 
+ </code>
+==== To Make Toast (i.e. invoke the make-toast rpc call)====
+To make toast via the Restconf you will perform an HTTP POST to an operations URL.
+:<code>HTTP Method => POST
+ URL => http://localhost:8080/restconf/operations/toaster:make-toast 
+ Header =>   Content-Type: application/yang.data+json  
+ Body =>  
+ {
+   "input" :
+   {
+      "toaster:toasterDoneness" : "10",
+      "toaster:toasterToastType":"wheat-bread" 
+   }
+ }
+ </code>
+''even thought the toast type is defaulted in the yang model, you still have to provide it.''
+====To Cancel Toast (i.e. invoke the cancel-toast which hs no arguments)====
+You may want to cancel the make-toast operation part of the way through! You do this by invoking a restconf REST call in a very similar way as you invoke the make-toast.
+<pre>
+URL => http://localhost:8080/restconf/operations/toaster:cancel-toast
+HTTP Method => POST
+</pre>
+
+Note: There is a bug in the way the RestconfImpl class processes / routes the REST requests. If you define the Content-Type header, then the rest call is routed to a method which expects a non-empty body. In this case though we don't have any input, so our body should be empty. Thus an exception is thrown. In order to make the cancel-toast call work successfully, you need to invoke the above call, with NO content-type define. By doing that you route the request to a different method, which expects an empty body.<br>
+Note 2: When you successfully invoke this call with no headers, you will still get an error. This is due to a null future being returned in our implementation above. You can though put a breakpoint in the cancel toast call at this point and have that breakpoint activated.
