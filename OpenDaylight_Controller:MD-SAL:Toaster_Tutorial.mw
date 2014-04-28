@@ -136,17 +136,35 @@ The set of interfaces generated from the Toaster's Yang data model in the previo
    '''@Override
    '''public Future<RpcResult<Void>> makeToast(MakeToastInput input) {
    '''    ...
+   '''    currentTask = executor.submit(new MakeToastTask(input));
    '''    ...
    '''    return currentTask;
    '''}
-   
-   
-  
-     
+   ''' ...
+   ''' private class MakeToastTask implements Callable<RpcResult<Void>> {
+
+        final MakeToastInput toastRequest;
+
+        public MakeToastTask(MakeToastInput toast) {
+            toastRequest = toast;
+        }
+
+        @Override
+        public RpcResult<Void> call() throws InterruptedException {
+            ...
+            notifyBuilder.setToastStatus(ToastStatus.Done);
+            notificationProvider.publish(notifyBuilder.build());
+            ...
+            toastsMade.incrementAndGet();
+           ...
+
+            return Rpcs.<Void> getRpcResult(true, null, Collections.<RpcError> emptySet());
+        }
+    }   
   '''  }  
  }
 </code>
- 
+
 === Toaster Consumer ===
   <to be filled on Thursday the 16th of April>
 
