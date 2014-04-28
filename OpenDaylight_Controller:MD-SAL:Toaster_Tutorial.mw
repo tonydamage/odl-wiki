@@ -27,20 +27,29 @@ It's located in ''controller.git'' under ''opendaylight/md-sal/samples''.
 
 == Structure ==
 We will address three contexts in this tutorial:
-# Data Model Context - presents the correlation between the Toaster Yang Model and the generated MD-SAL API
+# Data Model and SAL API Context - presents the correlation between the Toaster Yang Model and the generated MD-SAL API
 # Plugin Context -  introduces the provider and consumer and interaction with MD-SAL services
 # Config-subsystem Context
 
-== Data Model Context ==
-=== Yang definition for Toaster ===
-The definition of the Toaster capability is defined by it's yang data model, as a Yang ''module'' definition ; the file is located in the ''sample-toaster'' project in: ''src/main/yang/toaster.yang''
+== Data Model and SAL API Context ==
+=== API Types ===
 
-The yang schema defines the service, description and state data and functionality of the Toaster: 
+MD-SAL provides three API types:
+
+* Java generated APIs :
+ The functionality of the toaster from our example is based on Java generated APIs. From the Toaster's yang data model, the MD-SAL will generate a set of Java APIs against which the ''provider'' and ''consumer'' plugins will be written.
+* DOM APIs - these are mostly used by infrastucture components and are usuful for XML-driven plugin and application types
+* REST APIs - [[OpenDaylight Controller:MD-SAL:Restconf|Restconf]] - these APIs are available to consumer type applications and provides access to RPC and data stores. This documentation includes an example describing how the toaster's functionality can be accessed through the RESTCONF API.
+
+=== Yang definition for Toaster ===
+The definition of the Toaster capability is defined by it's yang data model ; the file is located in the ''sample-toaster'' project in: ''src/main/yang/toaster.yang''
+
+The yang schema defines the toaster service (YANG RPCs), the toaster description and state data (YANG Container), notifications from the toaster (YANG Notifications): 
 # DATA definitions for toaster: (YANG: ''container toaster'')
 #* (YANG: ''leaf toasterManufacturer'')
 #* (YANG: ''leaf toasterModelNumber'')
 #* (YANG: ''leaf toasterStatus'')
-# SERVICE RPCs:operations that can be done, they are defined through RPCs, there are two available:
+# SERVICE RPCs: operations that can be done, they are defined through RPCs, there are two available:
 #* (YANG: ''rpc make-toast'') taking input parameters:
 #** (YANG: ''leaf toasterDoneness'')
 #** (YANG: ''leaf toasterToastType'')
@@ -50,16 +59,8 @@ The yang schema defines the service, description and state data and functionalit
 
 === MD-SAL generated APIs definitions ===
 
-==== API Types ====
 
-MD-SAL provides three API types:
-
-* Java generated APIs - these are for consumers and producers ( our Toaster example makes use of this type of APIs)
-* DOM APIs - these are mostly used by infrastucture components and are usuful for XML-driven plugin and application types
-* REST APIs - [[OpenDaylight Controller:MD-SAL:Restconf|Restconf]] - these APIs are available to consumer type applications and provides access to RPC and data stores.
-
-
-In our Toaster example, the API that covers the toaster functionality is a Java generated API, we will refer to it as the  'Toaster SAL API'. It is generated from the Toaster Yang model using the [https://wiki.opendaylight.org/view/YANG_Tools YANG Tools]. 
+In our example, the API that covers the toaster functionality (the Java generated API, we will refer to it as the  'Toaster SAL API') is generated from the Toaster Yang model using the [https://wiki.opendaylight.org/view/YANG_Tools YANG Tools]. 
 :: this is achieved through the ''yang-maven-plugin'' which uses the ''org.opendaylight.yangtools.maven.sal.api.gen.plugin.CodeGeneratorImpl'' code generator, called from the ''sample-toaster'' project build phase - section of the project's POM file: 
 <code>
 
