@@ -27,8 +27,84 @@ Download TestON framework form github.To Download use below mentioned link.
 
 ==TestON Driver Design==
 
+Component drivers are the most important part of the TestON framework. they make the framework actually do some useful work. Essentially, a component driver is a class that has at least the following methods/APIs defined in it.
+
+connect : This is the method that sets up the connection to the component and creates required log files, etc. For CLI components, this is a wrapper around the standard pexpect library. For API components, it is an empty class template. This class will be redefined to load required libraries in the actual API component. For UI components, it will be an empty class template that will be redefined to connect using the appropriate GUI library.
+
+disconnect - Self explanatory
+
+exec : This is the smallest possible action in the TestON framework on a component. It performs a specified action on the component and waits for a response. For CLI drivers, this is a command to be executed on the CLI shell and the response is the output of the command. For API components, it is an API to be called with specific arguments on a library and the response is the return value of the API. For GUI components, it will be a GUI action like click, double click, etc and the response is an expected change in the UI.
+
+log : This is a simple log API that provides the ability to log a message to the component's session log file. It takes two arguments - ther level of the log message and the message.
+
+Besides these basic methods, each driver can add APIs of its own that will be available in the test script. The idea is to use the exec API as a building block and build higher and higer wrapper APIs. E.g., A configure_ip_address API can internally use multiple exec APIs to configure an IP address on an interface, verify if the IP address is configured and ping that IP address to achieve its end goal.
+
 ==TestON Test Scripts==
+OpenSpeak formated Scripts will use to execute the tests in TestON Frame work.
+The basic Openspeak script will written for opendaylight execution as shown below
 
+CASE 1:
+     NAME "Get list of containers"
+     STEP "Getting list of containers"
+     STORE ON ODL1 DO list_containers IN result
+     ASSERT result EQUALS 200 ONPASS "Getting containers list" ONFAIL "Not getting any containers list"
+CASE 2:
+     NAME "Remove existing containers"
+     STEP "Removing container"
+     STORE ON ODL1 DO remove_container USING CONTAINER AS 'cont1' IN result
+     ASSERT result EQUALS 204 ONPASS "Container removed successfully" ONFAIL "Container not removed"
+CASE 3:
+     NAME "Create a container"
+     STEP "Creating a new container"
+     STORE ON ODL1 DO create_container USING CONTAINER AS 'cont1',INPUT AS {"container" : "cont1","nodeConnectors" : ["OF|1@OF|00:00:00:00:00:00:00:01","OF|2@OF|00:00:00:00:00:00:00:02"],"staticVlan" : "1"} IN result
+     ASSERT result EQUALS 201 ONPASS "Container getting added" ONFAIL "Container not added"
 
+CASE 4:
+     NAME "Get container flows"
+     STEP "Getting container flows"
+     STORE ON ODL1 DO flow_stats USING CONTAINER AS 'cont1' IN result 
+     ASSERT result EQUALS 200 ONPASS "Container flows getting" ONFAIL "Container flows not getting"
+
+While execution of test the openspeak formated script will convert into python script.
+TestOn driver Script will access the python file for execution of test.
+Python script for above OpenSpeak formated script as mentioned below
+
+class Odl :
+
+    def __init__(self) :
+        self.default = ''
+
+    def CASE1(self,main) :
+
+        main.case("Get list of containers")
+        main.step("Getting list of containers")
+        result = main.ODL1.list_containers()
+        utilities.assert_equals(expect=200,actual=result,onpass="Getting containers list",onfail="Not getting any containers list")
+    def CASE2(self,main) :
+
+        main.case("Remove existing containers")
+        main.step("Removing container")
+        result = main.ODL1.remove_container(CONTAINER='cont1')
+        utilities.assert_equals(expect=204,actual=result,onpass="Container removed successfully",onfail="Container not removed")
+    def CASE3(self,main) :
+
+        main.case("Create a container")
+        main.step("Creating a new container")
+        result = main.ODL1.create_container(CONTAINER='cont1',INPUT={"container" : "cont1","nodeConnectors" : ["OF|1@OF|00:00:00:00:00:00:00:01","OF|2@OF|00:00:00:00:00:00:00:02"],"staticVlan" : "1"})
+        utilities.assert_equals(expect=201,actual=result,onpass="Container getting added",onfail="Container not added")
+    
+    def CASE4(self,main) :
+
+        main.case("Get container flows")
+        main.step("Getting container flows")
+        result  = main.ODL1.flow_stats(CONTAINER='cont1')
+        utilities.assert_equals(expect=200,actual=result,onpass="Container flows getting",onfail="Container flows not getting")
+    
+    def CASE5(self,main) :
+
+        main.case("Get topology")
+        main.step("Getting topology ")
+        result = main.ODL1.get_topology(CONTAINER='default')
+        utilities.assert_equals(expect=200,actual=result,onpass="Topology getting successfully",onfail="Topology not getting successfully")
 
 [[Category:Integration Group]]
