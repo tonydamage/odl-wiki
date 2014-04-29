@@ -40,12 +40,17 @@ log : This is a simple log API that provides the ability to log a message to the
 Besides these basic methods, each driver can add APIs of its own that will be available in the test script. The idea is to use the exec API as a building block and build higher and higer wrapper APIs. E.g., A configure_ip_address API can internally use multiple exec APIs to configure an IP address on an interface, verify if the IP address is configured and ping that IP address to achieve its end goal.
 
 ==TestON Test Scripts==
+IN TestON frame work each test need to be create 3 files as mentiond below(Name should be same for all files in the test folder as for testname). 
+*testname.ospk
+*testname.params
+*testname.topo
 OpenSpeak formated Scripts will use to execute the tests in TestON Frame work.
 The basic Openspeak script will written for opendaylight execution as shown below
 *Odl.ospk
 CASE 1:
      NAME "Get list of containers"
      STEP "Getting list of containers"
+     # ODL1 is the instance for Opendaylight driver
      STORE ON ODL1 DO list_containers IN result
      ASSERT result EQUALS 200 ONPASS "Getting containers list" ONFAIL "Not getting any containers list"
 CASE 2:
@@ -105,4 +110,44 @@ class Odl :
         result = main.ODL1.get_topology(CONTAINER='default')
         utilities.assert_equals(expect=200,actual=result,onpass="Topology getting successfully",onfail="Topology not getting successfully")
 
+TestON frame work has a params file to execute the custom test cases as per test requirement.
+The basic params file for Opendaylight test is as mentioned below
+
+*Odl.params
+<PARAMS>
+    <testcases>[1,2,3,4]</testcases> 
+</PARAMS>
+
+Topology file play the key role in the test execution TestON framework. The basic topology file for Opendaylight test is as mentioned below
+
+*Odl.topo
+
+<TOPOLOGY>
+    <COMPONENT>
+        <Mininet1>
+            <host>"mininet host ip address"</host>
+            <user>"minine host username"</user>
+            <password>"minine host password"</password>
+            <type>MininetCliDriver</type>
+            <COMPONENTS>
+                # Specify the Option for mininet
+                <topo>tree</topo>
+                <topocount>2</topocount>
+                <ip>127.0.0.1</ip>
+                <controller>remote</controller>
+                <port>6633</port>
+             </COMPONENTS>   
+        </Mininet1>        
+        <ODL1>
+            <host>"Opendaylight controller host ip address"</host>
+            <user>"Opendaylight controller host username"</user>
+            <password>"Opendaylight controller host password" </password>
+            <type> OdlDriver </type>
+            <test_target> 1 </test_target>
+            <COMPONENTS>
+                
+            </COMPONENTS>
+        </ODL1>
+    </COMPONENT>
+</TOPOLOGY>
 [[Category:Integration Group]]
