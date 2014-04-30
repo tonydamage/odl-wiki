@@ -2,12 +2,156 @@ In the Hydrogen release, the Netconf Client (NCC) must be configured with the ad
 
 The yang model for NCC configuration can be found at {{git/link|controller.git|opendaylight/md-sal/sal-netconf-connector/src/main/yang/odl-sal-netconf-connector-cfg.yang}}. The per target Server configuration includes the target Server's IP address, port, connection type (TCP or SSH), and username/password. The NCC configuration also includes a reference to MD-SAL and the configuration of NCC's thread group for opening and maintaining sockets and its event executor for sourcing events into MD-SAL. Defaults values for global configuration, defined in this page, should be used in most cases.
 
-=Configuring Netconf client with yangcli-pro=
+In text below phrases like NCC, mount-point, netconf-client are used interchangeably.
 
-== Requirements ==
+= Using netopeer netconf server instead of a real device =
+
+[https://code.google.com/p/netopeer/ Netopeer] is a open source server that can be used to explore mdsal and restconf.
+
+== Docker image ==
+The easiest way, though not supported, is to install [http://docker.io docker] on a Linux machine and then pull netopeer [https://index.docker.io/u/dockeruser/netopeer/ image]:
+<pre>
+docker run -rm -t -p 1831:830 dockeruser/netopeer
+</pre>
+Then confirm that you can get a hello message use:
+<pre>
+ssh root@localhost -p 1831 -s netconf
+(password root)
+</pre>
+You should see server immediately send an xml followed by netconf EOM.
+
+== Manual installation ==
+[[OpenDaylight_Controller:Config:Examples:Netconf:Manual_netopeer_installation]]
+
+= Using ODL's netconf server as mountpoint =
+It should be possible to connect md-sal to local netconf server that is running on port 8383. It is configured out of box in file configuration/initial/04-netconf-connector.xml .
+
+=Editing Netconf Client Configuration by Creating Initial Controller Config File =
+
+In the case of building from source, create a file to hold the netconf client configuration in the directory ./opendaylight/distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/configuration/initial/ . This file will hold the netconf server configuration the client will attempt to connect.
+
+Files in this directory follow a naming system. Simply choose a non-used number, followed by a dash ('-') and a descriptive word, for example, 02-libnetconfd.xml. In this file insert the configuration of the server. 
+
+<pre>
+
+<snapshot>
+  <configuration>
+    <data xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+      <modules xmlns="urn:opendaylight:params:xml:ns:yang:controller:config">
+	<module>
+	  <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">prefix:sal-netconf-connector</type>
+	  <name>libnetconfd</name>
+	  <port xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">830</port>
+	  <username xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">repenno</username>
+	  <worker-thread-group xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">
+	    <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:netty">prefix:netty-threadgroup</type>
+	    <name>global-worker-group</name>
+	  </worker-thread-group>
+	  <address xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">10.0.1.27</address>
+	  <tcp-only xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">false</tcp-only>
+	  <event-executor xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">
+	    <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:netty">prefix:netty-event-executor</type>
+	    <name>global-event-executor</name>
+	  </event-executor>
+	  <password xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">welcome</password>
+	  <boss-thread-group xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">
+	    <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:netty">prefix:netty-threadgroup</type>
+	    <name>global-boss-group</name>
+	  </boss-thread-group>
+	  <dom-registry xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">
+	    <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:md:sal:dom">prefix:dom-broker-osgi-registry</type>
+	    <name>dom-broker</name>
+	  </dom-registry>
+	</module>
+      </modules>
+    </data>
+  </configuration>
+  <required-capabilities>
+    <![CDATA[urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf?module=odl-sal-netconf-connector-cfg&revision=2013-10-28]]>
+  </required-capabilities>
+</snapshot>
+
+</pre>
+
+Restart the controller.
+
+
+
+= Testing mountpoint via restconf =
+Issuing 
+<pre>
+curl -v http://localhost:8080/restconf/operational/opendaylight-inventory:nodes/node/libnetconfd/
+</pre>
+should output
+<pre>
+{
+    "node": [
+        {
+            "id": "libnetconfd",
+            "netconf-node-inventory:initial-capability": [
+                "(http://netconfcentral.org/ns/toaster?revision=2009-11-20)toaster",
+                "(urn:ietf:params:xml:ns:yang:ietf-netconf-acm?revision=2012-02-22)ietf-netconf-acm",
+                "(urn:ietf:params:xml:ns:yang:ietf-netconf-with-defaults?revision=2010-06-09)ietf-netconf-with-defaults",
+                "(urn:ietf:params:xml:ns:netconf:notification:1.0?revision=2008-07-14)notifications",
+                "(urn:ietf:params:xml:ns:netmod:notification?revision=2008-07-14)nc-notifications",
+                "(urn:ietf:params:xml:ns:yang:ietf-netconf-notifications?revision=2011-08-07)ietf-netconf-notifications",
+                "(urn:ietf:params:xml:ns:yang:ietf-netconf-monitoring?revision=2010-10-04)ietf-netconf-monitoring",
+                "(urn:ietf:params:xml:ns:netconf:base:1.0?revision=2011-03-08)ietf-netconf",
+                "(urn:ietf:params:xml:ns:yang:ietf-yang-types?revision=2010-09-24)ietf-yang-types",
+                "(urn:ietf:params:xml:ns:yang:ietf-inet-types?revision=2010-09-24)ietf-inet-types"
+            ],
+            "netconf-node-inventory:connected": true
+        }
+    ]
+}
+</pre>
+
+However if the remote node is not connected, output will look like:
+<pre>
+{
+    "node": [
+        {
+            "id": "libnetconfd"
+        }
+    ]
+}
+</pre>
+
+Getting actual configuration data from server:
+<pre>
+curl -v http://localhost:8080/restconf/config/opendaylight-inventory:nodes/node/libnetconfd/yang-ext:mount/
+</pre>
+(in case of netopeer docker image result is empty)
+
+Getting actual operational data from server:
+<pre>
+curl -v http://localhost:8080/restconf/operational/opendaylight-inventory:nodes/node/libnetconfd/yang-ext:mount/
+</pre>
+== Debugging ==
+
+A simple way to check both connectivity and whether Netconf Server is up and running is to use SSH as described in [http://tools.ietf.org/search/rfc6242 Using the NETCONF Protocol over Secure Shell (SSH)]. For example:
+
+ssh -s repenno@10.0.1.27 -p 830 netconf
+
+=== Configuring Netconf logging ===
+
+Edit file logback.xml. If compiling from source it will be:
+
+./opendaylight/distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/configuration/logback.xml
+
+Add the following two lines:
+
+ <logger name="org.opendaylight.controller.netconf" level="DEBUG" />
+ <logger name="org.opendaylight.controller.sal.connect.netconf" level="DEBUG" />
+
+
+=Other ways to configure mount point=
+==Configuring Netconf client with yangcli-pro==
+
+=== Requirements ===
 yangcli-pro version 13.04-9.2 or later.
 
-== Connecting to the Controller Configuration Server ==
+=== Connecting to the Controller Configuration Server ===
 
 To connect to the controller's config server with a plain TCP connection, use the syntax described below. No authentication is performed for TCP connection, user and password parameters can bye any ascii strings. 
 <pre>
@@ -26,7 +170,7 @@ For better debugging please include following arguments:
 </pre>
 Note that when the log file is set, the output will not appear on stdout.
 
-== Configuring an NCC Instance ==
+=== Configuring an NCC Instance ===
 This example shows how to configure the NCC to connect to the collector's own Netconf server. The controller's configuration subsystem can then be accessed through the controller's NB Restconf API.
 
 Once yangcli-pro connects to the controller's Netconf server, issue the following sequence of commands:
@@ -136,25 +280,8 @@ foo@192.168.4.1> history
   [975]	commit
 </pre>
 
-After successful commit you can verify that the controller node shows in in OpenDaylight inventory. From a REST client (e.g. Postman), issue a GET request for all nodes in the inventory:
-<pre>
-GET 'http://<Controlller-IP-Address>:8080/restconf/operational/opendaylight-inventory:nodes'
-Accept: application/json
-</pre>
 
-You should see something like this:
-<pre>
-{
-    "nodes": {
-        "node": [
-            {
-                "id": "controller"
-            }
-        ]
-    }
-}</pre>
-
-=Editing Netconf Client Configuration in the Current Controller Config File =
+==Editing Netconf Client Configuration in the Current Controller Config File==
 
 '''It is not clear this method works as of 02/12/2014. See https://bugs.opendaylight.org/show_bug.cgi?id=416''' 
 
@@ -191,188 +318,3 @@ Configuration for different controller modules can be added into the controller'
 To change the configuration for a different target Netconf server, edit the <name/>, <address/>, <port/>, <tcp-only/>, <username/> and <password/> entities.
 
 An example configuration file can be found in [[OpenDaylight Controller:Config:Examples:Netconf:Example Configuration]]
-
-=Editing Netconf Client Configuration by Creating Initial Controller Config File =
-
-In the case of building from source, create a file to hold the netconf client configuration in the directory ./opendaylight/distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/configuration/initial/ . This file will hold the netconf server configuration the client will attempt to connect.
-
-Files in this directory follow a naming system. Simply choose a non-used number, followed by a dash ('-') and a descriptive word, for example, 02-libnetconfd.xml. In this file insert the configuration of the server. 
-
-<pre>
-
-<snapshot>
-  <configuration>
-    <data xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
-      <modules xmlns="urn:opendaylight:params:xml:ns:yang:controller:config">
-	<module>
-	  <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">prefix:sal-netconf-connector</type>
-	  <name>libnetconfd</name>
-	  <port xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">830</port>
-	  <username xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">repenno</username>
-	  <worker-thread-group xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">
-	    <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:netty">prefix:netty-threadgroup</type>
-	    <name>global-worker-group</name>
-	  </worker-thread-group>
-	  <address xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">10.0.1.27</address>
-	  <tcp-only xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">false</tcp-only>
-	  <event-executor xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">
-	    <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:netty">prefix:netty-event-executor</type>
-	    <name>global-event-executor</name>
-	  </event-executor>
-	  <password xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">welcome</password>
-	  <boss-thread-group xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">
-	    <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:netty">prefix:netty-threadgroup</type>
-	    <name>global-boss-group</name>
-	  </boss-thread-group>
-	  <dom-registry xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">
-	    <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:md:sal:dom">prefix:dom-broker-osgi-registry</type>
-	    <name>dom-broker</name>
-	  </dom-registry>
-	</module>
-      </modules>
-    </data>
-  </configuration>
-  <required-capabilities>
-    <![CDATA[urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf?module=odl-sal-netconf-connector-cfg&revision=2013-10-28]]>
-  </required-capabilities>
-</snapshot>
-
-</pre>
-
-Restart the controller.
-
-If everything goes as planned you should see a similar console log ''after some time'':
-
-<pre>
-
-2014-02-12 04:42:10.043 PST [pool-23-thread-1] INFO  o.o.c.s.c.n.NetconfDevice#libnetconfd - Starting Netconf Client on: /10.0.1.27:830
-
-</pre>
-
-And you should be able to see the description of the node through RESTconf
-
-<small>
-<pre>
-
-Request: http://<controller-ip>:8080/restconf/operational/opendaylight-inventory:nodes
-
-Response:
-
-<?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<nodes xmlns="urn:opendaylight:inventory">
-<node>
-<initial-capability xmlns="urn:opendaylight:netconf-node-inventory">urn:ietf:params:netconf:capability:url:1.0?scheme=scp,file</initial-capability>
-<initial-capability xmlns="urn:opendaylight:netconf-node-inventory">urn:ietf:params:xml:ns:yang:ietf-netconf-acm?module=ietf-netconf-acm&amp;revision=2012-02-22</initial-capability>
-<initial-capability xmlns="urn:opendaylight:netconf-node-inventory">urn:ietf:params:netconf:capability:writable-running:1.0</initial-capability>
-<initial-capability xmlns="urn:opendaylight:netconf-node-inventory">urn:ietf:params:netconf:capability:with-defaults:1.0?basic-mode=explicit&amp;also-supported=report-all,report-all-tagged,trim,explicit</initial-capability>
-<initial-capability xmlns="urn:opendaylight:netconf-node-inventory">urn:ietf:params:netconf:capability:candidate:1.0</initial-capability>
-<initial-capability xmlns="urn:opendaylight:netconf-node-inventory">urn:ietf:params:xml:ns:yang:ietf-netconf-monitoring?module=ietf-netconf-monitoring&amp;revision=2010-10-04</initial-capability>
-<initial-capability xmlns="urn:opendaylight:netconf-node-inventory">urn:ietf:params:xml:ns:yang:ietf-netconf-notifications?module=ietf-netconf-notifications&amp;revision=2011-08-07</initial-capability>
-<initial-capability xmlns="urn:opendaylight:netconf-node-inventory">urn:ietf:params:xml:ns:yang:ietf-inet-types?module=ietf-inet-types&amp;revision=2010-09-24</initial-capability>
-<initial-capability xmlns="urn:opendaylight:netconf-node-inventory">urn:ietf:params:xml:ns:netconf:notification:1.0?module=notifications&amp;revision=2008-07-14</initial-capability>
-<initial-capability xmlns="urn:opendaylight:netconf-node-inventory">urn:ietf:params:xml:ns:yang:ietf-netconf-with-defaults?module=ietf-netconf-with-defaults&amp;revision=2010-06-09</initial-capability>
-<initial-capability xmlns="urn:opendaylight:netconf-node-inventory">urn:ietf:params:netconf:capability:rollback-on-error:1.0</initial-capability>
-<initial-capability xmlns="urn:opendaylight:netconf-node-inventory">urn:ietf:params:xml:ns:yang:ietf-yang-types?module=ietf-yang-types&amp;revision=2010-09-24</initial-capability>
-<initial-capability xmlns="urn:opendaylight:netconf-node-inventory">urn:ietf:params:netconf:capability:validate:1.1</initial-capability>
-<initial-capability xmlns="urn:opendaylight:netconf-node-inventory">urn:ietf:params:netconf:capability:notification:1.0</initial-capability>
-<initial-capability xmlns="urn:opendaylight:netconf-node-inventory">urn:ietf:params:netconf:capability:startup:1.0</initial-capability>
-<initial-capability xmlns="urn:opendaylight:netconf-node-inventory">urn:ietf:params:netconf:capability:validate:1.0</initial-capability>
-<initial-capability xmlns="urn:opendaylight:netconf-node-inventory">urn:ietf:params:netconf:base:1.0</initial-capability>
-<initial-capability xmlns="urn:opendaylight:netconf-node-inventory">urn:ietf:params:netconf:base:1.1</initial-capability>
-<initial-capability xmlns="urn:opendaylight:netconf-node-inventory">urn:ietf:params:xml:ns:netmod:notification?module=nc-notifications&amp;revision=2008-07-14</initial-capability>
-<initial-capability xmlns="urn:opendaylight:netconf-node-inventory">http://netconfcentral.org/ns/toaster?module=toaster&amp;revision=2009-11-20</initial-capability>
-<initial-capability xmlns="urn:opendaylight:netconf-node-inventory">urn:ietf:params:xml:ns:netconf:base:1.0?module=ietf-netconf&amp;revision=2011-03-08</initial-capability>
-<initial-capability xmlns="urn:opendaylight:netconf-node-inventory">urn:ietf:params:netconf:capability:interleave:1.0</initial-capability>
-<id>libnetconfd</id>
-<connected xmlns="urn:opendaylight:netconf-node-inventory">true</connected>
-</node>
-</nodes>
-
-</pre>
-</small>
-
-= Using netopeer netconf server instead of a real device =
-
-[https://code.google.com/p/netopeer/ Netopeer] is a open source server that can be used to explore mdsal and restconf.
-
-== Docker image ==
-The easiest way, though not supported, is to install [http://docker.io docker] on a Linux machine and then pull netopeer [https://index.docker.io/u/dockeruser/netopeer/ image]:
-<pre>
-docker run -rm -t -p 1831:830 dockeruser/netopeer
-</pre>
-Then confirm that you can get a hello message use:
-<pre>
-ssh root@localhost -p 1831 -s netconf
-(password root)
-</pre>
-You should see server immediately send an xml followed by netconf EOM.
-
-== Manual installation ==
-[[OpenDaylight_Controller:Config:Examples:Netconf:Manual_netopeer_installation]]
-
-= Testing mountpoint via restconf =
-Issuing 
-<pre>
-curl -v http://localhost:8080/restconf/operational/opendaylight-inventory:nodes/node/libnetconfd/
-</pre>
-should output
-<pre>
-{
-    "node": [
-        {
-            "id": "libnetconfd",
-            "netconf-node-inventory:initial-capability": [
-                "(http://netconfcentral.org/ns/toaster?revision=2009-11-20)toaster",
-                "(urn:ietf:params:xml:ns:yang:ietf-netconf-acm?revision=2012-02-22)ietf-netconf-acm",
-                "(urn:ietf:params:xml:ns:yang:ietf-netconf-with-defaults?revision=2010-06-09)ietf-netconf-with-defaults",
-                "(urn:ietf:params:xml:ns:netconf:notification:1.0?revision=2008-07-14)notifications",
-                "(urn:ietf:params:xml:ns:netmod:notification?revision=2008-07-14)nc-notifications",
-                "(urn:ietf:params:xml:ns:yang:ietf-netconf-notifications?revision=2011-08-07)ietf-netconf-notifications",
-                "(urn:ietf:params:xml:ns:yang:ietf-netconf-monitoring?revision=2010-10-04)ietf-netconf-monitoring",
-                "(urn:ietf:params:xml:ns:netconf:base:1.0?revision=2011-03-08)ietf-netconf",
-                "(urn:ietf:params:xml:ns:yang:ietf-yang-types?revision=2010-09-24)ietf-yang-types",
-                "(urn:ietf:params:xml:ns:yang:ietf-inet-types?revision=2010-09-24)ietf-inet-types"
-            ],
-            "netconf-node-inventory:connected": true
-        }
-    ]
-}
-</pre>
-
-However if the remote node is not connected, output will look like:
-<pre>
-{
-    "node": [
-        {
-            "id": "libnetconfd"
-        }
-    ]
-}
-</pre>
-
-Getting actual configuration data from server:
-<pre>
-curl -v http://localhost:8080/restconf/config/opendaylight-inventory:nodes/node/libnetconfd/yang-ext:mount/
-</pre>
-(in case of netopeer docker image result is empty)
-
-Getting actual operational data from server:
-<pre>
-curl -v http://localhost:8080/restconf/operational/opendaylight-inventory:nodes/node/libnetconfd/yang-ext:mount/
-</pre>
-== Debugging ==
-
-A simple way to check both connectivity and whether Netconf Server is up and running is to use SSH as described in [http://tools.ietf.org/search/rfc6242 Using the NETCONF Protocol over Secure Shell (SSH)]. For example:
-
-ssh -s repenno@10.0.1.27 -p 830 netconf
-
-=== Configuring Netconf logging ===
-
-Edit file logback.xml. If compiling from source it will be:
-
-./opendaylight/distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/configuration/logback.xml
-
-Add the following two lines:
-
- <logger name="org.opendaylight.controller.netconf" level="DEBUG" />
- <logger name="org.opendaylight.controller.sal.connect.netconf" level="DEBUG" />
