@@ -326,7 +326,13 @@ Folks on libnetconf google groups helped a lot.
 
 
 10. Install libxml2 (http://xmlsoft.org/)
+
+        sudo apt-cache search libxml2
+        sudo apt-get install libxml2
+
 20. Install libxslt
+        sudo apt-cache search libxslt
+        sudo apt-get install libxslt1.1
 
 	You might find this error when 
 
@@ -345,22 +351,22 @@ Folks on libnetconf google groups helped a lot.
 
 
 30. Install libssh2 (www.libssh2.org/)
-
+        sudo apt-cache search libssh2
+        sudo apt-get install libssh2-1
+        
   It will need openssl or libgcrypt
 
 40. Install libdbus-dev package
-
 	(Important) Do not replace current dbus on Ubuntu by the one in (dbus.freedesktop.org). it is a critical part of the system. I did that and had to recover/reinstall Ubuntu. 
-
+       
+        sudo apt-cache search libdbus
 	sudo apt-get install libdbus-1-dev
 
 	Always make sure you are installing the correct package
 
 	sudo apt-get update
-	sudo apt-cache search libdbus
 
-
-50. Install doxygen
+50. Install doxygen   ( This one's a big one ... took 50 minutes to download on my system )
 
 	sudo apt-get install doxygen
 
@@ -374,7 +380,7 @@ Folks on libnetconf google groups helped a lot.
 	git clone https://code.google.com/p/libnetconf/
 
 	  At the time of writing:
-	  - If you disable notifications (as below) in libnetconf, netopeer will not compile
+	  - If you disable notifications (as below) in libnetconf, netopeer will not compile ( and this is good or bad? :-) )
 
 	  $ ./configure --disable-notifications
 
@@ -463,6 +469,56 @@ Folks on libnetconf google groups helped a lot.
 
 </pre>
 
+= Testing mountpoint via restconf =
+Issuing 
+<pre>
+curl -v http://localhost:8080/restconf/operational/opendaylight-inventory:nodes/node/libnetconfd/
+</pre>
+should output
+<pre>
+{
+    "node": [
+        {
+            "id": "libnetconfd",
+            "netconf-node-inventory:initial-capability": [
+                "(http://netconfcentral.org/ns/toaster?revision=2009-11-20)toaster",
+                "(urn:ietf:params:xml:ns:yang:ietf-netconf-acm?revision=2012-02-22)ietf-netconf-acm",
+                "(urn:ietf:params:xml:ns:yang:ietf-netconf-with-defaults?revision=2010-06-09)ietf-netconf-with-defaults",
+                "(urn:ietf:params:xml:ns:netconf:notification:1.0?revision=2008-07-14)notifications",
+                "(urn:ietf:params:xml:ns:netmod:notification?revision=2008-07-14)nc-notifications",
+                "(urn:ietf:params:xml:ns:yang:ietf-netconf-notifications?revision=2011-08-07)ietf-netconf-notifications",
+                "(urn:ietf:params:xml:ns:yang:ietf-netconf-monitoring?revision=2010-10-04)ietf-netconf-monitoring",
+                "(urn:ietf:params:xml:ns:netconf:base:1.0?revision=2011-03-08)ietf-netconf",
+                "(urn:ietf:params:xml:ns:yang:ietf-yang-types?revision=2010-09-24)ietf-yang-types",
+                "(urn:ietf:params:xml:ns:yang:ietf-inet-types?revision=2010-09-24)ietf-inet-types"
+            ],
+            "netconf-node-inventory:connected": true
+        }
+    ]
+}
+</pre>
+
+However if the remote node is not connected, output will look like:
+<pre>
+{
+    "node": [
+        {
+            "id": "libnetconfd"
+        }
+    ]
+}
+</pre>
+
+Getting actual configuration data from server:
+<pre>
+curl -v http://localhost:8080/restconf/config/opendaylight-inventory:nodes/node/libnetconfd/yang-ext:mount/
+</pre>
+(in case of netopeer docker image result is empty)
+
+Getting actual operational data from server:
+<pre>
+curl -v http://localhost:8080/restconf/operational/opendaylight-inventory:nodes/node/libnetconfd/yang-ext:mount/
+</pre>
 == Debugging ==
 
 A simple way to check both connectivity and whether Netconf Server is up and running is to use SSH as described in [http://tools.ietf.org/search/rfc6242 Using the NETCONF Protocol over Secure Shell (SSH)]. For example:
