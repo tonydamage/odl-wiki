@@ -26,7 +26,59 @@
 * 11am Pacific, Friday.
 * IRC: #opendaylight-group-policy
 * Join and email [mailto:groupbasedpolicy-dev@lists.opendaylight.org Group Policy Dev] for a Calendar invite.
-'''Agenda: Fri May2'''
+<div class="toccolours mw-collapsible mw-collapsed" style="width:800px">
+
+'''Agenda: Fri May 9'''
+* Whiteboard use cases from DATASTORE team meeting (will link minutes from that meeting).
+
+'''Agenda: Fri May 2'''
+* Subscription: impact of policy models and renderers, leading to definition of renderer common code (further material to be provided on the morning of May 2)
+* Purpose of Data Services Engine (DSE) (note: just discussing what in this meeting, how will be discussed later)
+<div class="mw-collapsible-content">
+
+'''Impact of Policy Models on Subscription'''<br />
+The intent is that most of the discussion at this meeting will be about subscription, in particular the impact of the proposed policy models.
+This should help determine the content of the Renderer Common block from the [https://docs.google.com/drawings/d/1S0TJ_roOijBaWwFiIlvr7s7IAdshA4xznKtRHpHs-CU/edit?usp=sharing architecture diagram] introduced at yesterday's status meeting.
+
+Many relationships in the policy model are parent-child. MD-SAL subscription directly addresses these relationships through the notion of subscription to a subtree.
+Two examples:
+# Subscription to the subtree under a particular contract will return all of the clauses, subjects, rules, classifier scopes, actions, targets, and qualities under that contract.
+# Subscription to the subtree under a particular endpoint group will return all of the selection relators, quality matchers, capabilities, conditions, and roles under that endpoint group.
+
+Many relationships in the policy model are not parent-child, primarily direct and indirect references. This includes the relationships between:
+# endpoint group and contract through selection relators
+# clause and subject
+# classifier scope and classifier
+# endpoint group or endpoint and score
+# endpoint group or endpoint and circumstance
+# The relationship between endpoint group and network domain
+# The relationship between subnet and forwarding context
+# The relationship between L2 flooding domain context and L2 broadcast domain context
+# The relationship between L2 context and L3 context
+
+Which of these relationships do renderers need to follow from the point of view of subscription?<br />
+Are the mechanisms to follow these relationships and subscribe to corresponding subtrees the responsibility of the Renderer Common block?<br />
+What do you subscribe to in order to catch new subtrees coming into scope? For example, a new contract is defined which comes into the scope of a selection relator for a particular endpoint group.<br />
+
+The impact of inheritance on subscription also needs to be investigated.
+
+'''Subscription Requirements of Renderers'''<br />
+In terms of what kinds of subscription renderers require, there seem to be two extreme cases:
+* If there is a centralized, stateful, all knowing renderer that keeps its own models of all policy-related things, then it just needs to subscribe to all policy-related subtrees. Any time a new or modified policy object comes down, the impact on relationships to other policy objects is captured through that renderer's specific models.
+* A relatively stateless renderer that simply provides model transformations between policy models and the models for southbound protocol plugins, for example a native renderer to OpFlex. The renderer subscribes to policy objects and classes on behalf of devices below, only keeping track of which subscriptions are on behalf of which devices. The renderer relies on MD-SAL subscription to drive down new and modified policy objects according to its subscriptions. Any subscription chain of interest to any device below must be supported through the combination of the renderer and MD-SAL subscription / policy repository.
+
+In reality there will probably need to be some mix of behaviors between these two extreme cases.
+
+Somewhat related to this is the distinction between proactive and reactive subscription to policy objects. Proactive and reactive are not overarching concepts, but need to be considered in the context of particular relationships in the policy model. Each renderer can implement its own combination of proactive and reactive behaviors, requiring subscription chains following different relationships between policy objects as listed above. Some examples:
+# A virtual switch on a server is likely to pull policies relating to endpoint groups in a reactive manner, when the first endpoint appears on that virtual switch belonging to a particular endpoint group. Otherwise all virtual switches pull down all endpoint groups, which is not scalable.
+# Should that virtual switch pull down all contracts provided by that endpoint group, before it knows who that endpoint communicates with?
+# Should that virtual switch pull down all contracts consumed by that endpoint group, before it knows who that endpoint communicates with?
+# Should that virtual switch pull down all endpoint groups consuming the contracts that this endpoint group provides, in order to resolve clauses, before it knows who that endpoint communicates with?
+# Should that virtual switch pull down all endpoints in the endpoint groups consuming the contracts that this endpoint group provides? According to the current model, the relationship between endpoint and endpoint group is unidirectional, so this is not supported.
+
+Note that even with reactive behavior, subscription is necessary. New policy objects can come into scope long after subscription is triggered.
+</div>
+</div>
 
 == Information From Past Meetings ==
 <div class="toccolours mw-collapsible mw-collapsed" style="width:800px">
