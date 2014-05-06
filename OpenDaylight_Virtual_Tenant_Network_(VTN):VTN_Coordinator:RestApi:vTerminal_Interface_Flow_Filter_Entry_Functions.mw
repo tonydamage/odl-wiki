@@ -323,3 +323,224 @@ Note: The value is case insensitive.
  
 ; Response Body 
 :None
+
+
+==List vTerminal Interface Flow Filter Entries ==
+This operation is used to list vTerminal Interface Flow Filter Entry information.
+
+
+===Request===
+
+{| class="wikitable"
+|-
+| Method || GET
+|-
+| Request URI   || 
+/vtns/{vtn_name}/vterminals/{vterminal_name}/interfaces/{if_name}/flowfilters/{ff_type}/
+flowfilterentries
+/vtns/{vtn_name}/vterminals/{vterminal_name}/interfaces/{if_name}/flowfilters/{ff_type}/
+flowfilterentries/detail
+/vtns/{vtn_name}/vterminals/{vterminal_name}/interfaces/{if_name}/flowfilters/{ff_type}/
+flowfilterentries/count
+|- 
+| Query string ||
+ ?index={seqnum}
+ &max_repetition={max_repetition}
+|}
+
+;Description of Request URI Elements
+{| class="wikitable"
+|-
+| Element || Description || Required
+|-
+|vtn_name || VTN name.
+Valid value: Up to 31 characters including
+alphanumeric characters and underscore (except at the
+beginning).
+||Yes
+|-
+|vterminal_name || vTerminal name.
+Valid value: Up to 31 characters including
+alphanumeric characters and underscore (except at the
+beginning).
+||Yes
+|-
+|if_name || vTerminal Interface name.
+Valid value: Up to 31 characters including
+alphanumeric characters and underscore (except at the
+beginning).
+||Yes
+|-
+|ff_type || Type of the Flow Filter.
+Valid value: in, out
+||Yes
+|}
+
+;Description of query string elements
+
+{| class="wikitable"
+|-
+| Element || Description || Required
+|-
+|seqnum || Sequence number.
+Valid value: Decimal number.
+Valid range: 1 - 65535
+||No
+|-
+|max_repetition || Number of the resources that will be returned. The
+default value is 10000.
+Valid value: Decimal number.
+Valid range: 1 - UINT32_MAX
+||No
+|}
+
+=== Response ===
+
+: The Response returned will be one of the values in the [[OpenDaylight Virtual Tenant Network (VTN):VTN Coordinator:RestApi|List of response Codes]].
+ 
+;Response Body 
+{| class="wikitable"
+|-
+| Response Body (XML)  ||
+If count or detail is not specified in URI
+  <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+    <flowfilterentries> <flowfilterentry seqnum="{seqnum}"/> </flowfilt
+  erentries>
+If detail is specified in URI
+ <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+ <flowfileterentries>
+   <flowfilterentry seqnum="{seqnum}" fl_name="{fl_name}" action_typ
+  e="{action_type}" nmg_name="{nmg_name}" priority="{priority}" dscp="
+  {dscp}">
+      <redirectdst vnode_name="{vnode_name}" if_name="{if_name}" dir
+    ection="{direction}" macdstaddr="{macdstaddr}" macsrcaddr="{macsrcad
+    dr}"/>
+   </flowfilterentry>
+ </flowfileterentries>
+If count is specified in URI
+ <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+ <flowfilterentries count="{count}"/>
+|-
+| Request Body (JSON) ||
+If count or detail is not specified in URI
+ {
+  "flowfilterentries": [
+    {
+    "seqnum": "{seqnum}"
+    }
+  ]
+ }
+If detail is specified in URI
+ {
+"flowfilterentries": [
+  {
+     "seqnum": "{seqnum}",
+     "fl_name": "{fl_name}",
+     "action_type": "{action_type}",
+     "nmg_name": "{nmg_name}",
+     "priority": "{priority}",
+     "dscp": "{dscp}",
+     "redirectdst": {
+        "vnode_name": "{vnode_name}",
+        "if_name": "{if_name}",
+        "direction": "{direction}",
+        "macdstaddr": "{macdstaddr}",
+        "macsrcaddr": "{macsrcaddr}"
+      }
+    }
+  ]
+ } 
+
+If count is specified in URI
+  {
+   "flowfilterentries": {
+          "count": "{count}"
+    }
+  }
+|}
+
+
+; Description of Response Elements 
+{| class="wikitable"
+|-
+| Element || Description 
+|-
+|seqnum || Sequence number.
+Valid value: Decimal number.
+Valid range: 1 - 65535
+|-
+|fl_name || Flow List name.
+Valid value: Up to 32 characters including
+alphanumeric characters and underscore (except at the
+beginning).
+|-
+|action_type || Action that is registered in the Flow Filter entry.
+Valid value:
+• pass: Passes the frame.
+• drop: Discards the frame.
+• redirect: Transfers a frame to the virtual
+interface of the virtual node in which the frame
+is specified.
+Note: The value is case insensitive.
+|-
+|nmg_name || Network monitor group name.
+Valid value: Up to 31 characters including
+alphanumeric characters and underscore (except at the
+beginning).
+|-
+|priority || Packet transfer priority.
+Valid value: Decimal number.
+Valid range: 0 - 7
+|-
+|dscp || DSCP value.
+Valid value: Decimal number.
+Valid range: 0 - 63
+|-
+|count ||Number of the Flow Filter Entries.
+Valid value: Decimal number.
+|-
+|redirectdst || Redirect information
+|}
+
+;Description of response elements (redirectdst)
+{|class = "wikitable"
+|-
+|vnode_name || Destination virtual node name.
+Valid value: Up to 31 characters including alphanumeric
+characters and underscore (except at the beginning).
+|-
+|if_name ||Destination Interface name.
+Valid value: Up to 31 characters including
+alphanumeric characters and underscore (except at the
+beginning).
+Note: Either all or none of vnode_name, if_name
+and direction can be specified.
+||No
+|-
+|direction || Direction.
+Valid value: The value that can be specified differ
+depending on the Interface type specified in vnode_n
+ame and if_name.
+• vBridge Interface: in, out ("out" can be specified
+when the vBridge Interface is set to vLink with
+boundary map or it has Port Map.)
+• vTerminal Interface: out
+• vRouter Interface: in
+Note: Either all or none of vnode_name, if_name
+and direction can be specified.
+||No
+|-
+|macdstaddr || Destination MAC address.
+Valid value: Three groups of four hexadecimal digits
+separated by dots (.).
+Example: 0123.4567.89ab
+Note: The value is case insensitive.
+||No
+|-
+|macsrcaddr || Source MAC address.
+Valid value: Three groups of four hexadecimal digits
+separated by dots (.).
+Example: 0123.4567.89ab
+Note: The value is case insensitive.
+|| No
+|}
