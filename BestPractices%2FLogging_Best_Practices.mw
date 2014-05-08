@@ -9,7 +9,7 @@ The primary reasons for this decision are:
 - proper split between API and implementation, allowing us to change the implementation without impacting code
 - ability to provide legacy APIs (JUL, JCL, etc.) for third-party code
 
-==Message levels==
+===Message levels===
 SLF4J defines five levels of logging messages, ranging from TRACE to ERROR. The guidelines for their use are very vague and in the grand UNIX tradition mix severity of the message with its granularity. The following summary defines the basic rules on when to use a specific level, who the target audience is and how any message of the specified level will be interpreted.
 
 Note that all events with level INFO or higher present an API-like contract of the system from the integration point-of-view: if they change, third-party systems such as monitoring may need to be updated to work correctly with the new system release. The message text on these levels should be understandable to people with networking and systems administration background, so any 
@@ -18,126 +18,62 @@ language assuming knowledge of programming in general, or Java in particular, sh
 Messages on DEBUG and higher present are part of interface contract with support entities, e.g. if they are changed operator and troubleshooting manuals, as well as knowledge-base systems may need to be updated to correctly interpret the information conveyed. On the DEBUG level, messages may assume a slight level of familiarity with general programming concepts. Terminology 
 specific to any programming language should be avoided if possible.
 
-ERROR                                                                                                                                                                                                                            
-This level serves as the general error facility. It should be used                                                                                                                                                               
-whenever the software encounters an unexpected error which prevents                                                                                                                                                              
-further processing. The reporting component may attempt recovery which                                                                                                                                                           
-may affect system availability or performance for a period of time, or                                                                                                                                                           
-it may forcefully terminate if it is unable to recover. This level is                                                                                                                                                            
-always reported for all software components.                                                                                                                                                                                     
+====ERROR====
+This level serves as the general error facility. It should be used whenever the software encounters an unexpected error which preventsfurther processing. The reporting component may attempt recovery which may affect system availability or performance for a period of time, or it may forcefully terminate if it is unable to recover. This level is always reported for all software components.
 
 There are three examples when this level should be used:
+# Incorrectable internal state inconsistency, such as when a JVM reports an OutOfMemoryError. The toplevel handler would log this condition and force an JVM exit, as it is not capable of continuing execution.
 
-1. Incorrectable internal state inconsistency, such as when a JVM
-reports an OutOfMemoryError. The toplevel handler would log this
-condition and force an JVM exit, as it is not capable of continuing
-execution.
+# Internal state inconsistency, which is correctable by flushing and re-creating the state. In this case the component would log an event, which would indicate what assertion has been violated and that the state has been flushed to recover.
 
-2. Internal state inconsistency, which is correctable by flushing and
-re-creating the state. In this case the component would log a
-an event, which would indicate what assertion has been violated and
-that the state has been flushed to recover.
+# Request-level processing error, e.g. the application encounters an error which is preventing a particular request from completing, but there is no indication of systematic failure which would prevent other requests from being successfully processed.
 
-3. Request-level processing error, e.g. the application encounters an
-error which is preventing a particular request from completing, but
-there is no indication of systematic failure which would prevent
-other requests from being successfully processed.
+The primary audience are monitoring systems and system operators, as the events reported have impact on operational performance of the system.
 
-The primary audience are monitoring systems and system operators, as
-the events reported have impact on operational performance of the
-system.
+====WARN====
+This level serves for events which indicate irregular circumstances, from which we have a clearly-defined recovery strategy which has no impact on system availability or performance as seen by the reporting component. Events on this level are usually reported.
 
-WARN
-This level serves for events which indicate irregular circumstances,
-from which we have a clearly-defined recovery strategy which has no
-impact on system availability or performance as seen by the reporting
-component. Events on this level are usually reported.
+A typical example for a candidate event is when a software component detects inconsistency within an external data feed and it performs a corrective action to compensate for it. Let's say we process a list of key/value pairs and encounter a duplicate key: we can either overwrite the old occurance, ignore the new occurance or abort. If we take any of the first two actions, we should report a '''WARN''' event. If we take the third, we should report an '''ERROR''' event.
 
-A typical example for a candidate event is when a software component
-detects inconsistency within an external data feed and it performs a
-corrective action to compensate for it. Let's say we process a list of
-key/value pairs and encounter a duplicate key: we can either overwrite
-the old occurance, ignore the new occurance or abort. If we take any
-of the first two actions, we should report a WARN event. If we take
-the third, we should report an ERROR event.
+The primary audience of these events are automated systems, operators and administrators, as this level of messages indicate non-optimal system operation (e.g. data feeds could use normalization) or may forebode a future failure.
 
-The primary audience of these events are automated systems, operators
-and administrators, as this level of messages indicate non-optimal
-system operation (e.g. data feeds could use normalization) or may
-forebode a future failure.
-
-INFO
-This level serves for events which constitute major state changes
-within a software component -- such as initialization, shutdown,
-persistent resource allocation, etc. -- which are part of normal
-operations. Events on this level are typically reported for
-non-library components.
+====INFO====
+This level serves for events which constitute major state changes within a software component -- such as initialization, shutdown, persistent resource allocation, etc. -- which are part of normal operations. Events on this level are typically reported for non-library components.
 
 Each software component should log at least four events on this level:
-when it starts its initialization, when it becomes operational, when
-it starts orderly shutdown and just before it terminates normally.
+# when it starts its initialization
+# when it becomes operational,
+# when it starts orderly shutdown,
+# just before it terminates normally
 
-The primary audience of these events are operators and administrators,
-who use them to confirm major interactions (such as restarting
-components) have been occurred within the system.
+The primary audience of these events are operators and administrators, who use them to confirm major interactions (such as restarting components) have been occurred within the system.
 
-DEBUG
-This is the coarse diagnostic level, serving for events which indicate
-internal state transitions and detail what processing occurs. Events
-on this level are usually not reported, but are enabled when a
-subsystem's code flows need to be examined for troubleshooting
-purposes.
+====DEBUG====
+This is the coarse diagnostic level, serving for events which indicate internal state transitions and detail what processing occurs. Events on this level are usually not reported, but are enabled when a subsystem's code flows need to be examined for troubleshooting purposes.
 
-Placement and amount of events generated at this level are at the
-discretion of the development engineers, as both relate directly to
-the component logic. The amount of detail in these events has to be
-limited to a single line of information useful for pinning down a
-misbehaving software component in an seemingly normal system and
-should be directly cross-referencable to either previous DEBUG events
-or component configuration. A hard requirement is that there has to be
-at least one flow control statement (such as if, for, while) or a call
-to a different software component between two DEBUG event triggers.
+Placement and amount of events generated at this level are at the discretion of the development engineers, as both relate directly to the component logic. The amount of detail in these events has to be limited to a single line of information useful for pinning down a misbehaving software component in an seemingly normal system and should be directly cross-referencable to either previous '''DEBUG''' events or component configuration. A '''hard requirement''' is that there has to be at least one flow control statement (such as if, for, while) or a call to a different software component between two '''DEBUG''' event triggers.
 
-Primary audience of these events are administrators and support
-personnel diagnosing operational issues, mainly in real-time as they
-occur on the system.
+Primary audience of these events are administrators and support personnel diagnosing operational issues, mainly in real-time as they occur on the system.
 
-TRACE
-This is the fine-grained diagnostic level, serving for events which
-indicate internal state transitions in full detail. Events on this
-level are not reported, but have to be explicitly enabled and may be
-collected for support purposes.
+====TRACE====
+This is the fine-grained diagnostic level, serving for events which indicate internal state transitions in full detail. Events on this level are not reported, but have to be explicitly enabled and may be collected for support purposes.
 
-Placement, amount and contents of these events is completely at the
-description of development engineers. These events are completely
-release-specific, may change even between minor releases. Examples of
-events reported at this level would be method entry and exit, possibly
-including detailed input arguments, and dumps of internal data as it
-is being modified.
+Placement, amount and contents of these events is completely at the description of development engineers. These events are completely release-specific, may change even between minor releases. Examples of events reported at this level would be method entry and exit, possibly including detailed input arguments, and dumps of internal data as it is being modified.
 
-Primary audience of these events are senior support personnel and
-development engineers diagnosing operational irregularities which
-relate directly to code structure, mainly offline after being captured
-on a live system.
+Primary audience of these events are senior support personnel and development engineers diagnosing operational irregularities which relate directly to code structure, mainly offline after being captured on a live system.
 
+===Logger instances===
+Each class containing calls to the logging subsystem '''MUST''' have its own logger, which is not shared with any other class. The variable holding reference to
+this logger '''MUST''' me named ''''LOG''''. The easiest way to ensure you have the proper logger declaration is to use the following pattern:
 
-Logger instances
-----------------
-Each class containing calls to the logging subsystem MUST have its own logger,
-which is not shared with any other class. The variable holding reference to
-this logger MUST me named 'LOG'. The easiest way to ensure you have the
-proper logger declaration is to use the following pattern:
+ import org.slf4j.Logger;
+ import org.slf4j.LoggerFactory;
 
+ class Foo {
+     private static final Logger LOG = LoggerFactory.getLogger(Foo.class);
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-class Foo {
-    private static final Logger LOG = LoggerFactory.getLogger(Foo.class);
-
-    ...
-}
-
+     ...
+ }
 
 Use parameterized logging
 -------------------------
