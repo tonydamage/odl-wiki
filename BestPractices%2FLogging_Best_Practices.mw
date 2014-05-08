@@ -86,60 +86,60 @@ While the former concern is addressed by Logger classes exposing methods like ''
 The correct way to address both concerns is to use parameterized logging as described at http://www.slf4j.org/faq.html#logging_performance. The basic
 pattern to follow is this:
 
-class Foo {
-    private static final Logger LOG = LoggerFactory.getLogger(Foo.class);
+ class Foo {
+     private static final Logger LOG = LoggerFactory.getLogger(Foo.class);
+ 
+     // GOOD: string literal, no dynamic objects
+     public void good_method(Object arg) {
+         LOG.debug("Method called with arg {}", arg);
+     }
+ 
+     // BAD: string varies with argument
+     public bad_method1(Object arg) {
+         LOG.debug("Method called with arg " + arg);
+     }
 
-    // GOOD: string literal, no dynamic objects
-    public void good_method(Object arg) {
-        LOG.debug("Method called with arg {}", arg);
-    }
-
-    // BAD: string varies with argument
-    public bad_method1(Object arg) {
-        LOG.debug("Method called with arg " + arg);
-    }
-
-    // BAD: code clutter
-    public void bad_method2(Object arg) {
-        if (LOG.isDebugEnabled()) {
-            LOG.debug("Method called with arg {}", arg);
-        }
-    }
-
-    // BAD: wrong level of language, this would be okay on TRACE
-    public bad_method3(Object arg) {
-        LOG.debug("arg is {}", arg);
-    }
-}
+     // BAD: code clutter
+     public void bad_method2(Object arg) {
+         if (LOG.isDebugEnabled()) {
+             LOG.debug("Method called with arg {}", arg);
+         }
+     }
+ 
+     // BAD: wrong level of language, this would be okay on TRACE
+     public bad_method3(Object arg) {
+         LOG.debug("arg is {}", arg);
+     }
+ }
 
 There is one thing that needs to be noted in this style, which is that logging an exception is properly supported if you supply it as the last argumennt, but you have to '''make sure it is NOT hinted to by the message string''':
 
-class Foo {
-    private static final Logger LOG = LoggerFactory.getLogger(Foo.class);
+ class Foo {
+     private static final Logger LOG = LoggerFactory.getLogger(Foo.class);
 
-    // GOOD: note how there is no "{}" for ex
-    public void good_method(Object arg) {
-        try {
-            doSomething(arg);
-            ...
-        } catch (SomeException ex) {
-            LOG.warn("Failed to do something with {}, continuing", arg, ex);
-        }
-    }
-
-    // BAD:
-    // - exception is interpreted as an object
-    // - exception chaining cause is lost
-    // - stack trace is lost
-    public void bad_method(Object arg) {
-        try {
-            doSomething(arg);
-            ...
-        } catch (SomeException ex) {
-            LOG.warn("Failed to do something with {} because {}, continuing", arg, ex);
-        }
-    }
-}
+     // GOOD: note how there is no "{}" for ex
+     public void good_method(Object arg) {
+         try {
+             doSomething(arg);
+             ...
+         } catch (SomeException ex) {
+             LOG.warn("Failed to do something with {}, continuing", arg, ex);
+         }
+     }
+ 
+     // BAD:
+     // - exception is interpreted as an object
+     // - exception chaining cause is lost
+     // - stack trace is lost
+     public void bad_method(Object arg) {
+         try {
+             doSomething(arg);
+             ...
+         } catch (SomeException ex) {
+             LOG.warn("Failed to do something with {} because {}, continuing", arg, ex);
+         }
+     }
+ }
 
 NOTE: while it is true that '''isDebugEnabled()''' can eliminate overhead associated with the variadic method call, the burden on the developer is not acceptable simply because there are much better methods of automatic control of this overhead, without having any impact on the source code (or even the class files). One of them is JIT-level optimizations stemming from the ability to inline calls to LOG.debug(). The other is the set of interfaces from java.lang.instrument package, which can be used to completely eliminate the call overhead by removing all calls to LOG.debug() from the class bytecode based on the logger configuration.
 
