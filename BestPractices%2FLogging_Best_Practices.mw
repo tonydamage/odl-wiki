@@ -146,113 +146,113 @@ There is one thing that needs to be noted in this style, which is that logging a
 ===Provide useful event context===
 Each logging call should provide useful context in which it occurred. This is not usually the case with a lot of Java-based software, notably even with some JVM implementations. Here are some typical anti-patterns which contribute to mitigated ability to diagnose problems when they happen:
 
-class Foo {
-    private static final Logger LOG = LoggerFactory.getLogger(Foo.class);
+ class Foo {
+     private static final Logger LOG = LoggerFactory.getLogger(Foo.class);
+ 
+     // VERY BAD:
+     // - no context provided
+     // - non-constant message string
+     // - assumes useful toString()
+     public bad_method1(Object arg) {
+         LOG.debug(arg.toString());
+     }
+ 
+     // VERY BAD:
+     // - no context provided
+     public bad_method2(Object arg) {
+         LOG.debug("{}", arg);
+     }
 
-    // VERY BAD:
-    // - no context provided
-    // - non-constant message string
-    // - assumes useful toString()
-    public bad_method1(Object arg) {
-        LOG.debug(arg.toString());
-    }
-
-    // VERY BAD:
-    // - no context provided
-    public bad_method2(Object arg) {
-        LOG.debug("{}", arg);
-    }
-
-    // COMPLETELY BAD:
-    // - silently ignoring errors!!!
-    public bad_method3(Object arg) {
-        try {
-            doSomething(arg);
-            ...
-        } catch (SomeException ex) {
-        }
-    }
-
-    // EXTREMELY BAD:
-    // - message is not constant
-    // - no context is provided
-    // - ex.getCause() is lost
-    // - call stack is lost
-    public void bad_method4(Object arg) {
-        try {
-            doSomething(arg);
-            ...
-        } catch (SomeException ex) {
-            LOG.warn(ex.getMessage());
-        }
-    }
-
-    // EXTREMELY BAD:
-    // - message is not constant
-    // - no context is provided
-    // - ex.getCause() is probably lost
-    // - call stack is probably lost
-    // - assumes useful toString()
-    public void bad_method5(Object arg) {
-        try {
-            doSomething(arg);
-            ...
-        } catch (SomeException ex) {
-            LOG.warn(ex.toString());
-        }
-    }
-
-    // VERY BAD:
-    // - no useful context is provided
-    // - ex.getCause() is probably lost
-    // - call stack is probably lost
-    // - administrators don't know what an Exception is!
-    public void bad_method6(Object arg) {
-        try {
-            doSomething(arg);
-            ...
-        } catch (SomeException ex) {
-            LOG.warn("Exception {}", ex);
-        }
-    }
-}
+     // COMPLETELY BAD:
+     // - silently ignoring errors!!!
+     public bad_method3(Object arg) {
+         try {
+             doSomething(arg);
+             ...
+         } catch (SomeException ex) {
+         }
+     }
+ 
+     // EXTREMELY BAD:
+     // - message is not constant
+     // - no context is provided
+     // - ex.getCause() is lost
+     // - call stack is lost
+     public void bad_method4(Object arg) {
+         try {
+             doSomething(arg);
+             ...
+         } catch (SomeException ex) {
+             LOG.warn(ex.getMessage());
+         }
+     }
+ 
+     // EXTREMELY BAD:
+     // - message is not constant
+     // - no context is provided
+     // - ex.getCause() is probably lost
+     // - call stack is probably lost
+     // - assumes useful toString()
+     public void bad_method5(Object arg) {
+         try {
+             doSomething(arg);
+             ...
+         } catch (SomeException ex) {
+             LOG.warn(ex.toString());
+         }
+     }
+ 
+     // VERY BAD:
+     // - no useful context is provided
+     // - ex.getCause() is probably lost
+     // - call stack is probably lost
+     // - administrators don't know what an Exception is!
+     public void bad_method6(Object arg) {
+         try {
+             doSomething(arg);
+             ...
+         } catch (SomeException ex) {
+             LOG.warn("Exception {}", ex);
+         }
+     }
+ }
 
 The proper fix for these anti-patterns is to always provide key information in the logging event:
 * what went wrong
 * how badly it went wrong
 * in case we recover, shortly describe how (especially on '''WARN''' level)
 
-class Foo {
-    private static final Logger LOG = LoggerFactory.getLogger(Foo.class);
+ class Foo {
+     private static final Logger LOG = LoggerFactory.getLogger(Foo.class);
+ 
+     // GOOD:
+     // - string literal
+     // - we explain what we tried to do
+     // - we pass along information we have about the failure
+     // - we explain that we recovered from the failure
+     public void good_method1(Object arg) {
+         try {
+             doSomething(arg);
+             ...
+         } catch (SomeException ex) {
+             LOG.warn("Failed to do something with {}, ignoring it", arg, ex);
+         }
+     }
 
-    // GOOD:
-    // - string literal
-    // - we explain what we tried to do
-    // - we pass along information we have about the failure
-    // - we explain that we recovered from the failure
-    public void good_method1(Object arg) {
-        try {
-            doSomething(arg);
-            ...
-        } catch (SomeException ex) {
-            LOG.warn("Failed to do something with {}, ignoring it", arg, ex);
-        }
-    }
-
-    // GOOD:
-    // - string literal
-    // - we explain what we tried to do
-    // - we pass along information we have about the failure
-    // - we escalate the failure to our caller
-    // - we also 'chain' the exception so it is not lost and can be
-    // correlated
-    public void good_method2(Object arg) {
-        try {
-            doSomething(arg);
-            ...
-        } catch (SomeException ex) {
-            LOG.error("Failed to do something with {}", arg, ex);
-            throw new RuntimeException("Failed to do something", ex);
-        }
-    }
-}
+     // GOOD:
+     // - string literal
+     // - we explain what we tried to do
+     // - we pass along information we have about the failure
+     // - we escalate the failure to our caller
+     // - we also 'chain' the exception so it is not lost and can be
+     // correlated
+     public void good_method2(Object arg) {
+         try {
+             doSomething(arg);
+             ...
+         } catch (SomeException ex) {
+             LOG.error("Failed to do something with {}", arg, ex);
+             throw new RuntimeException("Failed to do something", ex);
+         }
+     }
+ }
