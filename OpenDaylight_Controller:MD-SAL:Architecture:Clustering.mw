@@ -3,8 +3,9 @@
 # Distribute data in the datastore into shards such that a subset of shards can be located in any cluster member
 # A shard should hold all the data for a given top-level yang module (a top-level yang module corresponding to an application)
 # A shard should be backed by a persistent store so that when a cluster member is restarted the shard can be reconstructed from the persisted data
-
-
+# It should be possible to do a transaction on a single shard
+# Distributed transactions need not be supported
+# There should be logging/monitoring of transactions and data change notifications that would help an app developer tune data access. For example we know that remote-reads could be expensive so we should log reads that took an extra-ordinary amount of time or which is trying to get too much data. Similarly for data change notifications we should log if a registration results in too many notifications or the data delivered by that notification is too much or if delivery is taking too much time.
 
 == General Design Principles ==
 
@@ -61,8 +62,52 @@ Some answers here : http://doc.akka.io/docs/akka/snapshot/scala/typed-actors.htm
 
 TypedActors can very easily be abused as RPC, and that is an abstraction which is well-known to be leaky. Hence TypedActors are not what we think of first when we talk about making highly scalable concurrent software easier to write correctly. They have their niche, use them sparingly.
 
-===
+=== Why can't we use an existing Distributed Data Store instead of rolling our own? ===
 
-=== Clustered Datastore Persistence Options ===
-https://wiki.opendaylight.org/view/OpenDaylight_Controller:MD-SAL:Architecture:Clustered_Data_Store:Persistence_Options#Shard_Persisting_Strategy
-===
+# Most distributed DBs do not support transactions. Not even transactions on a single shard. We do intend to support transactions on a given shard.
+# Not sure if the current existing DB's could even perform well - they certainly cannot perform as well as our in-memory data store
+# External DBs generally do not do data change notifications
+# If we used an external DB that would make deployment a little more complicated - we would have to setup ODL and also the external DB - some people like the current deployment simplicity of ODL
+# One of the principles that we want to follow is to discourage data reads and promote data delivery (via change notifications) in this model the advantage of fast reads that a high performing external DB like say Mongo would become irrelevant
+
+=== What happens to the system when a given cluster member is down? ===
+
+In Helium since we're not planning to do replication what happens if a node is down. This means certain shards would be down effectively rendering the system unusable. Wondering if we can really get away with not doing replication in Helium.
+
+=== Notes regarding Sharding design ===
+
+The design of sharding should be done carefully based on the queries applications make and noting done that it will be painful(migration involved) if we want to change the sharding logic later after release. 
+
+== Clustered Datastore Persistence Options ==
+AKKA Persistence : http://doc.akka.io/docs/akka/2.3.2/java/persistence.html
+Roll our own using some existing in-process DB : https://wiki.opendaylight.org/view/OpenDaylight_Controller:MD-SAL:Architecture:Clustered_Data_Store:Persistence_Options#Shard_Persisting_Strategy
+
+
+== Proof of Concept ==
+
+=== Goals ===
+
+* Figure out if Akka can be leveraged for clustering
+* Validate design concepts
+* Make design choices
+* Estimate performance characteristics
+
+=== Focus Areas ===
+
+* Data Distribution / Sharding / Aggregation (Scatter Gather)
+** Determine location of Shard
+** Akka Clustering
+** Akka Remoting
+** Akka Sharding
+* Persistence / Recovery 
+** Akka Persistence
+* Replication / High Availability
+* Querying / Indexing
+* Serviceability (Monitoring and Diagnosis)
+** Akka atmos
+* Data Change Notification (Query like Filters)
+* Serialization over the wire
+** Google Protocol Buffers
+** EXI
+** BSON
+* Data Validators (nothing to do with DataCommitHandlers)
