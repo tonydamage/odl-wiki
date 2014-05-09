@@ -71,34 +71,6 @@ The MD-SAL DataStore supports three phase commit. The Shard will therefore also 
 
 == Open Questions/Random Thoughts ==
 
-
-=== Moving a Shard/How to avoid moving a shard  ===
-
-A clustered system starts up one member (process) at a time. When the very first member comes up it is not aware of any other existing members in a cluster. So it would probably have to assume that all shards are local. When the second member in a cluster comes up it needs to take ownership of some of the shards. This will involve (a) Informing member 1 of the intent to relocate the shard (2) The copying of all shard data from member 1 to member 2. 
-
-Some questions,
-
-# What happens when the shard is being moved? Do all transaction requests to that shard fail?
-# What strategies can be used to avoid downtime
-# Should the datastore have an “open for business” flag. That is only after all the nodes in the system are up and running will we start processing transactions?
-# What happens if there are components which try adding data to the store before the store is open for business? There are certain components like topology manager which add some high-level nodes at startup. (It’s probably only one component)
-
-=== Determining Shard location ===
-
-It seems logical that to determine on which cluster member a Shard lives we need to know (a) some key based on which we can determine the location of a Shard and (b) A collection of cluster members. For a cluster member we may need to know for one the IP address of the member so that when we have to remotely invoke operations on a shard we can do so. 
-
-Some questions,
-
-# What hashing algorithm should we use to translate the inputs to provide us the location of the shard? Consistent Hashing seems like it would fit the bill - it should work fine if the cluster membership is relatively static and it could probably still be relevant when we move to a more dynamic cluster.
-
-=== Akka Questions ===
-
-* Is it bad to use Typed Actors? Why should we avoid them? 
-
-Some answers here : http://doc.akka.io/docs/akka/snapshot/scala/typed-actors.html
-
-TypedActors can very easily be abused as RPC, and that is an abstraction which is well-known to be leaky. Hence TypedActors are not what we think of first when we talk about making highly scalable concurrent software easier to write correctly. They have their niche, use them sparingly.
-
 === Why can't we use an existing Distributed Data Store instead of rolling our own? ===
 
 # Most distributed DBs do not support transactions. Not even transactions on a single shard. We do intend to support transactions on a given shard.
@@ -106,10 +78,6 @@ TypedActors can very easily be abused as RPC, and that is an abstraction which i
 # External DBs generally do not do data change notifications
 # If we used an external DB that would make deployment a little more complicated - we would have to setup ODL and also the external DB - some people like the current deployment simplicity of ODL
 # One of the principles that we want to follow is to discourage data reads and promote data delivery (via change notifications) in this model the advantage of fast reads that a high performing external DB like say Mongo would become irrelevant
-
-=== What happens to the system when a given cluster member is down? ===
-
-In Helium since we're not planning to do replication what happens if a node is down. This means certain shards would be down effectively rendering the system unusable. Wondering if we can really get away with not doing replication in Helium.
 
 === Notes regarding Sharding design ===
 
