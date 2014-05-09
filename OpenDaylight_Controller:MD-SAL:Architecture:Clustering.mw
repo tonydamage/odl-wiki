@@ -67,7 +67,54 @@ The MD-SAL DataStore supports three phase commit. The Shard will therefore also 
 
 |}
 
-==== Cluster Member discovery ====
+==== Packaging ====
+
+The following bundles should be created,
+
+# MD-SAL Clustering Service
+# MD-SAL Distributed DataStore
+
+==== Configuration ====
+
+Cluster configuration defines the members of the cluster and what lives within it. This configuration can be static or dynamic. To make things simple we could go with a static configuration for Helium. The configuration could be defined in a file or files which could be put in the ODL distribution. When the ODL controller is started up we would pass the configuration file to it.
+
+When the MD-SAL Clustering Service bundle comes up it could look at which specific configuration needs to be loaded, reads it from disk and initializes itself. 
+
+Clustering configuration would be as follows,
+
+<code>
+cluster-configuration {
+    <role-name> {
+        shards [
+            {
+                name : <string>
+                module-qname : <string>
+                key : <string>
+                replica : <number>
+            }
+        ]
+    }
+}
+</code>
+
+Now since we are planning to use akka pay special attention to the ""role-name"". The role-name that one uses should correspond to the role-name specified for this node in the akka-cluster configuration. Right now I can see this as a potential area where mistakes could be made as two separate configuration files need to be kept in sync (need to think of a clean solution for this).
+
+
+
+==== Discovery ====
+
+When the ClusteringService comes up it first checks for the state of the cluster. It looks up all the members in the cluster and verifies that all the roles defined in the cluster-configuration are fulfilled by the cluster membership. Once all the members with the required roles are up and running the Clustering Service notifies it's listeners that the controller is now open for business.
+
+==== Sharding ====
+
+The DistributedDataStore is responsible for creating the Shard's. When the DistributedDataStore is created it is passed a reference to the ClusteringService. It registers itself as a listener to the ClusteringService. It then asks the ClusteringService to give it a collection of shards that belong on this member. Using that information it creates a bunch of local Shard actors.
+
+===== Creating a new transaction =====
+
+
+==== Recovery ====
+
+==== Availability ====
 
 == Open Questions/Random Thoughts ==
 
