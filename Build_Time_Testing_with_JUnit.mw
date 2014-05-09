@@ -43,10 +43,104 @@ To add the JUnit dependency to your maven project you simply add this dependency
 
 ''Note: You can exclude the scope and version tags assuming a parent project has defined the dependency in the dependency management section.''
 
-== Creating your Test Class ==
+== Creating your Test Class - Annotations ==
 
-In Progress
-*Annotations
+A JUnit test class is simply a java class. We use java annotations to mark the methods which set up the test and those which define actually tests. 
+
+In order to write a good unit test it is important to understand how JUnit executes your tests. JUnit will instantiate a new instance of your test class for each test method (@Test) that is defined in your test class. This means that non static class variables will be unique per instance of test method. This is done to ensure that one test method doesn't unintentionally interfere with another test in the same class. Unfortunately this also means that you need to initialize common intelligence every time which may lead to longer running tests (or messy code) which is something we want to avoid. JUnit makes this easier with a few additional annotations. Below is the flow of a JUnit test test:
+
+#'''@BeforeClass''' - This annotation can appear once in a test class on a public ''static'' method which takes no arguments. This provides a way to initialize some test data for ALL test methods in your test class. A BeforeClass method is intended to set up a static shared resource for all methods to use, such as a database connection or in our case a repository of yang model definitions (for example). In this method you can initialize static class variables for later use.
+#''A new instance of your test class is instantiated'' - A new instance of your test class is not instantiated so each method can have its own sandbox.
+#'''@Before''' - This annotation can appear once in a test class on a public method which takes no arguments. This method is called before EVERY test method. It purpose to to provide a location for common initialization logic that each test method requires, such as instantiating the class under test and performing some generic set up. During this step you can class level variables for use in your test methods. Note, you do NOT have to worry about synchronization with the class level variables initialized here, because each test method has its own copy of the variables. Of course if your tests deals with concurrency, or you are modifying a static resource (not recommended) you may still need to deal with concurrency.
+#'''@Test''' - See above. At this point one of the @Test annotated methods is executed.
+#'''@After''' - The method with this annotation is executed after the @Test annotated method executes. This method is executed regardless of the passing or failing of the JUnit test and provides an opportunity to clean up after your test, such as deleting temporary files or deleting records from a database.
+#''At this point the testing framework will loop back to the @Before on a new test class instance to execute the next test method.''
+#'''@AfterClass''' - this annotation placed on a static method is used to clean up the initialization performed in the @BeforeClass method. It is executed once when all @Test methods have been executed.
+
+Here is a sample JUnit test class that illustraits the ordering:
+
+<pre>
+ package org.opendaylight.controller.sal.restconf.impl.cnsn.to.json.test; 
+ 
+ import org.junit.After;
+ import org.junit.AfterClass;
+ import org.junit.Before;
+ import org.junit.BeforeClass;
+ import org.junit.Test;
+ 
+ public class Temp {
+ 
+    @BeforeClass
+    public static void staticInit(){
+        System.out.println( "Static Init" );
+    }
+ 
+    @Before
+    public void testInit(){
+        System.out.println( "Test Init - " + this );
+    }
+ 
+    @Test
+    public void testOne(){
+        System.out.println( "Test One - " + this );
+    }
+ 
+    @Test
+    public void testTwo(){
+        System.out.println( "Test Two - " + this );
+    }
+
+    @After
+    public void testCleanUp(){
+        System.out.println( "Test Clean Up - " + this );
+    }
+ 
+    @AfterClass
+    public static void staticCleanUp(){
+        System.out.println( "Static Clean Up" );
+    }
+ 
+}
+</pre>
+
+If you execute this through the test framework you would get output similar to this:
+
+<code>
+ Static Init
+ Test Init - org.opendaylight.controller.sal.restconf.impl.cnsn.to.json.test.Temp@'''7476a6d9'''
+ Test One - org.opendaylight.controller.sal.restconf.impl.cnsn.to.json.test.Temp@'''7476a6d9'''
+ Test Clean Up - org.opendaylight.controller.sal.restconf.impl.cnsn.to.json.test.Temp@'''7476a6d9'''
+ Test Init - org.opendaylight.controller.sal.restconf.impl.cnsn.to.json.test.Temp@'''7260c384'''
+ Test Two - org.opendaylight.controller.sal.restconf.impl.cnsn.to.json.test.Temp@'''7260c384'''
+ Test Clean Up - org.opendaylight.controller.sal.restconf.impl.cnsn.to.json.test.Temp@'''7260c384'''
+ Static Clean Up
+</code>
+
+Notice that the object address is different for the two initializations, indicating that each test method did indeed receive its own object.
+
+'''NOTE: It is important to not rely on the order of execution of the test methods. Additionally, test methods in the same class *may* be executed in parallel (not 100% sure on this) , and test methods in other classes can definitely be executed in parallel.
+
+Now that you have a shell for your test framework, its important to discuss how you indicate failures or passes in your JUnit tests. For that we need to discuss about assertions.
+
+== Validating Your Tests - Assertions ==
+
+In order to have a complete unit test it is important to have quality assertions in your tests which actually validate that the behavior observed is the behavior that you wanted. 
+
+* '''Passing a JUnit Test''' - A JUnit test is considered to have passed if the method executes and returns without throwing an exception.
+* '''Failing a JUnit Test''' - A JUnit test will be considered failed if an exception is thrown from it. There are a number of libraries that have been created to make this easier, most notable the Assert library. 
+
+The Assert library is closely tied to the JUnit library and provides methods to make it easy to validate that the data return is non null, equals another object etc. For example, if you want to assert that two objects are equal, you can use the assertEquals( ... ) method.
+
+<code>
+   public void test(){
+       Object expectedObj = ...
+       Object actualObj = ...
+       assertEquals( "Error message if not equal", expectedObj, actualObj );
+   }
+ </code>
+This is a very common pattern for the assert methods. YOu can provide a string which provides a more descriptive error if things are not equal. Additionally, the Assertion framework will also to string the objects for comparison if things don't match to provide further information. Check out the Assert class for all of the other combinations: http://junit.sourceforge.net/javadoc/org/junit/Assert.html
+
+Note: It is a good idea to use the most appropriate method for your assertions. For example you can assert equality by simply doing <code>assertTrue( expectedObj.equals( actualObj ) )</code>. However the assert methods will do additional things like null checks, and printing out more detailed information on the error if the assertion does not pass. So in this case, using assertEquals is better as it would null check and print the values of the expected and actual objects for you automatically, making the act of asserting really easy!.
 
 == Assertions ==
 
