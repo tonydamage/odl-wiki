@@ -15,22 +15,51 @@
 # The sharding strategy should be customizable. ODL should ship with a default sharding strategy. The sharding strategy determines the location of a shard possibly based on the instance identifier of a data object and the collection of the cluster members
 
 
-== Design options ==
-=== Option 1 : Invoking a remote shard using Rpc ===
+== Design ==
 
-This first option does not assume the existence of Akka. With Akka some of these classes and interfaces will disappear. For example a Shard will itself be an actor and will thus not require a proxy and stub for access. In this Rpc option we're not drilling down too much into "How did the Sharded Data Store figure out where the other cluster members are?" The '''ClusterManager''' is a proxy for a component that provides that information to the Sharded Data Store
-
+=== High Level ===
 
 [[File:High Level Design.png|General Concepts|x600px]]
 
 
-[[File:Create sharded data store.png|Creation of the Sharded Data Store|1000x500px]]
+{| class="wikitable"
+|-
+! Component Name !! Description
+|-
+| ClusteringConfiguration || The ClusteringConfiguration represents information about the cluster. The information it provides would be roughly the following,
+
+# What are the nodes in the cluster?
+# Which shards live on each node?
+# What data goes in each shard?
+
+|-
+| ClusteringService || The ClusteringService would have the following responsibilities
+
+# Read the cluster configuration. Where it reads the cluster configuration from should not matter. Initially we could even read the configuration from the file system. Overtime ofcourse we could have a "primary" node come up with a cluster configuration and distribute it to the other members in the cluster.
+# Resolve the node name to actual host name/ip
+# Given an InstanceIdentifier provide the address of a shard
+
+|-
+| DistributedDataStore || The DistributedDataStore would have the following responsibilities
+
+# Implement the DOMDataStore so that we could replace the InMemoryDataStore with the DistributedDataStore
+# Create the local shard actors as per the cluster configuration
+# Create the listener wrapper actors when a consumer registers a listener. 
+|-
+| Shard || A Shard would be '''processor''' which contains some of the data in the system. Since a Shard is an actor you would communicate with it using messages. The messages passed to a shard would for the most part be similar to the methods on the DOMDataStore interface. 
+
+A Shard would also be a Processor. A Processor in akka-persistence is a special actor which when passed a ""Persistent"" message will log it to a journal. This journal along with snapshots would be used as a method to recover the state of the DataStore.
+
+The state of the Shard would be maintained in an InMemoryDataStore object. 
+
+|-
+| ShardTransaction || A ShardTransaction would be an actor which wraps
+|}
+
+==== Cluster Member discovery ====
 
 
-[[File:Create new transaction.png|Creating a new transaction|1000x500px]]
 
-
-[[File:Write to transaction.png|Writing data using a transaction to a remote shard|1000x500px]]
 
 == Open Questions/Random Thoughts ==
 
