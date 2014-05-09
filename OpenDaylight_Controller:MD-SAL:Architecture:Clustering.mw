@@ -46,20 +46,28 @@
 # Create the local shard actors as per the cluster configuration
 # Create the listener wrapper actors when a consumer registers a listener. 
 |-
-| Shard || A Shard would be '''processor''' which contains some of the data in the system. Since a Shard is an actor you would communicate with it using messages. The messages passed to a shard would for the most part be similar to the methods on the DOMDataStore interface. 
+| Shard || A Shard would be a '''processor''' which contains some of the data in the system. Since a Shard is an actor you would communicate with it using messages. The messages passed to a shard would for the most part be similar to the methods on the DOMDataStore interface. 
 
-A Shard would also be a Processor. A Processor in akka-persistence is a special actor which when passed a ""Persistent"" message will log it to a journal. This journal along with snapshots would be used as a method to recover the state of the DataStore.
+Since the Shard is a ""Processor"" in akka-persistence is a special actor which when passed a ""Persistent"" message will log it to a journal. This journal along with snapshots would be used as a method to recover the state of the DataStore. The state of the Shard would be maintained in an InMemoryDataStore object. 
 
-The state of the Shard would be maintained in an InMemoryDataStore object. 
+The MD-SAL DataStore supports three phase commit. The Shard will therefore also provide the functions of the ThreePhasCommitCohort.
 
 |-
-| ShardTransaction || A ShardTransaction would be an actor which wraps
+| ShardTransaction || A ShardTransaction would be an actor which wraps an InMemoryDataStoreTransaction. Any operation that needs to be done on a transaction - namely ""read"", ""write"", ""delete"" and ""ready"" would be fronted by the ShardTransaction. 
+
+|-
+| TransactionProxy || The TransactionProxy will hold the reference to the remote ShardTransaction actor and when returned to the consumer of the DistributedDataStore could be used to invoke the transaction operations on the remote transaction.
+
+|-
+| ListenerWrapper || The ListenerWrapper is an actor that would represent a local data change listener. It would be created as a remote actor on the node where the Data Change registration is done. 
+
+|-
+| ListenerProxy || The ListenerProxy represents a remote data change listener. When the local Shard issues a data change notification it is the ListenerProxy's responsibility to send that data change notification over to the remote ListenerWrapper actor.
+
+
 |}
 
 ==== Cluster Member discovery ====
-
-
-
 
 == Open Questions/Random Thoughts ==
 
