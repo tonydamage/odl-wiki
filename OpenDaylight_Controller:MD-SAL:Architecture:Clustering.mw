@@ -78,14 +78,14 @@ The MD-SAL DataStore supports three phase commit. The Shard will therefore also 
 
 |}
 
-==== Packaging ====
+=== Packaging ===
 
 The following bundles should be created,
 
 # MD-SAL Clustering Service
 # MD-SAL Distributed DataStore
 
-==== Configuration ====
+=== Configuration ===
 
 Cluster configuration defines the members of the cluster and what lives within it. This configuration can be static or dynamic. To make things simple we could go with a static configuration for Helium. The configuration could be defined in a file or files which could be put in the ODL distribution. When the ODL controller is started up we would pass the configuration file to it.
 
@@ -118,7 +118,7 @@ ClusteringService will be responsible for Discovery and all related functions. I
 
 When the ClusteringService comes up it first checks for the state of the cluster. It looks up all the members in the cluster and verifies that all the roles defined in the cluster-configuration are fulfilled by the cluster membership. Once all the members with the required roles are up and running the Clustering Service notifies it's listeners that the controller is now open for business.
 
-==== Sharding (and data access) ====
+=== Sharding (and data access) ===
 
 The DistributedDataStore is responsible for creating the Shard's. When the DistributedDataStore is created it is passed a reference to the ClusteringService. It registers itself as a listener to the ClusteringService. It then asks the ClusteringService to give it a collection of shards that belong on this member. Using that information it creates a bunch of local Shard actors.
 
@@ -152,7 +152,7 @@ There are a few ways in which we could fix this,
 
 <TBD>
 
-==== Recovery ====
+=== Recovery ===
 
 To enable recovery we could use Akka's persistence module. One caveat to using Akka's persistence module is that it is experimental. Only a POC will determine if it is usable for our purposes. If it is not we may need to roll our own but in general the principles would be the same.
 
@@ -166,7 +166,7 @@ The above can be provided by Akka.
 
 In addition we will also need to ensure that replica being recovered is in sync with the primary replica. One way to ensure this would be for the primary replica to send all "undelivered" messages from it's transaction log to the current replica.
 
-==== Availability ====
+=== Availability ===
 
 High availability will be enabled by,
 
@@ -181,15 +181,15 @@ After a successful commit on the primary replica a replication message would be 
 
 The ClusteringService would be monitoring the state of all the members of a cluster. When it detects node failure it will notifiy it's listeners of the failure of that node. One of it's listeners would be the DistributedDataStore which on receipt of the failure will then send a message to all it's TransactionProxy's informing it of the failure of that node and that failure would be then propagated forward by the TransactionProxy's to the ThreePhaseCommitCohortProxy. If the node failure affects the transaction - that is if the failure is on a node where one of the transactions shard resides then the transaction will be marked as failed and any further action on it will throw an exception. The same applies on the ThreePhaseCommitCohortProxy.
 
-==== Monitoring ====
+=== Monitoring ===
 
 An Akka cluster can be monitored using JMX or using the TypeSafe Console. TypeSafe Console is a commercial product though so if we want similar functionality we may have to roll our own.
 
-==== Error Handling ====
+=== Error Handling ===
 
 # What happens to transactions when a node fails ?
 
-==== Performance Measurement ====
+=== Performance Measurement ===
 
 <TBD>
 
