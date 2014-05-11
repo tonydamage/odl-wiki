@@ -170,6 +170,14 @@ High availability will be enabled by,
 # Replicating shard data to a configurable number of replicas
 # Detecting failure of nodes and switching the primary replica
 
+===== Replication =====
+
+After a successful commit on the primary replica a replication message would be sent to all the secondary replicas. The secondary replicas would write this message into the journal and then commit the message as a transaction on the InMemoryDataStore. 
+
+===== Node Failure detection =====
+
+The ClusteringService would be monitoring the state of all the members of a cluster. When it detects node failure it will notifiy it's listeners of the failure of that node. One of it's listeners would be the DistributedDataStore which on receipt of the failure will then send a message to all it's TransactionProxy's informing it of the failure of that node and that failure would be then propagated forward by the TransactionProxy's to the ThreePhaseCommitCohortProxy. If the node failure affects the transaction - that is if the failure is on a node where one of the transactions shard resides then the transaction will be marked as failed and any further action on it will throw an exception. The same applies on the ThreePhaseCommitCohortProxy.
+
 ==== Monitoring ====
 
 ==== Error Handling ====
