@@ -62,21 +62,21 @@ Endpoints can have ''conditions'', which are labels representing some relevant p
 Conditions do not actually appear in the policy configuration model other than as a named reference.  To determine the set of conditions that apply to a particular endpoint, the endpoint will need to be looked up in the endpoint registry, and it associated condition labels retrieved from there.
 
 ==== Clauses ====
-Clauses are what will do the actual selection of subjects.  A clause has four matchers in two categories.  In order for a clause to match against a subject, all four component matchers must match.    
+Clauses are what will do the actual selection of subjects.  A clause has four lists of matchers in two categories.  In order for a clause to match against a subject, all four lists of matchers must match.    
 
 The first category is the consumer matchers, which match against the consumer endpoint group and endpoints.  The consumer matchers are:
-; Requirement matcher
+; Requirement matchers
 : matches against requirements in the matching consumer selector.
-; Consumer condition matcher
+; Consumer condition matchers
 : matches against conditions on endpoints in the consumer endpoint group
 
 The second category is the provider matchers, which match against the provider endpoint group and endpoints.  The provider matchers are:
-; Capability matcher
+; Capability matchers
 : matches against capability in the matching provider selector.
-; Provider condition matcher
+; Provider condition matchers
 : matches against conditions on endpoints in the provider endpoint group
 
-Clauses have a list of subjects that apply when the clause matches.  The output of the subject selection phase logically is a set of subjects that are in scope for any particular pair of endpoints.
+Clauses have a list of subjects that apply when all the matchers in the clause match.  The output of the subject selection phase logically is a set of subjects that are in scope for any particular pair of endpoints.
 
 === Rule Application ===
 Now that we have a list of subjects that apply to the traffic between a particular endpoints, we're ready to describe how we actually apply policy to allow those endpoints to communicate.  The applicable subjects from the previous step will each contain a set of rules.  
@@ -90,30 +90,29 @@ Rules, subjects, and actions have an ''order'' parameter, where a lower order va
 We've now reached final phase in the three-phases policy resolution process.  First, we found the set of contract scopes to apply.  Second, we found the set of subjects to apply.  Finally, we saw how we apply the subjects to traffic between pairs of endpoints in order to realize the policy.  The remaining sections of this document will fill in additional detail for the policy resolution process.
 
 == Matchers ==
+Matchers have been mentioned a few times now without really explaining what they are.  Matchers specify a set of labels (which include requirements, capabilities, conditions, and qualities) to match against.  There are several kinds of matchers that operate similarly:
+* Quality matchers are used in target selectors during the contract selection phase.  Quality matchers provide a more advanced and flexible way to select contracts compared to a named selector.
+* Requirement matchers and capability matchers are used in clauses during the subject selection phase to match against requirements and capabilities on endpoint groups
+* Condition matchers are used in clauses during the subject selection phase to match against conditions on endpoints
 
-Matchers have been mentioned a few times now without explaining what they are.  ''Quality matchers'' are an advanced way of selecting contracts from an endpoint by matching against labels on the contracts called ''qualities''.
+A matcher is, at its heart, fairly simple.  It will contain a list of label names, along with a ''match type''.  The match type can be either "all," which means the matcher matches when all of its labels match, "any," which means the matcher matches when any of its labels match, or "none," which means the matcher matches when none of its labels match.  Note that a matcher which always matches can be made by matching against an empty set of labels with a match type of "all."
 
-Here are the fields in a quality matcher:
-; id
-: A UUID
-; list of matcher-quality
-: list of quality labels along with namespace and inheritance rules
-; parent
-: an optional reference to a quality matcher ID from which we inherit
+Additionally each label to match can optionally include a relevant "name" field.  For quality matchers, this is a target name.  For capability and requirement matchers, this is a selector name.  If the name field is specified, then the matcher will only match against targets or selectors with that name, rather than any targets or selectors.
 
-A matcher quality has the following fields:
-; name
-: The name of the quality to match
-; description
-: A human-readable description field for the user to fill in
-; inclusion-rule
-: Either "include" or "exclude"; set to exclude to cause this label to be ignored when it might otherwise have been inherited from a parent
-; target-name
-: Narrow the match to include only targets with the given name.  If no name is indicated and name-inheritance is set to '
-; name-inheritance 
-: Determines how names are inherited by matchers.  Names are used by matchers to narrow the scope of labels against which they match to only particular targets or selectors.  Either "inherit", or "specified."
+There are some additional semantics related to inheritance.  Please see the section for [[Group Policy:Architecture/Policy Model#Inheritance|Inheritance]] for more details.
 
-A contract contains ''targets'' that are just collections of qualities.  The quality matcher is actually matching against these targets.  The name of each target represents a namespace for the qualities contained within it.  Each quality matcher contains a list of qualities to match along with a target namespace for each quality.  
+=== Quality Matchers ===
+A contract contains ''targets'' that are just a set of quality labels.  A target selector on an endpoint group matches against these targets using quality matchers.  A quality matcher is a matcher where the label it matches is a quality, and the name field is a target name.
+
+=== Requirement and Capability Matchers ===
+The matching selector from the contract selection phase will define either requirements or capabilities for the consumer and provider endpoint groups, respectively.  Clauses can match against these labels using requirement and capability matchers.  Requirements matchers match against requirements while capability matchers match against capabilities.  In both cases, the name field is a selector.
+
+=== Condition Matcher ===
+Endpoints can have condition labels.  The condition matcher can be used in a clause to match against endpoints with particular combinations of conditions.
+
+== Tenants ==
+
+=== Contract References ===
 
 == Subject Features ==
 
@@ -123,6 +122,7 @@ A contract contains ''targets'' that are just collections of qualities.  The qua
 
 
 == Inheritance ==
+This section contains information on how inheritance works for 
 
 === Contracts ===
 
