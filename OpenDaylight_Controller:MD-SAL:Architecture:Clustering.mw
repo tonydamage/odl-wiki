@@ -1,8 +1,8 @@
 == Rough requirements for Helium ==
 
 # Distribute data in the datastore into shards such that a subset of shards can be located in any cluster member
-# A shard should hold all the data for a given top-level yang module (a top-level yang module corresponding to an application)
 # A shard should be backed by a persistent store so that when a cluster member is restarted the shard can be reconstructed from the persisted data
+# A shard should be replicated to configurable number ( 2 for Helium) of replicas. Replication is a stretch goal for Helium.
 # Distributed transactions across shards NEED NOT be supported. A transaction on a single shard MUST be supported.
 # There should be logging/monitoring of transactions and data change notifications that would help an app developer tune data access. For example we know that remote-reads could be expensive so we should log reads that took an extra-ordinary amount of time or which is trying to get too much data. Similarly for data change notifications we should log if a registration results in too many notifications or the data delivered by that notification is too much or if delivery is taking too much time.
 
@@ -11,7 +11,8 @@
 # The Clustered/Sharded Data Store should be a drop in replacement for the InMemory Data Store
 # Reuse the InMemory Data Store to represent a shard because it already takes care of maintaining a tree which contains data for all modules and can therefore be scaled down to deal with data for a single module
 # Use Akka for doing operations on remote shards. Akka seems to fit very well with the existing design of md-sal as it is already based on the actor model.
-# The sharding strategy should be customizable. ODL should ship with a default sharding strategy. The sharding strategy determines the location of a shard possibly based on the instance identifier of a data object and the collection of the cluster members
+# The sharding strategy should be customizable. ODL should ship with a default sharding strategy (which will be static and pre-determined for a given cluster size, similar to the APIC design; applications will be responsible for determining the sharding of their data). The sharding strategy determines the location of a shard possibly based on the instance identifier of a data object and the collection of the cluster members
+# Application/Services reading/writing to the shard should be co-located with the shard to minimize remote transactions as much as possible. Only one application should be the logical owner of a shard. When other applications need that data, they should either utilize the APIs provided by the owner application or subscribe to data change notifications.
 
 === Akka ===
 
@@ -122,6 +123,8 @@ When the ClusteringService comes up it first checks for the state of the cluster
 
 The DistributedDataStore is responsible for creating the Shard's. When the DistributedDataStore is created it is passed a reference to the ClusteringService. It registers itself as a listener to the ClusteringService. It then asks the ClusteringService to give it a collection of shards that belong on this member. Using that information it creates a bunch of local Shard actors.
 
+Data is sharded at a sub-tree level.  In other words, If a Tree Node belongs to a shard, All the sub-tree nodes will also belong to the same shard.  Sharding strategy will be pluggable at a module level. Default sharding strategy will be to allocate a shard per top level module. It is expected that few modules such as Inventory and Topology will be the heavy hitters on the data store and data may need to be further sharded at a sub-module level.  In those cases, Sharding strategy can specify the path prefix to shard on. 
+
 ==== Creating a new transaction ====
 
 [[File:Create a new transaction.png|1000x800px]]
@@ -146,7 +149,7 @@ There are a few ways in which we could fix this,
 
 ==== Committing a transaction ====
 
-We plan to use 3-phase commit for committing transactions. The 3-phase commit protocol works as shown in the following diagram.
+We plan to use 3-phase commit semantics for committing transactions. The 3-phase commit protocol works as shown in the following diagram. This would imply that we do guarantee distributed transactions but in-reality we may not be able to. If 3-phase commit is not important or possible then we should probably not even have it on the DOMStore interfaces.
 
 [[File:Three-phase commit diagram.png]]
 
@@ -164,11 +167,31 @@ If data from a single module is put into multiple shards it is possible that a r
 
 With the current DOM-Store the only type read supported is to read a piece of data based on it's identifier. Querying for data based on attributes of the data is not supported. This capability needs to be added to the DOM-Store interfaces and optimized (indexed) for fast access.
 
-<TBD>
+Following types of queries will be supported. 
+
+* Query based on instance identifier
+* Query based on object class (Extend YANG with the notion of an Object Class?)
+* Query based on attribute filters 
+* Scoped query based on Object Class
+* Scoped query on attribute filters
+
+Data Store will implement B-Tree Indexes to support efficient queries based on attribute filters.  YANG data modelers are in the best position to define the expected query patterns and therefore define the indexes which need to be created. YANG language extensions will be provided to simplify the definition of query indexes.
 
 ==== Data Change Notifications ====
 
 ===== Registration =====
+
+Data change notifications can be thought of as continuous queries  where the query is specified once and instead of returning the matching data immediately system sends notifications when matching data appear in the data tree. As such,  data change subscriptions can be customized just like the data queries.
+
+Following types of subscriptions will be supported.
+
+* Query based on instance identifier
+* Query based on object class (Extend YANG with the notion of an Object Class?)
+* Query based on attribute filters
+* Scoped query based on Object Class
+* Scoped query on attribute filters
+
+Question: Do we need to support the notion of a custom filter where a piece of java code can be supplied by the consumer which will be invoked for every matching node during notification and only those nodes which pass the filter will be returned
 
 ===== Notification =====
 
@@ -198,10 +221,11 @@ High availability will be enabled by,
 
 # Replicating shard data to a configurable number of replicas
 # Detecting failure of nodes and switching the primary replica
+# Shard priority order will be fixed for one of the secondary replicas to become leader. 
 
 ===== Replication =====
 
-After a successful commit on the primary replica a replication message would be sent to all the secondary replicas. The secondary replicas would write this message into the journal and then commit the message as a transaction on the InMemoryDataStore. 
+After a successful local commit on the primary replica a replication message would be sent to all the secondary replicas. The secondary replicas would write this message into the journal and then commit the message as a transaction on the InMemoryDataStore. A Transaction is not considered to be complete for external purposes until the data is written to the replication journal on at least one replica.
 
 ===== Node Failure detection =====
 
