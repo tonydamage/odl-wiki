@@ -15,8 +15,8 @@ This section describes some of the most important concepts in the policy model. 
 ; Subject
 : ''Subjects'' describe some aspect of how two endpoints are allowed to communicate.  Subjects define an ordered list of rules that will match against the traffic and perform any necessary actions on that traffic.  No communication is allowed unless a subject allows that communication.
 
-== Policy Resolution ==
-There are a lot of concepts to unpack and it can be difficult to see how this all fits together.  Let's imagine that we want to analyze a particular flow of traffic in the network and walk through the policy resolution process for that flow.  The key here is that the policy resolution process happens logically in multiple phases.  First, we need to select the contracts that are in scope for the endpoint groups of the endpoints of the flow.  Next, we select the set of subjects that apply to the endpoints of the flow.  Finally, we apply the rules from the applicable subjects to the actual network traffic in the flow.
+== Introduction to Policy Resolution ==
+There are a lot of concepts to unpack and it can be difficult to see how this all fits together.  Let's imagine that we want to analyze a particular flow of traffic in the network and walk through the policy resolution process for that flow.  The key here is that the policy resolution process happens logically in three phases.  First, we need to select the contracts that are in scope for the endpoint groups of the endpoints of the flow.  Next, we select the set of subjects that apply to the endpoints of the flow.  Finally, we apply the rules from the applicable subjects to the actual network traffic in the flow.
 
 Note that this description gives a semantic understanding of how the policy model should be applied.  The steps described here may or may not correspond to an actual efficient implementation of this policy model.
 
@@ -76,11 +76,18 @@ The second category is the provider matchers, which match against the provider e
 ; Provider condition matcher
 : matches against conditions on endpoints in the provider endpoint group
 
-Clauses have a list of subjects that apply when the clause matches.  The output of the subject selection phase logically is a list of subjects that are in scope for any particular pair of endpoints.
+Clauses have a list of subjects that apply when the clause matches.  The output of the subject selection phase logically is a set of subjects that are in scope for any particular pair of endpoints.
 
 === Rule Application ===
+Now that we have a list of subjects that apply to the traffic between a particular endpoints, we're ready to describe how we actually apply policy to allow those endpoints to communicate.  The applicable subjects from the previous step will each contain a set of rules.  
 
-==== Priority Resolution ====
+Rules consist of a set of ''classifiers'' and a set of ''actions''.  Classifiers match against traffic between two endpoints.  An example of a classifier would be something that matches against all TCP traffic on port 80, or one that matches against HTTP traffic containing a particular cookie.  Actions are specific actions that need to be taken on the traffic before it reaches its destination.  Actions could include tagging or encapsulating the traffic in some way, redirecting the traffic, or applying some service chain.  For more information on how classifiers and actions are defined, see below under [[Group Policy:Architecture/Policy Model#Subject Features|Subject Features]].
+
+If ''any'' classifier on a rule matches, ''all'' the actions on that rule are applied (in order) to the traffic.  Only the first matching rule will apply.
+
+Rules, subjects, and actions have an ''order'' parameter, where a lower order value means that a particular item will be applied first.  All rules from a particular subject will be applied before the rules of any other subject, and all actions from a particular rule will be applied before the actions from another rule.  If more than item has the same order parameter, ties are broken with a lexicographic ordering of their names, with earlier names having logically lower order.
+
+We've now reached final phase in the three-phases policy resolution process.  First, we found the set of contract scopes to apply.  Second, we found the set of subjects to apply.  Finally, we saw how we apply the subjects to traffic between pairs of endpoints in order to realize the policy.  The remaining sections of this document will fill in additional detail for the policy resolution process.
 
 == Matchers ==
 
@@ -108,7 +115,7 @@ A matcher quality has the following fields:
 
 A contract contains ''targets'' that are just collections of qualities.  The quality matcher is actually matching against these targets.  The name of each target represents a namespace for the qualities contained within it.  Each quality matcher contains a list of qualities to match along with a target namespace for each quality.  
 
-== Subject Features
+== Subject Features ==
 
 === Classifiers ===
 
