@@ -138,6 +138,8 @@ Next, there are subject feature instances.  Subject feature instances are scoped
 
 Finally, there are subject feature references, which are references to subject feature instances.  Subjects contain these subject feature references in order to apply the feature.  These references also contain, as appropriate an order field to determine order of operations and fields for matching the direction of the traffic.
 
+If the underlying network infrastructure is unable to to implement a particular subject, then it must raise an exception related to that subject.  It may then attempt to relax the constraints in a way that allows it to implement the policy.  However, when doing this it must attempt to avoid allowing traffic that should not be allowed.  That is, it should "fail closed" when relaxing constraints.
+
 == Inheritance ==
 This section contains information on how inheritance works for various objects in the system.  This is covered here to avoid cluttering the main sections with a lot of details that would make it harder to see the big picture.
 
@@ -181,4 +183,10 @@ The match type, if specified in the child, overrides the value specified in the 
 Labels are also inherited from the parent object.  If there is a label with the same name in the child object, this does not have any semantic effect except if the label has its inclusion-rule parameter set to "exclude."  In this case, then the label should be ignored for the purpose of matching.
 
 === Subject Feature Definitions ===
-XXX TODO
+Subject features definitions, including classifier definitions and subject definitions can also inherit from each other by specifying a parent object.  These are a bit different from the other forms of override because they do not merely affect the policy resolution process, but rather affect how the policy is applied in the underlying infrastructure.
+
+For the purposes of policy resolution, a subject feature will inherit from its parent any named parameters.  However, unlike in other cases, if a named parameter with the same name exists in the child as in the parent, this is an invalid parameter and will be ignored in the child.  That is, the child ''cannot'' override the type of a named parameter in a child subject feature.
+
+For the purposes of applying the subject in the underlying infrastructure, the child subject feature is assumed to add some additional functionality to the parent subject feature such that the child feature is a specialization of that parent feature.  For example, there might be a classifier definition for matching against a TCP port, and a child classifier definition that allowed for deep packet inspection for a particular protocol that extended the base classifier definition.  In this case, the child classifier would be expected to match the TCP port as well as apply its additional deep packet inspection semantics.
+
+If the underlying infrastructure is unable to apply a particular subject feature, it can attempt to fall back to implementing instead the parent subject feature.  The parameter fallback-behavior determines how this should apply.  If this is set to 'strict' then a failure to apply the child is a fatal error and the entire subject must be ignored.  If the fallback behavior is 'allow-fallback' then the error is nonfatal and it is allowed to apply instead only the parent subject feature.
