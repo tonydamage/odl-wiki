@@ -111,11 +111,21 @@ The matching selector from the contract selection phase will define either requi
 Endpoints can have condition labels.  The condition matcher can be used in a clause to match against endpoints with particular combinations of conditions.
 
 == Tenants ==
+The system allows multiple tenants that are designed to allow separate domains of administration.  Contracts and endpoint groups are defined within the context of a particular tenant.  Endpoints that below to endpoint groups in separate tenants cannot communicate with each other except through a special mechanism to allow cross-tenant contracts called ''contract references''.
 
+While it would be be possible to define semantics for tenant inheritance, as currently defined there is no way for tenants to inherit from each other.  There is, however, a limited mechanism through the special ''common tenant'' (see [[Group Policy:Architecture/Policy Model#Common Tenant|below]]).  All references to names are within the scope of that particular tenant, with the limited exceptions of the common tenant and contract references.
 
 === Contract References ===
+Contract references are the mechanism by which endpoints in different tenants can communicate.  This is especially useful for such common use cases as gateway routers or other shared services.  In order to for an endpoint group to select a contract in a different tenant, there must first exist a contract reference defined in the endpoint group's local tenant.  The contract reference is just a tenant ID and a contract ID; this will bring that remote contract into the scope of the local contract.  Note that this reference may be subject to additional access control mechanisms.
+
+Endpoint groups can participate in such remotely-defined contracts only as consumers, not as providers.
+
+Once the contract reference exists, endpoint groups can now select that contract using either named or target selectors.  By defining a contract reference, the qualities and targets in that contract are imported into the namespace of the local tenant for the contract selection phase.  Similarly, the requirements and conditions from the local tenant will be used when performing the consumer matches in the subject selection phase.
 
 === Common Tenant ===
+The common tenant is an area where definitions that are useful for all tenants can be created.  Everything defined in the common tenant behaves exactly as though it were defined individually in every tenant.  This applies to resolution of labels for the purposes of contract selection, as well as subject feature instances (see  [[Group Policy:Architecture/Policy Model#Subject Features|below]]).
+
+If a name exists in both the common tenant and another tenant, then when resolving names within the context of that tenant the definition in the common tenant will be masked.  One special case to consider is if a definition in a tenant defines the common tenant definition as its parent and uses the same name as the parent object.  This works as you might expect: the name reference from the child definition will extend the behavior of the definition in the common tenant, but then mask the common tenant definition so that references to the name within the tenant will refer to the extended object.
 
 == Subject Features ==
 Subject features are objects that can be used as a part of a subject to affect the communication between pairs of endpoints.  This is where the policy model meets the underlying infrastructure.  Because different networks will have different sets of features, we need some way to represent to the users of the policy what is possible.  Subject features are the answer to this.
