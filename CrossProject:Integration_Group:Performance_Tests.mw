@@ -140,41 +140,48 @@ curl --user "admin":"admin" -H "Accept: application/json" -H "Content-type: appl
 
 === CBench Test ===
 This test is still being designed, but the idea is to bring up varying typologies of switches (16, 32, 64...) and benchmark how many flows/sec the controller can handle, as well as the CPU and RAM usage of each iteration.
- 
+
 Test Steps:
-* 1. Download the latest controller base distribution. See [[CrossProject:Integration_Group:Controller_Artifacts]] for details.
+
+* 1. OpenDaylight depends on Java, and the install process depends on unzip.
+
+<pre>
+[~]$ sudo yum install java-1.7.0-openjdk unzip
+</pre>
+
+* 2. Download the latest controller base distribution. See [[CrossProject:Integration_Group:Controller_Artifacts]] for details.
 
 <pre>
 [~]$ wget 'https://jenkins.opendaylight.org/integration/job/integration-project-centralized-integration/lastSuccessfulBuild/artifact/distributions/base/target/distributions-base-0.1.2-SNAPSHOT-osgipackage.zip'
 [~]$ unzip distributions-base-0.1.2-SNAPSHOT-osgipackage.zip
 </pre>
 
-* 2. Download the OpenFlow plugin reactive forwarding bundle and install it by moving it to the ''opendaylight/plugins'' directory.
+* 3. Download the OpenFlow plugin reactive forwarding bundle and install it by moving it to the ''opendaylight/plugins'' directory.
 
 <pre>
 [~/opendaylight/plugins]$ wget 'https://jenkins.opendaylight.org/openflowplugin/job/openflowplugin-merge/lastSuccessfulBuild/org.opendaylight.openflowplugin$drop-test/artifact/org.opendaylight.openflowplugin/drop-test/0.0.3-SNAPSHOT/drop-test-0.0.3-SNAPSHOT.jar'
 </pre>
 
-* 3. The AD-SAL simple forwarding and ARP handler bundles apparently interfere with MD-SAL CBench measurements. Delete them:
+* 4. The AD-SAL simple forwarding and ARP handler bundles apparently interfere with MD-SAL CBench measurements. Delete them:
 <pre>
 [~/opendaylight/plugins]$ rm org.opendaylight.controller.samples.simpleforwarding-0.4.2-SNAPSHOT.jar
 [~/opendaylight/plugins]$ rm org.opendaylight.controller.arphandler-0.5.2-SNAPSHOT.jar
 </pre>
 
-* 4. Edit the ''opendaylight/configuration/logback.xml'' file to set the controller log level to ERROR:
+* 5. Edit the ''opendaylight/configuration/logback.xml'' file to set the controller log level to ERROR:
 
 <pre>
   <!-- Controller log level -->
   <logger name="org.opendaylight.controller" level="ERROR"/>
 </pre>
 
-* 5. Start the controller. It's recommended that you use the following options:
+* 6. Start the controller. It's recommended that you use the following options:
 
 <pre>
 [~/opendaylight]$ ./run.sh -of13 -Xms1g -Xmx4g
 </pre>
 
-* 6. Initiate the drop test in the controller. There are two types of drop tests: RPC (programming flows directly through an RPC to the OF Plugin) and data store (programming flows by writing them into the MD-SAL config space, from where they are picked up by the FRM and programmed into the plugin). For the data store performance, the latter is of interest.
+* 7. Initiate the drop test in the controller. There are two types of drop tests: RPC (programming flows directly through an RPC to the OF Plugin) and data store (programming flows by writing them into the MD-SAL config space, from where they are picked up by the FRM and programmed into the plugin). For the data store performance, the latter is of interest.
 
 Turn on the RPC drop test. From the controller’s OSGi console, which your shell drops into after starting the controller:
 
@@ -190,9 +197,9 @@ osgi> dropAllPackets on
 DropAllFlows is already on
 </pre>
 
-* 7. If you haven't already, install CBench as described in [[CrossProject:Integration_Group:Performance_Test#CBench_Setup]]. 
+* 8. If you haven't already, install CBench as described in [[CrossProject:Integration_Group:Performance_Test#CBench_Setup]]. 
 
-* 8. You can now start a CBench test (from a different shell, not the OSGi console). Replace ''localhost'' with the IP of the machine running the controller, if it's not your local machine. Note that the first run seems to give non-representative results, but future runs are consistent.
+* 9. You can now start a CBench test (from a different shell, not the OSGi console). Replace ''localhost'' with the IP of the machine running the controller, if it's not your local machine. Note that the first run seems to give non-representative results, but future runs are consistent.
 
 <pre>
 [~]$ cbench -c localhost -p 6633 -m 1000 -l 10 -s 16 -M 100000
@@ -218,8 +225,10 @@ cbench: controller benchmarking tool
 17:45:21.062 16  switches: fmods/sec:  829  917  944  888  843  889  783  783  819  892  918  878  821  900  787  782   total = 13.672795 per ms 
 RESULT: 16 switches 9 tests min/max/avg/stdev = 6556.99/13672.79/11951.73/2257.99 responses/s
 </pre>
-* 8. Monitor CPU and RAM usage.
-* 9. Repeat the test, increasing the number of switches (-s 32) and MACs/switch (-M 200000).
+
+* 10. Monitor CPU and RAM usage.
+
+* 11. Repeat the test, increasing the number of switches (-s 32) and MACs/switch (-M 200000).
 
 === Known Issues ===
 * Cbench Throughput test does not work well, CPU goes very high and cannot process incoming packet-in messages in an stable way. It looks like CPU is being used by Netty to flush some buffers, OF plugin devs are working on fixing this.
