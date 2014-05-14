@@ -67,7 +67,7 @@ You may need to change your MAVEN_OPTS
 == Running the Distribution ==
 
  cd distribution/opendaylight/target/distribution.ovsdb-<version>-SNAPSHOT-osgipackage/opendaylight/
- ./run.sh ./run.sh -debug -Xmx2048m -XX:MaxPermSize=1024m -virt ovsdb
+ ./run.sh -debug -Xmx2048m -XX:MaxPermSize=1024m -virt ovsdb
 
 = Testing Patches =
 
@@ -86,6 +86,55 @@ If you would like to run multiple versions of Open vSwitch for testing you can u
 == Mininet ==
 
 [Mininet http://mininet.org/] is another useful resource for testing patches. Mininet creates multiple Open vSwitches connected in a configurable topology.
+
+== Vagrant ==
+
+The Vagrantfile in the root of the OVSDB source code provides an easy way to create VMs to test with.
+
+=== Installing Vagrant ===
+
+Please follow the instructions [https://docs.vagrantup.com/v2/installation/ here] to install Vagrant on your machine
+
+=== Testing with Devstack ===
+
+First, start the controller from the OVSDB distribution as mentioned [[ OVSDB:Developer_Guide#Running_the_Distribution| here ]]
+
+ vagrant up devstack-control
+ vagrant ssh devstack-control
+ cd devstack
+ ./stack.sh
+
+Get coffee... (a tall one, like a Latte or an Americano)
+
+ vagrant up devstack-compute
+ vagrant ssh devstack-compute
+ cd devstack
+ ./stack.sh
+
+Get another coffee... (something smaller this time. Espresso or Macchiato)
+
+Once it's finished stacking you can start testing...
+
+Maybe create a virtual machine...
+
+ nova boot --flavor m1.tiny --image $(nova image-list | grep 'cirros-0.3.1-x86_64-uec\s' | awk '{print $2}') --nic net-id=$(neutron net-list | grep private | awk '{print $2}') test
+
+...or three...
+
+ nova boot --flavor m1.tiny --image $(nova image-list | grep 'cirros-0.3.1-x86_64-uec\s' | awk '{print $2}') --nic net-id=$(neutron net-list | grep private | awk '{print $2}') --num-instances 3 test
+
+=== Testing with Mininet ===
+ 
+ vagrant up mininet
+ vagrant ssh mininet
+
+You now have a Mininet install at your disposal
+
+=== Cleaning Up ===
+
+When you are finished
+
+ vagrant destroy
 
 = OpenDaylight OVSDB Developer Getting Started Video Series =
 
