@@ -1,4 +1,24 @@
-== How to use Restconf ==
+= How to use Restconf =
+==Known Issues==
+There are several known issues that have come to light recently.
+*restconf/modules throws an exception and returns with an internal server error. See [https://bugs.opendaylight.org/show_bug.cgi?id=735 Bug 735]
+*restconf/streams throws an exception and returns with an internal server error. See[https://bugs.opendaylight.org/show_bug.cgi?id=566 Bug 566]
+
+*Getting an exception return (500 error) when trying to make an RPC which has no inputs.
+:*This is a known issue. If you have content-type defined when you make an RPC call which has no input then you will be directed to a java method which expects non-null/empty input and thus fails accordingly. Removing the content-type header results in the rest call getting routed to a different java method which expects an empty body and thus there is success.
+*My cancel-toast method in the MD-SAL toaster example is still failing with an exception
+:*This is a bug in either the toaster or MD-SAL core code. Essentially the cancel-toaster call returns a null future object, which the rpc caller chokes on (i.e. doesn't null check). While the simple fix is to change the toaster to return a non-null future, we should consider enhancing the RPC caller to gracefully handle null futures. No bug has been filed on this yet.
+*All of my query parameters appear to be ignored
+:*It does not look like support for query parameters has been implemented.
+
+== Fixed Issues ==
+
+*Successful POST to restconf/config returns no content and results in an exception on the OSGi command line. https://bugs.opendaylight.org/show_bug.cgi?id=1002
+:*Sussessful POST should return no contents. If write to data store failed, it return proper error message.
+*A Successful DELETE to restconf/config/<identifier> results in no return content and an exception on the OSGI command line.
+:*Fixed: Deserialization is done only for registered listeners, during registration is made sure codecs are existing.
+
+==Operations ==
 ==== Overview before operations ====
 Restconf allows access to datastores locating in controller. There are two datastores: 
 * '''Config''' – contains data inserted via controller
@@ -17,10 +37,12 @@ Most of the Restconf endpoints path uses [[OpenDaylight Controller:MD-SAL:Concep
 ::* Format '''<tt><moduleName></tt>:<tt><nodeName></tt>''' has to be used in this case as well:
 ::: Module A has node A1. Module B augments node A1 by adding node X. Module C augments node A1 by adding node X. Then for clarification there has to be known which node X is thought (e.g. C:X).
 ::: For more details about encoding please see: [http://tools.ietf.org/html/draft-bierman-netconf-restconf-02#section-5.3.1 Restconf 02 - Encoding YANG Instance Identifiers in the Request URI]
-: '''Mount point'''
+=Mount point=
 ::* Node can be behind mount point. In this case URI has to be in format '''<tt><identifier></tt>/yang-ext:mount/<tt><identifier></tt>'''. The first '''<tt><identifier></tt>''' is path to a mount point and the second '''<tt><identifier></tt>''' is path to a node behind the mount point. URI can end in mount point itself by using '''<tt><identifier></tt>/yang-ext:mount'''
 <br />
+More information on how to actually use mountpoints is available on [[OpenDaylight_Controller:Config:Examples:Netconf]]
 <br />
+= HTTP methods =
 
 ==== OPTIONS /restconf ====
 :* returns XML description of resources with required request and response media types in Web Application Description Language (WADL)
@@ -53,6 +75,25 @@ Content-Type: applicaton/xml
 </bar>
 </pre>
 <br />
+==== POST /restconf/config ====
+*Creates the data if it does not exist.
+
+For example:
+<pre>
+POST URL: http://localhost:8080/restconf/config/
+content-type: application/yang.data+json
+JSON payload:
+
+   {
+     "toaster:toaster" :
+     {
+       "toaster:toasterManufacturer" : "General Electric",
+       "toaster:toasterModelNumber" : "123",
+       "toaster:toasterStatus" : "up"
+     }
+  }
+</pre>
+
 ==== POST /restconf/config/<tt><identifier></tt> ====
 :* creates data if they do not exist in Config datastore and returns state about success
 :* <tt><identifier></tt> points to a data node where data should be stored
@@ -82,7 +123,7 @@ Content-Type: applicaton/xml
 :* Result can be status code or retrieved data having root element “output”
 : Example:
 <pre>
-POST http://<controllerIP>:8080/restconf/config/module1:fooRpc
+POST http://<controllerIP>:8080/restconf/operations/module1:fooRpc
 Content-Type: applicaton/xml
 Accept: applicaton/xml
 <input>
@@ -94,6 +135,18 @@ Answer from server could be:
   …
 </output>
 </pre>
+:An example using a JSON payload:
+<pre>
+POST http://localhost:8080/restconf/operations/toaster:make-toast
+Content-Type: application/yang.data+json
+{
+  "input" :
+  {
+     "toaster:toasterDoneness" : "10",
+     "toaster:toasterToastType":"wheat-bread" 
+  }
+}
+</pre>''Note: Even though this is a default for the toasterToastType value in the yang, you still need to define it, likely due to a bug''
 <br />
 
 ==== DELETE /restconf/config/<identifier> ====
@@ -103,7 +156,7 @@ Answer from server could be:
 <br />
 For further information read [http://tools.ietf.org/html/draft-bierman-netconf-restconf-02 RESTCONF RFC]
 
-== How it works ==
+= How it works =
 Restconf uses these base classes:
 * '''InstanceIdentifier''' represents path in data tree.
 * '''ConsumerSession''' is used for invoking RPCs.
@@ -120,12 +173,13 @@ The first picture shows GET operation with URI restconf/config/M:N where M is mo
 <br />
 [[Image:Get.png|GET operation with URI restconf/config/M:N where M is module name and N is node name.]]
 <br />
-# Requested URI is translated into InstanceIdentifier which points to data node. During this translations is obtained DataSchemaNode conform to the data node. If data node is behind mount point the MountInstance is obtained as well.
+# Requested URI is translated into InstanceIdentifier which points to data node. During this translations DataSchemaNode conform to the data node is obtained. If data node is behind mount point the MountInstance is obtained as well.
 # Restconf asks for value of data node from DataBrokerService based on InstanceIdentifier.
 # DataBrokerService returns CompositeNode as data.
 # StructuredDataToXmlProvider or StructuredDataToJsonProvider is called based on Accept field from http request. These two providers can transform CompositeNode regarding to DataSchemaNode to XML or JSON document.
 # XML or JSON is returned as answer on the client's request.
 <br />
+
 ==== PUT in action ====
 The second picture shows PUT operation with URI restconf/config/M:N where M is module name and N is node name. Data are sent in request either in XML or JSON format.
 [[Image:Put.png|PUT operation with URI restconf/config/M:N where M is module name and N is node name. Data are sent in request either in XML or JSON format.]]
@@ -135,7 +189,7 @@ The second picture shows PUT operation with URI restconf/config/M:N where M is m
 # Restconf begins transaction and puts CompositeNode with InstanceIdentifier into it. Response on client's request is status code which depends on result from transaction.
 <br />
 <br />
-== Something from real world ==
+= Something from real world =
 '''1. Create new flow on switch ''openflow:1'' in ''table 2'''''
 * HTTP request
 <pre>
