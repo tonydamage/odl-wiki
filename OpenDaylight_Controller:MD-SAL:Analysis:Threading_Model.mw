@@ -83,4 +83,28 @@ Data Store uses executor with two threads for:
 Restconf uses threads provided by HTTP container. Restconf invokes asynchronous operations
 on MD-SAL such as transactions, rpcs invocations and block until asychnronous operation ends.
 
-=== Potential Problems ===
+== Potential Problems ==
+
+=== Deadlock of MD-SAL ===
+
+MD-SAL itself uses separate threads to participate and work on data, but it never invokes potentially blocking operation
+on critical threads, unless we can assume blocking will not happen.
+
+Only possible way to create deadlock on MD-SAL is via client code, which uses callback from MD-SAL to operate on MD-SAL. 
+Most simplest scenarios are:
+
+* Notification listener receives notification and publish different notification back via same thread.
+* Notification listener receives notification, submits transaction, blocks on its result.
+* Data Change Listener receives data change event, submits transaction, blocks on its result.
+
+=== Unordered delivery of notifications to same listener ===
+
+Client code does not have any way to specify if the notifications should be ordered, if it supports simultaneous processing 
+of  separate notifications,so unless client callback is synchronized in client code, MD-SAL allows multiple threads to 
+enter callback.
+
+=== Unordered delivery of RPC requests to same implementation ===
+
+Client code does not have any way to specify if the notifications should be ordered, if it supports processing simultaneous
+of separate invocations. MD-SAL does not put any constraints on this delivery, so unless client callback is synchronized in
+client code, MD-SAL allows multiple threads to enter callback.
