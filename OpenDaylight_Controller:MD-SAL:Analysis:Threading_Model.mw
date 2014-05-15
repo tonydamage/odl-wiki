@@ -1,0 +1,50 @@
+== Current state ==
+
+=== Binding-Aware Broker ===
+
+'''Executors:'''
+
+* ''sal-binding-notification'' Executor 
+** 4-32 Threads
+** Limited configurable blocking queue
+** Leaked to clients by directly invoking callbacks
+* ''sal-binding-commit'' Executor - 
+* 1 Thread
+** unbounded
+** Leaked to clients by directly invoking callbacks, via ListenableFuture
+
+==== RPC Invocations ===
+
+Callback to RPC implementation is done via caller's thread. No context switch is present here.
+Implementations (providers) are expected to return future object with result as soon as possible
+and do NOT block thread for significant amount of time. Callback should end immediatelly with
+Future which should be updated once result is available.
+
+===== Blocking operations =====
+
+==== Notifications ====
+
+Notification delivery to clients are done via ''sal-binding-notification''
+
+=== Binding-Independent Broker ===
+
+'''Executors:'''
+* Data Broker executor - 1 thread, leaked to MD-SAL clients, only via ListenableFuture
+* Data store executor - 2 threads, leaked to MD-SAL clients
+
+==== RPC Invocations ===
+
+Callback to RPC implementation is done via caller's thread. No context switch is present here.
+Implementations (providers) are expected to return future object with result as soon as possible
+and do NOT block thread for significant amount of time. Callback should end immediatelly with
+Future which should be updated once result is available.
+
+==== Notifications ====
+
+==== DOM Data Broker ====
+
+DOM Data Broker
+
+==== Data Store ====
+
+===== Data Change Listeners ====
