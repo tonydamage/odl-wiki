@@ -85,7 +85,7 @@ on MD-SAL such as transactions, rpcs invocations and block until asychnronous op
 
 == Potential Problems ==
 
-=== Deadlock of MD-SAL ===
+=== Issue-1: Deadlock of MD-SAL ===
 
 MD-SAL itself uses separate threads to participate and work on data, but it never invokes potentially blocking operation
 on critical threads, unless we can assume blocking will not happen.
@@ -97,14 +97,56 @@ Most simplest scenarios are:
 * Notification listener receives notification, submits transaction, blocks on its result.
 * Data Change Listener receives data change event, submits transaction, blocks on its result.
 
-=== Unordered delivery of notifications to same listener ===
+=== Issue-2: Unordered delivery of notifications to same listener ===
 
 Client code does not have any way to specify if the notifications should be ordered, if it supports simultaneous processing 
 of  separate notifications,so unless client callback is synchronized in client code, MD-SAL allows multiple threads to 
 enter callback.
 
-=== Unordered delivery of RPC requests to same implementation ===
+==== Possible solutions ====
+
+* Explicit actor model (see below)
+* Implicit actor model (see below)
+
+=== Issue-3: Unordered delivery of RPC requests to same implementation ===
 
 Client code does not have any way to specify if the notifications should be ordered, if it supports processing simultaneous
 of separate invocations. MD-SAL does not put any constraints on this delivery, so unless client callback is synchronized in
 client code, MD-SAL allows multiple threads to enter callback.
+
+==== Possible solutions ====
+
+* Explicit actor model (see below)
+* Implicit actor model (see below)
+
+=== Issue-4: Blocking operations in Data Change Listeners ===
+
+Currently data change listeners are triggered from data store threads, which means if data change listener is blocking
+this thread no operations are possible on data listener.
+
+==== Possible solutions ====
+
+* Explicit actor model (see below)
+* Implicit actor model (see below)
+
+
+== Improvements
+
+=== Explicit Actor model ===
+
+Explicit actor model will introduce new term to MD-SAL - Actor - APIs needs to be designed (using Akka or creating own abstraction
+which could be backed by Akka or other system), but it SHOULD BE possible to MD-SAL clients specify their delivery models.
+
+This will require update of MD-SAL on all levels, but threading model will be easier to reason about, it will introduce
+customizable queue behaviour for components and queuing per component (actor) basis.
+
+=== Implicit Actor model ===
+
+Each listener, rpc implementation, etc. which is visible to MD-SAL is uniquelly associated with Registration object which uniquelly
+identifies instance, registration object could serve as synchronization point (or queue holder) for particular component in MD-SAL.
+
+This will require change in  Notification Broker and Data Change delivery in way, that they will honor per-registration queues or use
+Registration object of listener as synchronization point.
+
+The registration object could also be extended to provide additional methods, which will help client code further specify their behaviour
+(e.g. synchronized, unsychronized) etc.
