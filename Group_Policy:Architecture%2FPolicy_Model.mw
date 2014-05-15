@@ -22,7 +22,7 @@ Note that this description gives a semantic understanding of how the policy mode
 === Contract Selection ===
 The first step in policy resolution is to select the contracts that are in scope.  For a particular flow, we look up the endpoint groups for each of the endpoints involved in the flow.
 
-Endpoint groups participate in contracts either as a ''provider'' or as a ''consumer.''  Each endpoint group can participate in many contracts at the same time, but for each contract it can be in only one role at a time.  In addition, there are two ways for an endpoint group to select a contract: either with a ''named selector'' or with a ''target selector.''  Named selectors simply select a specific contract by its contract ID.  Target selectors allow for additional flexibility by matching against ''qualities'' of the contract's ''target.''
+Endpoint groups participate in contracts either as a ''provider'' or as a ''consumer.''  Each endpoint group can participate in many contracts at the same time, but for each contract it can be in only one role at a time.  In addition, there are two ways for an endpoint group to select a contract: either with a ''named selector'' or with a ''target selector.''  Named selectors simply select a specific contract by its contract ID.  Target selectors allow for additional flexibility be matching against ''qualities'' of the contract's ''target.''
 
 Thus, there are a total of 4 kinds of contract selector:
 ; provider named selector 
@@ -56,7 +56,7 @@ When acting as a provider, endpoint groups expose ''capabilities,'' which are la
 We examine the matching provider selector (that was used by the provider endpoint group to select the contract) to determine the capabilities exposed by the provider endpoint group for this contract scope.  The provider selector will have a list of capabilities either directly included in the provider selector or inherited from a parent selector or parent endpoint group (See [[Group Policy:Architecture/Policy Model#Inheritance|Inheritance]] below).  Similarly, the matching consumer selector will expose a set of requirements.
 
 ==== Conditions ====
-Endpoints can have ''conditions'', which are labels representing some relevant piece of operational state related to the endpoint.  An example of a condition might be "malware-detected," or "authentication-succeeded."  We'll be able to use these conditions to affect how that particular endpoint can communicate.  To continue with our example, the "malware-detected" condition might cause an endpoint's connectivity to be cut off, while "authentication-succeeded" might open up communication with services that require an endpoint to be first authenticate and then forward its authentication credentials.
+Endpoints can have ''conditions'', which are labels representing some relevant piece of operational state related to the endpoint.  An example of a condition might be "malware-detected," or "authentication-succeeded."  We'll be able to use these conditions to affect how that particular endpoint can communicate.  To continue with our example, the "malware-detected" condition might cause an endpoints connectivity to be cut off, while "authentication-succeeded" might open up communication with services that require an endpoint to be first authenticate and then forward its authentication credentials.
 
 Conditions do not actually appear in the policy configuration model other than as a named reference.  To determine the set of conditions that apply to a particular endpoint, the endpoint will need to be looked up in the endpoint registry, and it associated condition labels retrieved from there.
 
@@ -110,7 +110,7 @@ The matching selector from the contract selection phase will define either requi
 Endpoints can have condition labels.  The condition matcher can be used in a clause to match against endpoints with particular combinations of conditions.
 
 == Tenants ==
-The system allows multiple tenants that are designed to allow separate domains of administration.  Contracts and endpoint groups are defined within the context of a particular tenant.  Endpoints that belong to endpoint groups in separate tenants cannot communicate with each other except through a special mechanism to allow cross-tenant contracts called ''contract references''.
+The system allows multiple tenants that are designed to allow separate domains of administration.  Contracts and endpoint groups are defined within the context of a particular tenant.  Endpoints that below to endpoint groups in separate tenants cannot communicate with each other except through a special mechanism to allow cross-tenant contracts called ''contract references''.
 
 While it would be be possible to define semantics for tenant inheritance, as currently defined there is no way for tenants to inherit from each other.  There is, however, a limited mechanism through the special ''common tenant'' (see [[Group Policy:Architecture/Policy Model#Common Tenant|below]]).  All references to names are within the scope of that particular tenant, with the limited exceptions of the common tenant and contract references.
 
@@ -131,7 +131,7 @@ Subject features are objects that can be used as a part of a subject to affect t
 
 There are two kinds of subject features: classifiers and actions.  Classifiers match on traffic between endpoints, and actions perform some operation on that traffic (See [[Group Policy:Architecture/Policy Model#Rule Application|above]] for more information on how they are used).
 
-Subject features are defined with a subject feature definition.  The definition defines a name and description for the feature, along with a set of parameters that the item can take.  This is the most general description for the subject feature, and this definition is global and applies across all tenants.  As an example, a classifier definition might be called "tcp_port", and would take an integer parameter "port".
+Subject features are defined with a subject feature definition.  The definition defines a name and description for the feature, along with a set of parameters can the item can take.  This is the most general description for the subject feature, and this definition is global and applies across all tenants.  As an example, a classifier definition might be called "tcp_port", and would take an integer parameter "port".
 
 Next, there are subject feature instances.  Subject feature instances are scoped to a particular tenant, and reference a subject feature definition, but fill in all required parameters.  To continue our example, we might define a classifier instance called "http" that references the "tcp_port" classifier and species the parameter "port" as 80.
 
@@ -153,26 +153,26 @@ Endpoint groups will inherit all their selectors from their parent endpoint grou
 Selectors include provider named selectors, provider target selectors, consumer named selectors, and consumer target selectors.  Selectors cannot themselves have parent selectors, but when selectors have the same name as a selector of the same type in the parent endpoint group, then they will inherit from and override the behavior of the selector in the parent endpoint group.
 
 ===== Named Selectors =====
-Named selectors will add to the set of contract IDs that are selected by the parent named selector.
+Named selectors will override the contract ID that is selected by the parent named selector.
 
 ===== Target Selectors =====
-A target selector in the child endpoint group with the same name as a target selector in the parent endpoint group will inherit quality matchers from the parent.  If a quality matcher in the child has the same name as a quality matcher in the parent, then it will inherit as described below under Matchers.
+A target selector in the child endpoint group with the same name as a target selector in the parent endpoint group will inherit quality matchers from the parent.  If a quality matcher in the child has the same name as a quality matcher in the parent, then it will inherit has described below under Matchers.
 
 === Contracts ===
 Contracts will inherit all their targets, clauses and subjects from their parent contracts.  When any of these objects have the same name as in the parent contract, then the behavior will be as defined below.
 
 ==== Targets ====
-Targets cannot themselves have a parent target, but it may inherit from targets with the same name as the target in a parent contract.  Qualities in the target will be inherited from the parent.  If a quality with the same name is defined in the child, then this does not have any semantic effect except if the quality has its inclusion-rule parameter set to "exclude."  In this case, then the label should be ignored for the purpose of matching against this target.
+Targets cannot themselves have a parent target, but if may inherit from targets with the same name as the target in a parent contract.  Qualities in the target will be inherited from the parent.  If a quality with the same name is defined in the child, then this does not have any semantic effect except if the quality has its inclusion-rule parameter set to "exclude."  In this case, then the label should be ignored for the purpose of matching against this target.
 
 ==== Subjects ====
-Subjects cannot themselves have a parent subject, but it may inherit from a subject with the same name as the subject in a parent contract.
+Subjects cannot themselves have a parent subject, but if may inherit from subject with the same name as the subject in a parent contract.
 
 The order parameter in the child subject, if present, will override the order parameter in the parent subject.
 
-The rules in the parent subject will be added to the rules in the child subject.  However, the rules will ''not'' override rules of the same name.  Instead, all rules in the parent subject will be considered to run with a higher order than all rules in the child; that is all rules in the child will run before any rules in the parent.  This has the effect of overriding any rules in the parent without the potentially-problematic semantics of merging the ordering.
+The rules in the parent subject will be added to the rules in the child subject.  However, the rules will _not_ override rules of the same name.  Instead, all rules in the parent subject will be considered to run with a higher order than all rules in the child; that is all rules in the child will run before any rules in the parent.  This has the effect of overriding any rules in the parent without the potentially-problematic semantics of merging the ordering.
 
 ==== Clauses ====
-Clauses cannot themselves have a parent clause, but it may inherit from a clause with the same name as the clause in a parent contract. 
+Clauses cannot themselves have a parent clause, but if may inherit from clause with the same name as the clause in a parent contract. 
 
 The list of subject references in the parent clause will be added to the list of subject references in the child clause.  There is no meaningful overriding possible here; it's just a union operation.  Note of course though that a subject reference that refers to a subject name in the parent contract might have that name overridden in the child contract.
 
@@ -183,7 +183,7 @@ Matchers include quality matchers, condition matchers, requirement matchers, and
 
 The match type, if specified in the child, overrides the value specified in the parent.
 
-Labels are also inherited from the parent object.  If there is a label with the same name in the child object, this does not have any semantic effect except if the label has its inclusion-rule parameter set to "exclude."  In this case, then the label should be ignored for the purpose of matching.  Otherwise, the label with the same name will completely override the label from the parent.
+Labels are also inherited from the parent object.  If there is a label with the same name in the child object, this does not have any semantic effect except if the label has its inclusion-rule parameter set to "exclude."  In this case, then the label should be ignored for the purpose of matching.
 
 === Subject Feature Definitions ===
 Subject features definitions, including classifier definitions and subject definitions can also inherit from each other by specifying a parent object.  These are a bit different from the other forms of override because they do not merely affect the policy resolution process, but rather affect how the policy is applied in the underlying infrastructure.
@@ -193,6 +193,3 @@ For the purposes of policy resolution, a subject feature will inherit from its p
 For the purposes of applying the subject in the underlying infrastructure, the child subject feature is assumed to add some additional functionality to the parent subject feature such that the child feature is a specialization of that parent feature.  For example, there might be a classifier definition for matching against a TCP port, and a child classifier definition that allowed for deep packet inspection for a particular protocol that extended the base classifier definition.  In this case, the child classifier would be expected to match the TCP port as well as apply its additional deep packet inspection semantics.
 
 If the underlying infrastructure is unable to apply a particular subject feature, it can attempt to fall back to implementing instead the parent subject feature.  The parameter fallback-behavior determines how this should apply.  If this is set to 'strict' then a failure to apply the child is a fatal error and the entire subject must be ignored.  If the fallback behavior is 'allow-fallback' then the error is nonfatal and it is allowed to apply instead only the parent subject feature.
-
-== TODO ==
-Policy _within_ an endpoint group
