@@ -26,12 +26,20 @@ Future which should be updated once result is available.
 
 ==== Notifications ====
 
-Notification delivery to clients are done via ''sal-binding-notification''
-
+Notification delivery to clients are done via ''sal-binding-notification''. Simultaneous delivery of
+multiple notifications to same listener using multiple threads is not prevented on MD-SAL level. 
 
 ===== Blocking operations =====
 
 * Publishing notification is blocking operation when ''sal-binding-notification'' queue is full.
+
+==== Data Broker ====
+
+===== Blocking operations =====
+
+* Read and Writes to transaction may be blocking operations if codecs / or schema for particular
+  data are not present in MD-SAL. 
+
 
 === Binding-Independent Broker ===
 
@@ -55,10 +63,27 @@ Future which should be updated once result is available.
 
 ==== Notifications ====
 
+Notification delivery to clients are done via publisher thread. Simultaneous delivery of
+multiple notifications to same listener using multiple threads is not prevented on MD-SAL level.
+
 ==== DOM Data Broker ====
 
-DOM Data Broker
+DOM Data Broker uses unbounded single-threaded executor which only purpose is to coordinate
+three-phase commit on data-stores. Executed coordination code invokes asynchronous operations
+on data stores and block until it has result for each invoked operation. 
 
 ==== Data Store ====
 
-===== Data Change Listeners ====
+Data Store uses executor with two threads for:
+* Verifying transactions
+* Computing snapshots
+* Replacement of snapshot (synchronous on Datastore level)
+* Delivery of data change events.
+ 
+==== Restconf ====
+
+Restconf uses threads provided by HTTP container. Restconf invokes asynchronous operations
+on MD-SAL such as transactions, rpcs invocations and block until asychnronous operation ends.
+
+
+=== Potential Problems ===
