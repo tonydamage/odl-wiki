@@ -13,7 +13,7 @@
 ** unbounded
 ** Leaked to clients by directly invoking callbacks, via ListenableFuture
 
-==== RPC Invocations ===
+==== RPC Invocations ====
 
 Callback to RPC implementation is done via caller's thread. No context switch is present here.
 Implementations (providers) are expected to return future object with result as soon as possible
@@ -22,15 +22,29 @@ Future which should be updated once result is available.
 
 ===== Blocking operations =====
 
+* Potential invocation of RPC, which has Bidning-Independent implementation and codecs are not generated. 
+
 ==== Notifications ====
 
 Notification delivery to clients are done via ''sal-binding-notification''
 
+
+===== Blocking operations =====
+
+* Publishing notification is blocking operation when ''sal-binding-notification'' queue is full.
+
 === Binding-Independent Broker ===
 
 '''Executors:'''
-* Data Broker executor - 1 thread, leaked to MD-SAL clients, only via ListenableFuture
-* Data store executor - 2 threads, leaked to MD-SAL clients
+* Data Broker executor
+** 1 Thread
+** Unbounded queue
+** Leaked to clients by ListenableFuture
+
+* Data store executor
+** 2 Threads
+** Limited configurable blocking queue
+** Leaked to clients by directly invoking callbacks in Data Change Events
 
 ==== RPC Invocations ===
 
