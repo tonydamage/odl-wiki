@@ -22,19 +22,19 @@ Note that the command above assumes you've registered a Gerrit account and have 
 
 If you just want to do an anonymous git clone, you can use HTTPS:
 <pre>
-git clone https://git.opendaylight.org/gerrit/p/docs.git
+git clone https://git.opendaylight.org/gerrit/p/controller.git
 </pre>
 
 == Setup Gerrit Change-id Commit Msg Hook ==
 The following Git hook automatically inserts a unique Change-Id tag in the footer of each commit message. Git doesn't track hooks, so after pulling the project you'll want to go ahead and grab this one manually. Using this hook is optional, but highly recommended for tracking changes.
 
 <pre>
-cd docs
+cd controller
 scp -p -P 29418 <username>@git.opendaylight.org:hooks/commit-msg .git/hooks/
 chmod 755 .git/hooks/commit-msg
 </pre>
 
-== Working on documentation ==
+== Hack the code ==
 
 === Prerequisites ===
 The following are required for building the codebase.
@@ -76,9 +76,30 @@ For more information about setting up a development environment, see [[GettingSt
 
 === Build the code ===
 <pre>
-cd docs
+cd opendaylight/distribution/opendaylight/
 mvn clean install
 </pre>
+
+* Maven build may run out of PermGen depending on the number of artifacts built, this is usually the case when building the ''opendaylight'' distribution for this the PermGen need to be increased. In order to do this and to make permanent the changes set in the environment the following environment variable: 
+<pre>MAVEN_OPTS="-Xmx1024m -XX:MaxPermSize=512m"
+/* syntax for setting varies on the OS used by the build machine.*/</pre>
+
+* If you receive a Maven error when building northbound integration tests you can skip building those tests running the following:
+
+<pre>mvn clean install -DskipTests 
+/* instead of "mvn clean install" */</pre>
+
+=== Run the controller ===
+<pre>
+cd controller/opendaylight/distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/
+./run.sh
+</pre>
+
+Finally point your browser at http://localhost:8080/ and login with username: admin, password: admin
+
+[[File:OpenDaylight - Login.jpg]]
+
+There is much much more complete documentation on running the controller in the [[OpenDaylight Controller:Installation|Installation Guide]].
 
 == Commit the code via Git CLI ==
 Note: To be accepted, all code must come with a [http://elinux.org/Developer_Certificate_Of_Origin  developer certificate of origin] as expressed by having a Signed-off-by.
@@ -158,19 +179,19 @@ git config --global user.email johndoe@example.com
 == Pull the code changes via git CLI ==
 Use git pull to get the latest changes from the remote repository
 <pre>
-git pull ssh://<username>@git.opendaylight.org:29418/docs.git HEAD:refs/for/master
+git pull ssh://<username>@git.opendaylight.org:29418/controller.git HEAD:refs/for/master
 </pre>
 
 == Push the code via git CLI ==
 Use git push to push your changes back to the remote repository.
 
 <pre>
-git push  ssh://<username>@git.opendaylight.org:29418/docs.git HEAD:refs/for/master
+git push  ssh://<username>@git.opendaylight.org:29418/controller.git HEAD:refs/for/master
 </pre>
 
 To push a draft (for something that is work in progress or for a discussion, that should not be merged)
 <pre>
-git push  ssh://<username>@git.opendaylight.org:29418/docs.git HEAD:refs/drafts/master
+git push  ssh://<username>@git.opendaylight.org:29418/controller.git HEAD:refs/drafts/master
 </pre>
 
 You will get a message pointing you to your gerrit request like:
@@ -208,4 +229,92 @@ You will be prompted for the password you generated in [[OpenDaylight Controller
 
 All other instructions on this page remain unchanged :)
 
-* There is an IRC channel #opendaylight and #opendaylight-docs on irc.freenode.net. IRC is probably the best resource for realtime Q&A collaboration and meeting others in the community both vendor and non-vendor alike).
+== External Links From the Community for Dev and Ops with ODP ==
+
+The following are how-tos and resources posted from community engineers, operators, devs, and architects that blog:
+
+* [http://sdnhub.org/tutorials/opendaylight/ Excellent OpenDaylight Hacking Tutorial from the Folks at SDN Hub]
+
+* [http://www.youtube.com/channel/UCv6cQWB7YvE7NExhtlLSeKA OpenDaylight YouTube Channel]
+
+* [http://www.youtube.com/channel/UCMYntfZ255XGgYFrxCNcAzA OVSDB YouTube Channel]
+
+* [http://classcblock.com/2013/11/21/show-12-opendaylight-sdn-and-tomorrows-network-engineer/ (Podcast) OpenDaylight, SDN, and Tomorrow’s Network Engineer]
+
+* [http://alagalah.wordpress.com/2013/12/14/debugging-opendaylight-in-eclipse/ alagalah's Debugging OpenDaylight controller in Eclipse via Ed Warnicke]
+
+* [http://alagalah.wordpress.com/2013/11/14/ovsdb-and-opendaylight-integration-bootstrap-the-networkstatic-and-madhu-files/ OVSDB and OpenDaylight Integration Bootstrap]
+
+* [http://archive.openflow.org/wk/index.php/OpenDayLight_Tutorial OpenDayLight Tutorial (OpenFlow.org)]
+
+* [https://github.com/dwcarder/python-OpenDaylight  Python interface to the OpenDaylight REST API (GitHub)]]
+
+* [http://www.cupfighter.net/index.php/2013/11/getting-started-with-opendaylight-ovsdb-plugin-and-openvswitch/ Getting started with OpenDaylight OVSDB plugin and Open vSwitch]
+
+* [http://fredhsu.wordpress.com/2013/10/29/ovsdb-client-in-python-part-2/ OVSDB Client in Python Part 2]
+
+*[http://thecareertools.com/2013/09/28/opendaylight-sdn-controller-for-newbies/ OpenDaylight SDN Controller for Newbies]
+
+* [http://destinationunreachable.net/2013/07/22/opendaylight-with-python/ OpenDaylight with Python]
+
+* [http://networkstatic.net/getting-started-ovsdb/ Getting Started with OVSDB]
+
+*[http://opensource.com/business/13/9/opendaylight-david-meyer-interview OpenDaylight Project aims to shape the future of Software Defined Networking (SDN)]
+
+*[http://www.opendaylight.org/blog OpenDaylight Blog]
+
+* [http://edwarnicke.org/2013/06/03/debugging-opendaylight-controller-in-eclipse/ Debugging OpenDaylight controller in Eclipse]
+
+*[http://www.sdncentral.com/education/opendaylight-community-wants-make/2013/10/ OpenDaylight Is Whatever the Community Can Make of It]
+
+* [http://fredhsu.wordpress.com/2013/07/11/handling-packets-on-the-opendaylight-controller/ Handling packets on the OpenDaylight controller]
+
+* [http://www.openflow.org/wk/index.php?title=OpenDayLight_Tutorial OpenDaylight Tutorial with example MacHub or L2Switch]
+
+* [http://edwarnicke.org/2013/06/03/debugging-opendaylight-controller-in-eclipse/ Debugging OpenDaylight controller in Eclipse]
+
+*[http://architects.dzone.com/articles/cloudcast-105-opendaylight-sdn  The Cloudcast #105: OpenDaylight & SDN Evolution]
+
+* [http://zhipengh.blogspot.com/2013/08/install-opendaylight-and-openstack-on.html Install OpenDaylight and OpenStack on Samsung ARM Chromebook]
+
+* [http://networkstatic.net/opendaylight-maven-and-osgi-dev-notes/ OpenDaylight Maven and OSGI Dev Notes]
+
+* [http://fredhsu.wordpress.com/2013/05/21/opendaylight-with-scala/ OpenDaylight with Scala]
+
+* [http://blog.cyberpunkture.net/2013/04/on-the-opendaylight-sdn-controller/ On The OpenDaylight Controller]
+
+* [http://www.dasblinkenlichten.com/installing-opendaylight-on-centos/ Installing OpenDaylight on CentOS]  
+
+* [http://destinationunreachable.net/2013/07/22/opendaylight-with-python/ Python interface to the OpenDaylight REST API]
+
+* [http://fredhsu.wordpress.com/2013/04/25/getting-started-with-opendaylight-and-python/ Getting started with OpenDaylight and Python]  
+
+* [http://fredhsu.wordpress.com/2013/05/03/opendaylight-and-osgi-basics/ OpenDaylight and OSGI basics]
+
+* [http://mrfogg97.blogspot.com/2013/04/opendaylight-sdn-on-windows.html Installing OpenDaylight SDN Controller on Windows]  
+
+* [http://www.forwardingplane.net/2013/05/scripting-the-build-of-opendayight-controller-under-centos/ Scripting the Build of OpenDayight Controller Under Centos]
+
+* [http://www.jedelman.com/1/post/2012/01/future-openflowsdn-applications.html Getting OpenDaylight Installed]
+
+* [http://packetpushers.net/show-148-talking-with-opendaylight-leadership/  (Podcast) Talking With OpenDaylight Leadership]
+
+* [http://yeasy.blogspot.com/2013/08/open-daylight-sal.html OpenDaylight Code Analysis: SAL (CN version)]
+
+* [https://github.com/yeasy/tech_writing/blob/master/SDN/Open%20Daylight%20Controller%E6%8C%87%E5%8D%97.pdf OpenDaylight Guidance (CN version)]
+
+* [https://www.coursera.org/course/sdn Coursera SDN Networking]
+
+* [http://www.youtube.com/channel/UCv6cQWB7YvE7NExhtlLSeKA OpenDaylight Youtube Channel]
+
+Key methods for early community understanding, assistance and involvement:
+
+* [https://lists.opendaylight.org/mailman/listinfo  Joining the ODP Listserv ]
+
+* [[TSC:Main]] Listening to the weekly TSC meetings.
+
+* [[Tech Work Stream:Main]] Listening to the weekly Technical Work Stream meeting.
+
+* There is an IRC channel #opendaylight, #opendaylight-ovsdb and #opendaylight-dlux on irc.freenode.net. IRC is probably the best resource for realtime Q&A collaboration and meeting others in the community both vendor and non-vendor alike).
+
+[[Category:OpenDaylight Controller]]
