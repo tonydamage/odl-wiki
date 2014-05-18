@@ -1,61 +1,171 @@
 [https://wiki.opendaylight.org/images/d/db/ISPNDataStorePOC.ppt Presentation] 
-<div>
-	&nbsp;</div><div><span style="font-size: 18.0px;line-height: 18.0px;"><strong>Design Notes</strong></span></div><div>
-	&nbsp;</div><div>
-	There are three major components to the infinispan data store,</div><div>
-	&nbsp;</div><ol><li>
-		Encoding/Decoding a Normalized Node into and from the Infinispan TreeCache</li><li>
-		Managing transactions</li><li>
-		Managing DataChange notifications</li></ol><div>
-	&nbsp;</div><div><span style="font-size: 14.0px;line-height: 14.0px;"><strong>Encoding/Decoding a Normalized Node into and from the Inifinispan TreeCache</strong></span></div><div>
-	&nbsp;</div><div>
-	The first thing to understand is that a NormalizedNode represents a tree. It&#39;s structure closely models the yang model of a bunch of modules. The NormalizedNode tree typically has values placed in either a LeafNode (corresponding to a leaf in yang) or a LeafSetEntryNode (corresponding to a leaflist in yang).</div><div>
-	&nbsp;</div><div>
-	The encoding logic simply walks the NormalizedNode tree looking for LeafNodes and LeafSetEntryNodes and when it finds one it records it in a map with the Instance Identifier of the parent as the key and the value of the leaf or leafset entry store in a map where the NodeIdentifier of the leaf/leafsetentry is the key and the value of the leaf/leafsetentry is the value.</div><div>
-	&nbsp;</div><div>
-	The decoding process is a little more involved. It uses the TreeCache&#39;s interface to get to a certain node in the tree and then walks through the tree. As it walks the tree it reconstructs the NormalizedNode based on the key and value in the Infinispan TreeCache while at the same time validating it against the schema.</div><div>
-	&nbsp;</div><div>
-	&nbsp;</div><div><strong><span style="font-size: 14.0px;line-height: 14.0px;">Managing Transactions</span></strong></div><div>
-	&nbsp;</div><div>
-	To ensure read-write isolation level (and other reasons) we create an infinispan (JTA) transaction for each datastore transaction. Since a single thread may be used for multiple JTA transactions our implementation has to ensure that we suspend and resume the JTA transactions appropriately. This does not seem to be a big issue and it does not seem to have an impact on performance.</div><div>
-	&nbsp;</div><div><span style="font-size: 14.0px;line-height: 14.0px;"><strong>Managing DataChange notifications</strong></span></div><div>
-	&nbsp;</div><div>
-	The current interface for data change notifications supports registering of the listeners for notifications for data changes at Node (consider node of a tree) level ,&nbsp; events for any changes&nbsp; happen at ONE level (meaning immediate children) Or data changes notifications for any change in the subtree level . The event send to the listener requires maintaining of before data change snapshot of tree and after data change snapshot of tree.&nbsp; This is very expensive as we have to maintain a Normalized Node representing snapshot of tree by converting the tree in Infinispan to NormalizeNode object tree required by the consumer, at beginning of each transaction.</div><div><br />
-	The steps we follow to maintain the data changes are as follows:</div><div>
-	&nbsp;</div><div>
-	1) At the begin of transaction we get a NormalizedNode Object tree of the current tree in ISPN TreeCache (this is mandated by current DataChangeEvent interface)</div><div>
-	2) For each CUD operations that happens within the transaction we maintain a transaction log</div><div>
-	3) When the pre-commit is called of the&nbsp; 3PhaseCommit&nbsp; Transaction Interface-- we prepare the data changes by comparing the transaction log items with the Snapshot Tree one taken at the beginning of the tranasactions, preparing the DataChangeEvent lists based on what level the listeners have registered.</div><div>
-	4) When commit happens we send the events to the listeners in a separate executor(i.e asynchronously)</div><div>
-	&nbsp;</div><div><strong>Suggestion</strong></div><div>
-	&nbsp; - Remove the requirement of sending before transaction tree/after transaction tree within each event.</div><div>
-	&nbsp; - Just have the changed paths of tree send to the consumer and let the consumer do the reading?</div><div>
-	&nbsp;</div><div><span style="font-size: 18.0px;font-family: Arial;"><b>Datastore related learnings</b></span><br /><br /><span style="font-size: 14.0px;font-family: Arial;"><b>Multiple transactions can be created per thread</b></span><br /><span style="font-size: 13.0px;font-family: Arial;">This is a problem because if your backing datastore (infinispan) uses JTA transactions only one transaction can be active per thread. This does not mean that we necessarily need to use one thread per transaction but we do need to suspend one transaction and resume another.&nbsp;</span><br /><br /><span style="font-size: 13.0px;font-family: Arial;"><b>Suggestion</b></span><br /><span style="font-size: 13.0px;font-family: Arial;">&nbsp; &nbsp; &nbsp;- Allow only one active transaction per thread</span><br /><span style="font-size: 13.0px;font-family: Arial;">&nbsp; &nbsp; &nbsp;- Add an explicit suspend/resume method on a transaction</span><br /><br /><span style="font-size: 14.0px;font-family: Arial;"><b>Not clear that Read-Only transactions need to be closed</b></span><br /><br /><span style="font-size: 13.0px;font-family: Arial;">For every DataStore transaction we need to create a JTA transaction - this is so that we can ensure isolation (repeatable reads) that means that when the transaction is done we should either commit it, roll it back or close it some fashion. With read-only transaction there may be a tendency to not close the transactions this leads to JTA transactions hanging around till they timeout.</span><br /><br /><span style="font-size: 13.0px;font-family: Arial;"><b>Suggestion</b></span><br /><span style="font-size: 13.0px;font-family: Arial;">&nbsp; &nbsp; &nbsp;- DataStore may need to do timeouts as well</span><br /><span style="font-size: 13.0px;font-family: Arial;">&nbsp; &nbsp; &nbsp;- Document that <b>close</b>&nbsp;should be called explicitly for read-only transaction</span><br /><br /><span style="font-size: 14.0px;font-family: Arial;"><b>write and delete methods in a read-write transaction do not return a Future</b></span><br /><br /><span style="font-size: 13.0px;font-family: Arial;">write and delete methods on the DOMWriteTransaction return a void instead of a Future. This gives the impression that these methods are synchronous - this is not neccessarily true in all cases. For example in the infinispan datastore the write was actually done in a separate thread to support multiple transactions on a single thread.</span><br /><br /><span style="font-size: 13.0px;font-family: Arial;"><b>Suggestion</b></span><br /><span style="font-size: 13.0px;font-family: Arial;">&nbsp; &nbsp; &nbsp;- Return a ListenableFuture for both write and delete</span><br /><br /><span style="font-size: 14.0px;font-family: Arial;"><b>Very expensive to create a DataChange event because it needs to pass the Original Sub tree and the Modified Sub tree</b></span><br /><br /><span style="font-size: 13.0px;font-family: Arial;">To create a DataChange event we need to create a NormalizedNode object which may need to be a snapshot of a complete modules data so that the original subtree can be sent to DataChange listeners. This is very expensive and doing it on almost every transaction could be a big problem. While we see this problem in the infinispan datastore this would also be &nbsp;a big problem in a distributed system where data was sharded to be colocated with applications and datachange listeners for those shards on a different node on the cluster. So for example we may have shards colocated with the inventory app and the topology app may be a datachange listener for datachange events. In this case the original subtree and the modified sub tree would need to be serialized in some form and sent over to the topology listener.</span><br /><br /><span style="font-size: 13.0px;font-family: Arial;"><b>Suggestion</b></span><br /><span style="font-size: 13.0px;font-family: Arial;">&nbsp; &nbsp; &nbsp;- Remove the getOriginalSubtree and getModifiedSubtree methods from the datachange listener understand the use case for providing them and find a cheaper way to do the same thing</span><br /><br /><span style="font-size: 14.0px;line-height: 14.0px;"><strong><span style="font-family: Arial;">Reconstructing a Normalized Node from a different data-structure (like a map or a key-value store) is complicated (or may appear complicated)</span></strong></span></div><div><br /><span style="font-size: 13.0px;font-family: Arial;">A NormalizedNode is the binding-independent equivalent of data that gets store in the datastore. For the in-memory datastore it is the native storage format. It&rsquo;s a complicated structure that basically mirrors the model as defined in yang. Understanding it and properly decoding it could be a challenge for folks who want to implement an alternate datastore.</span><br /><br /><span style="font-size: 13.0px;font-family: Arial;"><b>Suggestion</b></span><br /><span style="font-size: 13.0px;font-family: Arial;">&nbsp; &nbsp; &nbsp;- Create utility classes to construct a normalized node from a simple tree structure. The Old CompositeNode or the Infinispan Node for example is a much simpler structure to follow.</span><br /><br /><span style="font-size: 18.0px;font-family: Arial;"><b>Infinispan related learnings</b></span><br /><br /><span style="font-size: 14.0px;font-family: Arial;"><b>TreeCache#removeNode API not working as expected</b></span><br /><br /><span style="font-size: 13.0px;font-family: Arial;">Haven&rsquo;t had a chance to fully evaluate why but the Infinispan removeNode API was not correctly removing nodes in the tree (as it promises). This means for example that when a mininet topology changes some nodes may not be removed from inventory and topology.&nbsp;</span><br /><br /><span style="font-size: 13.0px;font-family: Arial;"><b>Action</b></span><br /><span style="font-size: 13.0px;font-family: Arial;">&nbsp; &nbsp; &nbsp;- None at this time</span><br /><br /><br /><span style="font-size: 18.0px;font-family: Arial;"><b>State of the POC</b></span><br /><br /><span style="font-size: 13.0px;font-family: Arial;">&nbsp; &nbsp; &nbsp;- Encoding/Decoding a Normalized Node into an Infinispan TreeCache works</span><br /><span style="font-size: 13.0px;font-family: Arial;">&nbsp; &nbsp; &nbsp;- Integrated with the controller</span><br /><span style="font-size: 13.0px;font-family: Arial;">&nbsp; &nbsp; &nbsp;- Eventing works</span><br /><span style="font-size: 13.0px;font-family: Arial;">&nbsp; &nbsp; &nbsp;- '''With Data Change events disabled''' the Infinispan based datastore performs the same or better than the custom In-Memory Datastore. While initially it is a little slow over time it seems to perform more consistently than the In-Memory Datastore</span><br /><span style="font-size: 13.0px;font-family: Arial;">&nbsp; &nbsp; &nbsp;- Not fully tested</span></div><div>
-	&nbsp;</div><div>
-	&nbsp;</div><div><span style="font-size: 16.0px;line-height: 16.0px;"><strong>Comparison of In-Memory and Infinispan Datastore</strong></span></div><div>
-	&nbsp;</div><div>
-	&nbsp;</div><div>
-	We used cbench to compare the performance of the two datastores.</div><div>
-	&nbsp;</div><div>
-	Here is how we prepared the controller for testing,</div><div>
-	&nbsp;</div><ol><li>
-		Use the openflow plugin distribution</li><li>
-		Remove the simple forwarding, arp handler and md-sal statistics manager bundles</li><li>
-		Set log level to ERROR</li><li>
-		Run the controller with the following command&nbsp;<strong>./run.sh -Xmx4G -Xms2G -XX:NewRatio=5 -XX:+UseG1GC -XX:MaxPermSize=256m</strong></li><li>
-		From the osgi command prompt&nbsp;<strong>dropAllPackets on</strong></li></ol><div>
-	&nbsp;</div><div>
-	cbench was run for 11 times for both the in-memory and infinispan datastore versions. The first run is ignored in both cases as it does not go through (probably another issue that needs to be looked at)</div><div>
-	&nbsp;</div><div>
-	The cbench command used,</div><div>
-	&nbsp;</div><div><strong>cbench -c &lt;controller ip&gt; -p 6633 -m 1000 -l 10 -s 16 -M 1000</strong></div><div>
-	&nbsp;</div><div>
-	This was a latency test and the arguments roughly translate to this,</div><div>
-	&nbsp;</div><div>
-	-m 1000 : use 1000 milliseconds per test</div><div>
-	-l 10 : use 10 loops per test</div><div>
-	-s 16 : fake 16 switches</div><div>
-	-M 1000 : use 1000 hosts per switch</div><div>
+
+= Building/Running the POC =
+
+== yangtools ==
+
+Get the latest yangtools sources and then create a branch of it using the following command
+
+git checkout 306ffd9eea5a52556b4877debd2a79ca0573ff0c -b infinispan-data-store
+
+Build using '''mvn clean install -DskipTests'''
+
+== controller ==
+
+Get the latest controller then create a branch using the following command
+
+git checkout 259b65622b8c29c49235c2210609b9f7a68826eb -b infinispan-data-store
+
+Now apply the following gerrit
+
+https://git.opendaylight.org/gerrit/#/c/5900/
+
+'''Note:because reference infinispan data store is hardcode in controller code,so you should compile ispn-data-store first'''
+
+cd opendaylight/md-sal/sal-ispn-datastore
+
+Build using '''mvn clean install'''
+
+go back to controller directory
+
+Build using '''mvn clean install -DskipTests'''
+
+
+== openflowplugin ==
+
+Get the latest openflowplugin code and then create a branch using the following command
+
+git checkout 6affeefef4de51ce4b7de86fd9ccf51add3922f7 -b infinispan-data-store
+
+Build using '''mvn clean install -DskipTests'''
+
+copy the sal-ispn-datastore jar to the plugins folder
+
+
+== Running the POC == 
+Make sure that the 01-md-sal.xml file has been changed to use the new MD-SAL datastore.
+
+You should now be able to run the controller with the infinispan datastore. If you want to do cbench testing, please follow the instructions from later in this document.
+
+Do note that if you want to see similar performance numbers as what we have in this wiki you will need to disable datachange notifications. In the POC the only way to do that is by changing the code in ReadWriteTransactionImpl. Look for FIXME comments.
+
+= Design Notes =
+
+There are three major components to the infinispan data store,
+
+# Encoding/Decoding a Normalized Node into and from the Infinispan TreeCache
+# Managing transactions
+# Managing DataChange notifications
+
+== Encoding/Decoding a Normalized Node into and from the Inifinispan TreeCache ==
+ 
+The first thing to understand is that a NormalizedNode represents a tree. It's structure closely models the yang model of a bunch of modules. The NormalizedNode tree typically has values placed in either a LeafNode (corresponding to a leaf in yang) or a LeafSetEntryNode (corresponding to a leaflist in yang).
+ 
+The encoding logic simply walks the NormalizedNode tree looking for LeafNodes and LeafSetEntryNodes and when it finds one it records it in a map with the Instance Identifier of the parent as the key and the value of the leaf or leafset entry store in a map where the NodeIdentifier of the leaf/leafsetentry is the key and the value of the leaf/leafsetentry is the value.
+ 
+The decoding process is a little more involved. It uses the TreeCache's interface to get to a certain node in the tree and then walks through the tree. As it walks the tree it reconstructs the NormalizedNode based on the key and value in the Infinispan TreeCache while at the same time validating it against the schema.
+ 
+ 
+== Managing Transactions ==
+ 
+To ensure read-write isolation level (and other reasons) we create an infinispan (JTA) transaction for each datastore transaction. Since a single thread may be used for multiple JTA transactions our implementation has to ensure that we suspend and resume the JTA transactions appropriately. This does not seem to be a big issue and it does not seem to have an impact on performance.
+ 
+== Managing DataChange notifications == 
+ 
+The current interface for data change notifications supports registering of the listeners for notifications for data changes at Node (consider node of a tree) level ,  events for any changes  happen at ONE level (meaning immediate children) Or data changes notifications for any change in the subtree level . The event send to the listener requires maintaining of before data change snapshot of tree and after data change snapshot of tree.  This is very expensive as we have to maintain a Normalized Node representing snapshot of tree by converting the tree in Infinispan to NormalizeNode object tree required by the consumer, at beginning of each transaction.
+
+The steps we follow to maintain the data changes are as follows:
+ 
+# At the begin of transaction we get a NormalizedNode Object tree of the current tree in ISPN TreeCache (this is mandated by current DataChangeEvent interface)
+# For each CUD operations that happens within the transaction we maintain a transaction log
+# When the pre-commit is called of the  3PhaseCommit  Transaction Interface-- we prepare the data changes by comparing the transaction log items with the Snapshot Tree one taken at the beginning of the tranasactions, preparing the DataChangeEvent lists based on what level the listeners have registered.
+# When commit happens we send the events to the listeners in a separate executor(i.e asynchronously)
+ 
+Suggestion
+  - Remove the requirement of sending before transaction tree/after transaction tree within each event.
+  - Just have the changed paths of tree send to the consumer and let the consumer do the reading?
+
+= Datastore related learnings = 
+
+== Multiple transactions can be created per thread == 
+This is a problem because if your backing datastore (infinispan) uses JTA transactions only one transaction can be active per thread. This does not mean that we necessarily need to use one thread per transaction but we do need to suspend one transaction and resume another. 
+
+Suggestion
+     - Allow only one active transaction per thread
+     - Add an explicit suspend/resume method on a transaction
+
+== Not clear that Read-Only transactions need to be closed == 
+
+For every DataStore transaction we need to create a JTA transaction - this is so that we can ensure isolation (repeatable reads) that means that when the transaction is done we should either commit it, roll it back or close it some fashion. With read-only transaction there may be a tendency to not close the transactions this leads to JTA transactions hanging around till they timeout.
+
+Suggestion
+     - DataStore may need to do timeouts as well
+     - Document that close should be called explicitly for read-only transaction
+
+== write and delete methods in a read-write transaction do not return a Future == 
+
+write and delete methods on the DOMWriteTransaction return a void instead of a Future. This gives the impression that these methods are synchronous - this is not neccessarily true in all cases. For example in the infinispan datastore the write was actually done in a separate thread to support multiple transactions on a single thread.
+
+Suggestion
+     - Return a ListenableFuture for both write and delete
+
+== Very expensive to create a DataChange event because it needs to pass the Original Sub tree and the Modified Sub tree == 
+
+To create a DataChange event we need to create a NormalizedNode object which may need to be a snapshot of a complete modules data so that the original subtree can be sent to DataChange listeners. This is very expensive and doing it on almost every transaction could be a big problem. While we see this problem in the infinispan datastore this would also be  a big problem in a distributed system where data was sharded to be colocated with applications and datachange listeners for those shards on a different node on the cluster. So for example we may have shards colocated with the inventory app and the topology app may be a datachange listener for datachange events. In this case the original subtree and the modified sub tree would need to be serialized in some form and sent over to the topology listener.
+
+Suggestion
+     - Remove the getOriginalSubtree and getModifiedSubtree methods from the datachange listener understand the use case for providing them and find a cheaper way to do the same thing
+
+== Reconstructing a Normalized Node from a different data-structure (like a map or a key-value store) is complicated (or may appear complicated) == 
+
+A NormalizedNode is the binding-independent equivalent of data that gets store in the datastore. For the in-memory datastore it is the native storage format. It’s a complicated structure that basically mirrors the model as defined in yang. Understanding it and properly decoding it could be a challenge for folks who want to implement an alternate datastore.
+
+Suggestion
+     - Create utility classes to construct a normalized node from a simple tree structure. The Old CompositeNode or the Infinispan Node for example is a much simpler structure to follow.
+
+= Infinispan related learnings = 
+
+== TreeCache#removeNode API not working as expected == 
+
+Haven’t had a chance to fully evaluate why but the Infinispan removeNode API was not correctly removing nodes in the tree (as it promises). This means for example that when a mininet topology changes some nodes may not be removed from inventory and topology. 
+
+Action
+     - None at this time
+
+= State of the POC = 
+
+* Encoding/Decoding a Normalized Node into an Infinispan TreeCache works
+* Integrated with the controller
+* Eventing works
+* With Data Change events disabled the Infinispan based datastore performs the same or better than the custom In-Memory Datastore. While initially it is a little slow over time it seems to perform more consistently than the In-Memory Datastore
+* Not fully tested
+
+= Comparison of In-Memory and Infinispan Datastore =
+ 
+ 
+We used cbench to compare the performance of the two datastores.
+ 
+Here is how we prepared the controller for testing,
+ 
+Use the openflow plugin distribution
+Remove the simple forwarding, arp handler and md-sal statistics manager bundles
+Set log level to ERROR
+Run the controller with the following command ./run.sh -Xmx4G -Xms2G -XX:NewRatio=5 -XX:+UseG1GC -XX:MaxPermSize=256m
+From the osgi command prompt dropAllPackets on
+ 
+cbench was run for 11 times for both the in-memory and infinispan datastore versions. The first run is ignored in both cases as it does not go through (probably another issue that needs to be looked at)
+ 
+The cbench command used,
+ 
+cbench -c <controller ip> -p 6633 -m 1000 -l 10 -s 16 -M 1000
+ 
+This was a latency test and the arguments roughly translate to this,
+ 
+-m 1000 : use 1000 milliseconds per test
+-l 10 : use 10 loops per test
+-s 16 : fake 16 switches
+-M 1000 : use 1000 hosts per switch
+
 	&nbsp;</div><div><span style="font-size: 14.0px;line-height: 14.0px;"><strong>The results</strong></span></div><div>
 	&nbsp;</div><div><span style="font-size: 14.0px;line-height: 14.0px;">In-Memory Datastore</span></div><div>
 	&nbsp;</div><div><span style="line-height: 12.0px;">To test the in-memory datastore we downloaded a pre-built openflow plugin distribution from Jenkins on May 1 and on this we enabled the new in-memory datastore.</span></div><div>
