@@ -132,7 +132,32 @@ this thread no operations are possible on data listener.
 
 == Improvements ==
 
-=== Explicit Actor model ===
+=== Actor model ===
+
+In the context of MD-SAL we could identify two types of actors - MD-SAL actors and user-supplied actors (consumers / providers).
+
+Internal MD-SAL Candidates for Actors are:
+
+* DOM Broker
+  * Schema Service
+  * Data Broker
+  * Data Stores
+  * Rpc Router for particular RPC type (Router-type actor)
+  * Notification Broker 
+* Binding Broker
+  * Binding Mapping Service
+  * Data Broker
+  * Rpc Router (Router-type actor)
+  * Notification Broker
+
+Client-code candidate for actors are:
+  
+* RPC Implementation
+* Notification Listener
+* Data Change Listener
+* Schema Context Listener
+
+==== Explicit Actor model ====
 
 Explicit actor model will introduce new term to MD-SAL - Actor - APIs needs to be designed (using Akka or creating own abstraction
 which could be backed by Akka or other system), but it SHOULD BE possible to MD-SAL clients specify their delivery models.
@@ -140,9 +165,9 @@ which could be backed by Akka or other system), but it SHOULD BE possible to MD-
 This will require update of MD-SAL on all levels, but threading model will be easier to reason about, it will introduce
 customizable queue behaviour for components and queuing per component (actor) basis.
 
-=== Implicit Actor model ===
+==== Implicit Actor model ====
 
-Each listener, rpc implementation, etc. which is visible to MD-SAL is uniquelly associated with Registration object which uniquelly
+Each listener, rpc implementation, etc. which is visible to MD-SAL is uniquelly associated with Registration object which uniquely
 identifies instance, registration object could serve as synchronization point (or queue holder) for particular component in MD-SAL.
 
 This will require change in  Notification Broker and Data Change delivery in way, that they will honor per-registration queues or use
@@ -150,6 +175,9 @@ Registration object of listener as synchronization point.
 
 The registration object could also be extended to provide additional methods, which will help client code further specify their behaviour
 (e.g. synchronized, unsychronized) etc.
+
+Problem with this approach is one instance may implement multiple entry-points with separate registration and it is hard 
+to preserve event-ordering behaviour for separate registrations.
 
 === Simple Deadlock detection ===
 
