@@ -49,31 +49,29 @@ An automatic compiler gets called when a test is executed, and determines if the
 CASE 1:
      NAME "Get list of containers"
      STEP "Getting list of containers"
-     # ODL1 is the instance for Opendaylight driver
-     STORE ON ODL1 DO list_containers IN result
+     STORE ON ODL1 DO get USING URL AS CASE['get_url'] IN result
      ASSERT result EQUALS 200 ONPASS "Getting containers list" ONFAIL "Not getting any containers list"
 CASE 2:
-     NAME "Remove existing containers"
-     STEP "Removing container"
-     STORE ON ODL1 DO remove_container USING CONTAINER AS 'cont1' IN result
-     ASSERT result EQUALS 204 ONPASS "Container removed successfully" ONFAIL "Container not removed"
-CASE 3:
      NAME "Create a container"
      STEP "Creating a new container"
-     STORE ON ODL1 DO create_container USING CONTAINER AS 'cont1',INPUT AS {"container" : "cont1","nodeConnectors" : ["OF|1@OF|00:00:00:00:00:00:00:01","OF|2@OF|00:00:00:00:00:00:00:02"],"staticVlan" : "1"} IN result
+     STORE ON ODL1 DO put USING URL AS CASE['put_url'],BODY AS CASE['put_body'] IN result
      ASSERT result EQUALS 201 ONPASS "Container getting added" ONFAIL "Container not added"
-
+CASE 3:
+     NAME "Get topology"
+     STEP "Getting topology "
+     STORE ON ODL1 DO get USING CASE['get_url'] IN result 
+     ASSERT result EQUALS 200 ONPASS "Topology getting successfully" ONFAIL "Topology not getting successfully"
 CASE 4:
-     NAME "Get container flows"
-     STEP "Getting container flows"
-     STORE ON ODL1 DO flow_stats USING CONTAINER AS 'cont1' IN result 
-     ASSERT result EQUALS 200 ONPASS "Container flows getting" ONFAIL "Container flows not getting"
+     NAME "Get flow statistics"
+     STEP "Getting flow Statistics from topology"
+     STORE ON ODL1 DO get USING CASE['get_url'] IN result 
+     ASSERT result EQUALS 200 ONPASS "Getting all flow statistics" ONFAIL "Not getting flow statistics"
 
 CASE 5:
-     NAME "get topology"
-     STEP "getting topology"
-     STORE ON ODL1 DO get_topology USING CONTAINER AS 'default' IN result
-     ASSERT result EQUALS 200 ONPASS "Topology getting successfully" ONFAIL "Topology not getting successfully"
+    NAME "Remove static route"
+    STEP "Removing static route"
+    STORE ON ODL1 DO delete USING CASE['delete_url'] IN result
+    ASSERT result EQUALS 204 ONPASS "User link removed" ONFAIL "User link not removed"
 
 TestOn driver Script will access the python file (derived from the Test Description Language[OpenSpeak]) for execution of test. The drivers would call the functions specified in the python file.
 The derived python script for the above ospk script is as follows:
@@ -85,34 +83,40 @@ class Odl :
         self.default = ‘‘
 
     def CASE1(self,main) :
+
         main.case("Get list of containers")
         main.step("Getting list of containers")
-        result = main.ODL1.list_containers()
+        result = main.ODL1.get(URL=main.params['CASE1']['get_url'])
         utilities.assert_equals(expect=200,actual=result,onpass="Getting containers list",onfail="Not getting any containers list")
+    
 
-    def CASE2(self,main) :
-        main.case("Remove existing containers")
-        main.step("Removing container")
-        result = main.ODL1.remove_container(CONTAINER='cont1')
-        utilities.assert_equals(expect=204,actual=result,onpass="Container removed successfully",onfail="Container not removed")
+   def CASE2(self,main) :
 
-    def CASE3(self,main) :
         main.case("Create a container")
         main.step("Creating a new container")
-        result = main.ODL1.create_container(CONTAINER='cont1',INPUT={"container" : "cont1","nodeConnectors" : ["OF|1@OF|00:00:00:00:00:00:00:01","OF|2@OF|00:00:00:00:00:00:00:02"],"staticVlan" : "1"})
+        result = main.ODL1.put(URL=main.params['CASE2']['put_url'],BODY=main.params['CASE2']['put_body'])
         utilities.assert_equals(expect=201,actual=result,onpass="Container getting added",onfail="Container not added")
-    
-    def CASE4(self,main) :
-        main.case("Get container flows")
-        main.step("Getting container flows")
-        result  = main.ODL1.flow_stats(CONTAINER='cont1')
-        utilities.assert_equals(expect=200,actual=result,onpass="Container flows getting",onfail="Container flows not getting")
-    
-    def CASE5(self,main) :
+
+    def CASE3(self,main) :
+
         main.case("Get topology")
         main.step("Getting topology ")
-        result = main.ODL1.get_topology(CONTAINER='default')
+        result  = main.ODL1.get(main.params['CASE3']['get_url'])
         utilities.assert_equals(expect=200,actual=result,onpass="Topology getting successfully",onfail="Topology not getting successfully")
+    
+    def CASE4(self,main) :
+
+        main.case("Get flow statistics")
+        main.step("Getting flow Statistics from topology")
+        result  = main.ODL1.get(main.params['CASE4']['get_url'])
+        utilities.assert_equals(expect=200,actual=result,onpass="Getting all flow statistics",onfail="Not getting flow statistics")
+    
+    def CASE5(self,main) :
+
+        main.case("Remove static route")
+        main.step("Removing static route")
+        result = main.ODL1.delete(main.params['CASE5']['delete_url'])
+        utilities.assert_equals(expect=204,actual=result,onpass="User link removed",onfail="User link not removed")
 
 Topology file plays the key role by defining the components for a test in TestON framework. The basic topology file for Opendaylight test is as mentioned below:
 
@@ -121,27 +125,32 @@ Topology file plays the key role by defining the components for a test in TestON
 <TOPOLOGY>
     <COMPONENT>
         <Mininet1>
-            <host>"mininet host ip address"</host>
+            <host>"mininet host IP address"</host>
             <user>"minine host username"</user>
             <password>"minine host password"</password>
             <type>MininetCliDriver</type>
             <COMPONENTS>
                 # Specify the Option for mininet
                 <topo>tree</topo>
-                <topocount>2</topocount>
-                <ip>127.0.0.1</ip>
+                <topocount>3</topocount>
+                <switch>ovsk</switch>
                 <controller>remote</controller>
+                <ip>"OpenDaylight controller host IP address"</ip>
                 <port>6633</port>
              </COMPONENTS>   
         </Mininet1>        
         <ODL1>
-            <host>"Opendaylight controller host ip address"</host>
-            <user>"Opendaylight controller host username"</user>
-            <password>"Opendaylight controller host password" </password>
+            <host>"OpenDaylight controller machine IP address"</host>
+            <user>"OpenDaylight controller machine username"</user>
+            <password>"Opendaylight controller machine password"</password>
             <type> OdlDriver </type>
             <test_target> 1 </test_target>
+            <header>{'Content-type': 'application/json', 'Accept': 'application/json'}</header>
             <COMPONENTS>
-                
+               <topology_url>http://localhost:8080</topology_url>
+               <hostname>OpenDaylight controller machine hostname</hostname>
+               <username>admin</username>
+               <password>admin</password> 
             </COMPONENTS>
         </ODL1>
     </COMPONENT>
@@ -152,33 +161,35 @@ TestON framework makes use of params file to execute the custom test cases as pe
 *Odl.params
 
 <PARAMS>
-    <testcases>[1,2,3,4]</testcases> 
-</PARAMS>
+    <testcases>[1,2,3,4]</testcases>
+    <CASE1> 
+        <get_url>http://localhost:8080/controller/nb/v2/containermanager/containers</get_url>   
+    </CASE1>
+    
+    <CASE2>
+        <put_url>http://localhost:8080/controller/nb/v2/containermanager/container/cont1</put_url> 
+        <put_body>{
+		"container" : "cont1",
+		"nodeConnectors" : [
+		"OF|1@OF|00:00:00:00:00:00:00:02",
+		"OF|1@OF|00:00:00:00:00:00:00:03"
+		],
+		"staticVlan" : "10"
+		}
+       </put_body>
+    </CASE2>
 
-Imagine a case when user requires a test involving 4 components: 1 controller, 1 switch and 2 hosts, and run a script which has 10 test cases. Out of these user wants to run test cases 1-5. The results of the test must be notified to ''user@domain.com'' and log files created under /home/user/Desktop/openflow_logs/. Also, for step 1 in test case 3, user wants to use a parameter specified by the attribute ''count'' which will be used at run time.
-
-User authors the following params file:
-
-<PARAMS>
-    <testcases> [1,2,3,4,5] </testcases>
-    <mail> user@domain.com </mail>
-    <log_dir> /home/user/Desktop/openflow_logs/ </log_dir>
-    <CASE3>
-        <STEP1>
-            <count> 10 </count>
-        </STEP1>
+    <CASE3> 
+        <get_url>http://localhost:8080/controller/nb/v2/topology/default</get_url>
     </CASE3>
+   
+    <CASE4> 
+        <get_url>http://localhost:8080/controller/nb/v2/statistics/default/flow</get_url>
+    </CASE4> 
+ 
+    <CASE5> 
+        <delete_url>http://localhost:8080/controller/nb/v2/staticroute/cont1/route/route1</delete_url> 
+    </CASE5>  
 </PARAMS>
 
-Another use case of param file is the following:
-
-CASE 1:
-     NAME “My first testcase with a connect using args from params”
-     STEP “Connecting to some mininet emulator”
-     CONNECT my_mininet USING host AS PARAMS[host], port AS PARAMS[port], user AS PARAMS[user], passwd AS   PARAMS[password]
-
-In this example, ''host'' will be substituted with the host parameter for ''my_mininet'' device in the params file, ''user'' will be substituted with the user parameter, and so on. This way of writing the test scripts is best practice since it separates the data from the actual logic of the test.
- 
-For more details of how to write a test case in OpenSpeak, read the OpenSpeak spec 1.1 under the documentation directory of the TestON framework.
-
-[[Category:Integration Group]]
+ [[Category:Integration Group]]
