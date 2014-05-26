@@ -3,9 +3,14 @@
 
 ==After executing db_setup, you have encountered the error "Failed to setup database"?==
 The error could be due to the below reasons
-* Not a Root user 
-  You may not be user with root permissions, please switch to such a previleage and execute again
-
+* Access Restriction
+  The user who owns /usr/local/vtn/ directory and installs VTN coordinator, can only start db_setup.
+  Example : 
+  The directory should appear as below (assuming the user as "vtn"):
+  # ls -l /usr/local/
+    drwxr-xr-x. 12 vtn  vtn  4096 Mar 14 21:53 vtn
+  If the user doesnot own /usr/local/vtn/ then, please run the below command (assuming the username as vtn),
+                 chown -R vtn:vtn /usr/local/vtn
 * Postgres not Present 
   1.In case of Fedora/CentOS/RHEL, please check if /usr/pgsql/<version> directory is present and also ensure the commands 
     initdb, createdb,pg_ctl,psql are working. If, not please re-install postgres packages
@@ -18,6 +23,9 @@ The error could be due to the below reasons
       
 * If the above steps do not solve the problem, please refer to the log file for the exact problem
       /usr/local/vtn/var/dbm/unc_setup_db.log for the exact error.
+
+* If using the Postgres Version > 9.3
+      In the file /usr/local/vtn/etc/dbm/postgresql.conf.single (Please change unix_socket_directory as unix_socket_directories) and retry the command.
 
 ==What are the things to check after vtn_start?==
 * list of coordinator processes
@@ -49,7 +57,7 @@ The following activities take place in order during startup
      The command ps -ef | grep catalina | grep -v grep should list a catalina process
 
 ==If you encounter an erroneous situation where the REST API is always failing.==
-    Please ensure the firewall settings for port:8080 and enable the same.
+    Please ensure the firewall settings for port:8080(Hydrogen release) or port:8083(Post Hydrogen release) and enable the same.
 
 == How to debug a REST API returning a failure message? ==
    Please check the /usr/share/java/apache-tomcat-7.0.39/logs/core/core.log for failure details.
