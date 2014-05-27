@@ -4,7 +4,9 @@
 # A shard should be backed by a persistent store so that when a cluster member is restarted the shard can be reconstructed from the persisted data
 # A shard should be replicated to configurable number ( 2 for Helium) of replicas. Replication is a stretch goal for Helium.
 # Distributed transactions across shards NEED NOT be supported. A transaction on a single shard MUST be supported.
-# There should be logging/monitoring of transactions and data change notifications that would help an app developer tune data access. For example we know that remote-reads could be expensive so we should log reads that took an extra-ordinary amount of time or which is trying to get too much data. Similarly for data change notifications we should log if a registration results in too many notifications or the data delivered by that notification is too much or if delivery is taking too much time.
+# There MUST be logging/monitoring of transactions and data change notifications that would help an app developer tune data access. For example we know that remote-reads could be expensive so we should log reads that took an extra-ordinary amount of time or which is trying to get too much data. Similarly for data change notifications we should log if a registration results in too many notifications or the data delivered by that notification is too much or if delivery is taking too much time.
+# What should the data size be?
+# What kind of performance is expected? How many data updates/second?
 
 == General Design Principles ==
 
@@ -13,6 +15,10 @@
 # Use Akka for doing operations on remote shards. Akka seems to fit very well with the existing design of md-sal as it is already based on the actor model.
 # The sharding strategy should be customizable. ODL should ship with a default sharding strategy (which will be static and pre-determined for a given cluster size, similar to the APIC design; applications will be responsible for determining the sharding of their data). The sharding strategy determines the location of a shard possibly based on the instance identifier of a data object and the collection of the cluster members
 # Application/Services reading/writing to the shard should be co-located with the shard to minimize remote transactions as much as possible. Only one application should be the logical owner of a shard. When other applications need that data, they should either utilize the APIs provided by the owner application or subscribe to data change notifications.
+
+==== Problems with Sharding Strategy ====
+# Migration of shards based on changes in sharding strategy?
+# For Helium - build a REST api to specify the cluster configuration
 
 === Akka ===
 
@@ -55,9 +61,9 @@ We are going to rely heavily on akka to provide us the building blocks for our c
 |-
 | Shard || A Shard would be a '''processor''' which contains some of the data in the system. Since a Shard is an actor you would communicate with it using messages. The messages passed to a shard would for the most part be similar to the operations on the DOMDataStore interface. 
 
-Since the Shard is a ""Processor"" in akka-persistence is a special actor which when passed a ""Persistent"" message will log it to a journal. This journal along with snapshots would be used as a method to recover the state of the DataStore. The state of the Shard would be maintained in an InMemoryDataStore object. 
+Since the Shard is a '''Processor''' as per akka-persistence it is a special actor which when passed a '''Persistent''' message will log it to a journal. This journal along with snapshots would be used as a method to recover the state of the DataStore. The state of the Shard would be maintained in an InMemoryDataStore object. 
 
-The MD-SAL DataStore supports three phase commit. The Shard will therefore also provide the functions of the ThreePhasCommitCohort.
+The MD-SAL DataStore supports three phase commit. The Shard will therefore also provide the functions of the ThreePhaseCommitCohort.
 
 |-
 | ShardTransaction || A ShardTransaction would be an actor which wraps an InMemoryDataStoreTransaction. Any operation that needs to be done on a transaction - namely ""read"", ""write"", ""delete"" and ""ready"" would be fronted by the ShardTransaction. The ShardTransaction will also maintain the state of any writes/deletes that happen on a transaction. We will call this state the "transactionLog". The transactionLog would then be used during commits to persist a transaction to a journal which will be written onto the disk using akka's persistence module. The journal will then be used when a controller shards up to reconstruct the state of a shard. 
@@ -294,7 +300,7 @@ The design of sharding should be done carefully based on the queries application
 ** Akka Remoting
 ** Akka Sharding
 * Persistence / Recovery 
-** Akka Persistence
+** Akka Persistence - [[Clustered_Datastore_using_Akka_POC|https://wiki.opendaylight.org/view/Clustered_Datastore_using_Akka_POC]]
 * Replication / High Availability
 * Querying / Indexing
 * Serviceability (Monitoring and Diagnosis)
@@ -305,7 +311,6 @@ The design of sharding should be done carefully based on the queries application
 ** EXI
 ** BSON
 * Data Validators (nothing to do with DataCommitHandlers)
-
 
 == References ==
 
