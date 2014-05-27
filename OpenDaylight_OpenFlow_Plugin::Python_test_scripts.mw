@@ -66,15 +66,41 @@ Basic parameters for all runnable scripts:
 * <code>--odlhost</code> : it is a controller IP address. The parameter is used for configuration startup of the Mininet and for the rest address builders. A default value is '''127.0.0.1''' (localhost). 
 * <code>--odlport</code> : it is a controller port listener for a http REST communication. The parameter is used for the rest address builders.
 
-== ODL Test (odl_tests.py | odl_tests_new.py) ==
-The test scripts are designed for testing the switch configuration inputs via REST request. (It could work with mininet [opf13] only yet.) All inputs are readed from xml files. 
+== ODL Test (odl_crud_tests.py) ==
+The test scripts are designed like CRUD (Create Read Update Delete) End-to-End black-box test suite for testing the switch configuration inputs/outputs via RESTconf. (It could work with mininet [opf13] by CPqD,OVS only.) 
+
+All inputs are readed from xml files 
+* file prefix f*.xml -> Flow ; 
+* file prefix g*.xml -> Group ; 
+* file prefix m*.xml -> Meter ; 
+
+Note: ''The Groups and the Meters are supported by CPqD only yet.''
+
+The test are using:
+* RESTfull (GET, PUT, POST (create data only), DELETE)
+* RESTconf POST sal-services 
+
 The test life cycle:
-* read input and put in to controller via REST
-* get stored data via REST and compare input vs output
-* get stored data from switch via command line and compare they
-* delete input via REST and test the delete process
+* read input and put in to controller via REST (''PUT | POST | POST sal-add'')
+* get stored data via REST from config DataStore and compare input vs output (''GET'')
+* get stored data via REST from operational DataStore and compare input vs output (''GET'')
+* modify input and the update put in to controller via REST (''PUT | POST sal-update'')
+* delete input via REST (''DELETE | POST sal-remove'')
+* validate the delete process in config DS and operational DS (''GET'')
+
 Parameters:
-* <code>--xmls</code> : number of specific test xml file from xmls directory (pattern: f{nr}.xml). This parameter has no default value. The script is testing all f_.xml files from xmls directory without --xmls parameter.
+* <code>--odlhost</code> : the odl controller host (default value is 127.0.0.1)
+* <code>--odlport</code> : the odl RESTconf listening port (default value is 8080)
+* <code>--loglev</code> : the logging level definition (default value is DEBUG) ''debug level contains request/response payload''
+* <code>--mininet</code> : OpenVSwitch or CPqD (default OVS)
+* <code>--fxmls</code> : the number specifies a Flow test xml file from xmls directory (pattern: f{nr}.xml) (e.g. 1,3,34). This parameter has no default value. The script is testing all f_.xml files from xmls directory without --fxmls parameter. 0 means no test. The parameter is relevant for (OVS and CPqD)
+* <code>--mxmls</code> : the number specifies a Meter test xml file from xmls directory (pattern: m{nr}.xml) (e.g. 1,3). This parameter has no default value. The script is testing all m_.xml files from xmls directory without --mxmls parameter. 0 means no test. The parameter is relevant for (CPqD only)
+* <code>--gmls</code> : the number specifies a Group test xml file from xmls directory (pattern: g{nr}.xml) (e.g. 1,3). This parameter has no default value. The script is testing all g_.xml files from xmls directory without --gxmls parameter. 0 means no test. The parameter is relevant for (CPqD only)
+* <code>--confresp</code> : (configuration response) - define a delay to the Configruation Data Store (default = 0 sec.) Increase this value is important for a weaker controller machine 
+* <code>--operresp</code> : (operation response) - define a delay to the Operation Data Store (defalut = 3 sec.) Increase this value is important for a weaker controller machine or a weaker network
+* <code>--coloring</code> : switcher for enable/disable coloring logged output
+
+Script has a file and the consolle logging output handlers (file crud_test.log)
 
 == Stress Test (stress_test.py) ==
 The test is simulating multiple connections for the repeatable END-TO-END add flow test scenario. The flow pattern is same (look in to openvswitch.flow_tools.py). The script is changing a flow_id value only.
