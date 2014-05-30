@@ -83,8 +83,9 @@ The policy management layer embodies the communications to the north bound of th
 # Session Manager
 # Presentation Manager
  
+[[File:PAMgmtLayer.jpg]]
 
-Stream API
+==== Stream API ====
 This would be base on the OVS library stream interface where the actual details protocol being used for communications is abstracted from the upper layer. A stream_class is present which provides the necessary call-backs to support the underlying protocols (i.e. TCP, SSL, RPCJSON). This approach obviously provides a framework from which to add further protocol support. The pstream_class definition is as follows:
 
 struct pstream_class {
@@ -134,7 +135,8 @@ struct pstream_class {
 };
 
 It is important to note that all the socket interface are perform in a non-blocking mode. Using this layer to perform connection initiation is fairly obvious but  to perform listener its basically a stream.c:pstream_accept which will not block waiting for a connection. If no connection is ready to be accepted, it returns EAGAIN immediately. But if block is desired, as is with most listeners, there is also stream.c:pstream_accept_block, which does block until a connection is ready or until an error occurs.
-Session Manager
+
+==== Session Manager ====
 The session manager (SM) layer should support the ability to provide a connection list of active and inactive connections, defined by a state of the connection. Connection to north bound systems should be held open until either they are closed by the PA or the peer on the the other end. The connection list should be defined by the config file variable and if the connection list is full, the LRU (Least Recently Used) policy should be used to either open or accept another connection. 
 In addition, a session timeout thread should be used to timeout sessions in the session list. This timeout will be config file controlled. The reason for keeping the session list efficient is if there is no need to keep a connection active, i.e. lack of activity, then its best to free up the session list slot and the memory that a connection consumes. The SM should have the ability to perform marshaling/de-marshaling of data based upon the connection and the presentations managers connection setup information. OpFlex provides a Identify message which will provide the type connectivity_info and roles information.
 The session manager layer should also be the identity that sets up the PA's listener based upon configuration information found in the config file.
