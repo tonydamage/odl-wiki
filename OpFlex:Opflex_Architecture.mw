@@ -19,11 +19,17 @@ A primary function of the policy architecture is the delivery and maintenance of
 '''Figure 1-3: Generated Policy Model'''
 
 Each type of policy is uniquely identified in a given context by its name, where context can be specific to a tenant, a shared common tenant, etc. Resources that use a policy refer to this policy by its name, and a hierarchical closest matching policy is resolved. If no named match exists, a default policy is resolved.
+
 Policy resolution is typically implicit, meaning that it is triggered via a set of internal APIs in the PE as a side effect of a change / stimulus, such as an endpoint attach. Policy resolution consists of sending logical policies to Policy Elements, which maintain read-only copies of the logical policies and apply changes to corresponding concrete model objects. Whenever possible, sets of related policies are resolved together in a single transaction to Policy Elements.
+
 The Policy Repository persists information about which policies are in use and where they have been resolved in an internal registry. When there are subsequent changes to policies -- such as property modifications and lifecycle changes (creation, deletion) -- the Policy Repository sends update notifications to Policy Elements where the affected policies are in use. It is the responsibility of Policy Repository to push the updates to policies that it owns to all the policy clients of the policy. For each policy, the Policy Repository maintains the list of policy clients and policy consumers. As mentioned in above, when a policy is resolved, all policies with that name in the hierarchy are in-scope policies and would be resolved. Whenever a policy is updated, the updated policy is pushed down to all policy clients. The Policy Update message is only used to provide updates to policies that have already been provided to a Policy Element, and not to install an entirely new policy. The Policy Resolution message from the Policy Element must be used to request new policies (i.e. MO sub-trees that the PE doesn’t yet have).
-OpFlex Background
+
+=== OpFlex Background ===
 To implement declarative control, a new mechanism is required to transfer abstract policy from a network policy controller to a set of smart devices capable of rendering abstract policy. Unfortunately, existing protocols such as OVSDB favor imperative models and rigid schematics, so they are not appropriate for this use case. In Fact, devOps tools such as Puppet or CFEngine take a similar approach to OpFlex in using declarative languages to configure server resources.
+
 OpFlex was designed to augment rather than replace these tools by focusing on additional requirements of the network and policies that must span multiple network devices. For example, OpFlex includes a native mechanism for identity resolution used to define declarative policies between two different network endpoints.Cisco, along with partners including Microsoft, Red Hat, Citrix, F5, Canonical, and Embrane, developed OpFlex to address this challenge. OpFlex is an open and extensible policy protocol for transferring abstract policy in XML or JavaScript Object Notation (JSON) between a network policy controller such as the Cisco APIC and any device, including hypervisor switches, physical switches, and Layer 4 through 7 network services. Cisco and its partners are working through the IETF and open source community to standardize OpFlex and provide a reference implementation.
+
+[File:CFPOpflexDrawing1.jpg]
 
 === OpFlex Description ===
  
