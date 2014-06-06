@@ -16,13 +16,16 @@ We propose a southbound plugin that can control the off-the-shelf commodity Ethe
 For the SDN controller to support building an SDN using Ethernet switches, it needs to be able to configure flows on the Ethernet switches. In addition, in initial, it has to discover which switches are under its management and then can configure flows on them. Also, the connectivity topology among switches is necessary information for the controller and applications. In this plugin, flow configuration on Ethernet switch would be done via SNMP or CLI, switch discovery would be achieved via SNMP trap sent from the switch, and topology discovery would be resolved by reading LLDP data on the switches.
 
 == Flow configuration on Ethernet switch ==
-A flow’s configuration on an Ethernet switch could be implemented by configuring forwarding table and ACL, via SNMP or CLI.
+A flow’s configuration on an Ethernet switch could be implemented by configuring forwarding table, ACL, and VLAN, via SNMP or CLI.
 
 === Forwarding table configuration ===
 The entry of the forwarding table is composed of “destination mac address” and “output port”, so a flow with indicating only its destination mac address and output port could be configured on the forwarding table. The configuration could be done via SNMP. That is, the plugin could send corresponding SNMP command to the switch so as to add/modify/delete/read an entry on the forwarding table that equivalents to add/modify/delete/read a flow on the switch.
 
 === ACL configuration ===
 (TBD)
+
+=== VLAN configuration ===
+A VLAN could be regarded as a kind of flow. A VLAN is given a specific VLAN ID and the ports on the switches VLAN setting on the switch. VLAN settings on a switch, including adding/removing/showing VLAN and assign VLAN ports on a switch, could be done via SNMP.
 
 == Switch discovery ==
 A mechanism for the controller and switches to know each other are necessary in an SDN. For example, OpenFlow switches need to be configured to have a controller IP address set, then every switch will proactively connects the controller, then the controller can manage the switches. As for Ethernet switches, however, they were not designed to behave like OpenFlow switches to proactively connect to the specific controller, since in tradition it is not assumed to have a central controller above. Therefore, the approach for Ethernet switch to proactively notify the controller of its existence could be: using SNMP trap. That is, every Ethernet switch is (1) configured with its SNMP host (i.e. the controller’s IP address) and (2) configured to send SNMP trap when the switch boots up. (1) and (2) are supported in general and needs to be configured manually via CLI for only once. In this way, the controller will know a switch joining in, when receiving the switch’s SNMP trap of booting up. And note that the controller will check the community provided in the SNMP trap that whether the community is the same as the controller's, given that the controller has a community. If the community is not the same, the controller will neglect this switch.
