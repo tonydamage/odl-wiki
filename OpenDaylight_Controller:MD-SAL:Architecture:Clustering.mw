@@ -100,21 +100,69 @@ When the MD-SAL Clustering Service bundle comes up it could look at which specif
 
 Clustering configuration would be as follows,
 
+==== modules.conf ====
+
+modules.conf defines all the modules in the system, the shards for those modules and the cluster members on which the replicas of those shards should exist. Which replica would be primary depends on the order of the replica list.
+
 <pre>
 
-cluster-configuration {
-    <role-name> {
-        shards [
+modules = [
+    {
+        name = "inventory"
+        shards = [
             {
-                name : <string>
-                module-qname : <string>
-                key : <string>
-                replica : <number>
+                name = "shard-1"
+                replicas = [
+                    "member-2"
+                    "member-1"
+                    "member-3"
+                ]
+            }
+
+            {
+                name = "shard-2"
+                replicas = [
+                    "member-1"
+                    "member-2"
+                    "member-3"
+                ]
+            }
+
+        ]
+    },
+    {
+        name = "topology"
+        shards = [
+            {
+                name = "module-shard"
+                replicas = [
+                    "member-2"
+                    "member-1"
+                    "member-3"
+                ]
             }
         ]
     }
-}
 
+]
+</pre>
+
+==== module-sharding-strategies.conf ====
+
+The module-sharding-strategies.conf file defines each module and the strategy that needs to be used for that module. 
+<pre>
+
+module-sharding-strategies = [
+    {
+        module-name : "inventory"
+        strategy : "module"
+    },
+    {
+        module-name : "topology"
+        strategy : "module"
+    }
+
+]
 </pre>
 
 Now since we are planning to use akka pay special attention to the ""role-name"". The role-name that one uses should correspond to the role-name specified for this node in the akka-cluster configuration. Right now I can see this as a potential area where mistakes could be made as two separate configuration files need to be kept in sync (need to think of a clean solution for this).
