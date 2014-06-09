@@ -133,7 +133,7 @@ In order to fully leverage the utilities of configuration subsystem, we need to 
 <source lang="java">
 package org.opendaylight.controller.config.demo;
 
-@ServiceType(name="Bar")
+@ServiceType(name="Bar", description="Bar Service Description")
 public interface Bar {
 
     int getNextEvent();
@@ -145,7 +145,7 @@ public interface Bar {
 <source lang="java">
 package org.opendaylight.controller.config.demo;
 
-@ServiceType(name="Foo")
+@ServiceType(name="Foo", "Foo Service Description")
 public interface Foo {
 
     int getEventCount();
@@ -188,7 +188,68 @@ module config-demo {
     }
 }
 </source>
-As you can see, the config yang module needs to be imported in order to define services. There are 2 services defined and these services correspond to Java interfaces Foo and Bar (specified by config:java-class extension).
+
+Now  we need to  define service instances for the Foo and Bar Services and indicate their configuration variables and service dependencies.  This is accomplished by annotating the FooImpl.java and BarImpl.java.
+
+* BarImpl.java:
+<source lang="java">
+package org.opendaylight.controller.config.demo;
+
+@ServiceInstance
+public class BarImpl implements Bar {
+
+    private final int l1, l2;
+    private final boolean b;
+
+@ServiceParams
+    public BarImpl(int l1, int l2, boolean b) {
+        this.l1 = l1;
+        this.currentL = l1;
+        this.l2 = l2;
+        this.b = b;
+    }
+
+    private int currentL;
+
+    @Override
+    public int getNextEvent() {
+        if(currentL==l2)
+            return -1;
+        return currentL++;
+    }
+}
+</source>
+* FooImpl.java:
+<source lang="java">
+package org.opendaylight.controller.config.demo;
+
+@ServiceInstance
+public class FooImpl implements Foo {
+
+    private final String strAttribute;
+    private final Bar barDependency;
+    private final int intAttribute;
+
+@ServiceParams
+    public FooImpl(String strAttribute, int intAttribute, Bar barDependency) {
+        this.strAttribute = strAttribute;
+        this.barDependency = barDependency;
+        this.intAttribute = intAttribute;
+    }
+
+    @Override
+    public int getEventCount() {
+        int count = 0;
+        while(barDependency.getNextEvent() != intAttribute) {
+            count++;
+        }
+        return count;
+    }
+}
+</source>
+
+ If we take a look at BarImpl constructor, we see that it requires two integer variables and a boolean variable. From the @ServiceParams constructor, we can automatically infer that and generate the configuration variables in the YANG Module. Similarly FooImpl.java constructor requires a string attribute and an int attribute. In addition, FooImpl declares a dependency on Bar Service. Again, These annotations are equivalent to the config-demo-impl.yang shown below.  </br>
+
 * config-demo-impl.yang
 <source>
 module config-demo-impl {
@@ -296,93 +357,6 @@ module config-demo-impl {
 
 }
 </source>
-Again, config yang module as well as config-demo yang module need to be imported. There are 2 modules defined: foo-impl and bar-impl and their configuration (defined in augment "/config:modules/config:module/config:configuration" block) corresponds to the configuration of FooImpl and BarImpl Java classes. If we take a look at FooImpl.java's constructor, we can see that the configuration of foo-impl module defines similar 3 attributes. We will use these arguments to instantiate the FooImpl class. We placed these yang files under src/main/yang folder. </br>
-
-== Updating maven configuration in pom.xml ==
-Now we need to add yang-maven-plugin to our pom.xml. This plugin will process yang files and generate configuration code for the defined modules. Plugin's configuration:
-<source lang='xml'>
-<plugin>
-    <groupId>org.opendaylight.yangtools</groupId>
-    <artifactId>yang-maven-plugin</artifactId>
-    <version>${yangtools.version}</version>
-    <executions>
-        <execution>
-            <goals>
-                <goal>generate-sources</goal>
-            </goals>
-            <configuration>
-                <codeGenerators>
-                    <generator>
-                        <codeGeneratorClass>
-                            org.opendaylight.controller.config.yangjmxgenerator.plugin.JMXGenerator
-                        </codeGeneratorClass>
-                        <outputBaseDir>${project.build.directory}/generated-sources/config</outputBaseDir>
-                        <additionalConfiguration>
-                            <namespaceToPackage1>
-                                urn:opendaylight:params:xml:ns:yang:controller==org.opendaylight.controller.config.yang
-                            </namespaceToPackage1>
-                        </additionalConfiguration>
-                    </generator>
-                </codeGenerators>
-                <inspectDependencies>true</inspectDependencies>
-            </configuration>
-        </execution>
-    </executions>
-    <dependencies>
-        <dependency>
-            <groupId>org.opendaylight.controller</groupId>
-            <artifactId>yang-jmx-generator-plugin</artifactId>
-            <version>${config.version}</version>
-        </dependency>
-    </dependencies>
-</plugin>
-</source>
-Important configuration for the plugin is: output folder for generated files and mapping between yang namespaces and java packages (Inspect dependencies must be set to true ). The default location for yang files is under src/main/yang folder. This plugin is backed by artifact yang-jmx-generator-plugin and its class org.opendaylight.controller.config.yangjmxgenerator.plugin.JMXGenerator is responsible for the code generation. This artifact is part of the configuration subsystem. <br/>
-
-In addition to yang-maven-plugin, it is neccessary to add build-helper-maven-plugin in order to add generated sources to the build process:
-
- <plugin>
-    <groupId>org.codehaus.mojo</groupId>
-    <artifactId>build-helper-maven-plugin</artifactId>
-    <version>1.8</version>
-    <executions>
-        <execution>
-            <id>add-source</id>
-            <phase>generate-sources</phase>
-            <goals>
-                <goal>add-source</goal>
-            </goals>
-            <configuration>
-                <sources>
-                   &lt;source>${project.build.directory}/generated-sources/config&lt;/source>;
-                </sources>
-            </configuration>
-        </execution>
-    </executions>
- </plugin>
-
-Earlier, we imported config yang module in our yang files. In order to acquire this yang module, we need to add dependency to the pom file:
-<source lang='xml'>
-<dependency>
-    <groupId>org.opendaylight.controller</groupId>
-    <artifactId>config-api</artifactId>
-    <version>${config.version}</version>
-</dependency>
-</source>
-
-We will also add a couple of utility dependencies:
-<source lang='xml'>
-<dependency>
-    <groupId>org.slf4j</groupId>
-    <artifactId>slf4j-api</artifactId>
-</dependency>
-<dependency>
-    <groupId>com.google.guava</groupId>
-    <artifactId>guava</artifactId>
-</dependency>
-</source>
-
-We are now ready to run '''mvn clean install'''.
 
 == Generated java files ==
 Now we can see a bunch of new source files divided into 2 groups. First group is located under ${project.build.directory}/generated-sources/config directory, which we specified in yang-maven-plugin's configuration. The second group is located under src/main/java directory. Both groups then define package org.opendaylight.controller.config.yang.config.demo.impl. The first group contains code that should not be edited in any way, since this code can be regenerated by the plugin if necessary. The code that needs to be edited belongs to the second group and is located under src/main/java. <br/>
