@@ -523,6 +523,149 @@ The component can be broken down to 2
 
 The design of sharding should be done carefully based on the queries applications make and noting down that '''it will be painful(migration involved)''' if we want to change the sharding logic later after release.
 
+== Clustering Scenarios ==
+
+Scenario
+     - Single node cluster
+     - Primary replica for all shards local
+     - No secondary replicas
+
+
+- Replication : off
+
+
+
+Scenario
+     - Two node cluster
+     - Both nodes running
+
+- Replication : on
+
+Scenario
+     - Two node cluster
+     - Node 1 running
+     - Node 2 running -> down
+
+- Node 1 : primary
+- Cluster operations : suspended
+
+Scenario
+     - Two node cluster
+     - Node 1 running
+     - Node 2 down -> running
+     
+- Node 1 : primary
+- Node 1 replicates all data to Node 2
+- Cluster operations : resumed
+
+Scenario
+     - Two node cluster
+     - Node 1 running -> down
+     - Node 2 running
+
+
+- Node 2 : primary
+- Cluster operations : suspended
+
+Scenario
+     - Two node cluster
+     - Node 1 down -> running
+     - Node 2 running
+
+
+- Node 2 : primary
+- Cluster operations : resumed
+
+Scenario
+     - Two node cluster
+     - Node 2 comes up first
+     - Node 1 comes up second
+
+
+- Node 2 : primary
+
+
+Scenario
+     - Three node cluster
+     - Node 1 comes up first 
+     - Node 2 comes up second
+     - Node 3 comes up third
+
+- Node 1 : primary
+
+Scenario
+     - Three node cluster
+     - Node 1 running
+     - Node 2 running -> down
+     - Node 3 running
+
+- Node 1 : primary
+- Node 1 : starts storing messages destined for Node 2
+- Node 3 : saves replicated messages for Node 2
+- Node 3 : fully replicated
+
+
+Scenario
+     - Three node cluster
+     - Node 1 running
+     - Node 2 down -> running
+     - Node 3 running
+
+- Node 1 : primary
+- Node 1 : replicates stored messages to Node 2
+- Node 3 : discards the stored messages for Node 2
+- Node 3 : fully replicated 
+
+Scenario
+     - Three node cluster
+     - Node 1 running -> down
+     - Node 2 down -> running
+     - Node 3 running
+
+
+- Node 3 : primary
+- Node 3 : replicates stored messages to Node 2
+
+
+Scenario 
+	- Three Node cluster
+	- Node 1 down -> running
+	- Node 2 running
+	- Node 3 running
+	
+- Node 3 : primary	
+- Node 1 : discards any stored messages for Node 2
+
+Scenario
+	- Three Node cluster
+	- Node 1 running -> down
+	- Node 2 running -> down
+	- Node 3 running
+	
+Node 3 : primary
+Cluster operations : suspended
+
+
+Scenario
+	- Three Node cluster
+	- Node 1 running -> down
+	- Node 2 running -> down (with unreplicated messages)
+	- Node 3 running -> down (with unreplicated messages)
+	- Node 1 down -> running
+
+Node 1 : primary	
+Cluster operations : suspended
+
+Scenario
+	- Three Node Cluster
+	- Node 1 running
+	- Node 2 down -> running (is more uptodate)
+	- Node 3 down
+	
+Node 2 : primary
+
+
+
 == Proof of Concept ==
 
 === Goals ===
