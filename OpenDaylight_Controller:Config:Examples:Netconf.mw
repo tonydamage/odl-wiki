@@ -121,12 +121,104 @@ Getting actual configuration data from server:
 <pre>
 curl -v http://localhost:8080/restconf/config/opendaylight-inventory:nodes/node/libnetconfd/yang-ext:mount/
 </pre>
+should output
+<pre>
+   .
+   .
+   .
+{
+    "data": {}
+}
+</pre>
 (in case of netopeer docker image result is empty)
 
 Getting actual operational data from server:
 <pre>
 curl -v http://localhost:8080/restconf/operational/opendaylight-inventory:nodes/node/libnetconfd/yang-ext:mount/
 </pre>
+should output
+<pre>
+     .
+     .
+     .
+{
+    "data": {
+        "toaster": {
+            "toasterManufacturer": "CESNET, z.s.p.o.",
+            "toasterModelNumber": "toaster",
+            "toasterStatus": "up"
+        },
+        "netconf-state": {
+            "datastores": {
+                "datastore": [
+                    {
+                        "name": "running"
+                    },
+                    {
+                        "name": "startup"
+                    },
+                    {
+                        "name": "candidate"
+                    }
+                ]
+            },
+            "sessions": {
+                "session": [
+                    {
+                        "session-id": 2948,
+                        "transport": "netconf-ssh",
+                        "username": "jameshall",
+                        "source-host": "192.168.1.29",
+                        "login-time": "2014-05-02T17:25:06Z",
+     .
+     .
+     .
+                "out-rpc-errors": 6,
+                "out-notifications": 0
+            }
+        },
+        "netconf": {
+            "streams": {
+                "stream": [
+                    {
+                        "name": "NETCONF",
+                        "description": "NETCONF Base Notifications",
+                        "replaySupport": true,
+                        "replayLogCreationTime": "2014-04-22T12:49:00Z"
+                    }
+                ]
+            }
+        },
+        "nacm": {
+            "denied-operations": 0,
+            "denied-data-writes": 0,
+            "denied-notifications": 0
+        }
+    }
+}
+
+</pre>
+== Remote RPCs ==
+With gerrit [https://git.opendaylight.org/gerrit/#/c/6815 6815] you can now perform RPC calls that are mounted on a node. The pattern is very similar to the gets being performed above.
+
+<code>
+ http://localhost:8080/restconf/operations/<mountPoint>/yang-ext:mount/<operation>
+</code>
+
+Now, since the netconf server adds netconf devices to the opendaylight-inventory:nodes url, you would likely be following this pattern to make the RPC call to the remote server:
+
+<code>
+ http://localhost:8080/restconf/operations/opendaylight-inventory:nodes/node/<nodeId>/yang-ext:mount/<operation>
+</code>
+
+For example, to make-toast on the node with id '''netopeer''' server, you would post to the following URL:
+
+<code>
+ http://localhost:8080/restconf/operations/opendaylight-inventory:nodes/node/netopeer/yang-ext:mount/toaster:make-toast
+</code>
+
+Note: In the case of the netopeer server, you get an immediate response (204). However, if you immediately reissue the command again you will see that we get an RPC error because the "make-toast" action is still running! Further proof that the request is going out to the remote server.
+
 == Debugging ==
 
 A simple way to check both connectivity and whether Netconf Server is up and running is to use SSH as described in [http://tools.ietf.org/search/rfc6242 Using the NETCONF Protocol over Secure Shell (SSH)]. For example:
@@ -144,31 +236,15 @@ Add the following two lines:
  <logger name="org.opendaylight.controller.netconf" level="DEBUG" />
  <logger name="org.opendaylight.controller.sal.connect.netconf" level="DEBUG" />
 
-
 =Other ways to configure mount point=
 ==Configuring Netconf client with yangcli-pro==
 
 === Requirements ===
 yangcli-pro version 13.04-9.2 or later.
 
-=== Connecting to the Controller Configuration Server ===
+=== Connecting with yuma ===
 
-To connect to the controller's config server with a plain TCP connection, use the syntax described below. No authentication is performed for TCP connection, user and password parameters can bye any ascii strings. 
-<pre>
-yangcli-pro --user=a --password=a --transport=tcp --ncport=8383 --server=localhost
-</pre>
-
-Alternatively, you may connect using SSH: 
-<pre>
-yangcli-pro --user=netconf --password=netconf --transport=ssh --ncport=1830 --server=localhost
-</pre>
-
-For better debugging please include following arguments:
-
-<pre>
- --log=/tmp/yuma.log --log-level=debug4 --log-console
-</pre>
-Note that when the log file is set, the output will not appear on stdout.
+Yuma is commercial software that can be used to access netconf server. Please see [[OpenDaylight_Controller:Config:Examples:User_guide#Configuring_thread_pools_with_yangcli-pro|User guide]] for details.
 
 === Configuring an NCC Instance ===
 This example shows how to configure the NCC to connect to the collector's own Netconf server. The controller's configuration subsystem can then be accessed through the controller's NB Restconf API.
