@@ -1,0 +1,118 @@
+
+<big>This page is under construction pending yet to be committed code changes.
+</big>
+
+=== Creating an Unofficial Root Certificate ===
+
+A secure network will require that both the switch & controller authenticate to avoid a rogue switch on the controller or a rogue controller driving a switch.
+To test the controller's openflow plugin with ovs mininet, following these [https://github.com/mininet/mininet/wiki/SSL-on-Open-vSwitch-and-ovs-controller instructions].
+
+=== Using ovs-pki on mininet ===
+<pre>
+Overview: "ovs-pki" and "ovs-vsctl" setup the keys for Swtich and Controller
+# Generate the "unofficial" Root CA Private key
+# Unofficial CA Root Certificate
+# Switch Private Key
+# CA signed Switch certificate
+# Controller key
+# CA signed Controller certificate.
+</pre>
+=== Create & Sign private/public key certificates ===
+<pre>
+cd /etc/openvswitch
+sudo ovs-pki req+sign sc switch
+</pre>
+
+This should have generated six ".pem" files.   A private key for each side, signed by the unofficial root certificate in /var/lib/openvswitch/pki/.  A public certificate for each side.  There are also the two "request" certificates which were used to generate the signed certificates.  Note the "req+sign" shortcut used with ovs-pki.
+
+<pre>
+$ ls -1
+conf.db
+ctl-cert.pem
+ctl-privkey.pem
+ctl-req.pem
+sc-cert.pem
+sc-privkey.pem
+sc-req.pem
+system-id.conf
+</pre>
+
+=== Intermediate pkcs12 keystore
+ ===
+Generate a temporary pkcs12 format keystore with the controller's private/public certficates and the unoffical CA root certificate.
+
+<pre>
+openssl pkcs12 -export -in ctl-cert.pem -inkey ctl-privkey.pem -out server.p12 -name odlserver -CAfile /var/lib/openvswitch/pki/controllerca/cacert.pem -caname root -chain
+</pre>
+
+Next, copy the server.p12 store to the ODL host in any work directory.
+Import the PKCS12 format store into the JKS store consumable by ODL:
+
+<pre>
+keytool -importkeystore \
+        -deststorepass secret -destkeypass secret -destkeystore key.bin \
+        -srckeystore server.p12 -srcstoretype PKCS12 -srcstorepass secret \
+        -alias odlserver
+</pre>
+
+Start ODL with this key.bin keystore:
+
+<pre>
+./run.sh -Djavax.net.ssl.trustStore=/workingdir/key.bin -Djavax.net.ssl.trustStorePassword=secret
+</pre>
+
+To debug:
+
+./run.sh -Djavax.net.debug=all ...
+
+=== Configuring Openvswitch SSL  ===
+
+=== Configure openvswitch SSL ===
+<pre>
+sudo ovs-vsctl set-ssl \
+    /etc/openvswitch/sc-privkey.pem \
+    /etc/openvswitch/sc-cert.pem \
+    /var/lib/openvswitch/pki/controllerca/cacert.pem
+</pre>
+
+=== Start a mininet with SSL connections to the ODL controller ===
+
+open a file "<tt>ssl_switch_tests.py</tt>"
+
+<pre>
+#!/usr/bin/python
+from mininet.net import Mininet
+from mininet.node import Controller, RemoteController
+from mininet.cli import CLI
+from mininet.log import setLogLevel, info
+
+def emptyNet():
+    net = Mininet( controller=RemoteController )
+    net.addController( 'c0' )
+    h1 = net.addHost( 'h1' )
+    h2 = net.addHost( 'h2' )
+    s1 = net.addSwitch( 's1' )
+    net.addLink( h1, s1 )
+    net.addLink( h2, s1 )
+
+    net.start()
+    s1.cmd('ovs-vsctl set-controller s1 ssl:YOURODLCONTROLLERIPADDRESS:6633')
+
+    CLI( net )
+    net.stop()
+
+if __name__ == '__main__':
+    setLogLevel( 'info' )
+    emptyNet()
+</pre>
+
+Run the mininet:
+<pre>
+chmod +x ssl_switch_test.py
+sudo ./ssl_switch_test.py
+</pre>
+
+You'll see connection entries in the ovswitchd log file:
+<pre>
+sudo tail /var/log/openvswitch/ovs-vswitchd.log
+</pre>
