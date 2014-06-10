@@ -321,10 +321,144 @@ The ClusteringService would be monitoring the state of all the members of a clus
 
 An Akka cluster can be monitored using a variety of commercial monitoring software like AppDynamics or NewRelic. TypeSafe used to have a product called TypeSafe Console which has been discontinued.
 
-=== Error Handling ===
+Scenario
+     - Single node cluster
+     - Primary replica for all shards local
+     - No secondary replicas
 
-# What happens to transactions when a node fails ?
-# If a single DistributedDataStore transaction involves multiple shards what happens if a transaction on one of the shard fails?
+
+- Replication : off
+
+
+
+Scenario
+     - Two node cluster
+     - Both nodes running
+
+- Replication : on
+
+Scenario
+     - Two node cluster
+     - Node 1 running
+     - Node 2 running -> down
+
+- Node 1 : primary
+- Cluster operations : suspended
+
+Scenario
+     - Two node cluster
+     - Node 1 running
+     - Node 2 down -> running
+     
+- Node 1 : primary
+- Node 1 replicates all data to Node 2
+- Cluster operations : resumed
+
+Scenario
+     - Two node cluster
+     - Node 1 running -> down
+     - Node 2 running
+
+
+- Node 2 : primary
+- Cluster operations : suspended
+
+Scenario
+     - Two node cluster
+     - Node 1 down -> running
+     - Node 2 running
+
+
+- Node 2 : primary
+- Cluster operations : resumed
+
+Scenario
+     - Two node cluster
+     - Node 2 comes up first
+     - Node 1 comes up second
+
+
+- Node 2 : primary
+
+
+Scenario
+     - Three node cluster
+     - Node 1 comes up first 
+     - Node 2 comes up second
+     - Node 3 comes up third
+
+- Node 1 : primary
+
+Scenario
+     - Three node cluster
+     - Node 1 running
+     - Node 2 running -> down
+     - Node 3 running
+
+- Node 1 : primary
+- Node 1 : starts storing messages destined for Node 2
+- Node 3 : saves replicated messages for Node 2
+- Node 3 : fully replicated
+
+
+Scenario
+     - Three node cluster
+     - Node 1 running
+     - Node 2 down -> running
+     - Node 3 running
+
+- Node 1 : primary
+- Node 1 : replicates stored messages to Node 2
+- Node 3 : discards the stored messages for Node 2
+- Node 3 : fully replicated 
+
+Scenario
+     - Three node cluster
+     - Node 1 running -> down
+     - Node 2 down -> running
+     - Node 3 running
+
+
+- Node 3 : primary
+- Node 3 : replicates stored messages to Node 2
+
+
+Scenario 
+	- Three Node cluster
+	- Node 1 down -> running
+	- Node 2 running
+	- Node 3 running
+	
+- Node 3 : primary	
+- Node 1 : discards any stored messages for Node 2
+
+Scenario
+	- Three Node cluster
+	- Node 1 running -> down
+	- Node 2 running -> down
+	- Node 3 running
+	
+Node 3 : primary
+Cluster operations : suspended
+
+
+Scenario
+	- Three Node cluster
+	- Node 1 running -> down
+	- Node 2 running -> down (with unreplicated messages)
+	- Node 3 running -> down (with unreplicated messages)
+	- Node 1 down -> running
+
+Node 1 : primary	
+Cluster operations : suspended
+
+Scenario
+	- Three Node Cluster
+	- Node 1 running
+	- Node 2 down -> running (is more uptodate)
+	- Node 3 down
+	
+Node 2 : primary
 
 === Performance Measurement/Tuning ===
 
@@ -340,8 +474,39 @@ Serializing objects over the wire is going to likely be an expensive operation. 
 When there is a cluster of controllers, there can be cases where one member of the cluster is asked to execute RPC call on a device which is controlled by another member. Remote RPC broker would route such requests to another member which controls the device. In general, any RPC request for which provider is NOT found locally, is routed to another member in the cluster who has a provider for it.
 
 There are 2 components:
-# Route Registry 
-# Remote RPC Broker
+# '''Route Registry''' : Maintains list of registered RPCs per member of the cluster 
+# '''Remote RPC Broker''' : Routes RPC calls to the cluster member where RPC is registered and handles response. It also acts as a listener for incoming RPC requests from another cluster member.
+<br/><br/>
+=== Route Registry ===
+This is a container for registered RPCs per cluster member (controller)
+
+ var registry: mutable.Map[Address, Bucket] = mutable.Map.empty[Address, Bucket]<br>
+ final case class Bucket(
+   version: Long,
+   rpcs: List[String]
+ )
+
+'''Address''': Cluster member address. Its really Akka address of remote actor system where Route Registry actor is managed<br>
+'''Bucket''': Its a container for list of registered RPCs with a version. Version is a timestamp.
+<br/><br/>
+The registry is replicated across all members of the cluster. Replication is done using '''Gossip protocol''' and follows '''eventual consistency''' model.
+<br/><br/>
+Registry is front-ended with an Actor that talks to corresponding Actor on another member. This Actor can handle 3 kinds of messages:
+#GossipTick - Sent by local scheduler that triggers the actor to send registry <code>Status</code> to a randomly selected remote member.
+#Status - This message contains member <code>Address</code>es and <code>version</code>s of their corresponding <code>Bucket</code>s that <code>sender</code> has.
+#Delta - This message contains the delta between sender member and local member's registry. Local registry can be updated based on this delta.
+<br/><br/>
+A member can update ONLY ITS OWN bucket as and when RPCs are registered/unregistered on it. 
+
+[TODO] Add call flow
+
+=== Remote RPC Broker===
+
+The main functions of this component are to:
+# Route rpc requests to "right" members and collect responses 
+# Act as a listener for rpc requests coming in from remote members, deliver it to MD-SAL Broker and respond back with result.
+<br/><br/>
+The component can be broken down to 2
 
 == Open Questions/Random Thoughts ==
 
