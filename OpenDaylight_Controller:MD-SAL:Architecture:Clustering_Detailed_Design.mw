@@ -38,6 +38,19 @@ Represents a Shard created by ShardManager based on Shard strategy specified in 
 Shard Replicator gets persistent messages that Shard has applied to its store and replicates the same to other Shard Replicas. 
    Messages/API:
           - Persistent(compositeTransactionOperation)
+
+====CompositeTransactionOperation ====
+For each CUD transaction we will capture the TransactionOperation(s) as part of this composite object. This will be utilized when transaction is committed to have a single persistent message in the persistent Journal 
+    Messages/API 
+          - List<TransactionOperation>
+          - add(TransactionOperation)
+====TransactionOperation ====
+Represents a single operation as part of a transaction. Utilized by CompositeTransactionOperation 
+    Messages/API 
+          - WriteTransactionOperation(instanceIdentifier, NormalizedNode)
+          - DeleteTransactionOperation(instanceIdentifier)
+
+
 ====ShardTransaction ====
 Supports the CRUD operations. 
     Messages/API:  
@@ -57,7 +70,43 @@ The current InMemoryDatastore supports 3-phase commit cohort.  Same/Similiar sem
           - PreCommit
           - Abort
           - Commit
+====ListenerWrapper ====
+     Messages/API 
+          OnDataChange
+====ListenerManager ====
+     Messages/API
+          - CreateListenerWrapper => Address[ListenerWrapper]
+====ListenerRegistration ====
+     Messages/API 
+          - Close (unregisters)
+====DOMStoreProxy ====
+Implements the DOMStore and acts as a proxy.
 
+====DOMStoreTransactionChainProxy ====
+Implements the DOMStoreTransactionChain . Acts as a proxy 
+====DOMStoreTransactionProxy ====
+Implements the DOMStoreTransaction. Acts as proxy 
+====DOMStoreThreePhaseCommitCohortProxy ====
+Implements the DOMStoreThreePhaseCommitCohort. Acts as a proxy 
+
+====ListenerProxy ====     
+This acts as a proxy when the shard primary belongs to a different clustered node.
+====ListenerRegistrationProxy ====
+This acts as a proxy when the shard primary belongs to a different clustered node and registration of listener is happenning 
+
+====ShardStrategyManager ====
+ShardStrategyManager deals with the various Sharding Strategies specified for different module shards
+     Messages/API    
+          - findStrategy => ShardStrategy
+====ShardStrategy ====
+     Messages/API
+          - findShardName => String
+==== ModuleShardStrategy ====
+This is an out-of-box sharding strategy supported wherein Shard is based on the yang Module. Only Modules with considerable data will be considered for this strategy 
+
+==== NoShardStrategy ====
+This is an out-of-box strategy that indicates all the modules with this strategy belong to same Shard. 
+ 
 
 ===org.opendaylight.controller.cluster.rpc ===
      - RemoteRpcBroker
