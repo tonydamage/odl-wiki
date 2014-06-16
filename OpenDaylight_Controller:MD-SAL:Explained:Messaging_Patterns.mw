@@ -1,1 +1,83 @@
 {{:OpenDaylight Controller:MD-SAL:Explained:Include:Messaging Patterns}}
+
+=== Unicast communication ===
+:* '''RPC''' - unicast between consumer and provider, where consumer sends '''request''' message to provider, which asynchronously responds with '''reply''' message
+
+== RPCs ==
+
+=== RPC Routing ===
+
+==== RPC Routing by type ====
+
+This is default RPC routing behaviour, which assumes only one implementation
+per RPC Type, which is selected purely on message type.
+
+===== Implementations =====
+
+* o.o.c.sal.binding.impl.RpcProviderRegistryImpl - (Binding version)
+* o.o.c.sal.dom.broker.impl.SchemaAwareRpcRouter - (DOM version)
+
+==== RPC Routing by payload ====
+
+RPC Routing by payload, is defined by use of extensions from yang-ext module,
+which defines which leaf from payload is used for routing.
+
+===== Implementations =====
+
+
+ * o.o.c.sal.binding.impl.RpcProviderRegistryImpl - (Binding version)
+   * o.o.c.sal.binding.codegen.impl.RuntimeCodeGenerator - code generator
+     for RPC Router implementations
+ * o.o.c.sal.dom.broker.impl.SchemaAwareRpcRouter - (DOM version)
+
+
+== Notification ==
+
+== Data Tree Related Messaging ==
+
+==== Transactional CRUD operations ====
+
+
+
+
+===== Implementations =====
+
+* Brokers
+  * o.o.c.sal.binding.BindingDataBrokerImpl 
+  * o.o.c.sal.dom.broker.impl.DOMDataBrokerImpl
+* Data Store
+  * o.o.c.sal.store.impl.InMemoryDOMDataStore 
+* Transactions
+ * o.o.c.sal.binding. AbtractTranslatedTransaction
+ * o.o.c.sal.dom.broker.impl.AbstractCompositeTransaction - Composite transaction
+   which consists of multiple DOM Store transactions, each for particular conceptual
+   data tree.
+
+ * o.o.c.sal.dom.store.impl.SnapshotBackedTransaction - (InMemory DOM Data Store
+ transactions, which implements actual operations logic and transactional 
+ separation
+* Commit Coordinator
+
+
+
+==== Transaction Chaining ====
+
+
+==== Data change notifications ====
+
+
+===== Implementations =====
+
+* Transfer objects:
+	* o.o.c.sal.binding.impl.TranslatedChangeEvent (Binding)
+	* o.o.c.sal.store.impl.ImmutableDataChageEvent
+* Computation of data change events
+	* o.o.c.sal.dom.store.impl.ResolveChangeEventsTask (invoked by InMemoryDOM Data Store)
+
+=== Publish / Subscribe ===
+:* '''Notifications''' - multicast message which is send by provider and is delivered to subscribed consumers
+:* '''Data Change Notifications''' - multicast asynchronous event, which is sent by data broker if there is change in conceptual data tree, and is delivered to subsribed consumers
+=== Data access patterns ===
+* Transactional '''reads''' from conceptual '''data tree''' - read-only transactions
+* Transactional '''modification''' to conceptual '''data tree''' - write transactions
+* '''Transaction Chaining'''
