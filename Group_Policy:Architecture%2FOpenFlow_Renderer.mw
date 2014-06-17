@@ -14,7 +14,7 @@ The OpenFlow renderer is a network virtualization solution based on Open vSwitch
 * Control network
 
 === Overlay Tunnels ===
-* on-the-wire format (vxlan, ixvlan?, geneve?, etc.)
+* on-the-wire format (vxlan, ixvlan?, geneve?, etc.)  Hardware acceleration is a major driver here.
 * Mapping of endpoint groups to vnids/classes
 * OVS configuration
 
@@ -22,17 +22,24 @@ The OpenFlow renderer is a network virtualization solution based on Open vSwitch
 * tables we'll use
 * OVS configuration needed to run the system
 
-=== Routing ===
-* Where, when, how do we perform routing actions?
-* Any configuration required
+=== Forwarding ===
 
-=== Broadcast ===
+==== Bridging ====
 * How to distribute broadcast packets
 * Convert ARP/DHCP to unicast (through packetin)
-
-=== Learning ===
 * How and when we learn devices
 ** Pure orchestration vs. learning
 * Port security features and configuration
 
+==== Routing ====
+* Where, when, how do we perform routing actions?
+* Any configuration required
+
 == Renderer Architecture ==
+Main pieces:
+* Switch Manager: Manage connected switch configuration using OVSDB.  Maintain overlay tunnels.
+* ARP/DHCP manager: convert ARP and DHCP into unicast
+* Endpoint manager: Optionally learn endpoints based on simple rules that map interfaces to endpoint groups.  Can add additional rules in the future.  Keep endpoint registry up to date.  If disabled, then an orchestration system must program all endpoints and endpoint mappings.
+* Topology manager: Maintain topology and pathing information as needed.  Compute spanning trees for broadcast, etc.
+* Routing manager: Maintain routing information
+* Policy manager: subscribe to renderer common infrastructure and endpoint registry and manage the state of the flow tables in OVS.
