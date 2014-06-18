@@ -1,0 +1,117 @@
+'''Page in progress''' --[[User:Ppallamr|ppallamr]] ([[User talk:Ppallamr|talk]]) 17:53, 18 June 2014 (UTC)
+
+== Querying REST collections==
+REST operations which return collections can get quite large in certain cases. This document describes the 'query' feature to search and filter such collections. While querying can be done on the client side, server side querying is useful where in it reduces the amount of data sent to clients and reduces the client-side processing (especially useful when using simple REST clients).
+
+* Apache CXF Search - http://cxf.apache.org/docs/jax-rs-search.html
+* FIQL Draft - http://tools.ietf.org/html/draft-nottingham-atompub-fiql-00
+ 
+=== Query expression language - FIQL ===
+For FIQL syntax, please refer to the [http://tools.ietf.org/html/draft-nottingham-atompub-fiql-00 FIQL specification].
+
+While researching other containers and their query support, we narrowed down to Apache CXF Search which uses FIQL for querying REST collections. FIQL is a simple query language which uses a 'selector' style syntax and is extensible. Although FIQL is a draft, its proven to be quite popular.
+
+'''Example:'''
+
+Consider the following GET request to Statistics NB which returns flow statistics.
+
+<pre>
+http://localhost:8080/controller/nb/v2/statistics/default/flow
+
+       { "flowStatistics": [         
+              { "node": { "id": "00:00:00:00:00:00:00:01", "type": "OF" }, "flowStatistic": [...] },
+              { "node": { "id": "00:00:00:00:00:00:00:02", "type": "OF" }, "flowStatistic": [...] },
+              { "node": { "id": "00:00:00:00:00:00:00:03", "type": "OF" }, "flowStatistic": [...] },
+              ...     
+          ] 
+       } 
+ </pre> 
+To query the stats for a single node, a FIQL query can be attached to the URL which would then return just the matched item. The LHS of the query is a selector which uses a dot syntax to navigate the JSON object tree.
+<pre>
+http://localhost:8080/controller/nb/v2/statistics/default/flow?_q=(flowStatistics.node.id==00:00:00:00:00:00:00:02)
+       { "flowStatistics": [         
+              { "node": { "id": "00:00:00:00:00:00:00:02", "type": "OF" }, "flowStatistic": [...] },
+          ] 
+       } 
+</pre>
+
+'''Operators'''
+{| class="wikitable"
+|-
+| "==" || Equals
+|-
+| "=" || Equals, regular expression
+|-
+| "=ne=" or "!=" || Not equals
+|-
+| "=gt=" || greater than
+|-
+| "=ge=" || greater than or equals to
+|-
+| "=lt=" || less than
+|-
+| "=le=" || less than or equals to
+|-
+| ";" || AND
+|-
+| "," || OR
+|}
+
+Regular expressions are supported by using '=' (single equals) operator. Regular expressions are parsed using java.util.regex and hence supports the format documented at [[http:docs.oracle.com/javase/7/docs/api/java/util/regex/Pattern.html]]
+
+'''More examples:'''
+* (id=gt=100;name=Fred)  - id is greater than 100 AND name is "Fred"
+* (id=gt=100;name==Fred)
+* (id=lt=123)
+* (name==CXF;version=ge=2.2)
+* ((age=lt=25,age=gt=35);city==London) 
+* (book.author.firstName==John)
+* (book.reviews.review.reviewer.city="San.*")
+* (id=gt=200;(city='San.*') )
+* (book.soldBy!=Amazon)
+* 
+* [[http:localhost:8080/controller/nb/v2/connectionmanager/nodes?_q=(node.id=]]".*:04")  - Retrieve all nodes whose ids end in ':04'
+* [[http:localhost:8080/controller/nb/v2/flowprogrammer/default?_q=(flowConfig.name=]]"flow.*") - Retrieve flows whose name starts with 'flow'
+* [[http:localhost:8080/controller/nb/v2/flowprogrammer/default?_q=(flowConfig.node.type==]]"OF") 
+* [[http:localhost:8080/controller/nb/v2/statistics/default/flow?_q=flowStatistics.node.id==00:00:00:00:00:00:00:02]]
+* [[http:localhost:8080/controller/nb/v2/statistics/default/port?_q=(portStatistics.portStatistic.nodeConnector.id==3)]]
+* [[http:localhost:8080/controller/nb/v2/subnetservice/default/subnets?_q=(subnetConfig.name=]]"subnet.*")
+* [[http:localhost:8080/controller/nb/v2/switchmanager/default/nodes?_q=(nodeProperties.properties.property.value==]]"00:00:00:00:00:02")
+
+
+===The API===
+The following example illustrates the usage of the API to retrofit an existing NB end-point with querying capability. The API is in the 'northbound.commons' bundle.
+
+* org/opendaylight/controller/northbound/commons/query/Query
+* org/opendaylight/controller/northbound/commons/query/QueryContext (Creates queries)
+* org/opendaylight/controller/northbound/commons/query/QueryContextProvider  (JAX-RS provider which will be injected into Resource classes)
+
+Step 1 - Provide a setter to inject QueryContextProvider and create a QueryContext.
+  private QueryContext queryContext;
+  @Context
+      public void setQueryContext(ContextResolver< querycontext> queryCtxResolver) {
+        if (queryCtxResolver != null) {          
+          queryContext = queryCtxResolver.getContext(QueryContext.class);        
+        }
+      }
+
+Step 2 - Add a QueryParam to the NB endpoint method.
+    @Path("/{containerName}/nodes")
+    @GET     @Produces({ MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML })      
+    ...
+    public Nodes getNodes(@PathParam("containerName") String containerName, @QueryParam("_q") String queryString) {
+    ... 
+  
+Step 3 - Filter the collection prior to returning the results.
+          
+    ...
+    Nodes result = new Nodes(res);
+    if (queryString != null) {              
+        queryContext.createQuery(queryString, Nodes.class).filter(result, NodeProperties.class);    
+    }
+    return result;  
+
+=== Implementation ===
+We tried using pieces from Apache CXF Search. However, the dependencies are too many and the feature set extends to JPA as well. In the end we figured it should be easier to implement ourselves. Instead of writing a hand written parser (like Apache CXF), we chose to use JavaCC to generate a parser which cut down the implementation time significantly.
+
+The implementation has no dependencies and can be used to query any kind of collections of JAXB types.
