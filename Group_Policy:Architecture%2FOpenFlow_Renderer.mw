@@ -17,7 +17,7 @@ The "underlay" IP network has no special requirements though it should be set up
 Physical devices such as routers on the IP network are trusted entities in the system since these devices would have the ability to forge encapsulated packets.
 
 === Control Network ===
-The security of the system depends on keeping a logically isolated control network separate from the data network, so that guests cannot reach the control network.  Ideally, the network is kept isolated through an out-of-band control network.  This can be accomplished using a separate NIC, a special VLAN, or other mechanism.  However, the system is also designed to operate in the case where the control traffic and the data traffic are on the same network as well and isolation is enforced.
+The security of the system depends on keeping a logically isolated control network separate from the data network, so that guests cannot reach the control network.  Ideally, the network is kept isolated through an out-of-band control network.  This can be accomplished using a separate NIC, a special VLAN, or other mechanism.  However, the system is also designed to operate in the case where the control traffic and the data traffic are on the same layer 2 network and isolation is still enforced.
 
 In Figure 1, the control network is shown as 172.16/16.  The VM hosts, and controllers all all have addresses on this network, and communicate using OpenFlow and OVSDB on this network.  In the example, the router is shown with an interface configured on this network as well; this works but in practice it is preferable to isolate this network by accessing it through a VPN or jump box if needed.  Note that there is no requirement that the control network be all in one subnet.
 
@@ -33,29 +33,26 @@ Whenever traffic between two guests is in the network, it will be encapsulated u
 ** Inner ethernet header, with source and destination MAC
 ** (Optional) Inner IP header, with source and destination IP address
 
+The virtual network identifier is a 24-bit field that uniquely identifies an endpoint group in our policy model.
 
-
-=== Forwarding ===
-
+== Forwarding ==
 * on-the-wire format (vxlan, ixvlan?, geneve?, etc.)  Hardware acceleration is a major driver here.
 * OVS configuration
 * Mapping of interfaces to endpoint groups
 * Mapping of endpoint groups to vnids/classes
 
-
-==== OpenFlow Tables ====
+=== OpenFlow Tables ===
 * tables we'll use
 * OVS configuration needed to run the system
 
-
-==== Bridging ====
+=== Bridging ===
 * How to distribute broadcast packets
 * Convert ARP/DHCP to unicast (through packetin)
 * How and when we learn devices
 ** Pure orchestration vs. learning
 * Port security features and configuration
 
-==== Routing ====
+=== Routing ===
 * Where, when, how do we perform routing actions?
 * Any configuration required
 
