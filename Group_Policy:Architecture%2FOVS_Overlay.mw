@@ -1,0 +1,65 @@
+<onlyinclude>
+This page describes an data plane architecture for building an overlay network using Open vSwitch.  This data plane design is used by two renderers: the [[Group_Policy:Architecture/OpenFlow_Renderer|OpenFlow Renderer]] and the [[Group_Policy:Architecture/OpFlex_Renderer|OpFlex Renderer]].
+
+The design is intended to meet the following use cases:
+* Routing when required between endpoint groups, including serving as a distributed default gateway
+* Optional broadcast within a bridge domain.
+* Management of L2 broadcast protocols including ARP and DHCP to avoid broadcasting.
+* Layer 2-4 classifiers for policy between endpoint groups, including connection tracking/reflexive ACLs.
+* Service insertion/redirection
+</onlyinclude>
+
+== Network Architecture ==
+
+=== Network Topology ===
+[[File:Overlay design red tunnel.png|framed|Figure 1: An example of a supported network topology, with an underlying IP network and hypervisors with Open vSwitch.  Infrastructure components and elements of the underlay network are shown in grey.  Three endpoint groups exist with different subnets in the same layer 3 context, which are show in red, green, and blue.  A tunneled path (dotted red line) is shown between two red virtual machines on different VM hosts.]]
+The network architecture is an overlay network based on VXLAN or similar encapsulation technology, with an underlying IP network that provides connectivity between hypervisors and the controller.  The overlay network is a full-mesh set of tunnels that connect each pair of vSwitches.
+
+The "underlay" IP network has no special requirements though it should be set up with ECMP to the top-of-rack switch for the best performance, but this is not a strict requirement for correct behavior.  Also, the underlay network should be configured with a path MTU that's large enough to accommodate the overlay tunnel headers.  For a typical overlay network with a 1500 byte MTU, a 1600 byte MTU in the underlay network should be sufficient.  If this is not configured correctly, the behavior will be correct but it will result in fragmentation which could have a severe negative effect on performance.
+
+Physical devices such as routers on the IP network are trusted entities in the system since these devices would have the ability to forge encapsulated packets.
+
+=== Control Network ===
+The security of the system depends on keeping a logically isolated control network separate from the data network, so that guests cannot reach the control network.  Ideally, the network is kept isolated through an out-of-band control network.  This can be accomplished using a separate NIC, a special VLAN, or other mechanism.  However, the system is also designed to operate in the case where the control traffic and the data traffic are on the same layer 2 network and isolation is still enforced.
+
+In Figure 1, the control network is shown as 172.16/16.  The VM hosts, and controllers all all have addresses on this network, and communicate using OpenFlow and OVSDB on this network.  In the example, the router is shown with an interface configured on this network as well; this works but in practice it is preferable to isolate this network by accessing it through a VPN or jump box if needed.  Note that there is no requirement that the control network be all in one subnet.
+
+The router is also shown with an interface configured on the 10/8 network.  This network will be used for routing traffic destined for internet hosts.  Both the 172.16/16 and 10/8 networks here are isolated from the guest address spaces.
+
+=== Overlay Network ===
+Whenever traffic between two guests is in the network, it will be encapsulated using a VXLAN tunnel (though supporting additional encapsulation formats could be configured in the future).  A packet encapsulated as VXLAN contains:
+* Outer ethernet header, with source and destination MAC
+* Outer IP header, with source and destination IP address
+* Outer UDP header
+* VXLAN header, with a virtual network identifier (VNI).  The virtual network identifier is a 24-bit field that uniquely identifies an endpoint group in our policy model. 
+* Encapsulated original packet, which includes:
+** Inner ethernet header, with source and destination MAC
+** (Optional) Inner IP header, with source and destination IP address
+
+Here is a simplified high-level view of what happens to packets in this network:  When traffic hits an OVS instance, it will need to first determine the source and destination endpoint groups based on the layer 2 and 3 source and destination fields and the source port or other identifying information.  Next, the appropriate set of policy rules are applied based on the active subjects for that flow.  If necessary, a routing action is applied to the packet by modifying the destination MAC address.  The packet is then encapsulated into a tunnel with the VNI set to the destination endpoint group's VNI.  When the packet arrives on the other end of the tunnel, the encapsulation is removed and it is delivered to the final destination.  See below for a detailed description of how this occurs.
+
+== Forwarding ==
+XXX TODO
+* on-the-wire format (vxlan, ixvlan?, geneve?, etc.)  Hardware acceleration is a major driver here.
+* OVS configuration
+* Mapping of interfaces to endpoint groups
+* Mapping of endpoint groups to vnids/classes
+* QoS
+
+=== OpenFlow Tables ===
+XXX TODO
+* tables we'll use
+* OVS configuration needed to run the system
+
+=== Bridging ===
+XXX TODO
+* How to distribute broadcast packets
+* Convert ARP/DHCP to unicast (through packetin)
+* How and when we learn devices
+** Pure orchestration vs. learning
+* Port security features and configuration
+
+=== Routing ===
+XXX TODO
+* Where, when, how do we perform routing actions?
+* Any configuration required
