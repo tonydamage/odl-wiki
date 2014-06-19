@@ -36,13 +36,16 @@ Whenever traffic between two guests is in the network, it will be encapsulated u
 ** Inner ethernet header, with source and destination MAC
 ** (Optional) Inner IP header, with source and destination IP address
 
-Here is a simplified high-level view of what happens to packets in this network:  When traffic hits an OVS instance, it will need to first determine the source and destination endpoint groups based on the layer 2 and 3 source and destination fields and the source port or other identifying information.  Next, the appropriate set of policy rules are applied based on the active subjects for that flow.  If necessary, a routing action is applied to the packet by modifying the destination MAC address.  The packet is then encapsulated into a tunnel with the VNI set to the destination endpoint group's VNI.  When the packet arrives on the other end of the tunnel, the encapsulation is removed and it is delivered to the final destination.  See below for a detailed description of how this occurs.
-
 == Forwarding ==
-XXX TODO
-* on-the-wire format (vxlan, ixvlan?, geneve?, etc.)  Hardware acceleration is a major driver here.
-* OVS configuration
-* QoS
+Here is a simplified high-level view of what happens to packets in this network when it hits an OVS instance:
+# Apply port security rules to determine if the source identifiers (MAC and IP) are allowed on the port
+# Determine the source endpoint group based on the tunnel ID from the from the outer packet or based on source port and source identifiers, tag, or other information as configured.
+# Determine whether the packet will be bridged or routed.  If the destination MAC address is the default gateway MAC, then the packet will be routed, otherwise it will be bridged.
+# Determine the destination endpoint group.  For bridged packets, use the destination MAC address.  For routed packets, use
+the destination IP address.
+# Apply the appropriate set of policy rules based on the active subjects for that flow.
+# Apply a routing action if needed by modifying the destination MAC and decrementing the TTL.  The routing action to apply depends on if the destination is remote or local.  For local destinations, rewrite the destination MAC to the MAC address for the connected endpoint.  For remote destinations, rewrite the destination MAC to the default gateway MAC.
+# Determine the next hop for the flow and deliver it.  If the next hop is a local port, then it is delivered as is.  If the next hop is not local, then the packet is encapsulated and the tunnel ID is set to the network identifier for the destination endpoint group.  If the packet is a layer 2 broadcast packet, then it will need to be written to the correct set of ports, which might be a combination of local and remote ports.
 
 === OpenFlow Tables ===
 XXX TODO
@@ -57,5 +60,9 @@ XXX TODO
 
 === Routing ===
 XXX TODO
-* Where, when, how do we perform routing actions?
-* Any configuration required
+
+=== QoS ===
+XXX TODO
+
+=== Service Insertion ===
+XXX TODO
