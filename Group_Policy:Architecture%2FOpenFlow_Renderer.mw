@@ -28,12 +28,12 @@ Whenever traffic between two guests is in the network, it will be encapsulated u
 * Outer ethernet header, with source and destination MAC
 * Outer IP header, with source and destination IP address
 * Outer UDP header
-* VXLAN header, with a virtual network identifier (VNI)
+* VXLAN header, with a virtual network identifier (VNI).  The virtual network identifier is a 24-bit field that uniquely identifies an endpoint group in our policy model. 
 * Encapsulated original packet, which includes:
 ** Inner ethernet header, with source and destination MAC
 ** (Optional) Inner IP header, with source and destination IP address
 
-The virtual network identifier is a 24-bit field that uniquely identifies an endpoint group in our policy model.
+Here is a simplified high-level view of what happens to packets in this network:  When traffic hits an OVS instance, it will need to first determine the source and destination endpoint groups based on the layer 2 and 3 source and destination fields and the source port or other identifying information.  Next, the appropriate set of policy rules are applied based on the active subjects for that flow.  If necessary, a routing action is applied to the packet by modifying the destination MAC address.  The packet is then encapsulated into a tunnel with the VNI set to the destination endpoint group's VNI.  When the packet arrives on the other end of the tunnel, the encapsulation is removed and it is delivered to the final destination.  See below for a detailed description of how this occurs.
 
 == Forwarding ==
 * on-the-wire format (vxlan, ixvlan?, geneve?, etc.)  Hardware acceleration is a major driver here.
