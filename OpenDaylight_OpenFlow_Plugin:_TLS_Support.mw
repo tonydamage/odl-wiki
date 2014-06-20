@@ -4,27 +4,22 @@
 
 === Creating an Unofficial Root Certificate ===
 
-A secure network will require that both the switch & controller authenticate to avoid a rogue switch on the controller or a rogue controller driving a switch.
+A secure controller network will require that both the switches & controllers authenticate to avoid a rogue switch on the controller or a rogue controller driving a switch.
 To test the controller's openflow plugin with ovs mininet, following these [https://github.com/mininet/mininet/wiki/SSL-on-Open-vSwitch-and-ovs-controller instructions].
 
-=== Using ovs-pki on mininet ===
-<pre>
-Overview: "ovs-pki" and "ovs-vsctl" setup the keys for Swtich and Controller
-# Generate the "unofficial" Root CA Private key
-# Unofficial CA Root Certificate
-# Switch Private Key
-# CA signed Switch certificate
-# Controller key
-# CA signed Controller certificate.
-</pre>
 === Create & Sign private/public key certificates ===
+
+A self-signed "root" CA is created easily with existing mininet tools, and so will be the starting point for this process.  To be secure, the private keys must be carefully protected.
+
+On the mininet host, run the ovs-pki command two times:
+
 <pre>
 cd /etc/openvswitch
 sudo ovs-pki req+sign sc switch
-sudo ovs-pki req+sign sc switch
+sudo ovs-pki req+sign ctl controller
 </pre>
 
-This should have generated six ".pem" files.   A private key for each side, signed by the unofficial root certificate in /var/lib/openvswitch/pki/.  A public certificate for each side.  There are also the two "request" certificates which were used to generate the signed certificates.  Note the "req+sign" shortcut used with ovs-pki.
+This should have generated six ".pem" files, of which we'll use four.  A private key for each side, signed by the unofficial root certificate in /var/lib/openvswitch/pki/.  A public certificate for each side.  There are also the two "request" certificates which were used to generate the signed certificates.  Note the "req+sign" shortcut used with ovs-pki.
 
 <pre>
 $ ls -1
@@ -36,11 +31,17 @@ sc-cert.pem
 sc-privkey.pem
 sc-req.pem
 system-id.conf
+
+$ ls /var/lib/openvswitch/pki/openvswitch/cacert.pem
+
+
 </pre>
 
 === Intermediate pkcs12 keystore ===
 
-Generate a temporary pkcs12 format keystore with the controller's private/public certficates and the unoffical CA root certificate.
+Next we'll use openssl to create an intermediate keystore in PKCS12 format which we'll then import into a JKS format keystore.  Note that it may be possible to use the PKCS12 keystore directly, but I haven't yet tested this.
+
+Generate a temporary pkcs12 format keystore with the controller's private/public certificates and the unofficial CA root certificate.
 
 <pre>
 openssl pkcs12 -export -in ctl-cert.pem -inkey ctl-privkey.pem -out server.p12 -name odlserver -CAfile /var/lib/openvswitch/pki/controllerca/cacert.pem -caname root -chain
@@ -55,6 +56,7 @@ keytool -importkeystore \
         -srckeystore server.p12 -srcstoretype PKCS12 -srcstorepass secret \
         -alias odlserver
 </pre>
+
 
 Start ODL with this key.bin keystore:
 
