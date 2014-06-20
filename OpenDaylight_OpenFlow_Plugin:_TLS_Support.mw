@@ -8,14 +8,18 @@ A secure controller network will require that both the switches & controllers au
 
 Achieving secure connections between ODL controller and Openflow switches requires management of a PKI ( Private Key Infrastructure ).  Openssl provides the tools for this.  For a great tutorial which takes you from basic to advanced PKI management, see [https://media.readthedocs.org/pdf/pki-tutorial/latest/pki-tutorial.pdf pki-tutorial.pdf]
 
-Lets setup a basic PKI and create the necessary certificates to test the controller's openflow plugin with ovs mininet.  Note that I based this on the following link: [https://github.com/mininet/mininet/wiki/SSL-on-Open-vSwitch-and-ovs-controller SSL-on-Open-vSwitch-and-ovs-controller].
+To get started here we setup a basic PKI and create the necessary certificates to test the controller's openflow plugin with ovs mininet.  Note that I based this on the following link: [https://github.com/mininet/mininet/wiki/SSL-on-Open-vSwitch-and-ovs-controller SSL-on-Open-vSwitch-and-ovs-controller].
 
 === Create & Sign private/public key certificates ===
 
-A self-signed "root" CA is created easily with existing mininet tools, and so will be the starting point for this process.  To be secure, the private keys must protected, while the public key can be freely shared.
+A self-signed "root" CA is created easily with existing mininet tools, and so will be the starting point for this process.  To be secure, the private keys must be protected, while the public key can be freely shared.
 
-On the mininet host, run the ovs-pki command two times:
+On the mininet host, verify that it's PKI is initialized:
+<pre>
+$ ls /var/lib/openvswitch/pki/openvswitch/cacert.pem
+</pre>
 
+Now run the ovs-pki command two times:
 <pre>
 cd /etc/openvswitch
 sudo ovs-pki req+sign sc switch
@@ -25,7 +29,7 @@ sudo ovs-pki req+sign ctl controller
 This should have generated six ".pem" files, of which we'll use four.  A private key for each side, signed by the unofficial root certificate in /var/lib/openvswitch/pki/.  A public certificate for each side.  There are also the two request certificates sc-req.pem & ctl-req.pem which were used to generate the signed certificates.
 
 <pre>
-$ ls 
+$ ls /etc/openvswitch
 conf.db ctl-cert.pem ctl-privkey.pem ctl-req.pem sc-cert.pem sc-privkey.pem sc-req.pem
 system-id.conf
 
@@ -33,7 +37,7 @@ $ ls /var/lib/openvswitch/pki/openvswitch/cacert.pem
 
 </pre>
 
-=== pkcs12 keystore ===
+=== pkcs12 controller keystore ===
 
 Next we'll use openssl to create a keystore in PKCS12 format containing the controller's private and public keys.   We'll then import into a JKS format keystore for the ODL controller.  Note that it may be possible to use the PKCS12 keystore directly, but I haven't yet tested this.
 
@@ -49,7 +53,7 @@ Verifying - Enter Export Password:
 
 </pre>
 
-Next, copy the ctl.p12 store from the mininet host to the ODL host in any work directory.
+Copy two files, ctl.p12 & sc-cert.pem from the mininet host to the ODL host in any work directory.
 Import the PKCS12 format store into the JKS store consumable by ODL:
 
 <pre>
@@ -65,7 +69,20 @@ keytool -importkeystore \
 keytool -importcert -file sc-cert.pem -keystore truststore.jks -storepass opendaylight
 </pre>
 
-Start ODL with this ctl.jks keystore:
+=== Configure ODL's openflow plugin ===
+
+cd configuration/initial
+vi configuration/initial/42-openflow-protocol-impl.xml
+
+<pre>
+          <tls>
+            <supported>true</supported>
+            <keystore>/ctl.jks</keystore>
+            <keystore-type>JKS</keystore-type>
+            <truststore>/truststore.jks</truststore>
+            <truststore-type>JKS</truststore-type>
+          </tls>
+</pre>
 
 
 To debug:
