@@ -2,22 +2,22 @@
 https://git.opendaylight.org/gerrit/#/c/8174/
 
 https://git.opendaylight.org/gerrit/#/c/8175/
-* all flows,groups,meters added before a device connection are pre-configuration and those are saved in the Configuration Data Store only
-* all pre-config node flows,groups,meters from the Configuration Data Store are commited to a device after connection/reconnection 
-* all device flows,groups,meters are added to the Operational Data Store after connection/reconnection
-* all flows,groups,meters are deleted from the Operational Data Store but the Configuration Data Store contains all configured flows,groups,meters
+* all flows, groups, meters added before a device connection are pre-configuration and those are saved in the dataStore/config only
+* all pre-configuration node flows, groups, meters from the dataStore/config are commited to device upon connection/reconnection 
+* all device flows, groups, meters are added to the dataStore/operational upon connection/reconnection
+* all flows, groups, meters are deleted from the dataStore/operational upon disconnection. But the dataStore/config remains unaffected by device disconnection
 
 Flow ID in Flow Statistics and Flow Cookies
-* The flow_id is not supported from device, so we are using cookies marker for flow
-* The Configuration Data Store contains always "user defined cookies"
-* We are replace "user defined cookies" in FRM to new cookies and add twins cookie (as a key) and List<FlowId> (as a list of IDs)
-** We are using LIST because the operations (as sal-flow:add-flow) could add new flow without ID (without FRM) and the system generate some system alien ID (with prefix #UF$TABLE*)
-** In general, we are expect only one "user defined flow ID" for one "flow cookie" and possible zero or more system alien IDs
-** We have FlowCookiesMap<FlowCookie, List<FlowId>> in the node table hierarchy for the Operational Data Store
-*** FlowCookiesMap removes after disconnect
-*** List<FlowId> could contain only one "user defined flow_id" and zero or more system alien IDs
-*** Statistic always check the flow statistic data against the Configuration Data Store flow (for "user defined flow_id") or against the Operational Data Strore flow (for "system alien ID")
-**** comparison for priority and match
+* The flow_id is not supported by device, so we are using flowCookies marker for flow identification
+* The dataStore/config contains always "user defined flowCookies"
+* We replace those "user defined flowCookies" in FRM with new (generated) flowCookies and add pairs flowCookie (as a key) and List<FlowId> (as a list of flowIDs)
+** We are using LIST because the operations (as sal-flow:add-flow) could add new flow without flowID (bypassing FRM) and the system generates some system alien ID (with prefix #UF$TABLE*)
+** In general, we expect only one "user defined flowID" for one "flowCookie" and eventually zero or more system alien IDs
+** We have FlowCookiesMap<FlowCookie, List<FlowId>> in the node table hierarchy in the dataStore/operational
+*** FlowCookiesMap is removed upon device disconnection
+*** List<FlowId> could contain only one "user defined flowId" and zero or more system alien IDs
+*** Statistic always checks the flow statistic data against the dataStore/config flow (for "user defined flowId") or against the dataStore/operational flow (for "system alien ID")
+**** if matching flowCookie found then comparison for priority and match follows
 
 =Current Status=
 Currently there is a dirty fix (https://git.opendaylight.org/gerrit/#/c/5001/) prepared, where we 
