@@ -8,7 +8,6 @@ The design implements an overlay design and is intended to meet the following us
 * Layer 2-4 classifiers for policy between endpoint groups, including connection tracking/reflexive ACLs.
 * Service insertion/redirection
 </onlyinclude>
-
 == Network Architecture ==
 
 === Network Topology ===
@@ -47,6 +46,8 @@ When the endpoints are located on different switches, we need to use the overlay
 When the encapsulated packet arrives on the other side, it can be finally delivered to the destination endpoint.
 
 ==== Bridging and Routing ====
+XXX add diagrams here
+
 The system will transparently handle bridging or routing as required.  Bridging occurs between endpoints in the same layer 2 context, while routing will generally be needed for endpoints in different layer 2 contexts.  More specifically, a packet needs to be routed if it is addressed to the gateway MAC address.  We can simply use a fixed MAC address to serve as the gateway everywhere.  Packets addressed to any other MAC address can be bridged.
 
 Bridged packets are easy to handle, since we don't need to do anything special to them to deliver them to the destination.  They can be simply delivered unmodified.
@@ -56,7 +57,13 @@ Routing is slightly more complex, though not massively so.  When routing locally
 When routing to an endpoint on a different switch, we'll actually perform routing in two steps.  On the source switch, we will rewrite the source MAC address to the MAC of the gateway router (so that both the source and the destination MAC are set to the gateway router's MAC).  It's then delivered to the destination switch using the appropriate tunnel.  On the destination switch, we perform a second routing action by now rewriting the destination MAC as the MAC address of the destination endpoint and decrementing the TTL again.  The reason why do the routing as two hops is that this avoids the need to maintain on every switch the correct MAC address for every endpoint on the network.  Each switch needs the mappings only for endpoints that are directly attached to that switch.
 
 ==== Communicating with Outside Hosts ====
-...
+XXX add diagrams
+
+Everything up until now is quite simple, but it's possible to conceive of situations where endpoints in our network need to communicate over the internet or with other endpoints outside the overlay network.  There are two broad approaches for handling this.  In both cases, we allow such access only via layer 3 communication.
+
+First, we can map physical interfaces on an OVS system into the overlay network.  If a router interface is attached either directly to a physical interface or indirectly via an isolated network, then the router interface can be easily exposed as an endpoint in the network.  Endpoints can then communicate with this router interface (perhaps after some intermediate routing via the distributed routing scheme described above) and from there get to the rest of the world.  Dedicated OVS systems can be this configured as gateway devices into the overlay network which will then be needed for any of this north/south communication.  This has the advantage of being very simple but requires special effort to load balance the traffic effectively.
+
+Second, we can use a DNAT scheme to allow access to endpoints that are reachable via the underlay network.  In this scheme, for every endpoint that is allowed to communicate to these outside hosts, we allocate an IP address from a dedicated set of subnets on the underlay (each network segment in the underlay network will require a separate DNAT range for switches attached to that subnet).  We can perform the DNAT translation on the OVS switch and then simply deliver the traffic to the underlay network to deliver to the internet host or other host, and perform the reverse translation to get back into the overlay network.
 
 == Packet Processing Pipeline ==
 Here is a simplified high-level view of what happens to packets in this network when it hits an OVS instance:
