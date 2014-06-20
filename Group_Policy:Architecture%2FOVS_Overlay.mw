@@ -36,8 +36,27 @@ Whenever traffic between two guests is in the network, it will be encapsulated u
 ** Inner ethernet header, with source and destination MAC
 ** (Optional) Inner IP header, with source and destination IP address
 
-=== Delivering Traffic in the Overlay ===
-Endpoints can communicate with each other in a number of different ways, and each is processed slightly differently.  Endpoint groups exist inside a particular layer 2 or layer 3 context which represents a namespace for their network identifiers.
+=== Delivering Packets ===
+Endpoints can communicate with each other in a number of different ways, and each is processed slightly differently.  Endpoint groups exist inside a particular layer 2 or layer 3 context which represents a namespace for their network identifiers.  It's only possible for endpoints to address endpoints within the same context, so no communication is possible for endpoints in different layer 3 contexts, and only layer 3 communication is possible for endpoints in different layer 2 contexts.
+
+==== Overlay Tunnels ====
+The next key piece of information is the location of the destination endpoint.  For destinations on the same switch, we can simply apply policy (see below), perform any routing action required (see below), then deliver it to the local port.
+
+When the endpoints are located on different switches, we need to use the overlay tunnel.  This is the case shown as a dotted red line in Figure 1.  After policy is applied to the packet, we encapsulated it in a tunnel with the tunnel ID set to a unique ID for the destination endpoint group.  The outer packet is addressed to the IP address of the OVS host that hosts the destination endpoint.  This encapsulated packet is now sent out to the underlay network, which is just a regular IP network that can deliver the packet to the destination switch.
+
+When the encapsulated packet arrives on the other side, it can be finally delivered to the destination endpoint.
+
+==== Bridging and Routing ====
+The system will transparently handle bridging or routing as required.  Bridging occurs between endpoints in the same layer 2 context, while routing will generally be needed for endpoints in different layer 2 contexts.  More specifically, a packet needs to be routed if it is addressed to the gateway MAC address.  We can simply use a fixed MAC address to serve as the gateway everywhere.  Packets addressed to any other MAC address can be bridged.
+
+Bridged packets are easy to handle, since we don't need to do anything special to them to deliver them to the destination.  They can be simply delivered unmodified.
+
+Routing is slightly more complex, though not massively so.  When routing locally on a switch, we simply rewrite the destination MAC address to the MAC of the destination endpoint, and set the source MAC to the gateway MAC, decrement the TTL, and then deliver it to the correct local port. 
+
+When routing to an endpoint on a different switch, we'll actually perform routing in two steps.  On the source switch, we will rewrite the source MAC address to the MAC of the gateway router (so that both the source and the destination MAC are set to the gateway router's MAC).  It's then delivered to the destination switch using the appropriate tunnel.  On the destination switch, we perform a second routing action by now rewriting the destination MAC as the MAC address of the destination endpoint and decrementing the TTL again.  The reason why do the routing as two hops is that this avoids the need to maintain on every switch the correct MAC address for every endpoint on the network.  Each switch needs the mappings only for endpoints that are directly attached to that switch.
+
+==== Communicating with Outside Hosts ====
+...
 
 == Packet Processing Pipeline ==
 Here is a simplified high-level view of what happens to packets in this network when it hits an OVS instance:
@@ -46,7 +65,7 @@ Here is a simplified high-level view of what happens to packets in this network 
 # Determine the source endpoint group based on the tunnel ID from the from the outer packet or based on source port and source identifiers as configured.  Unknown source identifiers may result in a packet-in if the network is doing learning.
 # Determine whether the packet will be bridged or routed.  If the destination MAC address is the default gateway MAC, then the packet will be routed, otherwise it will be bridged.
 # Determine the destination endpoint group.  For bridged packets, use the destination MAC address.  For routed packets, use the destination IP address.
-# Apply the appropriate set of policy rules based on the active subjects for that flow.
+# Apply the appropriate set of policy rules based on the active subjects for that flow.  We can bypass this step for packets that arrived from tunnels.
 # Apply a routing action if needed by modifying the destination MAC and decrementing the TTL.  The routing action to apply depends on if the destination is remote or local.  For local destinations, rewrite the destination MAC to the MAC address for the connected endpoint.  For remote destinations, rewrite the destination MAC to the default gateway MAC.
 # Determine the next hop for the flow and deliver it.  If the next hop is a local port, then it is delivered as is.  If the next hop is not local, then the packet is encapsulated and the tunnel ID is set to the network identifier for the destination endpoint group.  If the packet is a layer 2 broadcast packet, then it will need to be written to the correct set of ports, which might be a combination of local and remote ports.
 
