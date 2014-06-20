@@ -6,20 +6,22 @@
 
 A secure controller network will require that both the switches & controllers authenticate to avoid a rogue switch on the controller or a rogue controller driving a switch.
 
-Achieving secure connections between ODL controller and Openflow switches requires management of a PKI ( Private Key Infrastructure ).  Openssl provides the tools for this.  For a great tutorial which takes you from basic to advanced PKI management, see [https://media.readthedocs.org/pdf/pki-tutorial/latest/pki-tutorial.pdf pki-tutorial.pdf]
+Achieving secure connections between ODL controller and Openflow switches requires management of a PKI ( Private Key Infrastructure ).  Openssl provides the tools for this.  If you are planning a production deployment and don't have expertise in TLS PKI, here is a great tutorial which takes you from basic to advanced PKI management: [https://media.readthedocs.org/pdf/pki-tutorial/latest/pki-tutorial.pdf pki-tutorial.pdf]
 
-To get started here we setup a basic PKI and create the necessary certificates to test the controller's openflow plugin with ovs mininet.  Note that I based this on the following link: [https://github.com/mininet/mininet/wiki/SSL-on-Open-vSwitch-and-ovs-controller SSL-on-Open-vSwitch-and-ovs-controller].
+To get started hacking today with mininet, here we setup a basic PKI and create the necessary certificates to test the controller's openflow plugin with ovs mininet.  Note that I based this on the following link: [https://github.com/mininet/mininet/wiki/SSL-on-Open-vSwitch-and-ovs-controller SSL-on-Open-vSwitch-and-ovs-controller].
 
 === Create & Sign private/public key certificates ===
 
-A self-signed "root" CA is created easily with existing mininet tools, and so will be the starting point for this process.  To be secure, the private keys must be protected, while the public key can be freely shared.
+A self-signed "root" CA is created easily with existing mininet tools which leverage openssl, and so will be the starting point for this process.  To be secure, the private keys must be protected, while the public key can be freely shared.  Because we're using the mininet host also as the CA signing host, the controllers private key exists there, but in production, the key generation for the controller would be isolated from the switches, and only the public controller key would be shared with the switches.
 
 On the mininet host, verify that it's PKI is initialized:
 <pre>
-$ ls /var/lib/openvswitch/pki/openvswitch/cacert.pem
+ls /var/lib/openvswitch/pki/controllerca/cacert.pem
 </pre>
 
-Now run the ovs-pki command two times:
+If not found, "ovs-pki init" will need to be run as per man pages.
+
+Now run the ovs-pki to create both sets of keys, a controller set and switch set.
 <pre>
 cd /etc/openvswitch
 sudo ovs-pki req+sign sc switch
@@ -32,12 +34,9 @@ This should have generated six ".pem" files, of which we'll use four.  A private
 $ ls /etc/openvswitch
 conf.db ctl-cert.pem ctl-privkey.pem ctl-req.pem sc-cert.pem sc-privkey.pem sc-req.pem
 system-id.conf
-
-$ ls /var/lib/openvswitch/pki/openvswitch/cacert.pem
-
 </pre>
 
-=== pkcs12 controller keystore ===
+=== PKCS12 controller keystore ===
 
 Next we'll use openssl to create a keystore in PKCS12 format containing the controller's private and public keys.   We'll then import into a JKS format keystore for the ODL controller.  Note that it may be possible to use the PKCS12 keystore directly, but I haven't yet tested this.
 
@@ -57,6 +56,15 @@ Copy two files, ctl.p12 & sc-cert.pem from the mininet host to the ODL host in a
 Import the PKCS12 format store into the JKS store consumable by ODL:
 
 <pre>
+sftp mininet@mininetipaddress
+mininet
+sftp get ctl.p12 sc-cert.pem
+quit
+</pre>
+
+Find keytool in a jdk bin directory and add it to your path for convenience in the future steps.  Mine happens to be at /usr/java/jdk1.7.0_51/bin/keytool.
+
+<pre>
 keytool -importkeystore \
         -deststorepass opendaylight -destkeypass opendaylight -destkeystore ctl.jks \
         -srckeystore ctl.p12 -srcstoretype PKCS12 -srcstorepass opendaylight \
@@ -67,14 +75,23 @@ keytool -importkeystore \
 
 <pre>
 keytool -importcert -file sc-cert.pem -keystore truststore.jks -storepass opendaylight
+
+# when prompted "Trust this certificate? [no]:" enter  "yes"
+# Certificate was added to keystore
+</pre>
+
+Finally copy these two keystores to the ssl configuration directory.
+
+<pre>
+mkdir ODLINSTALL/configuration/ssl
+cp ctl.jks truststore.jks ODLINSTALL/configuration/ssl
 </pre>
 
 === Configure ODL's openflow plugin ===
-
+<pre>
 cd configuration/initial
 vi configuration/initial/42-openflow-protocol-impl.xml
 
-<pre>
           <tls>
             <supported>true</supported>
             <keystore>/ctl.jks</keystore>
