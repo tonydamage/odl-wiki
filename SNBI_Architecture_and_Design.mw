@@ -21,7 +21,7 @@ The SNBI south plugin involves the following set of modules.
 ::'''''Message type:''''' A 16 bit message type field. The field identifies the message type for each protocol type. The various message types for each protocol type will be described further below.
 
 *'''Neighbour Discovery:''' The first step towards accommodating devices into a secure network is Neighbour Discovery. SNBI performs neighbour discovery of SNBI agents by periodically transmitting ND packets to a multicast IPv6 address "0xFF02::1". The source IPv6 address for these packets will be the linklocal IPv6 address of the interface on which the packets are being transmitted. All SNBI agents should listen to this multicast stream to receive ND packets. Information such as Neighbour ID, Domain, Credentials, Capabilities etc are packed in the form of TLVs and are exchanged between SNBI agents. From the information received from various SNBI agents an ND table is constructed to maintain the adjacency information.Further the registrar module will authorize the SNBI agent discovered into the domain.
-::- Neighbour Discovery is periodic and bidirectional, ND packets are transmitted every 10 seconds. A 40 second refresh timer is associated with each discovered neighbour.
+::- Neighbour Discovery is periodic and bidirectional, ND packets are transmitted every 10 seconds. A 40 second refresh timer is associated with each discovered neighbour. -- '''ND HELLO Msg'''
 ::- Upon expiry of the refresh timer, the Neighbour Adjacency is no longer valid and is removed from the ND table.
 ::- The certificate information (SUDI) exchanged by the SNBI agents are further validated and accepted into the domain by the SNBI registrar in the controller.
 ::- Any new SNBI agent which is still not part of the SNBI domain, exchanges ND packets with default(empty) domain name. Once the device is accepted into the domain, the ND packets contain the domain name they the device belongs to.
@@ -31,7 +31,7 @@ The SNBI south plugin involves the following set of modules.
 [[File:Snbi_ND.png|600px|centre]]
 ::- The following diagram depicts the message flow for L3 neighbour discovery and certificate exchange.
 [[File:ND+cert Req.png|600px|centre]]
-::- After a neighbour is discovered the protocol verifies if the device is already bootstrapped by requesting for the device domain certificate.
+::- After a neighbour is discovered the protocol verifies if the device is already bootstrapped by requesting for the device domain certificate. -- '''CERT REQ/RESP msg.'''
 ::- If the device is not bootstrapped, then the proxy device initiates the bootstrap of the new device.
 
 *'''BootStrap:''' Bootstrapping a device is all about the following in sequence.
@@ -41,3 +41,11 @@ The SNBI south plugin involves the following set of modules.
 ** Accommodating the device into the domain.
 ** The new device is deemed outside the domain until it is bootstrapped.
 ** The Forwarding element which discovered the new device acts as the proxy and proxies all request to the registrar.
+* The boot strap happens in multiple steps.
+** Neighbour Invite phase
+::- Where the SNBI Registrar authenticates the device. -- '''NEIGHBOUR CONNECT Msg.'''
+::- The SNBI Registrar provides appropriate device ID and IPv6 address to uniquely identify the device in the network and then invites the device to join the domain. -- NEIGHBOUR INVITE Msg.
+** Neighbour BootStrap Phase -Once the new device gets a neighbour invite message, it tries to boot strap itself by performing the following.
+::- Generate a key pair.
+::- Generate a Certificate Sign Request(CSR) PKCS10 request and gets it signed by the CA running at SNBI Registrar. -- '''BS REQ Msg.'''
+::- Once the certificate is enrolled and signed by the CA, the generated x.509 certificate is returned back to the new device to complete the bootstrap process. -- '''BS RESP Msg.'''
