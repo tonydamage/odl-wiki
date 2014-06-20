@@ -5,11 +5,14 @@
 === Creating an Unofficial Root Certificate ===
 
 A secure controller network will require that both the switches & controllers authenticate to avoid a rogue switch on the controller or a rogue controller driving a switch.
-To test the controller's openflow plugin with ovs mininet, following these [https://github.com/mininet/mininet/wiki/SSL-on-Open-vSwitch-and-ovs-controller instructions].
+
+Achieving secure connections between ODL controller and Openflow switches requires management of a PKI ( Private Key Infrastructure ).  Openssl provides the tools for this.  For a great tutorial which takes you from basic to advanced PKI management, see [https://media.readthedocs.org/pdf/pki-tutorial/latest/pki-tutorial.pdf pki-tutorial.pdf]
+
+Lets setup a basic PKI and create the necessary certificates to test the controller's openflow plugin with ovs mininet.  Note that I based this on the following link: [https://github.com/mininet/mininet/wiki/SSL-on-Open-vSwitch-and-ovs-controller SSL-on-Open-vSwitch-and-ovs-controller].
 
 === Create & Sign private/public key certificates ===
 
-A self-signed "root" CA is created easily with existing mininet tools, and so will be the starting point for this process.  To be secure, the private keys must be carefully protected.
+A self-signed "root" CA is created easily with existing mininet tools, and so will be the starting point for this process.  To be secure, the private keys must protected, while the public key can be freely shared.
 
 On the mininet host, run the ovs-pki command two times:
 
@@ -19,56 +22,55 @@ sudo ovs-pki req+sign sc switch
 sudo ovs-pki req+sign ctl controller
 </pre>
 
-This should have generated six ".pem" files, of which we'll use four.  A private key for each side, signed by the unofficial root certificate in /var/lib/openvswitch/pki/.  A public certificate for each side.  There are also the two "request" certificates which were used to generate the signed certificates.  Note the "req+sign" shortcut used with ovs-pki.
+This should have generated six ".pem" files, of which we'll use four.  A private key for each side, signed by the unofficial root certificate in /var/lib/openvswitch/pki/.  A public certificate for each side.  There are also the two request certificates sc-req.pem & ctl-req.pem which were used to generate the signed certificates.
 
 <pre>
-$ ls -1
-conf.db
-ctl-cert.pem
-ctl-privkey.pem
-ctl-req.pem
-sc-cert.pem
-sc-privkey.pem
-sc-req.pem
+$ ls 
+conf.db ctl-cert.pem ctl-privkey.pem ctl-req.pem sc-cert.pem sc-privkey.pem sc-req.pem
 system-id.conf
 
 $ ls /var/lib/openvswitch/pki/openvswitch/cacert.pem
 
-
 </pre>
 
-=== Intermediate pkcs12 keystore ===
+=== pkcs12 keystore ===
 
-Next we'll use openssl to create an intermediate keystore in PKCS12 format which we'll then import into a JKS format keystore.  Note that it may be possible to use the PKCS12 keystore directly, but I haven't yet tested this.
-
-Generate a temporary pkcs12 format keystore with the controller's private/public certificates and the unofficial CA root certificate.
+Next we'll use openssl to create a keystore in PKCS12 format containing the controller's private and public keys.   We'll then import into a JKS format keystore for the ODL controller.  Note that it may be possible to use the PKCS12 keystore directly, but I haven't yet tested this.
 
 <pre>
-openssl pkcs12 -export -in ctl-cert.pem -inkey ctl-privkey.pem -out server.p12 -name odlserver -CAfile /var/lib/openvswitch/pki/controllerca/cacert.pem -caname root -chain
+sudo openssl pkcs12 -export -in ctl-cert.pem -inkey ctl-privkey.pem \
+-out ctl.p12 -name odlserver \
+-CAfile /var/lib/openvswitch/pki/controllerca/cacert.pem -caname root -chain
+
+You'll be prompted for a password, use "opendaylight"
+
+Enter Export Password:
+Verifying - Enter Export Password:
+
 </pre>
 
-Next, copy the server.p12 store to the ODL host in any work directory.
+Next, copy the ctl.p12 store from the mininet host to the ODL host in any work directory.
 Import the PKCS12 format store into the JKS store consumable by ODL:
 
 <pre>
 keytool -importkeystore \
-        -deststorepass secret -destkeypass secret -destkeystore key.bin \
-        -srckeystore server.p12 -srcstoretype PKCS12 -srcstorepass secret \
+        -deststorepass opendaylight -destkeypass opendaylight -destkeystore ctl.jks \
+        -srckeystore ctl.p12 -srcstoretype PKCS12 -srcstorepass opendaylight \
         -alias odlserver
 </pre>
 
-
-Start ODL with this key.bin keystore:
+=== Store the switch's public key in a jks "truststore" ===
 
 <pre>
-./run.sh -Djavax.net.ssl.trustStore=/workingdir/key.bin -Djavax.net.ssl.trustStorePassword=secret
+keytool -importcert -file sc-cert.pem -keystore truststore.jks -storepass opendaylight
 </pre>
+
+Start ODL with this ctl.jks keystore:
+
 
 To debug:
 
-./run.sh -Djavax.net.debug=all ...
-
-=== Configuring Openvswitch SSL  ===
+./run.sh -Djavax.net.debug=ssl,handshake
 
 === Configure openvswitch SSL ===
 <pre>
@@ -109,7 +111,7 @@ if __name__ == '__main__':
     emptyNet()
 </pre>
 
-Run the mininet:
+Start mininet :
 <pre>
 chmod +x ssl_switch_test.py
 sudo ./ssl_switch_test.py
