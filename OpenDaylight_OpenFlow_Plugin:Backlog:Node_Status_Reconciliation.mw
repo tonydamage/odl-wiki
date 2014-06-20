@@ -1,3 +1,22 @@
+=Prepared Status=
+https://git.opendaylight.org/gerrit/#/c/8174/
+https://git.opendaylight.org/gerrit/#/c/8175/
+* all flows,groups,meters added before a device connection are pre-configuration and those are saved in the Configuration Data Store only
+* all pre-config node flows,groups,meters from the Configuration Data Store are commited to a device after connection/reconnection 
+* all device flows,groups,meters are added to the Operational Data Store after connection/reconnection
+* all flows,groups,meters are deleted from the Operational Data Store but the Configuration Data Store contains all configured flows,groups,meters
+
+Flow ID in Flow Statistics and Flow Cookies
+* The flow_id is not supported from device, so we are using cookies marker for flow
+* The Configuration Data Store contains always "user defined cookies"
+* We are replace "user defined cookies" in FRM to new cookies and add twins cookie (as a key) and List<FlowId> (as a list of IDs)
+** We are using LIST because the operations (as sal-flow:add-flow) could add new flow without ID (without FRM) and the system generate some system alien ID (with prefix #UF$TABLE*)
+** In general, we are expect only one "user defined flow ID" for one "flow cookie" and possible zero or more system alien IDs
+** We have FlowCookiesMap<FlowCookie, List<FlowId>> in the node table hierarchy for the Operational Data Store
+*** FlowCookiesMap removes after disconnect
+*** List<FlowId> could contain only one "user defined flow_id" and zero or more system alien IDs
+
+
 =Current Status=
 Currently there is a dirty fix (https://git.opendaylight.org/gerrit/#/c/5001/) prepared, where we 
 * Remove all flows from switch upon switch reconnection
