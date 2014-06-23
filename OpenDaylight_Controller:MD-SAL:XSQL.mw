@@ -67,3 +67,38 @@ The output will be a list of Virtual Tables for the different modules that are i
 to get a list of virtual fields, simple execute the following command with the name of the table:
   list vfields <tables name>
 The output will be a list of Virtual Fields in the Virtual Table.
+
+== Quering ==
+Try to execute the query @ the top of this page and see if you get a similar output...
+Now let's try collecting all the "node-connectors" with the following query:
+  "select * from nodes/node/node-connector;
+The output should be something like:
+  |port-number|id               |current-speed|current-feature     |maximum-speed|name    |supported|advertised-features|peer-features|hardware-address |configuration|
+  ---------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  |1          |openflow:9:1     |             |[pause, forty-gb-fd]|             |s9-eth2 |[]       |[]                 |[]           |EA:CB:D5:22:B3:1A|[]           |
+  |2          |openflow:9:2     |             |[pause, forty-gb-fd]|             |s9-eth3 |[]       |[]                 |[]           |62:D3:FA:BA:97:E3|[]           |
+  |65534      |openflow:9:65534 |             |[]                  |             |s9      |[]       |[]                 |[]           |4E:0C:4B:73:38:40|[]           |
+  |3          |openflow:9:3     |             |[pause, forty-gb-fd]|             |s9-eth1 |[]       |[]                 |[]           |46:F2:E2:56:C7:33|[]           |
+  |65534      |openflow:8:65534 |             |[]                  |             |s8      |[]       |[]                 |[]           |AA:4B:3E:14:22:44|[]           |
+  |3          |openflow:8:3     |             |[pause, forty-gb-fd]|             |s8-eth3 |[]       |[]                 |[]           |92:1D:00:40:9F:BE|[]           |
+
+Let's explicitly select only the id & the hardware-address:
+  XSQL>select id,hardware-address from nodes/node/node-connector;
+  |id               |hardware-address |
+  -------------------------------------
+  |openflow:9:1     |EA:CB:D5:22:B3:1A|
+  |openflow:9:2     |62:D3:FA:BA:97:E3|
+  |openflow:9:65534 |4E:0C:4B:73:38:40|
+  |openflow:9:3     |46:F2:E2:56:C7:33|
+  |openflow:8:65534 |AA:4B:3E:14:22:44|
+
+And now let's add the node id so we will know to which node this node-connector belongs to:
+  XSQL>select nodes/node.id,nodes/node/node-connector.id,hardware-address from nodes/node,nodes/node/node-connector;
+  |id               |id               |hardware-address |
+  -------------------------------------------------------
+  |openflow:9       |openflow:9:1     |EA:CB:D5:22:B3:1A|
+  |openflow:9       |openflow:9:2     |62:D3:FA:BA:97:E3|
+  |openflow:9       |openflow:9:65534 |4E:0C:4B:73:38:40|
+Note that because the field "id" exists in both virtual tables, i need to explicitly specify which id i refer to. Also note that there isn't any "join" statement here as the "join" is somehting inherited from the tree hierarchy structure of the data.
+
+Now let's start filtering and select all the ports that has "FA" in their hardware-address:
