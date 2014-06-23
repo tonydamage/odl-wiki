@@ -1,37 +1,103 @@
 
 == Introduction ==
+
 === Problem Statement ===
+
+In decomposed system it is hard for operators to track all processing, state changes and actions
+which were introduced by incoming request. In order to increase debugability
+and to provide additional information how system process requests, calls between components
+SHOULD be correlated in such way, that it is possible to trace failure or state change 
+in component down the line, to original request which triggered this state change.
+
+====Challenges of current debugging ====
+
+Stack traces nor thread dumps contain enough information to figure out initial reason why an execution has been started. Logs could be used but the process is often painful.
+
+==== Multi-process (multi-node) system ====
+
+Correlation between events in multiple processes or systems is hard to be carried out purely based on time-stamps and time-based correlation of logs,
+since these systems may be processing similar requests at same time, clocks are desynchronized, etc.
+
 === Use cases ===
+
 == Design ==
 
 === Correlation ID ===
 
 ==== Intra-JVM Correlation ====
 
+===== Thread Name =====
+Correlation ID may be attached to thread name.
+===== ThreadLocal =====
 
+CID should be assciated with executing context using ThreadLocal and utilities, so that the ID does not need to be parsed from thread name. 
+The utilities working with this ThreadLocal SHOULD also provide static utilities for wrapping Futures, Runnables etc so that CID 
+is added/removed to thread name and ThreadLocal properly, based on execution context.
 
 ==== Correlation with external protocols ====
 
-One of use-cases for Correlation ID and message correlation is correlation of
-actions spanning multiple systems. Not all  protocols provides
+One of use-cases for Correlation ID and message correlation is correlation of  spanning multiple systems. Not all  protocols provides
 correlation capabilities or similar concept, but Correlation ID could be retrofitted to some of them.
 
 ===== Netconf =====
 
-Netconf allows client-submitted message-id
-for each rpc invocation. Correlation ID
-could be propagated to remote system as part
-of message-id.
+Netconf allows client-submitted message-id each rpc invocation. Correlation ID propagated to remote system as part of message-id.
 
 === Correlation in context of MD-SAL  ===
 
 ==== RPCs ====
 
+RPC will invoked with attached Correlation ID, which is retrieved from invocation thread. In order
+to assign correlation ID to RPC, client must assign Correlation ID to thread, which will invoke RPC.
+
+RPC implementations will receive callback, with Correlation ID of RPC already attached to thread 
+from which callback is invoked. 
+
+If RPC implementaiton triggers any subsequent requests to other components or processing, 
+it is STRONGLY RECOMMENDED to reuse same Correlation ID which was attached to Notification.
+
+Same Correlation ID will be associated with returned Future from RPC.
+
 ==== Notifications ====
+
+Notification will be published using Correlation ID, which is assigned to thread, which published notification.
+
+Notification callbacks, will be executed with Notification Correlation ID attached to callback thread. Correlation ID
+will be detached from that thread, once callback method finished.
+
+If Notification triggers any subsequent requests to other components or processing, it is STRONGLY RECOMMENDED to
+reuse same Correlation ID which was attached to Notification.
+
 ==== Data Transaction ====
+
+Correlation ID is attached to transaction when transaction is created. Correlation ID of thread creating 
+transaction is used. In order to change Correlation ID for transaction, client must attach new Correlation 
+ID to its thread.
+
+==== Data Commit Handlers ====
+
+Data Commit Handlers callbacks, are executed with Correlation ID of triggering transaction attached to callback thread.
+Correlation ID will be detached from thread, once callback method is finished.
+
+If Data Commit Handler acts on this callbacks and invokes other components, it is STRONGLY RECOMMENDED to 
+reuse Correlation ID. 
 
 ==== Data Change Events ====
 
+Data Change Event callback, is executed with Correlation ID of triggering transaction attached to callback thread. Correlation ID
+will be detached from that thread, once callback method finished.
+
+If Data Change Listener acts on this data change and invokes other components, it is STRONGLY RECOMMENDED to 
+reuse Correlation ID of Data Change Event. 
+
+==== Binding to DOM forwarding ====
+
+Each message (rpc, notification) crossing translation barrier will be logged, with Correlation ID and information
+that that message is passed to other broker.
+
+Actual contents of logging is based on log level:
+* DEBUG: Correlation ID, binding Message type, DOM Message type is logged. 
+* TRACE: Correlation ID, binding message contents, DOM Message contents is logged.
 
 == Best Practices for Correlation ==
 
