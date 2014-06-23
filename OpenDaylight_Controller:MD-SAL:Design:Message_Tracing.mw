@@ -20,28 +20,68 @@ since these systems may be processing similar requests at same time, clocks are 
 
 === Use cases ===
 
+* Log analysis:
+:* Event correlation in in single system
+:* Event correlation in multiple systems
+
 == Design ==
+
+Message tracing deals with correlating events, so we selected already existing pattern - Correlation ID. One of design requirements is also to introduce as few as possible
+changes to existing API contracts - so we decided to use approach of attaching
+correlation ID to threads and provide utilities to work with Correlation ID
+when switching thread context.
+
+Implementation of MD-SAL will be updated to properly handle Correlation ID
+internally, to NOT introduce burden on consumers of MD-SAL APIs.
 
 === Correlation ID ===
 
 Correlation ID MUST carry following information:
-* UUID - universally unique identifier, which identifies
+* UUID - universally unique identifier, which identifies request / triggering event
 
-Correlation ID and its serialization format should be extensible
-to carry additional information
+During allocation of correlation ID following information SHOULD be captured:
 
-* Application Tag
-
+* Application Tag - tag which identifies logical component, responsible for introducing
+     request / event.
+* Reason - reason why new request / event is triggered
 
 ==== Intra-JVM Correlation ====
 
 ===== Thread Name =====
-Correlation ID may be attached to thread name.
-===== ThreadLocal =====
 
-CID should be assciated with executing context using ThreadLocal and utilities, so that the ID does not need to be parsed from thread name. 
+Correlation ID may be attached to thread name (configurable, SUGGESTED is to attach) which will make logs and thread dumps  more readable. This also allows to 
+correlate thread dumps and logs in order to find request, which triggered deadlock. 
+
+===== Utilities & ThreadLocal =====
+
+CID should be associated with executing context using utilities (build on top of ThreadLocal), so that the ID does not need to be parsed from thread name. 
 The utilities working with this ThreadLocal SHOULD also provide static utilities for wrapping Futures, Runnables etc so that CID 
 is added/removed to thread name and ThreadLocal properly, based on execution context.
+
+===== API Proposal =====
+
+====== Basic functions ======
+* ''CorrelationID'' '''create'''() - Allocates new unique correlatation ID.
+* ''Optional<CorrelationID>'' '''getCurrentThreadCorrelationID'''() - Returns correlation ID attached to current thread if it is available.
+* ''Optional<CorrelationID>'' '''attachToCurrentTread'''(''CorrelationID'') - Attaches correlation ID to current thread. From now, thread is considered executing in context of request to which Correlation ID is associated.
+* void '''detachFromCurrentThread'''(''CorrelationID'') - Detaches correlation ID from current thread only and only if attached correlation id is same as provided. From now, thread is not considered executing in context of request to which Correlation ID is associated.
+
+* void detachCurrentThreadCorrelationID() - Dettaches current thread correlation ID. Thread is considered not executing in correlated mode.
+
+Static Helper functions for Callable, Runables, etc. returned runnables will attach associated correlation-id to executing thread, detach it once 
+it is completed. 
+
+====== Utility functions ======
+* Runnable toCorrelatedRunnable(Runnable,CorelationID) - Creates correlated Runnable, which will attach correlation-id retrieved from current thread context
+and attach it to execution thread duting #run() invocation. 
+* Callable toCorrelatedCallable(Callable,CorrelationID)  - Creates correlated Callable, which will attach correlation-id retrieved from current thread context
+and attach it to execution thread during #call() invocation.
+* ListenableFuture toCorrelatedFuture(ListenableFuture,CorrelationID)
+
+=== Instance functions ===
+CorrelationID.attachToCurrentThread() - Attaches correlation ID to current thread.
+CorrelationID.detachFromCurrentThread() - Detaches correlation ID from current thread only and only if attached correlation id is same.
+
 
 ==== Correlation with external protocols ====
 
@@ -50,7 +90,7 @@ correlation capabilities or similar concept, but Correlation ID could be retrofi
 
 ===== Netconf =====
 
-Netconf allows client-submitted message-id each rpc invocation. Correlation ID propagated to remote system as part of message-id.
+Netconf allows client-submitted message-id each rpc invocation. Correlation ID is propagated to remote system as part of message-id in rpc request.
 
 === Correlation in context of MD-SAL  ===
 
@@ -122,4 +162,5 @@ Actual contents of logging is based on log level:
 
 == References ==
 
-[http://java.dzone.com/articles/implementing-correlation-ids-0 DZone: Implementing Correlation IDs in Spring Boot (for Distributed Tracing in SOA/Microservices)]
+ * [http://java.dzone.com/articles/implementing-correlation-ids-0 DZone: Implementing Correlation IDs in Spring Boot (for Distributed Tracing in SOA/Microservices)]
+ * [https://tools.ietf.org/html/rfc4122 RFC 4122: A Universally Unique IDentifier (UUID)]
