@@ -1,0 +1,50 @@
+This page contains design proposal for Data Store Tracer component. 
+
+Data Store Tracer is responsible for tracing and persisting the changes in the datastore. The tracer should also support "replay" function to update the data tree according to persisted changes from previous runs or crafted by user for debugging purposes. 
+
+== Motivation ==
+The primary goal of data store tracer is to bring more visibility into the md-sal/data-store by providing information about the changes in the data tree using human readable form (e.g. json, xml). 
+
+== Class diagram ==
+
+Class diagram for data store tracer according to https://git.opendaylight.org/gerrit/#/c/7986/3 :
+// TODO add diagram
+
+== Controller ==
+The controller class is responsible for aggregating multiple Persisters.
+* Persisters will receive notifications about current changes and are responsible for persistance
+* Persisters require schema context in order to transform the data
+** Controller should implement DomDataChangeListener interface, register itself to the datastore and delegate change notifications to all the persisters. This way only one registration to the datastore could be used for multiple persisters with the same scope. The same goes for SchemaContextListener.
+ 
+== Trace ==
+Every change in the data tree has to be recorded by the persisters. The Persisters are responsible for transforming the data nodes from datastore into human readable form and storing the data preferably as an ordered collection of diffs (only the changed data). Interface definition for persisters is present in DataStorePersister interface. This interface extends:
+
+* DomDataChangeListener - to receive the data change events
+* SchemaContextListener - to receive the global schema context, which will be used to transform between data nodes from datastore and human readable form
+
+Note: The persisters implement 2 listener interfaces and receive 2 sets of information: schema and data. These data could be inconsistent in general, but the implementation of md-sal/datastore uses the same schema when inserting the data into datastore. We are therefore guranteed that the schema context will always contain all the modules required to perform the translation from data nodes into e.g. xml.
+
+=== Xml persister ===
+The xml persister stores the changes in form of xml files. Every change/update is stored in a dedicated file. This persister should reuse utility code from XmlDocumentUtils located in yangtools project to perform the. With schema context present, the transformation is pretty straightforward using XmlDocumentUtils. 
+
+=== Json persister===
+The Json persister is not much different to xml persister. It should also reuse existing code to perform the transformation. This code is located in modules implementing restconf.
+
+Task: This code is not publicly accessible, and it is necessary to extract the code before it can be used by the json persister.
+
+== Replay ==
+Replay function is designed only for debugging purposes with main use case: applying data changes during isolated controller runs during debug sessions. Because of this, the design of the retrievers will be simple with a few limitations/issues ignored:
+
+These limitations are:
+* Inconsistencies between schema context and data to be restored - This would be a major issue in case the retrievers are used in production environment. It would require for the persisters to store capabilities alongside the data in order to check the schema (Same mechanism as in config-persister).
+* Conflicts when changing the data - The data could get change from different sources while performing the replay function. The persister would have to freeze the whole data store in order to avoid such conflicts.
+
+These limitations make the persisters and replay function reliably usable only in controlled runs. 
+
+=== Xml retriever ===
+
+=== Json retriever ===
+
+== Config subsystem binding ==
+// TODO add yang model links for config modules
+The replay function should be also accessible from config subsystem and netconf in order to easily trigger it during debugging sessions.
