@@ -24,13 +24,13 @@ You should see server immediately send an xml followed by netconf EOM.
 [[OpenDaylight_Controller:Config:Examples:Netconf:Manual_netopeer_installation]]
 
 = Using ODL's netconf server as mountpoint =
-It should be possible to connect md-sal to local netconf server that is running on port 8383. It is configured out of box in file configuration/initial/04-netconf-connector.xml .
+It should be possible to connect md-sal to local netconf server that is running on port 8383. It is configured out of box in file configuration/initial/99-netconf-connector.xml .
 
 =Editing Netconf Client Configuration by Creating Initial Controller Config File =
 
 In the case of building from source, create a file to hold the netconf client configuration in the directory ./opendaylight/distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/configuration/initial/ . This file will hold the netconf server configuration the client will attempt to connect.
 
-Files in this directory follow a naming system. Simply choose a non-used number, followed by a dash ('-') and a descriptive word, for example, 02-libnetconfd.xml. In this file insert the configuration of the server. 
+Files in this directory follow a naming system. Simply choose a non-used number, followed by a dash ('-') and a descriptive word, for example, 02-libnetconfd.xml. In this file insert the configuration of the server. Note the number has to be greater than 01, since the file 01-netconf.xml contains common dependencies for all netconf connectors and has to be processed before 02-libnetconfd.xml in this case. 
 
 <pre>
 
@@ -43,25 +43,29 @@ Files in this directory follow a naming system. Simply choose a non-used number,
 	  <name>libnetconfd</name>
 	  <port xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">830</port>
 	  <username xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">repenno</username>
-	  <worker-thread-group xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">
-	    <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:netty">prefix:netty-threadgroup</type>
-	    <name>global-worker-group</name>
-	  </worker-thread-group>
 	  <address xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">10.0.1.27</address>
 	  <tcp-only xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">false</tcp-only>
-	  <event-executor xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">
-	    <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:netty">prefix:netty-event-executor</type>
-	    <name>global-event-executor</name>
-	  </event-executor>
 	  <password xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">welcome</password>
-	  <boss-thread-group xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">
-	    <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:netty">prefix:netty-threadgroup</type>
-	    <name>global-boss-group</name>
-	  </boss-thread-group>
-	  <dom-registry xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">
-	    <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:md:sal:dom">prefix:dom-broker-osgi-registry</type>
-	    <name>dom-broker</name>
-	  </dom-registry>
+          <event-executor xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">
+            <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:netty">prefix:netty-event-executor</type>
+            <name>global-event-executor</name>
+          </event-executor>
+          <binding-registry xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">
+            <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:md:sal:binding">prefix:binding-broker-osgi-registry</type>
+            <name>binding-osgi-broker</name>
+          </binding-registry>
+          <dom-registry xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">
+            <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:md:sal:dom">prefix:dom-broker-osgi-registry</type>
+            <name>dom-broker</name>
+          </dom-registry>
+          <client-dispatcher xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">
+            <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:config:netconf">prefix:netconf-client-dispatcher</type>
+            <name>global-netconf-dispatcher</name>
+          </client-dispatcher>
+          <processing-executor xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">
+            <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:threadpool">prefix:threadpool</type>
+            <name>global-netconf-processing-executor</name>
+          </processing-executor>
 	</module>
       </modules>
     </data>
@@ -242,24 +246,9 @@ Add the following two lines:
 === Requirements ===
 yangcli-pro version 13.04-9.2 or later.
 
-=== Connecting to the Controller Configuration Server ===
+=== Connecting with yuma ===
 
-To connect to the controller's config server with a plain TCP connection, use the syntax described below. No authentication is performed for TCP connection, user and password parameters can bye any ascii strings. 
-<pre>
-yangcli-pro --user=a --password=a --transport=tcp --ncport=8383 --server=localhost
-</pre>
-
-Alternatively, you may connect using SSH: 
-<pre>
-yangcli-pro --user=netconf --password=netconf --transport=ssh --ncport=1830 --server=localhost
-</pre>
-
-For better debugging please include following arguments:
-
-<pre>
- --log=/tmp/yuma.log --log-level=debug4 --log-console
-</pre>
-Note that when the log file is set, the output will not appear on stdout.
+Yuma is commercial software that can be used to access netconf server. Please see [[OpenDaylight_Controller:Config:Examples:User_guide#Configuring_thread_pools_with_yangcli-pro|User guide]] for details.
 
 === Configuring an NCC Instance ===
 This example shows how to configure the NCC to connect to the collector's own Netconf server. The controller's configuration subsystem can then be accessed through the controller's NB Restconf API.
@@ -321,56 +310,224 @@ Once yangcli-pro connects to the controller's Netconf server, issue the followin
        leaf max-thread-count
 </pre>
 * Enter the number of the line that contains the ''sal-netconf-connector'' case ('''13''' in the list above).
-* The next step is to configure the sal-netconf-connector's attributes. Yangcli-pro will now prompt for target server's IP address:
-** Enter the target server's '''<IP-Address>''' (for example, '''localhost''' or '''127.0.0.1''' if yangcli-pro is running on the same host as the controller). Yangcli-pro will now prompt for the target server's port:
-** Enter the target server's '''<Port-Number>''' ('''8383''' in this example, since we're configuring a TCP connection; if we were configuring an SSH connection, '''1830''' would be entered). Yangcli-pro will now prompt for the user name.
-** Enter '''<User-Name>''' ('''foo''' in our example; user name does not matter, since we're configuring a TCP connection). Yangcli-pro will now prompt for the password.
-** Enter '''<Password>''' ('''bar''' in our example; password does not matter, since we're configuring a TCP connection). 
-* The next step is to configure the MD-SAL Connector (dom-registry).
-**  Yangcli-pro will prompt for the dom-registry type (Enter service-type-ref value for leaf <type>):
-** Enter '''dom-broker-osgi-registry'''. Yangcli-pro will now prompt for the dom-registry name (Enter leafref value for leaf <name>):
-** Enter '''dom-broker'''. Dom-broker is the default configured dom-registry - don't change this unless you have a good reason and you know what you're doing
-* The next step is to configure the boss thread group (the boss-thread-group container):
-** Yangcli-pro will prompt for the boss-thread-group type:
-** Enter '''netty-threadgroup'''. Yangcli-pro will prompt for the boss-thread-group name:
-** Enter '''global-boss-group'''. Global-boss-group is the default boss-thread-group - don't change this unless you have a good reason and you know what you're doing
-* The next step is to configure the worker thread group (the worker-thread-group container):
-** Yangcli-pro will prompt for the worker-thread-group type:
-** Enter '''netty-threadgroup'''. Yangcli-pro will prompt for the worker-thread-group name:
-** Enter '''global-worker-group'''. Global-worker-group is the default worker-thread-group - don't change this unless you have a good reason and you know what you're doing
-* The next step is to configure the Event Executor (the event-executor container):
-** Yangcli-pro will prompt for the event-executor type:
-** Enter '''netty-event-executor'''. Yangcli-pro will prompt for the event-executor name:
-** Enter '''global-event-executor'''. Global-event-executor is the default event-executor - don't change this unless you have a good reason and you know what you're doing
-* Finally, if everything has been entered properly and the config subsystem successfuly validated the entries, yangcli-pro will print something like:
+* yuma then starts asking about each leaf to be filled. Full output should look like this:
 <pre>
-RPC OK Reply 32 for session 6 [default]:
+
+admin@localhost> merge /modules/module
+
+Filling list /modules/module:
+Filling key leaf /modules/module/name:
+Enter string value for leaf <name>
+admin@localhost:merge> controller
+
+Filling mandatory leaf /modules/module/type:
+Enter identityref value for leaf <type>
+admin@localhost:merge> sal-netconf-connector
+
+Filling choice /modules/module/configuration:
+Enter the number of the selected case statement:
+
+  1: case netconf-client-dispatcher:
+       container boss-thread-group
+       container worker-thread-group
+       container timer
+  2: case netty-threadgroup-fixed:
+       leaf thread-count
+  3: case kitchen-service-impl:
+       container rpc-registry
+       container notification-service
+  4: case binding-broker-impl:
+       container data-broker
+       container notification-service
+  5: case binding-data-broker:
+       container dom-broker
+       container mapping-service
+  6: case binding-data-compatible-broker:
+       container dom-async-broker
+       container binding-mapping-service
+  7: case threadpool-flexible:
+       leaf max-thread-count
+       leaf minThreadCount
+       leaf keepAliveMillis
+       container threadFactory
+  8: case threadpool-scheduled:
+       leaf max-thread-count
+       container threadFactory
+  9: case never-reconnect-strategy-factory:
+       leaf timeout
+       container executor
+  10: case reconnect-immediately-strategy-factory:
+       leaf timeout
+       container executor
+  11: case timed-reconnect-strategy-factory:
+       leaf deadline
+       leaf max-attempts
+       leaf max-sleep
+       leaf min-sleep
+       leaf sleep-factor
+       leaf connect-time
+       container executor
+  12: case netty-hashed-wheel-timer:
+       leaf tick-duration
+       leaf ticks-per-wheel
+       container thread-factory
+  13: case async-eventbus:
+       container threadpool
+  14: case threadfactory-naming:
+       leaf name-prefix
+  15: case sal-netconf-connector:
+       leaf address
+       leaf port
+       leaf tcp-only
+       leaf username
+       leaf password
+       container dom-registry
+       container binding-registry
+       container boss-thread-group
+       container worker-thread-group
+       container event-executor
+       container processing-executor
+       container client-dispatcher
+       leaf connection-timeout-millis
+       leaf max-connection-attempts
+       leaf between-attempts-timeout-millis
+       leaf sleep-factor
+  16: case dom-broker-impl:
+       container data-store
+       container async-data-broker
+  17: case dom-inmemory-data-broker:
+       container schema-service
+  18: case logback:
+       list file-appenders
+       list rolling-appenders
+       list console-appenders
+       list loggers
+  19: case remote-zeromq-rpc-server:
+       container dom-broker
+       leaf port
+  20: case toaster-provider-impl:
+       container rpc-registry
+       container notification-service
+       container data-broker
+  21: case shutdown:
+       leaf secret
+  22: case threadpool-fixed:
+       leaf max-thread-count
+       container threadFactory
+
+Enter case number [1 - 22]: 
+admin@localhost:merge> 15
+
+Filling mandatory case /modules/module/configuration/sal-netconf-connector:
+Filling optional leaf /modules/module/configuration/sal-netconf-connector/address:
+Enter string value for leaf <address>
+admin@localhost:merge> 127.0.0.1
+
+Filling optional leaf /modules/module/configuration/sal-netconf-connector/port:
+Enter uint32 value for leaf <port>
+admin@localhost:merge> 1830
+
+Filling optional leaf /modules/module/configuration/sal-netconf-connector/tcp-only:
+Enter boolean value for leaf <tcp-only>
+admin@localhost:merge> false
+
+Filling optional leaf /modules/module/configuration/sal-netconf-connector/username:
+Enter string value for leaf <username>
+admin@localhost:merge> admin
+
+Filling optional leaf /modules/module/configuration/sal-netconf-connector/password:
+Enter string value for leaf <password>
+admin@localhost:merge> admin
+
+Filling container /modules/module/configuration/sal-netconf-connector/dom-registry:
+Filling mandatory leaf /modules/module/configuration/sal-netconf-connector/dom-registry/type:
+Enter service-type-ref value for leaf <type>
+admin@localhost:merge> dom-broker-osgi-registry
+
+Filling mandatory leaf /modules/module/configuration/sal-netconf-connector/dom-registry/name:
+Enter leafref value for leaf <name>
+admin@localhost:merge> dom-broker
+
+Filling container /modules/module/configuration/sal-netconf-connector/binding-registry:
+Filling optional leaf /modules/module/configuration/sal-netconf-connector/binding-registry/type:
+Enter service-type-ref value for leaf <type>
+admin@localhost> binding-broker-osgi-registry
+
+Filling mandatory leaf /modules/module/configuration/sal-netconf-connector/binding-registry/name:
+Enter leafref value for leaf <name>
+admin@localhost> binding-osgi-broker
+
+Filling container /modules/module/configuration/sal-netconf-connector/boss-thread-group:
+Filling optional leaf /modules/module/configuration/sal-netconf-connector/boss-thread-group/type:
+Enter service-type-ref value for leaf <type>
+admin@localhost> netty-threadgroup
+
+Filling mandatory leaf /modules/module/configuration/sal-netconf-connector/boss-thread-group/name:
+Enter leafref value for leaf <name>
+admin@localhost> global-boss-group
+
+Filling container /modules/module/configuration/sal-netconf-connector/worker-thread-group:
+Filling optional leaf /modules/module/configuration/sal-netconf-connector/worker-thread-group/type:
+Enter service-type-ref value for leaf <type>
+admin@localhost> netty-threadgroup
+
+Filling mandatory leaf /modules/module/configuration/sal-netconf-connector/worker-thread-group/name:
+Enter leafref value for leaf <name>
+admin@localhost> global-boss-group
+
+Filling container /modules/module/configuration/sal-netconf-connector/event-executor:
+Filling mandatory leaf /modules/module/configuration/sal-netconf-connector/event-executor/type:
+Enter service-type-ref value for leaf <type>
+admin@localhost> netty-event-executor
+
+Filling mandatory leaf /modules/module/configuration/sal-netconf-connector/event-executor/name:
+Enter leafref value for leaf <name>
+admin@localhost> global-event-executor
+
+Filling container /modules/module/configuration/sal-netconf-connector/processing-executor:
+Filling optional leaf /modules/module/configuration/sal-netconf-connector/processing-executor/type:
+Enter service-type-ref value for leaf <type>
+admin@localhost> threadpool
+
+Filling mandatory leaf /modules/module/configuration/sal-netconf-connector/processing-executor/name:
+Enter leafref value for leaf <name>
+admin@localhost> global-netconf-processing-executor
+
+Filling container /modules/module/configuration/sal-netconf-connector/client-dispatcher:
+Filling optional leaf /modules/module/configuration/sal-netconf-connector/client-dispatcher/type:
+Enter service-type-ref value for leaf <type>
+admin@localhost> netconf-client-dispatcher
+
+Filling mandatory leaf /modules/module/configuration/sal-netconf-connector/client-dispatcher/name:
+Enter leafref value for leaf <name>
+admin@localhost> global-netconf-dispatcher
+
+Filling optional leaf /modules/module/configuration/sal-netconf-connector/connection-timeout-millis:
+Enter uint32 value for leaf <connection-timeout-millis> [20000]
+admin@localhost> 
+
+Filling optional leaf /modules/module/configuration/sal-netconf-connector/max-connection-attempts:
+Enter uint32 value for leaf <max-connection-attempts> [0]
+admin@localhost> 
+
+Filling optional leaf /modules/module/configuration/sal-netconf-connector/between-attempts-timeout-millis:
+Enter uint16 value for leaf <between-attempts-timeout-millis> [2000]
+admin@localhost> 
+
+Filling optional leaf /modules/module/configuration/sal-netconf-connector/sleep-factor:
+Enter decimal64 value for leaf <sleep-factor> [1.5]
+admin@localhost> 
+
+RPC OK Reply 75 for session 2 [default]:
+
+admin@localhost> commit
+
+RPC OK Reply 76 for session 2 [default]:
+
+admin@localhost> 
+
+
 </pre>
-
-The values of all above entries are repeated below for reference:
-<pre>
-foo@192.168.4.1> history
-
-  [958]	merge modules/module
-  [959]	controller
-  [960]	sal-netconf-connector
-  [961]	13
-  [962]	192.168.4.1
-  [963]	8383
-  [964]	true
-  [965]	foo
-  [966]	bar
-  [967]	dom-broker-osgi-registry
-  [968]	dom-broker
-  [969]	netty-threadgroup
-  [970]	global-boss-group
-  [971]	netty-threadgroup
-  [972]	global-worker-group
-  [973]	netty-event-executor
-  [974]	global-event-executor
-  [975]	commit
-</pre>
-
 
 ==Editing Netconf Client Configuration in the Current Controller Config File==
 
