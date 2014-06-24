@@ -109,7 +109,25 @@ In order to increase readability, the following table names are used in the foll
 |}
 
 === Port Security ===
-XXX TODO
+An optional port security table can be inserted at the very beginning of the pipeline. It enforces a list of valid sMAC and sIP addresses for a specific port.
+
+ <nowiki>
+priority=30, in_port=TUNNEL_PORT, actions=goto_table:SEPG_FILTER
+priority=30, in_port=PORT1, dl_src=MAC1, action=goto_table:SEPG_FILTER
+priority=30, in_port=PORT2, dl_src=MAC2, ip, nw_src=IP2, actions=goto_table:SEPG_FILTER
+priority=20, in_port=PORT2, dl_src=MAC2, ip, actions=drop
+priority=10, in_port=PORT2, dl_src=MAC2, actions=goto_table:SEPG_FILTER
+priority=30, in_port=PORT3, actions=goto_table:SEPG_FILTER</nowiki>
+
+The port-security flow-miss policy is set to drop in order for packets received on an unknown port or with an unknown sMAC/sIP to be rejected.
+
+The following mode of enforcement are defined:
+# Whitelisted: The port is allowed to use any addresses. All tunnel ports must be whitelisted. The filter is enforced with a single flow matching on in_port and redirects to the next table.
+# L2 enforcement: Any packet from the port must use a specific sMAC. The filter is enforced with a single flow matching on the in_port and dl_src and redirects to the next table.
+# L3 enforcement: Same as L2 enforcement. Additionally, any IP packet from the port must use a specific sIP. The filter is enforced with three flows with different priority.
+## Any IP packet with correct sMAC and sIP is redirected to the next table.
+## Any IP packet left over is dropped.
+## Any non-IP packet with correct sMAC is redirected to the next table.
 
 === Source EPG, Broadcast Domain, and Routing Domain Selection ===
 
