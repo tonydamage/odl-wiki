@@ -271,7 +271,28 @@ actions=load:$DEPG->NXM_NX_REG3[],
         goto_table:$POLICY_ENFORCER</nowiki>
 
 === Policy Enforcement ===
-XXX TODO
+Given the sEPG, BD/VRF, and dEPG are known at this point, the policy is enforced in a separate flow table by matching on the sEPG and dEPG as found in the respective registers. Additional filters may be provided as specified by the policy. The OpenFlow actions represent the actions as required by the policy.
+
+{| class="wikitable"
+|-
+! Field !! Description
+|-
+| <tt>table=POLICY_ENFORCER</tt> || Flow must be in policy enforcement table.
+|-
+| <tt>reg1=$SEPG</tt> || Must match on sEPG of packet
+|-
+| <tt>reg3=$DEPG</tt> || Must match on dEPG of packet
+|}
+
+The actions performed are:
+# Perform eventual additional actions as specified in policy
+# Forward packet to port as previously selected in the dEPG selection stage.
+
+ <nowiki>
+table=$POLICY_ENFORCER reg1=$SEPG, reg3=$DEPG,
+actions=output:NXM_NX_REG4[]</nowiki>
+
+A flow miss indicates that the policy prohibits communication and packet must be dropped.
 
 === Forwarding ===
 ==== Unicast ====
