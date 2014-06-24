@@ -222,7 +222,42 @@ A flow hit indicates that both the sEPG and dEPG are known at this point at the 
 A flow miss indicates that the dEPG is not known. (XXX: packet-in? [[User:Tgraf|tgraf]] ([[User talk:Tgraf|talk]]) 10:34, 24 June 2014 (UTC))
 
 === Destination EPG Selection (L3) ===
-XXX TODO
+Much like L2 flows in the dEPG selection table, L3 flows map known destination IP addresses to the corresponding dEPG and outgoing port number.
+
+Additionally, flow hits will result in a routing action performed.
+
+{| class="wikitable"
+|-
+! Field !! Description
+|-
+| <tt>priority=15</tt> || Must have higher priority than L2 but lower than ARP flows.
+|-
+| <tt>table=DEPG_FILTER</tt> || Flow must be in dEPG selection table
+|-
+| <tt>reg2=2</tt> || Must match on L3 context (NXM_NX_REG2)
+|-
+| <tt>dl_dst=GW_MAC</tt> || Packet must match MAC of gateway
+|-
+| <tt>nw_dst=PREFIX</tt> || Packet must match on a IP subnet
+|}
+
+The actions performed are:
+# Write dEPG ID corresponding to dSubnet to register to allow matching on it during policy enforcement
+# Write expected outgoing port number to register. This can be a local port or a tunnel.
+# Modify dMAC to the nexthop. The nexthop can be the MAC of the EP or an intermediate node.
+# Decrement TTL
+# Set sMAC to MAC of gateway
+# XXX: Set tunnel ID on packet if packet is to be sent over a tunnel.
+# Proceed to policy enforcement
+
+ <nowiki>
+table=DEPG_TABLE, reg2=$BD, dl_dst=$ROUTER_MAC, ip, nw_dst=$PREFIX,
+actions=load:$DEPG->NXM_NX_REG3[],
+        load:$OFPORT->NXM_NX_REG4[],
+        mod_dl_dst:$NEXTHOP,
+        dec_ttl,
+        mod_dl_src:$ROUTER_MAC,
+        goto_table:$POLICY_ENFORCER</nowiki>
 
 === Policy Enforcement ===
 XXX TODO
