@@ -91,6 +91,22 @@ The processing pipeline needs to store metadata such as the sEPG, dEPG, and broa
 ;<tt>NXM_NX_REG4</tt>
 : Port number to send packet to after policy enforcement. This is required because port selection occurs before policy enforcement in the pipeline.
 
+=== Table/Pipeline Names and Order ===
+In order to increase readability, the following table names are used in the following sections. Their order in the pipeline is as follows:
+
+{| class="wikitable"
+|-
+! Table !! ID !! Description
+|-
+| 1 || <tt>PORT_SECURITY</tt> || Optional port security table
+|-
+| 2 || <tt>SEPG_FILTER</tt> || sEPG selection
+|-
+| 3 || <tt>DPEG_FILTER</tt> || dEPG selection
+|-
+| 4 || <tt>POLICY_ENFORCER</tt> || Policy enforcement
+|}
+
 === Port Security ===
 XXX TODO
 
@@ -116,9 +132,9 @@ In order for the distributed L3 gateway to be reachable, the vSwitch must respon
 |-
 | <tt>priority=20</tt> || Must have higher priority than regular, non-ARP dEPG table flows.
 |-
-| <tt>table=dEPG_TABLE</tt> || dEPG Table
+| <tt>table=DEPG_FILTER</tt> || Flow must be in dEPG selection table
 |-
-| <tt>reg2=2</tt> || L3 context (NXM_NX_REG1)
+| <tt>reg2=2</tt> || Must match a specific L3 context (NXM_NX_REG1)
 |-
 | <tt>arp, arp_op=1</tt> || Packet must be ARP request
 |-
@@ -136,7 +152,7 @@ The actions performed are:
 # Transmit packet back out the incoming port
 
  <nowiki>
-priority=20, table=$DEPG_TABLE, reg2=$BD,
+priority=20, table=DEPG_FILTER, reg2=$BD,
 arp, arp_op=1, arp_tpa=$GW_ADDRESS,
 actions=move:NXM_OF_ETH_SRC[]->NXM_OF_ETH_DST[],
         mod_dl_src:$GW_MAC,
