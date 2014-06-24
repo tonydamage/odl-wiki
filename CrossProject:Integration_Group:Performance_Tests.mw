@@ -35,8 +35,17 @@ In order to run an homogeneous test, we agreed on using this configuration for a
 ** Enable OF plugin with -of13 option: '''run.sh -of13'''
 ** Set Java memory: Min=1G, Max=4G, in run.sh we have to add following JVM options:
 <pre>
-run.sh -Xms1g -Xmx4g    # Minimum heap size 1G and maximum heap size 4G. Increase to higher values if we encounter 
-                        # OutOfMemoryError crashes when MACs and Switches count are increased in CBench cmdline args
+run.sh -Xmx4G -XX:+UseG1GC -XX:MaxPermSize=512m -Xms4G    
+
+# Minimum heap size 4G and maximum heap size 4G. When min and max are the same, there will be no dynamic heap allocation. When increasing to higher values, increase both at same time for better performance 
+# Use G1GC garbage collection strategy. 
+[http://www.oracle.com/webfolder/technetwork/tutorials/obe/java/G1GettingStarted/index.html Getting Started with the G1GC Garbage Collector]
+[http://www.slideshare.net/MonicaBeckwith/garbage-first-garbage-collector-g1-gc-migration-to-expectations-and-advanced-tuning Garbage First Garbage Collector (G1 GC) - Migration to, Expectations and Advanced Tuning]
+
+
+
+# OutOfMemoryError crashes when MACs and Switches count are increased in CBench cmdline args
+
 </pre>
 
 == Performance tools ==
@@ -67,7 +76,7 @@ The [https://github.com/andi-bigswitch/oflops OFLOPS/CBench READMEs] are quite s
 According to the OFLOPS README, ''net-snmp-devel'' and ''libpcap-devel'' are required dependencies. Starting from a clean Fedora 20 install, you'll also need ''autoconf'', ''automake'', ''libtool'' and ''libconfig-devel'' to get CBench built. Git is required for the install process:
 
 <pre>
-[~]$ sudo yum install net-snmp-devel libpcap-devel autoconf automake libtool libconfig-devel git
+[~]$ sudo yum install net-snmp-devel libpcap-devel autoconf make automake libtool libconfig-devel git
 </pre>
 
 CBench lives in the OFLOPS repo, so you'll need to clone that repo to your local system. The ''--recursive'' flag pulls down the project's submodule in the same step (submodule seems to be optional):
@@ -143,16 +152,16 @@ This test is still being designed, but the idea is to bring up varying typologie
 
 Test Steps:
 
-* 1. OpenDaylight depends on Java, and the install process depends on unzip.
+* 1. OpenDaylight depends on Java (and which, to set $JAVA_HOME). The install process depends on unzip and wget.
 
 <pre>
-[~]$ sudo yum install java-1.7.0-openjdk unzip
+[~]$ sudo yum install java-1.7.0-openjdk which unzip wget
 </pre>
 
 * 2. Download the latest controller base distribution. See [[CrossProject:Integration_Group:Controller_Artifacts]] for details.
 
 <pre>
-[~]$ wget 'https://jenkins.opendaylight.org/integration/job/integration-project-centralized-integration/lastSuccessfulBuild/artifact/distributions/base/target/distributions-base-0.1.2-SNAPSHOT-osgipackage.zip'
+[~]$ wget 'https://jenkins.opendaylight.org/integration/job/integration-master-project-centralized-integration/lastSuccessfulBuild/artifact/distributions/base/target/distributions-base-0.1.2-SNAPSHOT-osgipackage.zip'
 [~]$ unzip distributions-base-0.1.2-SNAPSHOT-osgipackage.zip
 </pre>
 
