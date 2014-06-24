@@ -94,9 +94,6 @@ The processing pipeline needs to store metadata such as the sEPG, dEPG, and broa
 === Port Security ===
 XXX TODO
 
-=== ARP/DHCP Interception ===
-XXX TODO
-
 === Source EPG, Broadcast Domain, and Routing Domain Selection ===
 
 The sEPG is determined based on a separate flow table which maps known OpenFlow port numbers and tunnel identifiers to a locally unique sEPG ID. The sEPG ID is stored in register NXM_NX_REG1 for later use in the pipeline. At the same time, the L2 and L3 domain is determined and stored in register NXM_NX_REG2.
@@ -108,6 +105,50 @@ A flow hit means that the sEPG is known and the pipeline should proceed to the n
 A flow miss means that we have received a packet from an unknown EPG:
 # If the packet was received on a local port then this corresponds to the discovery of a new EP for which the Port to EPG mapping has not been populated yet. (XXX: Packet-in? [[User:Tgraf|tgraf]] ([[User talk:Tgraf|talk]]) 09:34, 24 June 2014 (UTC))
 # If the packet was received from a tunnel then this corresponds to a packet for which we have not populated the tunnel ID to EGP mapping yet. (XXX: Packet-in? [[User:Tgraf|tgraf]] ([[User talk:Tgraf|talk]]) 09:34, 24 June 2014 (UTC))
+
+=== ARP Responder ===
+In order for the distributed L3 gateway to be reachable, the vSwitch must respond to ARP requests sent to the default gateway address. For this purpose, a flow is added which translates ARP requests into ARP replies and sends them back out the incoming port.
+
+==== Flow Description ====
+{| class="wikitable"
+|-
+! Field !! Description
+|-
+| <tt>priority=20</tt> || Must have higher priority than regular, non-ARP dEPG table flows.
+|-
+| <tt>table=dEPG_TABLE</tt> || dEPG Table
+|-
+| <tt>reg2=2</tt> || L3 context (NXM_NX_REG1)
+|-
+| <tt>arp, arp_op=1</tt> || Packet must be ARP request
+|-
+| <tt>arp_tpa=GW_IP</tt> || ARP request must be targeted for IP of gateway
+|}
+
+The actions performed are:
+# Set dMAC to original sMAC of packet to reverse direction
+# Set sMAC to MAC of gateway
+# Set ARP operation to (arp-reply)
+# Set target hardware address to original source hardware address
+# Set source hardware address to MAC of gateway
+# Set target protocol address to original source protocol address
+# Set source protocol address to IP of gateway
+# Transmit packet back out the incoming port
+
+ <nowiki>
+priority=20, table=$DEPG_TABLE, reg2=$BD,
+arp, arp_op=1, arp_tpa=$GW_ADDRESS,
+actions=move:NXM_OF_ETH_SRC[]->NXM_OF_ETH_DST[],
+        mod_dl_src:$GW_MAC,
+        load:2->NXM_OF_ARP_OP[],
+        move:NXM_NX_ARP_SHA[]->NXM_NX_ARP_THA[],
+        load:''Hex(''$GW_MAC'')''->NXM_NX_ARP_SHA[],
+        move:NXM_OF_ARP_SPA[]->NXM_OF_ARP_TPA[],
+        load:''Hex(''$GW_ADDRESS'')''->NXM_OF_ARP_SPA[],
+        in_port</nowiki>
+
+=== DHCP Interception ===
+XXX TODO
 
 === Select Bridging or Routing ===
 XXX TODO
