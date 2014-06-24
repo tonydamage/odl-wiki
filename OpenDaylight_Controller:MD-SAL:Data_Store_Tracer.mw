@@ -6,9 +6,9 @@ Data Store Tracer is responsible for tracing and persisting the changes in the d
 The primary goal of data store tracer is to bring more visibility into the md-sal/data-store by providing information about the changes in the data tree using human readable form (e.g. json, xml).
 
 == Tracer Components ==
-Persister - Component responsible for storing data change events on e.g. filesystem in human readable form.
-PersisterController - Aggregator component for multiple persisters with same configuration.
-Retriever - Component responsible for replaying the data change events in the datastore from human readable form.
+* Persister - Component responsible for storing data change events on e.g. filesystem in human readable form.
+* PersisterController - Aggregator component for multiple persisters with same configuration.
+* Retriever - Component responsible for replaying the data change events in the datastore from human readable form.
 
 == Class diagram ==
 
@@ -21,10 +21,10 @@ The controller class is responsible for aggregating multiple Persisters.
 * Persisters receive notifications about current changes and are responsible for persistance
 ** Controller should implement DomDataChangeListener interface, register itself to the datastore and delegate change notifications to all the persisters. This way only one registration to the datastore could be used for multiple persisters with the same scope.
 * Persisters require schema context in order to transform the data
-** Controller should be provided SchemaService instance from which, the global schema context will be retrieved and it should update the schema context for all persisters.
- 
+** Controller should be provided SchemaService instance from which, the global schema context will be retrieved and injected into all its persisters.
+
 == Trace ==
-Every change in the data tree has to be recorded by the persisters. The Persisters are responsible for transforming the data nodes from datastore into human readable form and storing the data preferably as an ordered collection of diffs (only the changed data). Interface definition for persisters is present in DataStorePersister interface. This interface extends:
+Every change in the data tree has to be recorded by the persisters. The Persisters are responsible for transforming the data nodes from datastore into human readable form and storing the data preferably as an ordered collection of diffs (only the changed data). Interface definition for persisters is present in: DataStorePersister. This interface extends:
 
 * DomDataChangeListener - to receive the data change events
 * SchemaContextListener - to receive the global schema context, which will be used to transform between data nodes from datastore and human readable form
@@ -43,12 +43,12 @@ Task: This code is not publicly accessible, and it is necessary to extract the c
 Replay function is designed only for debugging purposes with main use case: applying data changes during isolated controller runs during debug sessions. Because of this, the design of the retrievers will be simple with a few limitations/issues ignored:
 
 These limitations are:
-* Inconsistencies between schema context and data to be restored - This would be a major issue in case the retrievers are used in production environment. It would require for the persisters to store capabilities alongside the data in order to check the schema (Same mechanism as in config-persister).
-* Conflicts when changing the data - The data could get change from different sources while performing the replay function. The persister would have to freeze the whole data store in order to avoid such conflicts.
+* Inconsistencies between schema context and data to be restored - This would be a major issue in case the retrievers are used in production environment. It would require for the persisters to store capabilities alongside the data in order to check the schema in retrievers while doing replay (Same mechanism as in config-persister).
+* Conflicts when changing the data - The data could get changed by different sources while performing the replay function. The persister would have to freeze the whole data store in order to avoid such conflicts.
 
 These limitations make the persisters and replay function reliably usable only in controlled runs.
 
-The retrievers are responsible for loading all the data changes from human readable form using SchemaContext.
+The retrievers are responsible for loading all the data changes from human readable form using SchemaContext. In addition to schema context, they require Datastore dependency in form of DOMDataBroker in order to submit the changes to the datastore during replay phase.
 
 === Xml retriever ===
 The xml retriever is the opposite of the xml persister and should use the same utility code for transformation.
@@ -66,6 +66,6 @@ The dependencies on DOMDataBroker and SchemaService will be retrieved using conf
 
 Component diagram for config subsystem binding:
 
-[[File:Tracer_config_(1).png]]
+[[File:Tracer config (1).png]]
 
 The replay function should be also accessible from config subsystem and netconf in order to easily trigger it during debugging sessions.
