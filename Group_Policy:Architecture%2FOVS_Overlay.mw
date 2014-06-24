@@ -70,6 +70,7 @@ Second, we can use a DNAT scheme to allow access to endpoints that are reachable
 Here is a simplified high-level view of what happens to packets in this network when it hits an OVS instance:
 # Apply port security rules if enabled on the port to determine if the source identifiers (MAC and IP) are allowed on the port
 # Determine the source endpoint group based on the tunnel ID from the from the outer packet or based on source port and source identifiers as configured.  Unknown source identifiers may result in a packet-in if the network is doing learning.  XXX - sEPG can't come from tunnel ID!  Need to feed this through a separate pathway since the policy is applied on ingress
+# Handle broadcast and multicast packets while respecting broadcast domains.
 # Catch any special packet types that are handled specially.  This could include ARP, DHCP, or LLDP.  How these are handled may depend on the specific renderer implementation.
 # Determine whether the packet will be bridged or routed.  If the destination MAC address is the default gateway MAC, then the packet will be routed, otherwise it will be bridged.
 # Determine the destination endpoint group.  For bridged packets, use the destination MAC address.  For routed packets, use the destination IP address.
@@ -141,6 +142,16 @@ A flow hit means that the sEPG is known and the pipeline should proceed to the n
 A flow miss means that we have received a packet from an unknown EPG:
 # If the packet was received on a local port then this corresponds to the discovery of a new EP for which the Port to EPG mapping has not been populated yet. (XXX: Packet-in? [[User:Tgraf|tgraf]] ([[User talk:Tgraf|talk]]) 09:34, 24 June 2014 (UTC))
 # If the packet was received from a tunnel then this corresponds to a packet for which we have not populated the tunnel ID to EGP mapping yet. (XXX: Packet-in? [[User:Tgraf|tgraf]] ([[User talk:Tgraf|talk]]) 09:34, 24 June 2014 (UTC))
+
+=== Broadcasting ===
+Packets sent to the MAC broadcast addresss (<tt>ff:ff:ff:ff:ff:ff</tt>) must be flooded to all ports beloning to the broadcast domain. This is '''not''' equivalent to the flood action as multiple broadcast domains reside on the same switch.
+
+ <nowiki>
+priority=10, table=$DEPG_FILTER, reg2=$BD, dl_dst=ff:ff:ff:ff:ff:ff,
+actions=XXX</nowiki>
+
+XXX: Define semantics and action [[User:Tgraf|tgraf]] ([[User talk:Tgraf|talk]]) 10:45, 24 June 2014 (UTC)
+XXX: Represent each broadcast/multicast address with a EPG? [[User:Tgraf|tgraf]] ([[User talk:Tgraf|talk]]) 10:45, 24 June 2014 (UTC)
 
 === ARP Responder ===
 In order for the distributed L3 gateway to be reachable, the vSwitch must respond to ARP requests sent to the default gateway address. For this purpose, a flow is added which translates ARP requests into ARP replies and sends them back out the incoming port.
