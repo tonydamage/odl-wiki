@@ -185,10 +185,43 @@ actions=move:NXM_OF_ETH_SRC[]->NXM_OF_ETH_DST[],
 === DHCP Interception ===
 XXX TODO
 
-=== Select Bridging or Routing ===
-XXX TODO
+=== Destination EPG Selection (L2) ===
+The dEPG selection is performed after the sEPG has been determined. The mapping occurs in its own flow table which contains both L2 and L3 flow entries. This section explains L2 processing, L3 processing is described in the next section.
 
-=== Destination EPG Selection ===
+The purpose of flow entries in this table is to map known destination MAC addresses in a specific L2 broadcast domain to a dEPG and to prepare the action set for execution after policy enforcement.
+
+The flow also maps the dMAC to the outgoing port for both local and tunnel ports. Flows points to a tunnel port additionally contain an action to set the tunnel ID.
+
+{| class="wikitable"
+|-
+! Field !! Description
+|-
+| <tt>priority=10</tt> || Must have lower priority than L3 flows
+|-
+| <tt>table=DEPG_FILTER</tt> || Flow must be in dEPG selection table
+|-
+| <tt>reg2=2</tt> || Must match on L2 context (NXM_NX_REG2)
+|-
+| <tt>dl_dst=MAC</tt> || Packet must match on destination MAC of the EP
+|}
+
+The actions performed are:
+# Write dEPG ID corresponding to dMAC to register to allow matching on it during policy enforcement
+# Write expected outgoing port number to register. This can be a local port or a tunnel.
+# XXX: Set tunnel ID on packet if packet is to be sent over a tunnel.
+# Proceed to policy enforcement
+
+ <nowiki>
+table=$DEPG_FILTER, reg2=$BD, dl_dst=$MAC,
+actions=load:$DEPG->NXM_NX_REG3[],
+        load:$OFPORT->NXM_NX_REG4[],
+        goto_table:$ENFORCER_TABLE</nowiki>
+
+A flow hit indicates that both the sEPG and dEPG are known at this point at the packet can proceed to policy enforcement.
+
+A flow miss indicates that the dEPG is not known. (XXX: packet-in? [[User:Tgraf|tgraf]] ([[User talk:Tgraf|talk]]) 10:34, 24 June 2014 (UTC))
+
+=== Destination EPG Selection (L3) ===
 XXX TODO
 
 === Policy Enforcement ===
