@@ -59,17 +59,17 @@ The json retriever is the opposite of the json persister and should use the same
 == Persistance format ==
 The persisters will receive data change events in form of AsyncDataChangeEvent<InstanceIdentifier, NormalizedNode<?, ?>>. This event contains following data:
 * Map<InstanceIdentifier, NormalizedNode> of original data
-* Original data subtree
+* NormalizedNode containing Original data subtree
 * Set<InstanceIdentifier> of removed paths
 * Map<InstanceIdentifier, NormalizedNode> of updated data
-* Updated data subtree
+* NormalizedNode containing Updated data subtree
 * Map<InstanceIdentifier, NormalizedNode> of created data
 
-Theoretically, there are 2 ways for persisting data:
+There are 2 options for persisting data:
 # The whole updated subtrees (not possible for entire datastore)
 # Diffs
 
-We suggest to go with the 1<sup>st</sup> way for the initial version.
+We suggest to go with the 1<sup>st</sup> options for the initial version due to its advantages.
 
 === Whole subtree ===
 With this option, the persisters would persist the changes in form of snapshots of the entire data tree. The entire subtree in form of NormalizedNode would be transformed into human readable format e.g. xml as a whole and stored in the file. 
@@ -88,7 +88,7 @@ Cons:
 * UPDATED SUBTREE NOT PRESENT IN DATA CHANGE EVENT WHEN LISTENING ON ROOT
 
 === Diffs ===
-With this option, the persisters would persist the changes in form of a structure containing collections of removed, updated and created data (or possibly just 2 collections: removed, changed). This would require custom structure/format in order to persist the data since we need to persist the InstanceIdentifiers for the removed data. Also the diffs come in the form of maps and we would have to transform these maps into the human readable tree form e.g. xml. 
+With this option, the persisters would persist the changes in form of a structure containing collections of removed, updated and created data (or possibly just 2 collections: removed, changed). This would require custom structure/format in order to persist the data since we need to persist the InstanceIdentifiers for the removed data. Also the diffs come in the form of maps and we would probably have to transform these maps into the human readable tree form e.g. xml. 
 
 The replay function would have to process all the persisted changes and replay them in the datastore by removing and updating the data.
 
