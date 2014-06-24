@@ -56,6 +56,50 @@ The xml retriever is the opposite of the xml persister and should use the same u
 === Json retriever ===
 The json retriever is the opposite of the json persister and should use the same utility code for transformation.
 
+== Persistance format ==
+The persisters will receive data change events in form of AsyncDataChangeEvent<InstanceIdentifier, NormalizedNode<?, ?>>. This event contains following data:
+* Map<InstanceIdentifier, NormalizedNode> of original data
+* Original data subtree
+* Set<InstanceIdentifier> of removed paths
+* Map<InstanceIdentifier, NormalizedNode> of updated data
+* Updated data subtree
+* Map<InstanceIdentifier, NormalizedNode> of created data
+
+Theoretically, there are 2 ways for persisting data:
+# The whole updated subtrees (not possible for entire datastore)
+# Diffs
+
+We suggest to go with the 1<sup>st</sup> way for the initial version.
+
+=== Whole subtree ===
+With this option, the persisters would persist the changes in form of snapshots of the entire data tree. The entire subtree in form of NormalizedNode would be transformed into human readable format e.g. xml as a whole and stored in the file. 
+
+The replay function would be pretty straightforward to implement and only replace the whole datastore with last snapshot. However if trying to debug and providing hand crafted snapshot, users would have to craft the whole snapshot instead of a diff (when considering the same format for persist and replay).
+
+Note: currently the data change listeners do not receive the whole subtree if they listen on the entire datastore and this prevents us from going with this option.
+
+Pros:
+* Easy transformation of the data tree
+* Easy to implement
+
+Cons:
+* Lots of data to store
+* Hard to hand craft persisted data change for the replay function
+* UPDATED SUBTREE NOT PRESENT IN DATA CHANGE EVENT WHEN LISTENING ON ROOT
+
+=== Diffs ===
+With this option, the persisters would persist the changes in form of a structure containing collections of removed, updated and created data (or possibly just 2 collections: removed, changed). This would require custom structure/format in order to persist the data since we need to persist the InstanceIdentifiers for the removed data. Also the diffs come in the form of maps and we would have to transform these maps into the human readable tree form e.g. xml. 
+
+The replay function would have to process all the persisted changes and replay them in the datastore by removing and updating the data.
+
+Pros:
+* Fewer data to store
+* Easy to hand craft a diff to change the data in data store using replay function
+
+Cons:
+* Different format of persisted data when compared to data in datastore
+* Custom transformation and processing of data change event required
+
 == Dependencies from MD-SAL ==
 The tracer requires following dependencies from md-sal:
 * Datastore
