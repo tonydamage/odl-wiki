@@ -100,6 +100,74 @@ Cons:
 * Different format of persisted data when compared to data in datastore
 * Custom transformation and processing of data change event required
 
+==== Persisted file format ====
+As we mentioned earlier, the diffs in data change event are present in form of:
+# map containing created data
+# map containing updated data
+# set containing Instance identifiers for removed data
+
+Example of map containing created data from data change event for adding data under '''nodes/node''' :
+Data added to datastore in xml form:
+<source>
+<nodes xmlns="urn:opendaylight:inventory">
+  <node>
+    <id>controller-config</id>
+  </node>
+</nodes>
+</source>
+
+Data in notification:
+<source>
+(urn:opendaylight:inventory?revision=2013-08-19)nodes
+ImmutableContainerNode{nodeIdentifier=(urn:opendaylight:inventory?revision=2013-08-19)nodes, value=[ImmutableMapNode{nodeIdentifier=(urn:opendaylight:inventory?revision=2013-08-19)node, value=[ImmutableMapEntryNode{nodeIdentifier=(urn:opendaylight:inventory?revision=2013-08-19)node[{(urn:opendaylight:inventory?revision=2013-08-19)id=controller-config}], value=[ImmutableLeafNode{nodeIdentifier=(urn:opendaylight:inventory?revision=2013-08-19)id, value=controller-config, attributes={}}], attributes={}}]}], attributes={}}, 
+
+(urn:opendaylight:inventory?revision=2013-08-19)nodes/(urn:opendaylight:inventory?revision=2013-08-19)node
+ImmutableMapNode{nodeIdentifier=(urn:opendaylight:inventory?revision=2013-08-19)node, value=[ImmutableMapEntryNode{nodeIdentifier=(urn:opendaylight:inventory?revision=2013-08-19)node[{(urn:opendaylight:inventory?revision=2013-08-19)id=controller-config}], value=[ImmutableLeafNode{nodeIdentifier=(urn:opendaylight:inventory?revision=2013-08-19)id, value=controller-config, attributes={}}], attributes={}}]}, 
+
+(urn:opendaylight:inventory?revision=2013-08-19)nodes/(urn:opendaylight:inventory?revision=2013-08-19)node/(urn:opendaylight:inventory?revision=2013-08-19)node[{(urn:opendaylight:inventory?revision=2013-08-19)id=controller-config}]/(urn:opendaylight:inventory?revision=2013-08-19)id
+ImmutableLeafNode{nodeIdentifier=(urn:opendaylight:inventory?revision=2013-08-19)id, value=controller-config, attributes={}}, 
+
+(urn:opendaylight:inventory?revision=2013-08-19)nodes/(urn:opendaylight:inventory?revision=2013-08-19)node/(urn:opendaylight:inventory?revision=2013-08-19)node[{(urn:opendaylight:inventory?revision=2013-08-19)id=controller-config}]=ImmutableMapEntryNode{nodeIdentifier=(urn:opendaylight:inventory?revision=2013-08-19)node[{(urn:opendaylight:inventory?revision=2013-08-19)id=controller-config}], value=[ImmutableLeafNode{nodeIdentifier=(urn:opendaylight:inventory?revision=2013-08-19)id, value=controller-config, attributes={}}], attributes={}}
+</source>
+
+The persisted file for this data change would look like this (for xml):
+<source>
+<merged>
+  <nodes xmlns="urn:opendaylight:inventory">
+    <node>
+      <id>controller-config</id>
+    </node>
+  </nodes>
+</merged>
+<deleted>
+  <!-- List of instance identifiers from removed -->
+</deleted>
+<source>
+
+Note: The data change event contains created data entry also for nested elements. The persisters could ignore these nested elements and persist only their root element.
+
+Now assume that the node element gets deleted in the datastore. The notification would contain Set of removed paths:
+<source>
+(urn:opendaylight:inventory?revision=2013-08-19)nodes/(urn:opendaylight:inventory?revision=2013-08-19)node/(urn:opendaylight:inventory?revision=2013-08-19)node[{(urn:opendaylight:inventory?revision=2013-08-19)id=controller-config}]/(urn:opendaylight:inventory?revision=2013-08-19)id, 
+
+(urn:opendaylight:inventory?revision=2013-08-19)nodes/(urn:opendaylight:inventory?revision=2013-08-19)node/(urn:opendaylight:inventory?revision=2013-08-19)node[{(urn:opendaylight:inventory?revision=2013-08-19)id=controller-config}]
+</source>
+
+The persisted file for this data change would look like this (for xml):
+<source>
+<merged>
+</merged>
+<deleted>
+  <nodes xmlns="urn:opendaylight:inventory">
+    <node>
+      <id>controller-config</id>
+    </node>
+  </nodes> 
+</deleted>
+</source>
+
+Note: The data change event contains removed path also for nested elements. The persisters could ignore these nested elements and persist only their root element.
+
 == Dependencies from MD-SAL ==
 The tracer requires following dependencies from md-sal:
 * Datastore
