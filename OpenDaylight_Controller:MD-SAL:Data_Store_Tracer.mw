@@ -106,7 +106,9 @@ As we mentioned earlier, the diffs in data change event are present in form of:
 # map containing updated data
 # set containing Instance identifiers for removed data
 
-Example of map containing created data from data change event for adding data under '''nodes/node''' :
+The following cases showcase different changes to datastore and how the persisted file should look like:
+
+===== Create =====
 Data added to datastore in xml form:
 <source>
 <nodes xmlns="urn:opendaylight:inventory">
@@ -132,20 +134,61 @@ ImmutableLeafNode{nodeIdentifier=(urn:opendaylight:inventory?revision=2013-08-19
 
 The persisted file for this data change would look like this (for xml):
 <source>
-<merged>
+<changed>
   <nodes xmlns="urn:opendaylight:inventory">
     <node>
       <id>controller-config</id>
     </node>
   </nodes>
-</merged>
+</changed>
 <deleted>
   <!-- List of instance identifiers from removed -->
 </deleted>
 </source>
 
 Note: The data change event contains created data entry also for nested elements. The persisters could ignore these nested elements and persist only their root element.
+Note: Every modified subtree would be present under the '''changed''' element.
 
+===== Update =====
+Updating node controller-config in datastore by adding node-connector to it:
+<source>
+<node>
+  <id>controller-config</id>
+  <node-connector>
+    <id>nc</id>
+  </node-connector>
+</node>
+</source>
+
+The data change event contains following data in updated data map:
+<source>
+Key:
+(urn:opendaylight:inventory?revision=2013-08-19)nodes/(urn:opendaylight:inventory?revision=2013-08-19)node/(urn:opendaylight:inventory?revision=2013-08-19)node[{(urn:opendaylight:inventory?revision=2013-08-19)id=controller-config}]
+
+Value:
+ImmutableMapEntryNode{nodeIdentifier=(urn:opendaylight:inventory?revision=2013-08-19)node[{(urn:opendaylight:inventory?revision=2013-08-19)id=controller-config}], value=[ImmutableLeafNode{nodeIdentifier=(urn:opendaylight:inventory?revision=2013-08-19)id, value=controller-config, attributes={}}, ImmutableMapNode{nodeIdentifier=(urn:opendaylight:inventory?revision=2013-08-19)node-connector, value=[ImmutableMapEntryNode{nodeIdentifier=(urn:opendaylight:inventory?revision=2013-08-19)node-connector[{(urn:opendaylight:inventory?revision=2013-08-19)id=nc}], value=[ImmutableLeafNode{nodeIdentifier=(urn:opendaylight:inventory?revision=2013-08-19)id, value=nc, attributes={}}], attributes={}}]}], attributes={}}
+</source>
+
+The persisted file for this data change would look like this (for xml):
+<source>
+<changed>
+  <nodes xmlns="urn:opendaylight:inventory">
+    <node>
+      <id>controller-config</id>
+      <node-connector>
+        <id>nc</id>
+      </node-connector>
+    </node>
+  </nodes>
+</changed>
+<deleted>
+  <!-- List of instance identifiers from removed -->
+</deleted>
+</source>
+
+Note: The format would not make differences to created and updated data.
+
+===== Delete =====
 Now assume that the node element gets deleted in the datastore. The notification would contain Set of removed paths:
 <source>
 (urn:opendaylight:inventory?revision=2013-08-19)nodes/(urn:opendaylight:inventory?revision=2013-08-19)node/(urn:opendaylight:inventory?revision=2013-08-19)node[{(urn:opendaylight:inventory?revision=2013-08-19)id=controller-config}]/(urn:opendaylight:inventory?revision=2013-08-19)id, 
@@ -155,8 +198,8 @@ Now assume that the node element gets deleted in the datastore. The notification
 
 The persisted file for this data change would look like this (for xml):
 <source>
-<merged>
-</merged>
+<changed>
+</changed>
 <deleted>
   <nodes xmlns="urn:opendaylight:inventory">
     <node>
