@@ -1,0 +1,18 @@
+== Packet Handler ==
+1. packet decoding infrastructure that has base class for all decoders.<br />
+2. yang models and decoders for Ethernet, ARP, IPV4, IPV6.<br />
+
+== Address Tracker ==
+1. Yang model that augments inventory node connector to store address observations.  <br />
+2. currently it would store  mac, Ip and vlan observed on each node connector.<br />
+
+== Network Loop Elimination  ==
+1. Augment node connector to have a spanning tree state (Discarding, Forwarding)<br />
+2. listen to topology changes and compute the MST based on current topology and update the node connector augmentation with appropriate state. (Discarding, Forwarding)  <br />
+3. For MST it assumes the cost of each link is same at this time.<br />
+
+== L2 Switch Main ==
+1. Track address: a module that leverages address tracker model to store the observations in inventory tree by listening to ARP, IPV4, and IPV6 packets.<br />
+2. Transmit packet back: it would transmit the packet back to switch using node connectors that are in 'Forwarding' state.<br />
+3. write flows: Writes flow to the switch if both src and dest mac is known in "ARP, IPV4, and IPV6" packets that it consumed in point 1.<br />
+4. Delete flows: Listen to augmented node connector data changes for state change, and delete flows forwarding to a node that is marked as "Discarding" <br />
