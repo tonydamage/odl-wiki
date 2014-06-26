@@ -166,7 +166,7 @@ The following mode of enforcement are defined:
 
 === Source EPG & L2/L3 Domain Selection ===
 
-The sEPG is determined based on a separate flow table which maps known OpenFlow port numbers and tunnel identifiers to a locally unique sEPG ID. The sEPG ID is stored in register NXM_NX_REG1 for later use in the pipeline. At the same time, the L2 and L3 domain is determined and stored in register NXM_NX_REG2.
+The sEPG is determined based on a separate flow table which maps known OpenFlow port numbers and tunnel identifiers to a locally unique sEPG ID. The sEPG ID is stored in register NXM_NX_REG1 for later use in the pipeline. At the same time, the L2 and L3 context is determined and stored in register NXM_NX_REG2.
 
 {| class="wikitable"
 |-
@@ -175,26 +175,34 @@ The sEPG is determined based on a separate flow table which maps known OpenFlow 
 | <tt>table=SEPG_TABLE</tt> || Flow must be in sEPG selection table
 |-
 | <tt>in_port=$OFPORT</tt> || Flow must match on incoming port
+|-
+| <tt>tun_id=$VNI</tt> || If in_port is a tunnel, flow must match on tunnel ID
 |}
 
 The actions performed are:
-# Write sEPG ID corresponding to incoming port to register
-# Write L2/L3 domain corresponding to incoming port to register
+# Write sEPG ID corresponding to incoming port or tunnel ID to register
+# Write L2/L3 context ID corresponding to incoming port or tunnel ID to register
 # Proceed to dEPG selection
 
+An example flow to map a local port to an sEPG:
  <nowiki>
 table=SEPG_FILTER, in_port=$OFPORT
 actions=load:$SEPG->NXM_NX_REG1[],
         load:$BD->NXM_NX_REG2[],
         goto_table:$DEPG_FILTER</nowiki>
 
-XXX: Add Overlay tunnel example [[User:Tgraf|tgraf]] ([[User talk:Tgraf|talk]]) 09:34, 24 June 2014 (UTC)
+An example flow to map a tunnel ID to an sEPG:
+ <nowiki>
+table=SEPG_FILTER, in_port=TUNNEL_PORT, tun_id=$VNI1,
+actions=load:$SEPG1->NXM_NX_REG1[],
+        load:$BD->NXM_NX_REG2[],
+        goto_table:$DEPG_FILTER</nowiki>
 
 A flow hit means that the sEPG is known and the pipeline should proceed to the next stage.
 
 A flow miss means that we have received a packet from an unknown EPG:
-# If the packet was received on a local port then this corresponds to the discovery of a new EP for which the Port to EPG mapping has not been populated yet. (XXX: Packet-in? [[User:Tgraf|tgraf]] ([[User talk:Tgraf|talk]]) 09:34, 24 June 2014 (UTC))
-# If the packet was received from a tunnel then this corresponds to a packet for which we have not populated the tunnel ID to EGP mapping yet. (XXX: Packet-in? [[User:Tgraf|tgraf]] ([[User talk:Tgraf|talk]]) 09:34, 24 June 2014 (UTC))
+# If the packet was received on a local port then this corresponds to the discovery of a new EP for which the Port to EPG mapping has not been populated yet. If the network is learned, generate a packet-in to trigger policy resolution, otherwise drop the packet.
+# If the packet was received from a tunnel then this corresponds to a packet for which we have not populated the tunnel ID to EGP mapping yet. If the network is learned, generate a packet-in to trigger policy resolution, otherwise drop the packet.
 
 === Broadcasting / Multicasting ===
 Packets sent to the MAC broadcast addresss (<tt>ff:ff:ff:ff:ff:ff</tt>) must be flooded to all ports belonging to the broadcast domain. This is '''not''' equivalent to the OVS flood action as multiple broadcast domains reside on the same switch. The respective broadcast domains are modeled using OpenFlow group tables as follows:
