@@ -83,16 +83,37 @@ Here is a simplified high-level view of what happens to packets in this network 
 === Register Usage ===
 The processing pipeline needs to store metadata such as the sEPG, dEPG, and broadcast domain. This metadata can be stored in any way supported by the switch. OpenFlow provides a dedicated 64 bit metadata field, Open vSwitch additionally provides multiple 32 bit registers in form of Nicira Extensions. The following examples will use Nicira extensions for simplicity. The choice of register usage is an implementation detail of the renderer.
 
-==== Example Register Allocation ====
+==== Option 1: Register allocation using Nicira Extensions ====
 
-;<tt>NXM_NX_REG1</tt>
-: Source Endpoint Group (sEPG) ID
-;<tt>NXM_NX_REG2</tt>
-: L2/L3 Domain - Broadcast / Routing domain
-;<tt>NXM_NX_REG3</tt>
-: Destination Endpoint Group (dEPG) ID
-;<tt>NXM_NX_REG4</tt>
-: Port number to send packet to after policy enforcement. This is required because port selection occurs before policy enforcement in the pipeline.
+{| class="wikitable"
+|-
+! Register !! Value
+|-
+| <tt>NXM_NX_REG1</tt> || Source Endpoint Group (sEPG) ID
+|-
+| <tt>NXM_NX_REG2</tt> || L2/L3 Domain - Broadcast / Routing context
+|-
+| <tt>NXM_NX_REG3</tt> || Destination Endpoint Group (dEPG) ID
+|-
+| <tt>NXM_NX_REG4</tt> || Port number to send packet to after policy enforcement. This is required because port selection occurs before policy enforcement in the pipeline.
+|}
+
+==== Option 2: Register allocation using OpenFlow metadata ====
+
+OpenFlow offers a single 64 bit register which can be used to store sEPG, dEPG, and BD throughout the lookup process alternatively. The advantage over using Nicira extensions is better portability and offload capability to hardware.
+
+{| class="wikitable"
+|-
+! Register !! Value
+|-
+| metadata[0..15] || Source Endpoint Group (sEPG) ID
+|-
+| metadata[16..31] || Destination Endpoint Group (dEPG) ID
+|-
+| metadata[32..47] || L2/L3 Domain - Broadcast / Routing context
+|-
+| metadata[48..63] || Port number to send packet to after policy enforcement. This is required because port selection occurs before policy enforcement in the pipeline.
+|}
 
 === Table/Pipeline Names and Order ===
 In order to increase readability, the following table names are used in the following sections. Their order in the pipeline is as follows:
