@@ -361,7 +361,7 @@ actions=load:$DEPG->NXM_NX_REG3[],
         dec_ttl,
         goto_table:$POLICY_ENFORCER</nowiki>
 
-=== Policy Enforcement ===
+=== Policy Enforcement & Packet Rewrite ===
 Given the sEPG, BD/VRF, and dEPG are known at this point, the policy is enforced in a separate flow table by matching on the sEPG and dEPG as found in the respective registers. Additional filters may be provided as specified by the policy. The OpenFlow actions represent the actions as required by the policy.
 
 {| class="wikitable"
@@ -375,10 +375,13 @@ Given the sEPG, BD/VRF, and dEPG are known at this point, the policy is enforced
 | <tt>reg3=$DEPG</tt> || Must match on dEPG of packet
 |}
 
-The actions performed are:
-# Perform eventual additional actions as specified in policy
-# Forward packet to port as previously selected in the dEPG selection stage.
+The policy may require to match on additional fields such as source ports, labels, or conditions.
 
+The actions performed on flow hit:
+# Execute action set as prepared by the pipeline
+# Execute additional actions as specified by policy such as service insertion or QoS settings
+
+Basic example flow to allow an sEPG talk to a dEPG:
  <nowiki>
 table=$POLICY_ENFORCER reg1=$SEPG, reg3=$DEPG,
 actions=output:NXM_NX_REG4[]</nowiki>
@@ -389,9 +392,6 @@ table=$POLICY_ENFORCER reg1=$SEPG, reg3=$DEPG, tcp_dst=DPORT/MASK,
 actions=output:NXM_NX_REG4[]</nowiki>
 
 A flow miss indicates that the policy prohibits communication and packet must be dropped.
-
-==== QoS ====
-XXX TODO
 
 == Service Insertion ==
 XXX TODO
