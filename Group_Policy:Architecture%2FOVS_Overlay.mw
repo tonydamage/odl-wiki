@@ -263,7 +263,24 @@ actions=move:NXM_OF_ETH_SRC[]->NXM_OF_ETH_DST[],
         in_port</nowiki>
 
 ==== ARP Optimization ====
-XXX TODO
+
+[[File:Gbp ovs arp optimization.png|400px|thumb|right]]
+
+As the MAC / IP pairing of endpoints is known in the network. ARP requests can be optimized and translated into unicasts. While it is possible to have a local vSwitch become an ARP responder directly, the unicast translation offers a minimal aliveness check within the scope of the L2 context.
+
+A flow is inserted into the sEPG selection table as follow:
+ <nowiki>
+priority=10, arp, arp_op=1, dl_dst=ff:ff:ff:ff:ff:ff, actions=controller</nowiki>
+
+As the ARP request is received, the packet is sent to the controller. The controller/agent resolves the MAC address to the IP address and inserts a new DNAT flow to translate subsequent ARP requests for the same transport address directly in the vSwitch:
+
+ <nowiki>
+priority=20, arp, arp_op=1, dl_dst=ff:ff:ff:ff:ff:ff,
+  actions=mod_dl_dst:$MAC, output:$OFPORT</nowiki>
+
+The ''OFPORT'' is either a local port or the tunnel port. The latter case requires to additional set the tunnel ID as described in previous sections.
+
+The controller/agent then reinjects the original ARP request back into the network via a packet-out OpenFlow message.
 
 ==== DHCP Interception ====
 XXX TODO
