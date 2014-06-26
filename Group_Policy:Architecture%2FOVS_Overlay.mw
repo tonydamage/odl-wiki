@@ -267,9 +267,7 @@ XXX TODO
 === Destination EPG Selection (L2) ===
 The dEPG selection is performed after the sEPG has been determined. The mapping occurs in its own flow table which contains both L2 and L3 flow entries. This section explains L2 processing, L3 processing is described in the next section.
 
-The purpose of flow entries in this table is to map known destination MAC addresses in a specific L2 broadcast domain to a dEPG and to prepare the action set for execution after policy enforcement.
-
-The flow also maps the dMAC to the outgoing port for both local and tunnel ports. Flows points to a tunnel port additionally contain an action to set the tunnel ID.
+The purpose of flow entries in this table is to map known destination MAC addresses in a specific L2 context to a dEPG and to prepare the action set for execution after policy enforcement.
 
 {| class="wikitable"
 |-
@@ -286,19 +284,29 @@ The flow also maps the dMAC to the outgoing port for both local and tunnel ports
 
 The actions performed are:
 # Write dEPG ID corresponding to dMAC to register to allow matching on it during policy enforcement
-# Write expected outgoing port number to register. This can be a local port or a tunnel.
-# XXX: Set tunnel ID on packet if packet is to be sent over a tunnel.
+# Write expected outgoing port number to register. This can be a local or a tunnel port.
+# If outgoing port is a tunnel, also include an action to set the tunnel ID and tunnel destination to map the sEPG to the tunnel ID.
 # Proceed to policy enforcement
 
+Example flow for a local endpoint mapping:
  <nowiki>
 table=$DEPG_FILTER, reg2=$BD, dl_dst=$MAC,
 actions=load:$DEPG->NXM_NX_REG3[],
         load:$OFPORT->NXM_NX_REG4[],
         goto_table:$ENFORCER_TABLE</nowiki>
 
+Example flow for a remote endpoint mapping:
+ <nowiki>
+table=$DEPG_FILTER, reg2=$BD, dl_dst=$MAC,
+actions=load:$DEPG->NXM_NX_REG3[],
+        load:$TUNNEL_PORT->NXM_NX_REG4[],
+        move:NXM_NX_REG1[]->NXM_NX_TUN_ID[],
+        load:$TUNNEL_DST->NXM_NX_TUN_IPV4_DST[],
+        goto_table:$ENFORCER_TABLE</nowiki>
+
 A flow hit indicates that both the sEPG and dEPG are known at this point at the packet can proceed to policy enforcement.
 
-A flow miss indicates that the dEPG is not known. (XXX: packet-in? [[User:Tgraf|tgraf]] ([[User talk:Tgraf|talk]]) 10:34, 24 June 2014 (UTC))
+A flow miss indicates that the dEPG is not known. If the network is in learning mode, generate a packet-in, otherwise drop the packet.
 
 === Destination EPG Selection (L3) ===
 Much like L2 flows in the dEPG selection table, L3 flows map known destination IP addresses to the corresponding dEPG and outgoing port number.
