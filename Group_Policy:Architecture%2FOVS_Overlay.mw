@@ -71,15 +71,22 @@ For the first implementation, we'll stick with the DNAT scheme and consider impl
 == Packet Processing Pipeline ==
 [[File:Gbp ovs pipeline.png|500px|frameless|right]]
 Here is a simplified high-level view of what happens to packets in this network when it hits an OVS instance:
+# If data and management network are shared, determine whether packet is targeted for the host system. If so, reinject into host networking stack.
 # Apply port security rules if enabled on the port to determine if the source identifiers (MAC and IP) are allowed on the port
-# Determine the source endpoint group based on the tunnel ID from the from the outer packet or based on source port and source identifiers as configured.  Unknown source identifiers may result in a packet-in if the network is doing learning.  XXX - sEPG can't come from tunnel ID!  Need to feed this through a separate pathway since the policy is applied on ingress
+#* For packets received from the overlay: Determine the source endpoint group (sEPG) based on the tunnel ID from the outer packet header.
+#* For packets received from local ports: Determine sEPG based on source port and source identifiers as configured.
+#* Unknown source identifiers may result in a packet-in if the network is doing learning.
 # Handle broadcast and multicast packets while respecting broadcast domains.
 # Catch any special packet types that are handled specially.  This could include ARP, DHCP, or LLDP.  How these are handled may depend on the specific renderer implementation.
-# Determine whether the packet will be bridged or routed.  If the destination MAC address is the default gateway MAC, then the packet will be routed, otherwise it will be bridged.
-# Determine the destination endpoint group.  For bridged packets, use the destination MAC address.  For routed packets, use the destination IP address.
+# Determine whether the packet will be bridged or routed. If the destination MAC address is the default gateway MAC, then the packet will be routed, otherwise it will be bridged.
+# Determine the destination endpoint group (dEPG) and outgoing port or next hop.
+#* For bridged packets (L2): Determine based on the destination MAC address.
+#* For routed packets (L3): Determine based on the destination IP address.
 # Apply the appropriate set of policy rules based on the active subjects for that flow.  We can bypass this step if the tunnel metadata indicates hat the policy has been applied at the source.
-# Apply a routing action if needed by modifying the destination MAC and decrementing the TTL.  The routing action to apply depends on if the destination is remote or local.  For local destinations, rewrite the destination MAC to the MAC address for the connected endpoint.  For remote destinations, rewrite the destination MAC to the default gateway MAC.
-# Determine the next hop for the flow and deliver it.  If the next hop is a local port, then it is delivered as is.  If the next hop is not local, then the packet is encapsulated and the tunnel ID is set to the network identifier for the destination endpoint group.  If the packet is a layer 2 broadcast packet, then it will need to be written to the correct set of ports, which might be a combination of local and remote ports.
+# Apply a routing action if needed by modifying the destination and source MAC and decrementing the TTL. 
+#* For local destination: Rewrite the destination MAC to the MAC address for the connected endpoint, source MAC to the MAC of the default gateway.
+#* For remote destinations: Rewrite the destination MAC to the MAC of the next hop, source MAC to the MAC of the default gateway.
+# If the next hop is a local port, then it is delivered as-is.  If the next hop is not local, then the packet is encapsulated and the tunnel ID is set to the network identifier for the source endpoint group (sEPG).  If the packet is a layer 2 broadcast packet, then it will need to be written to the correct set of ports, which might be a combination of local and multiple remote tunnel endpoints.
 
 === Register Usage ===
 The processing pipeline needs to store metadata such as the sEPG, dEPG, and broadcast domain. This metadata can be stored in any way supported by the switch. OpenFlow provides a dedicated 64 bit metadata field, Open vSwitch additionally provides multiple 32 bit registers in form of Nicira Extensions. The following examples will use Nicira extensions for simplicity. The choice of register usage is an implementation detail of the renderer.
