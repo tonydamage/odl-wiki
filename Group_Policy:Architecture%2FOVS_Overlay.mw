@@ -329,21 +329,36 @@ Additionally, flow hits will result in a routing action performed.
 |}
 
 The actions performed are:
-# Write dEPG ID corresponding to dSubnet to register to allow matching on it during policy enforcement
-# Write expected outgoing port number to register. This can be a local port or a tunnel.
-# Modify dMAC to the nexthop. The nexthop can be the MAC of the EP or an intermediate node.
+# Write dEPG ID corresponding to destination subnet to register to allow matching on it during policy enforcement
+# Write expected outgoing port number to register. This can be a local or a tunnel port
+# If outgoing port is a tunnel, also include an action to set the tunnel ID and tunnel destination to map the sEPG to the tunnel ID.
+# Modify destination MAC to the nexthop. The nexthop can be the MAC of the EP or another router.
+# Set source MAC to MAC of local default gateway
 # Decrement TTL
-# Set sMAC to MAC of gateway
-# XXX: Set tunnel ID on packet if packet is to be sent over a tunnel.
 # Proceed to policy enforcement
+
+Example flow for a local endpoint over L3:
 
  <nowiki>
 table=DEPG_TABLE, reg2=$BD, dl_dst=$ROUTER_MAC, ip, nw_dst=$PREFIX,
 actions=load:$DEPG->NXM_NX_REG3[],
         load:$OFPORT->NXM_NX_REG4[],
-        mod_dl_dst:$NEXTHOP,
+        mod_dl_dst:$DST_EP_MAC,
+        mod_dl_src:$OWN_ROUTER_MAC,
         dec_ttl,
-        mod_dl_src:$ROUTER_MAC,
+        goto_table:$POLICY_ENFORCER</nowiki>
+
+Example flow for a remote endpoint over L3:
+
+ <nowiki>
+table=DEPG_TABLE, reg2=$BD, dl_dst=$ROUTER_MAC, ip, nw_dst=$PREFIX,
+actions=load:$DEPG->NXM_NX_REG3[],
+        load:$TUNNEL_PORT->NXM_NX_REG4[],
+        move:NXM_NX_REG1[]->NXM_NX_TUN_ID[],
+        load:$TUNNEL_DST->NXM_NX_TUN_IPV4_DST[],
+        mod_dl_dst:$NEXTHOP,
+        mod_dl_src:$OWN_ROUTER_MAC,
+        dec_ttl,
         goto_table:$POLICY_ENFORCER</nowiki>
 
 === Policy Enforcement ===
