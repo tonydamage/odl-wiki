@@ -114,7 +114,53 @@ This proposal requires no 'hard' Release Vehicles, because we provide exactly th
 
 == Testing Strategy ==
 
-If testing is defined feature-wise (which it probably should be) then a given FeatureTest can be run against two configurations:
-
-# feature:install <just the feature> - which confirms that the feature works as only what it claims to need is installed in the container.
-# feature:install <everything> - which confirms that it works in the presence of other features
+Testing of multiple features and combinations can easily be done via PAX-Exam using Karaf based extensions to PAX-Exam 3...
+<code>
+@RunWith(PaxExam.class)
+public class DefaultServiceIT {
+ 
+    @Inject
+    private BundleContext bundleContext;
+ 
+    @Inject
+    private ConfigurationAdmin configurationAdmin;
+ 
+    @Configuration
+    public Option[] config() {
+        return new Option[] {
+                // Provision and launch a container based on a distribution of Karaf (Apache ServiceMix).
+                karafDistributionConfiguration()
+                    .frameworkUrl(
+                             maven()
+                                     .groupId("org.opendaylight.controller")
+                                     .artifactId("distribution-karaf")
+                                     .type("zip")
+                                     .version("0.4.2"))
+                    .karafVersion("3.0.1")
+                    .name("OpenDaylight")
+                    .unpackDirectory(new File("target/pax"))
+                    .useDeployFolder(false),
+                // It is really nice if the container sticks around after the test so you can check the contents
+                // of the data directory when things go wrong.
+                keepRuntimeFolder(),
+                // Don't bother with local console output as it just ends up cluttering the logs
+                configureConsole().ignoreLocalConsole(),
+                // Force the log level to INFO so we have more details during the test.  It defaults to WARN.
+                logLevel(LogLevel.INFO),
+                // Provision the example feature exercised by this test
+                features(
+                        "mvn:org.opendaylight.controller/features-base/0.6.2-SNAPSHOT/xml/features",
+                        "odl-base-all"),
+                // Remember that the test executes in another process.  If you want to debug it, you need
+                // to tell Pax Exam to launch that process with debugging enabled.  Launching the test class itself with
+                // debugging enabled (for example in Eclipse) will not get you the desired results.
+                //debugConfiguration("5000", true),
+                };
+    }
+ 
+    @Test
+    public void test() throws Exception {
+ 
+        ...
+    }
+</code>
