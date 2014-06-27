@@ -46,8 +46,6 @@ When the endpoints are located on different switches, we need to use the overlay
 
 When the encapsulated packet arrives on the other side, the destination vSwitch inspects the metadata of the encapsulation header to see if the policy has been applied already. If the policy has not been applied or if the encapsulation protocol does not support carrying of metadata, the policy must be applied at the destination vSwitch. The packet can now be delivered to the destination endpoint.
 ==== Bridging and Routing ====
-XXX add diagrams here
-
 The system will transparently handle bridging or routing as required.  Bridging occurs between endpoints in the same layer 2 context, while routing will generally be needed for endpoints in different layer 2 contexts.  More specifically, a packet needs to be routed if it is addressed to the gateway MAC address.  We can simply use a fixed MAC address to serve as the gateway everywhere.  Packets addressed to any other MAC address can be bridged.
 
 Bridged packets are easy to handle, since we don't need to do anything special to them to deliver them to the destination.  They can be simply delivered unmodified.
@@ -59,7 +57,7 @@ When routing to an endpoint on a different switch, we'll actually perform routin
 The vSwitch on each host must respond to local ARP requests for the gateway IP address and return a logical MAC address representing the L3 gateway.
 
 ==== Communicating with Outside Hosts ====
-XXX add diagrams
+[[File:Overlay design red to outside.png|framed|Figure 3: Communicating with outside endpoints requires some special challenges.  In this example, the red endpoint is communicating with an endpoint on the internet through a gateway router.  The traffic goes through a DNAT translation to an IP allocated to the endpoint for this purpose.  The IP communication can then be delivered through the IP underlay network.]]
 
 Everything up until now is quite simple, but it's possible to conceive of situations where endpoints in our network need to communicate over the internet or with other endpoints outside the overlay network.  There are two broad approaches for handling this.  In both cases, we allow such access only via layer 3 communication.
 
@@ -70,7 +68,7 @@ Second, we can use a DNAT scheme to allow access to endpoints that are reachable
 For the first implementation, we'll stick with the DNAT scheme and consider implementing the gateway-based or other solution.
 
 == Packet Processing Pipeline ==
-[[File:Gbp ovs pipeline.png|framed|right|Figure 3: The pipeline for processing packets in the data plane is shown.  The port security feature is shown with a dotted outline to indicate that it is optional.]]
+[[File:Gbp ovs pipeline.png|framed|right|Figure 4: The pipeline for processing packets in the data plane is shown.  The port security feature is shown with a dotted outline to indicate that it is optional.]]
 Here is a simplified high-level view of what happens to packets in this network when it hits an OVS instance:
 # If data and management network are shared, determine whether packet is targeted for the host system. If so, reinject into host networking stack.
 # Apply port security rules if enabled on the port to determine if the source identifiers (MAC and IP) are allowed on the port
