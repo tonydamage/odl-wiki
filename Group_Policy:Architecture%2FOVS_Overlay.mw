@@ -37,6 +37,7 @@ Whenever traffic between two guests is in the network, it will be encapsulated u
 
 === Delivering Packets ===
 [[File:Overlay design blue to red tunnel.png|framed|Figure 2: In this example, we show the path of traffic from the blue guest 192.168.2.3 and the red guest 192.168.1.2.  The traffic is encapsulated in a tunnel marked with the blue endpoint group's VNI while in transit between the two switches.  Because two endpoints are in different subnets, the traffic is routed in two hops: one the source switch and one on the destination switch.]]
+[[File:Overlay design red to outside.png|framed|Figure 3: Communicating with outside endpoints requires some special challenges.  In this example, the red endpoint is communicating with an endpoint on the internet through a gateway router.  The traffic goes through a DNAT translation to an IP allocated to the endpoint for this purpose.  The IP communication can then be delivered through the IP underlay network.]]
 Endpoints can communicate with each other in a number of different ways, and each is processed slightly differently.  Endpoint groups exist inside a particular layer 2 or layer 3 context which represents a namespace for their network identifiers.  It's only possible for endpoints to address endpoints within the same context, so no communication is possible for endpoints in different layer 3 contexts, and only layer 3 communication is possible for endpoints in different layer 2 contexts.
 
 ==== Overlay Tunnels ====
@@ -57,8 +58,6 @@ When routing to an endpoint on a different switch, we'll actually perform routin
 The vSwitch on each host must respond to local ARP requests for the gateway IP address and return a logical MAC address representing the L3 gateway.
 
 ==== Communicating with Outside Hosts ====
-[[File:Overlay design red to outside.png|framed|Figure 3: Communicating with outside endpoints requires some special challenges.  In this example, the red endpoint is communicating with an endpoint on the internet through a gateway router.  The traffic goes through a DNAT translation to an IP allocated to the endpoint for this purpose.  The IP communication can then be delivered through the IP underlay network.]]
-
 Everything up until now is quite simple, but it's possible to conceive of situations where endpoints in our network need to communicate over the internet or with other endpoints outside the overlay network.  There are two broad approaches for handling this.  In both cases, we allow such access only via layer 3 communication.
 
 First, we can map physical interfaces on an OVS system into the overlay network.  If a router interface is attached either directly to a physical interface or indirectly via an isolated network, then the router interface can be easily exposed as an endpoint in the network.  Endpoints can then communicate with this router interface (perhaps after some intermediate routing via the distributed routing scheme described above) and from there get to the rest of the world.  Dedicated OVS systems can be this configured as gateway devices into the overlay network which will then be needed for any of this north/south communication.  This has the advantage of being very conceptually simple but requires special effort to load balance the traffic effectively.
