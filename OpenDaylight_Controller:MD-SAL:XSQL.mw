@@ -111,6 +111,13 @@ Now let's start filtering and select all the ports that has "FA" in their hardwa
   |openflow:11      |openflow:11:3|52:42:FA:E2:8B:FF|
   Total Number Of Records=3
 
+== Exporting to CSV format file ==
+You can specify to export the data to a CSV formatted file, do this by writing "tocsv" on the xsql prompt, e.g.:
+  XSQL>tocsv
+  to csv file is true
+
+To return back to regular output to the screen, just write again "tocsv" and it will be turned off.
+
 == Supported Syntax And Criteria Operands ==
 The XSQL isn't fully ISO compatible to the SQL query, but it contains an initial syntax that supports querying and filtering data. If it will be picked up by the community, further implementation of the SQL ISO elements will be added depending on requirements and timelines. HOWEVER, let's review what is there...:o)
 
@@ -147,3 +154,64 @@ The supported criteria operations are as follows:
   *  "not null" to specify if a vfield is not "null".
 
 you can also use round brackets (e.g. "(" & ")"), but i am sorry to say i haven't tested it that good...:o)
+
+== Using the JDBC ==
+Using the JDBC is straightforward, just create a new java project in your favorite idea environment and add the XSQL ".jar" file as an imported library.
+Once imported, here is a standard code for executing a XSQL query via JDBC:
+
+  import java.sql.Connection;
+  import java.sql.DriverManager;
+  import java.sql.ResultSet;
+  import java.sql.Statement;
+
+  public class XSQLJDBCExample {
+	public static void main(String args[]){
+		Connection c = null;
+		Statement st = null;
+		ResultSet rs = null;
+		
+		try{
+			//Register the driver in the classloader
+			Class.forName("org.opendaylight.controller.md.sal.dom.xsql.jdbc.JDBCDriver");
+			//Get a new JDBC connection from the DriverManager
+			c = DriverManager.getConnection("127.0.0.1");
+			//Creste a JDBC statement
+			st = c.createStatement();
+			//Define the xsql query to execute 
+			String xsql = "select nodes/node.id,nodes/node/node-connector.id,flow-capable-node-connector-statistics.* from "+
+					      "nodes/node,nodes/node/node-connector,flow-capable-node-connector-statistics where hardware-address like '%FF%';";
+			//Execute the xsql query
+			rs = st.executeQuery(xsql);
+			//count the columns returned by the query
+			int colCount = rs.getMetaData().getColumnCount();
+			//printout a column title line, in this example i am formating to csv
+			System.out.print("\"");
+			for(int i=1;i<=colCount;i++){				
+				System.out.print(rs.getMetaData().getColumnLabel(i));
+				if(i<colCount)
+					System.out.print("\",\"");
+				else
+					System.out.println("\"\n");
+			}
+			
+			//Iterate over the records and print them out as csv format.
+			while(rs.next()){
+				System.out.print("\"");
+				for(int i=1;i<=colCount;i++){					
+					System.out.print(rs.getObject(i));
+					if(i<colCount)
+						System.out.print("\",\"");
+					else
+						System.out.println("\"\n");
+				}								
+			}
+			
+		}catch(Exception err){
+			err.printStackTrace();			
+		}finally{
+			if(rs!=null)try{rs.close();}catch(Exception err){}
+			if(st!=null)try{st.close();}catch(Exception err){}
+			if(c!=null)try{c.close();}catch(Exception err){}			
+		}
+	}
+  }
