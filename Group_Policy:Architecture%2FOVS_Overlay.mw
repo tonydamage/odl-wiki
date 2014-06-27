@@ -98,11 +98,13 @@ The processing pipeline needs to store metadata such as the sEPG, dEPG, and broa
 |-
 | <tt>NXM_NX_REG1</tt> || Source Endpoint Group (sEPG) ID
 |-
-| <tt>NXM_NX_REG2</tt> || L2/L3 Domain - Broadcast / Routing context
+| <tt>NXM_NX_REG2</tt> || L2 context (BD)
 |-
 | <tt>NXM_NX_REG3</tt> || Destination Endpoint Group (dEPG) ID
 |-
 | <tt>NXM_NX_REG4</tt> || Port number to send packet to after policy enforcement. This is required because port selection occurs before policy enforcement in the pipeline.
+|-
+| <tt>NXM_NX_REG5</tt> || L3 context ID (VRF)
 |}
 
 ==== Option 2: Register allocation using OpenFlow metadata ====
@@ -117,7 +119,9 @@ OpenFlow offers a single 64 bit register which can be used to store sEPG, dEPG, 
 |-
 | metadata[16..31] || Destination Endpoint Group (dEPG) ID
 |-
-| metadata[32..47] || L2/L3 Domain - Broadcast / Routing context
+| metadata[32..39] || L2 context (BD)
+|-
+| metadata[40..47] || L3 context (VRF)
 |-
 | metadata[48..63] || Port number to send packet to after policy enforcement. This is required because port selection occurs before policy enforcement in the pipeline.
 |}
@@ -131,7 +135,7 @@ In order to increase readability, the following table names are used in the foll
 |-
 | 1 || <tt>PORT_SECURITY</tt> || Optional port security table || Proceed to <tt>SEPG_FILTER</tt> || Drop
 |-
-| 2 || <tt>SEPG_FILTER</tt> || sEPG selection || Remember sEPG and BD, proceed to <tt>DEPG_FILTER</tt> || Trigger policy resolution (send to controller)
+| 2 || <tt>SEPG_FILTER</tt> || sEPG selection || Remember sEPG, BD, and VRF. Then proceed to <tt>DEPG_FILTER</tt> || Trigger policy resolution (send to controller)
 |-
 | 3 || <tt>DPEG_FILTER</tt> || dEPG selection || Remember dEPG and output coordinates, proceed to <tt>POLICY_ENFORCER</tt> || Trigger policy resolution (send to controller)
 |-
@@ -178,7 +182,7 @@ The sEPG is determined based on a separate flow table which maps known OpenFlow 
 
 The actions performed are:
 # Write sEPG ID corresponding to incoming port or tunnel ID to register
-# Write L2/L3 context ID corresponding to incoming port or tunnel ID to register
+# Write L2/L3 context ID corresponding to incoming port or tunnel ID to registers
 # Proceed to dEPG selection
 
 An example flow to map a local port to an sEPG:
@@ -186,6 +190,7 @@ An example flow to map a local port to an sEPG:
 table=SEPG_FILTER, in_port=$OFPORT
 actions=load:$SEPG->NXM_NX_REG1[],
         load:$BD->NXM_NX_REG2[],
+        load:$VRF->NXM_NX_REG5[],
         goto_table:$DEPG_FILTER</nowiki>
 
 An example flow to map a tunnel ID to an sEPG:
@@ -193,6 +198,7 @@ An example flow to map a tunnel ID to an sEPG:
 table=SEPG_FILTER, in_port=TUNNEL_PORT, tun_id=$VNI1,
 actions=load:$SEPG1->NXM_NX_REG1[],
         load:$BD->NXM_NX_REG2[],
+        load:$VRF->NXM_NX_REG5[],
         goto_table:$DEPG_FILTER</nowiki>
 
 A flow hit means that the sEPG is known and the pipeline should proceed to the next stage.
@@ -230,7 +236,7 @@ In order for the distributed L3 gateway to be reachable, the vSwitch must respon
 |-
 | <tt>table=DEPG_FILTER</tt> || Flow must be in dEPG selection table
 |-
-| <tt>reg2=2</tt> || Must match a specific L3 context (NXM_NX_REG2)
+| <tt>reg5=2</tt> || Must match a specific L3 context (NXM_NX_REG5)
 |-
 | <tt>arp, arp_op=1</tt> || Packet must be ARP request
 |-
@@ -248,7 +254,7 @@ The actions performed are:
 # Transmit packet back out the incoming port
 
  <nowiki>
-priority=20, table=DEPG_FILTER, reg2=$BD,
+priority=20, table=DEPG_FILTER, reg5=$VRF,
 arp, arp_op=1, arp_tpa=$GW_ADDRESS,
 actions=move:NXM_OF_ETH_SRC[]->NXM_OF_ETH_DST[],
         mod_dl_src:$GW_MAC,
@@ -341,7 +347,7 @@ Additionally, flow hits will result in a routing action performed.
 |-
 | <tt>table=DEPG_FILTER</tt> || Flow must be in dEPG selection table
 |-
-| <tt>reg2=2</tt> || Must match on L3 context (NXM_NX_REG2)
+| <tt>reg5=2</tt> || Must match on L3 context (NXM_NX_REG5)
 |-
 | <tt>dl_dst=GW_MAC</tt> || Packet must match MAC of gateway
 |-
@@ -360,7 +366,7 @@ The actions performed are:
 Example flow for a local endpoint over L3:
 
  <nowiki>
-table=DEPG_TABLE, reg2=$BD, dl_dst=$ROUTER_MAC, ip, nw_dst=$PREFIX,
+table=DEPG_TABLE, reg5=$VRF, dl_dst=$ROUTER_MAC, ip, nw_dst=$PREFIX,
 actions=load:$DEPG->NXM_NX_REG3[],
         load:$OFPORT->NXM_NX_REG4[],
         mod_dl_dst:$DST_EP_MAC,
@@ -371,7 +377,7 @@ actions=load:$DEPG->NXM_NX_REG3[],
 Example flow for a remote endpoint over L3:
 
  <nowiki>
-table=DEPG_TABLE, reg2=$BD, dl_dst=$ROUTER_MAC, ip, nw_dst=$PREFIX,
+table=DEPG_TABLE, reg5=$VRF, dl_dst=$ROUTER_MAC, ip, nw_dst=$PREFIX,
 actions=load:$DEPG->NXM_NX_REG3[],
         load:$TUNNEL_PORT->NXM_NX_REG4[],
         move:NXM_NX_REG1[]->NXM_NX_TUN_ID[],
