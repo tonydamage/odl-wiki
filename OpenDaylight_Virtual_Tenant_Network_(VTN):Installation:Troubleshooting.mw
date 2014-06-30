@@ -4,10 +4,13 @@
 ==After executing db_setup, you have encountered the error "Failed to setup database"?==
 The error could be due to the below reasons
 * Access Restriction
-  Only installed user (the user who installed VTN coordinator) can start db_setup.
-  So please make sure the owner of the directory /usr/local/vtn matches with the username of the installed user.
-  If not please run the below command (assuming the username as vtn),
-         chown -R vtn:vtn /usr/local/vtn
+  The user who owns /usr/local/vtn/ directory and installs VTN coordinator, can only start db_setup.
+  Example : 
+  The directory should appear as below (assuming the user as "vtn"):
+  # ls -l /usr/local/
+    drwxr-xr-x. 12 vtn  vtn  4096 Mar 14 21:53 vtn
+  If the user doesnot own /usr/local/vtn/ then, please run the below command (assuming the username as vtn),
+                 chown -R vtn:vtn /usr/local/vtn
 * Postgres not Present 
   1.In case of Fedora/CentOS/RHEL, please check if /usr/pgsql/<version> directory is present and also ensure the commands 
     initdb, createdb,pg_ctl,psql are working. If, not please re-install postgres packages
@@ -51,7 +54,7 @@ The following activities take place in order during startup
      The command ps -ef | grep catalina | grep -v grep should list a catalina process
 
 ==If you encounter an erroneous situation where the REST API is always failing.==
-    Please ensure the firewall settings for port:8080 and enable the same.
+    Please ensure the firewall settings for port:8080(Hydrogen release) or port:8083(Post Hydrogen release) and enable the same.
 
 == How to debug a REST API returning a failure message? ==
    Please check the /usr/share/java/apache-tomcat-7.0.39/logs/core/core.log for failure details.
@@ -66,3 +69,20 @@ To increase the log level for individual daemons, please use the commands sugges
    /usr/local/vtn/bin/drvodc_control loglevel trace -- Driver daemon log 
 
 After setting the log levels, the operation can be repeated and the log files can be referred for debugging.
+
+== Problems while Installing PostgreSQL due to openssl  ==
+
+Errors may occur when trying to install postgreSQL rpms.
+Recently PostgreSQL has upgraded all their binaries to use the latest openssl versions with fix for [http://en.wikipedia.org/wiki/Heartbleed heartbleed bug]. Please upgrade the openssl package to the latest version and re-install. 
+
+For RHEL 6.1/6.4 : If you have subscription, Please use the same and update the rpms. The details are available in this link:[https://access.redhat.com/site/solutions/781793 ACCESS-REDHAT].
+
+If you do not have subscription, Please use the Cent OS 6 yum respository and update the openssl package.
+[http://mirrors.kernel.org/centos/6/os/x86_64/Packages CentOS6]
+
+   rpm -Uvh http://mirrors.kernel.org/centos/6/os/x86_64/Packages/openssl-1.0.1e-15.el6.x86_64.rpm
+   rpm -ivh http://mirrors.kernel.org/centos/6/os/x86_64/Packages/openssl-devel-1.0.1e-15.el6.x86_64.rpm 
+
+For other linux platforms, Please do yum update, the public respositroes will have the latest openssl, please install the same.
+
+[[Category:OpenDaylight Virtual Tenant Network]]
