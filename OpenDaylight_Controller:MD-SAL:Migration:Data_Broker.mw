@@ -192,3 +192,41 @@ commit and its state.
 
         });
 </pre>
+
+===== New API - Write/Commit/Retry Example =====
+
+This example illustrates simple write/commit/retry example,
+when we are writing same data, but if commit failed because of concurrent modification,
+we will retry same transaction.
+
+
+<pre>
+    private void writeData(final boolean isRetry) {
+        ReadWriteTransaction writeTx = dataBroker.newReadWriteTransaction();
+        writeTx.put(LogicalDatastoreType.OPERATIONAL, PATH, DATA);
+        
+        ListenableFuture<RpcResult<TransactionStatus>> future = writeTx.commit();
+        Futures.addCallback(future, new FutureCallback<RpcResult<TransactionStatus>>() {
+
+            @Override
+            public void onSuccess(final RpcResult<TransactionStatus> result) {
+                // Commited successfully
+            }
+
+            @Override
+            public void onFailure(final Throwable t) {
+                // Transaction failed
+
+                if(t instanceof OptimisticLockFailedException) {
+                    LOG.error("Concurrent modification of data",e);
+                    if(!isRetry) {
+                        LOG.info("Going to retry transaction.");
+                        writeData(true);
+                    }
+                }
+
+            }
+        });
+
+    }
+</pre>
