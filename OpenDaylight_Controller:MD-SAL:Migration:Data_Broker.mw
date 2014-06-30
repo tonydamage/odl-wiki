@@ -168,7 +168,28 @@ of clients. replace was always done by remove/put combination.
 
 </pre>
 
-===== New API =====
+===== New API - Asynchronous Commit state =====
 <pre>
+        ReadWriteTransaction writeTx = dataBroker.newReadWriteTransaction();
 
+        ListenableFuture<RpcResult<TransactionStatus>> commitFuture = writeTx.commit();
+
+        Futures.addCallback(commitFuture, new FutureCallback<RpcResult<TransactionStatus>>() {
+
+            @Override
+            public void onSuccess(final RpcResult<TransactionStatus> result) {
+                // Commited successfully
+            }
+
+            @Override
+            public void onFailure(final Throwable t) {
+                // Transaction failed
+
+                if(t instanceof OptimisticLockFailedException) {
+                    // Failed because of concurrent transaction modifying same data
+                }
+
+            }
+
+        });
 </pre>
