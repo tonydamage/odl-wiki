@@ -11,6 +11,7 @@ To get started hacking today with mininet, here we setup a basic PKI and create 
 
 A self-signed "root" CA is created easily with existing mininet tools which leverage openssl, and so will be the starting point for this process.  To be secure, the private keys must be protected, while the public key can be freely shared.  Because we're using the mininet host also as the CA signing host, the controllers private key exists there, but in production, the key generation for the controller would be isolated from the switches, and only the public controller key would be shared with the switches.
 
+==== ovs-pki command to generate key pem files ====
 On the mininet host, verify that it's PKI is initialized:
 <pre>
 ls /var/lib/openvswitch/pki/controllerca/cacert.pem
@@ -33,7 +34,7 @@ conf.db ctl-cert.pem ctl-privkey.pem ctl-req.pem sc-cert.pem sc-privkey.pem sc-r
 system-id.conf
 </pre>
 
-=== PKCS12 controller keystore ===
+==== Intermediate PKCS12 controller keystore ( to be loaded into java keystores ) ====
 
 Next we'll use openssl to create a keystore in PKCS12 format containing the controller's private and public keys.   We'll then import into a JKS format keystore for the ODL controller.  Note that it may be possible to use the PKCS12 keystore directly, but I haven't yet tested this.
 
@@ -48,7 +49,7 @@ Enter Export Password:
 Verifying - Enter Export Password:
 </pre>
 
-=== Create Controller keystore ( ctl.jks ) from ctl.p12 ===
+==== Create Controller keystore ( ctl.jks ) from ctl.p12 ====
 
 Copy two files, ctl.p12 & sc-cert.pem from the mininet host to the ODL host in any work directory.
 Import the PKCS12 format store into the JKS store consumable by ODL:
@@ -69,7 +70,7 @@ keytool -importkeystore \
         -alias odlserver
 </pre>
 
-=== Store the switch's public key in a "truststore" ( truststore.jks) ===
+==== Store the switch's public key in a "truststore" ( truststore.jks) ====
 
 <pre>
 keytool -importcert -file sc-cert.pem -keystore truststore.jks -storepass opendaylight
@@ -104,6 +105,7 @@ vi configuration/initial/42-openflow-protocol-impl.xml
 </pre>
 
 === Configure openvswitch SSL ===
+==== set ovs ssl options ====
 <pre>
 sudo ovs-vsctl set-ssl \
     /etc/openvswitch/sc-privkey.pem \
@@ -111,7 +113,7 @@ sudo ovs-vsctl set-ssl \
     /var/lib/openvswitch/pki/controllerca/cacert.pem
 </pre>
 
-=== Start a mininet with SSL connections to the ODL controller ===
+==== Start a mininet with SSL connections to the ODL controller ====
 
 open a file "<tt>ssl_switch_tests.py</tt>"
 
