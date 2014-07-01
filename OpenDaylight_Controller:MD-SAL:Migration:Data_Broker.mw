@@ -204,16 +204,20 @@ we will retry same transaction.
 
 
 <pre>
-    private void writeData(final boolean isRetry) {
+    private void readWriteRetry() {
         ReadWriteTransaction writeTx = dataBroker.newReadWriteTransaction();
-        writeTx.put(LogicalDatastoreType.OPERATIONAL, PATH, DATA);
         
+        Optional<DataObject> readed = writeTx.read(LogicalDatastoreType.OPERATIONAL,PATH).get();
+        DataObject modified = modifyData(readed);
+        writeTx.put(LogicalDatastoreType.OPERATIONAL, PATH, data);
         ListenableFuture<RpcResult<TransactionStatus>> future = writeTx.commit();
+
         Futures.addCallback(future, new FutureCallback<RpcResult<TransactionStatus>>() {
 
             @Override
             public void onSuccess(final RpcResult<TransactionStatus> result) {
                 // Commited successfully
+                // Nothing to do
             }
 
             @Override
@@ -222,10 +226,7 @@ we will retry same transaction.
 
                 if(t instanceof OptimisticLockFailedException) {
                     LOG.error("Concurrent modification of data",e);
-                    if(!isRetry) {
-                        LOG.info("Going to retry transaction.");
-                        writeData(true);
-                    }
+                    readWriteRetry();
                 }
 
             }
