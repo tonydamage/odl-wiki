@@ -49,3 +49,84 @@ Once the new device gets a neighbour invite message, it tries to boot strap itse
 
 === Network Time Protocol ===
 NTP is used for clock synchronization of network devices, and is capable of delivering accurate and reliable time. NTP is required for SNBI to work effectively because of the expiry time associated with certificates that the CA offers to valid devices. Certificates allocated are valid for only certain periods of time and devices with different clocks could misinterpret the start time / end time of certificates, therefore devices in the network need to be clock synchronized with the CA authorizing the certificates. An NTP server would run at the SNBI RA (controller) which is clock synchronized with the CA offering the certificates, rest of the devices in the network then clock synchronize themselves with the SNBI RA.
+
+== Forwarding Element Components ==
+
+The SNBI functions in the Forwarding Elements will be implemented
+inside lightweight portable foundations.
+
+=== Portable Foundation ===
+
+The SNBI portable foundation can use any light weight portable
+container technology that provides a protected and isolated
+application execution enviroment. The current SNBI implementation will
+utilize Docker, a light weight container mechanism supported
+by the current Linux kernels.
+
+Docker is relatively new. As a light weight VM, it has many desirable
+features in dependency management, packaging, deployment, and
+portability.  Docker initial aimed mostly at web applications that
+could use TCP port forwarding for all the networking needs. As a
+result, Docker 1.0's built-in networking function relies on a linux
+kernel bridge named docker0, to connect all containers to a NAT
+function in the kernel, through which the containers reach the outside
+world. There are a few alternative networking methods to replace the
+default Docker networking mechanism, by utilizing network functions
+inside the current linux kernel.  SNBI will utilize a modified
+networking model to connect Docker containers.
+
+
+=== Docker as Building Block for SNBI Portable Foundation ===
+
+
+The portable foundation can be used not only for SNBI, but also for
+other applications. For this reason, networking connectivities among
+the containers should allow as much flexibility as existed today among
+network	devices, or among the	virtual	machines.
+Today, in mid 2014, there are known methods to
+connect multiple Docker containers in arbitrary logical topologies
+utilizing linux kernel bridges and various configuration techniques.
+Some of the techniques bring flexibility at the cost of efficiency,
+others have resource efficiency but are more limited on the types of
+connevity that can be achieved.
+
+For SNBI development, it is expected that flexible and efficient
+inter-container networking methods will appear in the future, and the
+SNBI implementation will accommodate any new networking mechanism
+underneath the container. The current SNBI development will utilize
+the following test topology.
+
+
+
+In the above topology, all hosts will reside in a VM on a physical
+machine, where each VM runs a ubuntu14.04LTS server. All VMs will
+connect to a layer 2 switch created by the hypervisor, which
+provids network connectivity for all SNBI containers. More general
+and arbitrary topologies will be utilized in the future.
+
+
+=== Provisioning of the SNBI Portable Foundation ===
+
+
+A linux Container Provisioning Agent (CPA) will run on the host
+OS. The CPA maintains a meta-data data base for all containers running
+on the host.  The meta-data base contains information about the
+resource requirements, the UDI, the host client container identifier
+(CID), and networking setup for each container. The CPA offers a
+RESTful API to clients running inside the containers.
+
+When a new container needs to be added to a host, the CPA will collect
+all properties needed for this container from the meta-database, use
+docker to start the container, and pass needed parameters, such as the
+CID, via environment variables into the container. For the current
+test topology, all containers will be started with the --net="host"
+option, such that the applications inside the container have full
+access to the host networking interfaces.
+
+When the SNBI application starts up inside the container, it will
+use the CID to issue request to the CPA on the host to obtain its
+Unique Device Identifier (UDI). The SNBI FE function proceeds to
+the bootstrap phase with this identifier. Once the container device
+is authenticated, an IPv6 address will be assigned to the interface
+that ran the neighbor discovery. The SNBI agent will issue an request
+to the CPA to set this IP address onto the host interface.
