@@ -1,0 +1,326 @@
+I decided to put together a series of live tests due to the difficulties I was having understanding OnDataChange() events.
+
+I will update this page as my tests progress.
+
+All the experiments are based on the module below.
+
+<pre>
+
+module service-function {
+
+  namespace "urn:cisco:params:xml:ns:yang:sfc-sf";
+
+  prefix sfc-sf;
+
+  import ietf-inet-types { prefix inet; }
+  import ietf-yang-types { prefix yang; }
+  import service-function-type {prefix sfc-sft;}
+  import service-locator {prefix sfc-sl;}
+
+  organization "Cisco Systems, Inc.";
+  contact "Reinaldo Penno <repenno@cisco.com>";
+
+
+  description
+    "This module contains a collection of YANG definitions for
+     managing service function."
+
+  revision 2014-07-01 {
+    description
+    "Changes based on Opendaylight Testing.";
+  }
+
+  container service-functions {
+    description
+      "Service Function";
+
+    list service-function {
+      key "name";
+      leaf name {
+        type string;
+        description
+            "The name of the service function.";
+      }
+      leaf type {
+        type string;
+        mandatory true;
+        description
+          "Service Function Type from service-function-type.yang.";
+      }
+      leaf ip-mgmt-address {
+        type inet:ip-address;
+      }
+
+      container data-plane-locator {
+        uses sfc-sl:data-plane-locator;
+      }
+
+      leaf-list service-function-forwarder {
+        type string;
+        description
+          "The service function forwarders associated with this Service Function";
+      }
+    }
+  }
+}
+
+</pre>
+
+I register a dataChangeListener at the "list service-function" level as below
+
+<pre>
+
+public static final InstanceIdentifier<ServiceFunction>  sfEntryIID =
+	InstanceIdentifier.builder(ServiceFunctions.class).child(ServiceFunction.class).build();
+
+
+final ListenerRegistration<DataChangeListener> sfEntryDataChangeListenerRegistration =
+	dataBrokerService.registerDataChangeListener( OpendaylightSfc.sfEntryIID, sfcProviderSfEntryDataListener);
+
+</pre>
+
+== 1. Creating a single Service Function ==
+
+<pre>
+
+put /config/service-function:service-functions/ 
+
+{
+  "service-functions": {
+    "service-function": [
+      {
+        "ip-mgmt-address": "2001::2",
+        "type": "firewall",
+        "name": "fw-aa",
+        "data-plane-locator": {
+         "ip": "10.0.0.1",
+         "port": "5050"
+        }
+      }
+    ]
+  }
+} 
+
+2014-07-07 13:28:16.425 PDT [pool-14-thread-1] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## Start: org.opendaylight.sfc.provider.SfcProviderSfEntryDataListener.onDataChanged(SfcProviderSfEntryDataListener.java:40)
+2014-07-07 13:28:16.433 PDT [pool-14-thread-1] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## getOriginalConfigurationData
+2014-07-07 13:28:16.434 PDT [pool-14-thread-1] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## getUpdatedConfigurationSubtree
+2014-07-07 13:28:16.630 PDT [pool-14-thread-1] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## getCreatedConfigurationData
+014-07-07 13:28:16.687 PDT [pool-14-thread-1] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## getCreatedConfigurationData firewall  fw-aa
+2014-07-07 13:28:16.687 PDT [pool-14-thread-1] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## getUpdatedConfigurationData
+2014-07-07 13:28:16.687 PDT [pool-14-thread-1] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## getUpdatedConfigurationData firewall  fw-aa
+2014-07-07 13:28:16.687 PDT [pool-14-thread-1] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## Stop: org.opendaylight.sfc.provider.SfcProviderSfEntryDataListener.onDataChanged(SfcProviderSfEntryDataListener.java:125)
+
+</pre>
+
+Summary is:
+
+* getCreatedConfigurationData contains service function
+* getUpdatedConfigurationData contains service function
+
+'''Some things to notice:'''
+ 
+* Why UpdatedConfigurationData also has service function data? Are they the same or not? 
+* Having duplicate information in general is confusing.
+
+Keep your answers in mind as we go through other tests...
+
+== 2.Creating another single Service Function. == 
+
+Since it is a PUT operation expectation is a complete overwrite even tough the only difference 
+between the first service function and the existing one is the service type.
+
+This means we should get some form of delete plus a create.
+
+<pre>
+	put /config/service-function:service-functions/ 
+
+	{
+	  "service-functions": {
+	    "service-function": [
+	      {
+	        "ip-mgmt-address": "2001::2",
+	        "type": "firewall-1",
+	        "name": "fw-aa",
+	        "data-plane-locator": {
+	         "ip": "10.0.0.1",
+	         "port": "5050"
+	        }
+	      }
+	    ]
+	  }
+	}
+
+The onDataChange code was instrumented to exercise most of the available APIs
+
+2014-07-07 13:30:40.589 PDT [pool-14-thread-2] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## Start: org.opendaylight.sfc.provider.SfcProviderSfEntryDataListener.onDataChanged(SfcProviderSfEntryDataListener.java:40)
+2014-07-07 13:30:40.621 PDT [pool-14-thread-2] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## getOriginalConfigurationData
+2014-07-07 13:30:40.628 PDT [pool-14-thread-2] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## getOriginalConfigurationData firewall  fw-aa
+2014-07-07 13:30:40.628 PDT [pool-14-thread-2] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## getUpdatedConfigurationSubtree
+2014-07-07 13:30:40.628 PDT [pool-14-thread-2] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## getCreatedConfigurationData
+2014-07-07 13:30:40.630 PDT [pool-14-thread-2] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## getUpdatedConfigurationData
+2014-07-07 13:30:40.630 PDT [pool-14-thread-2] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## getUpdatedConfigurationData firewall-1  fw-aa
+2014-07-07 13:30:40.630 PDT [pool-14-thread-2] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## Stop: org.opendaylight.sfc.provider.SfcProviderSfEntryDataListener.onDataChanged(SfcProviderSfEntryDataListener.java:125)
+
+</pre>
+
+Summary is:
+
+* getOriginalConfigurationData has the old service function
+* getUpdatedConfigurationData contains the new service function
+* getCreatedConfigurationData is null
+
+
+'''Some things to notice:'''
+
+* Although a PUT is a create, getCreatedConfigurationData is NULL. This is not consistent with the first test.
+* getUpdatedConfigurationData contains the new service function. This is something I did not expect since everything was overwritten. Nothing was "updated".
+
+== 3.Creating two Service Functions. == 
+
+Since it is a PUT this means a complete overwrite even tough the only difference between the first service 
+function and the existing one is the service type.
+
+The second service-function is completely new.
+
+<pre>
+
+	put /config/service-function:service-functions/ 
+
+	{
+	  "service-functions": {
+	    "service-function": [
+	      {
+	        "ip-mgmt-address": "2001::2",
+	        "type": "firewall-2",
+	        "name": "fw-aa",
+	        "data-plane-locator": {
+	         "ip": "10.0.0.1",
+	         "port": "5050"
+	        }
+	      },
+	      {
+	        "ip-mgmt-address": "2001::2",
+	        "type": "firewall",
+	        "name": "fw-cc",
+	        "data-plane-locator": {
+	         "ip": "10.0.0.1",
+	         "port": "5050"
+	        }
+	      }
+	    ]
+	  }
+	}
+
+2014-07-07 13:44:18.385 PDT [pool-14-thread-1] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## Start: org.opendaylight.sfc.provider.SfcProviderSfEntryDataListener.onDataChanged(SfcProviderSfEntryDataListener.java:40)
+2014-07-07 13:44:18.415 PDT [pool-14-thread-1] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## getOriginalConfigurationData
+2014-07-07 13:44:18.418 PDT [pool-14-thread-1] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## getOriginalConfigurationData firewall-1  fw-aa
+2014-07-07 13:44:18.418 PDT [pool-14-thread-1] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## getUpdatedConfigurationSubtree
+2014-07-07 13:44:18.419 PDT [pool-14-thread-1] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## getCreatedConfigurationData
+2014-07-07 13:44:18.422 PDT [pool-14-thread-1] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## getCreatedConfigurationData firewall  fw-cc
+2014-07-07 13:44:18.423 PDT [pool-14-thread-1] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## getUpdatedConfigurationData
+2014-07-07 13:44:18.423 PDT [pool-14-thread-1] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## getUpdatedConfigurationData firewall-2  fw-aa
+2014-07-07 13:44:18.423 PDT [pool-14-thread-1] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## getUpdatedConfigurationData firewall  fw-cc
+2014-07-07 13:44:18.449 PDT [pool-14-thread-1] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## Stop: org.opendaylight.sfc.provider.SfcProviderSfEntryDataListener.onDataChanged(SfcProviderSfEntryDataListener.java:125)
+
+</pre>
+
+'''Some things to notice:'''
+
+* getUpdatedConfigurationData has the the old service function that was "changed" plus the new service function
+* Although a PUT operation is a full delete + create, getCreatedConfigurationData only has the firewall fw-cc
+* getUpdatedConfigurationData contains the new service function. This is something I did not expect since everything was overwritten. Nothing was "updated".
+
+
+== 4. Deleting a single service function ==
+
+We are deleting fw-aa
+
+<pre>
+
+2014-07-07 13:56:16.035 PDT [http-bio-8080-exec-9] INFO  o.o.c.sal.restconf.impl.BrokerFacade - Delete Configuration via Restconf: (urn:cisco:params:xml:ns:yang:sfc-sf?revision=2014-07-01)service-functions/(urn:cisco:params:xml:ns:yang:sfc-sf?revision=2014-07-01)service-function[{(urn:cisco:params:xml:ns:yang:sfc-sf?revision=2014-07-01)name=fw-aa}]
+2014-07-07 13:56:16.057 PDT [pool-14-thread-2] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## Start: org.opendaylight.sfc.provider.SfcProviderSfEntryDataListener.onDataChanged(SfcProviderSfEntryDataListener.java:40)
+2014-07-07 13:56:16.060 PDT [pool-14-thread-2] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## getCreatedConfigurationData
+2014-07-07 13:56:16.064 PDT [pool-14-thread-2] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## getOriginalConfigurationData firewall-2  fw-aa
+2014-07-07 13:56:16.082 PDT [pool-14-thread-2] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## getUpdatedConfigurationSubtree
+2014-07-07 13:56:16.082 PDT [pool-14-thread-2] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## getCreatedConfigurationData
+2014-07-07 13:56:16.082 PDT [pool-14-thread-2] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## getUpdatedConfigurationData
+2014-07-07 13:56:16.082 PDT [pool-14-thread-2] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## Stop: org.opendaylight.sfc.provider.SfcProviderSfEntryDataListener.onDataChanged(SfcProviderSfEntryDataListener.java:125)
+
+</pre>
+
+This works as expected
+
+'''5. Adding a single service function with inconsistency between path and JSON name'''
+
+<pre>
+
+put /config/service-function:service-functions/service-function/fw-zz/ 
+
+{
+  "service-function": [
+    {
+      "ip-mgmt-address": "20.0.0.11",
+      "type": "firewall",
+      "name": "fw-yy"
+    }
+  ]
+}
+
+</pre>
+
+This is the actual Service Function created
+
+<pre>
+
+{
+  "service-functions": {
+    "service-function": [
+      {
+        "ip-mgmt-address": "20.0.0.11",
+        "name": "fw-yy",
+        "type": "firewall"
+      }
+    }
+  }
+}
+
+</pre>
+
+'''Some things to notice:'''
+
+* The service function name from the path "fw-zz" was ignored. The actually created service function name was "fw-yy"
+
+* There was no callback. OndataChange() was '''_never_''' called. So, which InstanceIdentifier should I construct in order to get a callback when a service function is created with the full path?
