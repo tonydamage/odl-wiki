@@ -323,6 +323,44 @@ This is the actual Service Function created
 
 * The service function name from the path "fw-zz" was ignored. The actually created service function name was "fw-yy"
 
-* There was no callback. '''OndataChanged() was _never_ called'''. So, which InstanceIdentifier should I construct in order to get a callback when a service function is created with the full path?
+* There was no callback. '''OndataChanged() was _never_ called'''. So, which InstanceIdentifier should I construct in order to get a callback when a service function is created with the full path? This seems like a bug
 
-If you attach the listener one level above (container) in order to catch all operations what you will discover is that this have problems of its own. You will get two callbacks for many operations, but not all! In other words, the code become even more complicated because you would not know from which callback you should send created service functions data to the consumer.
+== 6. Adding a single service function without inconcsistencies ==
+
+<pre>
+
+put /config/service-function:service-functions/service-function/fw-aa/ 
+
+{
+  "service-function": [
+    {
+      "ip-mgmt-address": "20.0.0.11",
+      "type": "firewall",
+      "name": "fw-aa"
+    }
+  ]
+}
+
+osgi> 2014-07-07 16:01:31.607 PDT [pool-14-thread-1] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## Start: org.opendaylight.sfc.provider.SfcProviderSfEntryDataListener.onDataChanged(SfcProviderSfEntryDataListener.java:40)
+2014-07-07 16:01:31.607 PDT [pool-14-thread-1] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## getOriginalConfigurationData
+2014-07-07 16:01:31.607 PDT [pool-14-thread-1] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## getUpdatedConfigurationSubtree
+2014-07-07 16:01:31.607 PDT [pool-14-thread-1] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## getCreatedConfigurationData
+2014-07-07 16:01:31.608 PDT [pool-14-thread-1] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## getCreatedConfigurationData firewall  fw-aa
+2014-07-07 16:01:31.608 PDT [pool-14-thread-1] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## getUpdatedConfigurationData
+2014-07-07 16:01:31.669 PDT [pool-14-thread-1] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## getUpdatedConfigurationData firewall  fw-aa
+2014-07-07 16:01:31.669 PDT [pool-14-thread-1] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## Stop: org.opendaylight.sfc.provider.SfcProviderSfEntryDataListener.onDataChanged(SfcProviderSfEntryDataListener.java:125)
+
+</pre>
+
+Summary is:
+
+* getCreatedConfigurationData contains service function
+* getUpdatedConfigurationData contains service function
