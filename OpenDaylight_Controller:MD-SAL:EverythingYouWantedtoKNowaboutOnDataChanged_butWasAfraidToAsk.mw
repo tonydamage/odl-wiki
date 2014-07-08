@@ -375,7 +375,20 @@ Summary is:
 
 == Second round of Tests ==
 
-Tests in the second round are based in the module below. This module is more elaborate, containing lists of lists which brings several interesting challenges
+Tests in the second round are based in the module below. This module is more elaborate, containing lists of lists which brings several interesting challenges.
+
+It is very important to notice that the listener is attached to the container as below
+
+<pre>
+
+public static final InstanceIdentifier<ServiceFunctionChains>  sfcIID =
+  InstanceIdentifier.builder(ServiceFunctionChains.class).build();
+
+
+final ListenerRegistration<DataChangeListener> sfcDataChangeListenerRegistration =
+  dataBrokerService.registerDataChangeListener( OpendaylightSfc.sfcIID, sfcProviderSfcDataListener  );
+
+</pre>
 
 ==== Module Definition ====
 <pre>
@@ -437,6 +450,19 @@ module service-function-chain {
       }
     }
   }
+
+  // Service Function Chains
+
+  container service-function-chains {
+    uses service-function-chain-grouping;
+  }
+
+  rpc put-service-function-chains {
+    input {
+      uses service-function-chain-grouping;
+    }
+  }
+}
 
 
 </pre>
@@ -597,10 +623,47 @@ The previous result is certainly bad since in all other tests I got some data fr
 
 Hummm...Looking around I see that in the first test I get four entries in the map set
 
+<pre>
 dataCreatedConfigurationObject = {java.util.Collections$UnmodifiableMap@11537} size = 4
-[0] = {java.util.Collections$UnmodifiableMap$UnmodifiableEntrySet$UnmodifiableEntry@11541}"KeyedInstanceIdentifier{targetType=interface org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.service.function.chain.SfcServiceFunction, path=[org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns...
-[1] = {java.util.Collections$UnmodifiableMap$UnmodifiableEntrySet$UnmodifiableEntry@11542}"KeyedInstanceIdentifier{targetType=interface org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.service.function.chain.SfcServiceFunction, path=[org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns...
-[2] = {java.util.Collections$UnmodifiableMap$UnmodifiableEntrySet$UnmodifiableEntry@11543}"InstanceIdentifier{targetType=interface org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.ServiceFunctionChains, path=[org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.ServiceFunctionChains]}" -> "Serv...
-[3] = {java.util.Collections$UnmodifiableMap$UnmodifiableEntrySet$UnmodifiableEntry@11544}"KeyedInstanceIdentifier{targetType=interface org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.ServiceFunctionChain, path=[org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev1407...
+[0] = {java.util.Collections$UnmodifiableMap$UnmodifiableEntrySet$UnmodifiableEntry@11541}"KeyedInstanceIdentifier{targetType=interface
+org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.service.function.chain
+.SfcServiceFunction, path=[org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns...
+[1] = {java.util.Collections$UnmodifiableMap$UnmodifiableEntrySet$UnmodifiableEntry@11542}"KeyedInstanceIdentifier{targetType=interface
+org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.service.function.chain
+.SfcServiceFunction, path=[org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns...
+[2] = {java.util.Collections$UnmodifiableMap$UnmodifiableEntrySet$UnmodifiableEntry@11543}"InstanceIdentifier{targetType=interface
+org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.ServiceFunctionChains,
+path=[org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.ServiceFunctionChains]}" -> "Serv...
+[3] = {java.util.Collections$UnmodifiableMap$UnmodifiableEntrySet$UnmodifiableEntry@11544}"KeyedInstanceIdentifier{targetType=interface
+org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.ServiceFunctionChain,
+path=[org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev1407...
 
-'''But only one is instanceof ServiceFunctionChains!''' That's the one that tripped my code, all the others are the pieces that together make up [2]
+</pre>
+
+'''But only one is instanceof ServiceFunctionChains!''' That's the one that tripped my code, all the others are the pieces that together make up [2]. 
+
+We are getting closer now. We will redo the second test and pay close attention to the object types we get in the map set. The capture of such map can be seen below.
+
+<pre>
+
+dataCreatedConfigurationObject = {java.util.Collections$UnmodifiableMap@11667} size = 3
+[0] = {java.util.Collections$UnmodifiableMap$UnmodifiableEntrySet$UnmodifiableEntry@11679}"KeyedInstanceIdentifier{targetType=interface
+org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.service.function.chain
+.SfcServiceFunction, path=[org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns...
+[1] = {java.util.Collections$UnmodifiableMap$UnmodifiableEntrySet$UnmodifiableEntry@11680}"KeyedInstanceIdentifier{targetType=interface
+org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.ServiceFunctionChain,
+path=[org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev1407...
+[2] = {java.util.Collections$UnmodifiableMap$UnmodifiableEntrySet$UnmodifiableEntry@11681}"KeyedInstanceIdentifier{targetType=interface
+org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.service.function.chain
+.SfcServiceFunction, path=[org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns...
+
+</pre>
+
+It is easy to see now why the code did not work. When I add a ServiceFunctionChain with the full path the code is not tripped since the check is against ServiceFunctionChains (container) and not ServiceFunctionChain (list) .  So, although the listener is on the container level the actual objects I get are below the container level.
+
+'''Summary: Since the events between ServiceFunctionChains and ServiceFunctionChain are partially overlapping this creates issues. if I check for both container and list level objects on the listener callback certain objects will be processed multiple times, creating multiple messages to possible consumers or inconsistencies. Moreover, what happens is I add a single chain a full URL such as 
+put /config/service-function-chain:service-function-chains/service-function-chain/{name}/sfc-service-function/{name}/. What kind of events I need to check for and how to make sure I do not double or triple process certain object?''' 
+
+=== Discussion ===
+
+A possible solution would be to attach the listeners to the list level, or maybe to every level that internally is represented by an class. This might or might not work. But the bigger question given complex Yang modules is whether such callback design is appropriate, and if yes, what sort of guidelines need to be in place.
