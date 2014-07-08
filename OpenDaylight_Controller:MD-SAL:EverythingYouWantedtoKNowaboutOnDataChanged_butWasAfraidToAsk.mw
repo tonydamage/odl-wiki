@@ -270,7 +270,8 @@ We are deleting fw-aa
 
 <pre>
 
-2014-07-07 13:56:16.035 PDT [http-bio-8080-exec-9] INFO  o.o.c.sal.restconf.impl.BrokerFacade - Delete Configuration via Restconf: (urn:cisco:params:xml:ns:yang:sfc-sf?revision=2014-07-01)service-functions/(urn:cisco:params:xml:ns:yang:sfc-sf?revision=2014-07-01)service-function[{(urn:cisco:params:xml:ns:yang:sfc-sf?revision=2014-07-01)name=fw-aa}]
+2014-07-07 13:56:16.035 PDT [http-bio-8080-exec-9] INFO  o.o.c.sal.restconf.impl.BrokerFacade - Delete Configuration via Restconf:
+(urn:cisco:params:xml:ns:yang:sfc-sf?revision=2014-07-01)service-functions/(urn:cisco:params:xml:ns:yang:sfc-sf?revision=2014-07-01)service-function[{(urn:cisco:params:xml:ns:yang:sfc-sf?revision=2014-07-01)name=fw-aa}]
 2014-07-07 13:56:16.057 PDT [pool-14-thread-2] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
 ########## Start: org.opendaylight.sfc.provider.SfcProviderSfEntryDataListener.onDataChanged(SfcProviderSfEntryDataListener.java:40)
 2014-07-07 13:56:16.060 PDT [pool-14-thread-2] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
@@ -443,6 +444,9 @@ module service-function-chain {
 === Creating a single Service Chain ===
 
 <pre>
+
+put /config/service-function-chain:service-function-chains/
+
 {
   "service-function-chains ": {
     "service-function-chain": [
@@ -511,8 +515,9 @@ Below you find he code used to actually go through all the data so you can do so
 
 === Creating another Service Function Chain ===
 
-
 <pre>
+
+put /config/service-function-chain:service-function-chains/service-function-chain/Chain-2/
 
 {
   "service-function-chain": [
@@ -532,17 +537,70 @@ Below you find he code used to actually go through all the data so you can do so
   ]
 }
 
-2014-07-07 21:26:19.563 PDT [pool-14-thread-1] INFO  o.o.s.p.SfcProviderSfcDataListener -
+osgi> 2014-07-07 21:46:56.655 PDT [pool-14-thread-2] INFO  o.o.s.p.SfcProviderSfcDataListener -
 ########## Start: org.opendaylight.sfc.provider.SfcProviderSfcDataListener.onDataChanged(SfcProviderSfcDataListener.java:43)
-2014-07-07 21:26:19.565 PDT [pool-14-thread-1] INFO  o.o.s.p.SfcProviderSfcDataListener -
+2014-07-07 21:46:56.680 PDT [pool-14-thread-2] INFO  o.o.s.p.SfcProviderSfcDataListener -
 ########## getUpdatedConfigurationData
-2014-07-07 21:26:19.565 PDT [pool-14-thread-1] INFO  o.o.s.p.SfcProviderSfcDataListener -
+2014-07-07 21:46:56.680 PDT [pool-14-thread-2] INFO  o.o.s.p.SfcProviderSfcDataListener -
 ########## getOriginalConfigurationData
-2014-07-07 21:26:19.566 PDT [pool-14-thread-1] INFO  o.o.s.p.SfcProviderSfcDataListener -
-########## Stop: org.opendaylight.sfc.provider.SfcProviderSfcDataListener.onDataChanged(SfcProviderSfcDataListener.java:84)
+2014-07-07 21:46:56.680 PDT [pool-14-thread-2] INFO  o.o.s.p.SfcProviderSfcDataListener -
+########## getCreatedConfigurationData
+2014-07-07 21:46:56.680 PDT [pool-14-thread-2] INFO  o.o.s.p.SfcProviderSfcDataListener -
+########## Stop: org.opendaylight.sfc.provider.SfcProviderSfcDataListener.onDataChanged(SfcProviderSfcDataListener.java:104)
 
 </pre>
 
-'''Oops. Something went wrong. Neither getUpdatedConfigurationData nor getOriginalConfigurationData gave me any data! '''
+'''Oops. Something went wrong. getUpdatedConfigurationData, getOriginalConfigurationData nor getCreatedConfigurationData gave me any data!''' 
 
-This is certainly bad. I enable all other APIs and redo the test to see where is the data showing me the updated and added Service Function Chain
+And the Chain was certainly created
+
+<pre>
+
+{
+  "service-function-chains": {
+    "service-function-chain": [
+      {
+        "name": "Chain-1",
+        "sfc-service-function": [
+          {
+            "type": "dpi",
+            "name": "dpi-ut"
+          },
+          {
+            "type": "firewall",
+            "name": "fw-ca"
+          }
+        ]
+      },
+      {
+        "name": "Chain-2",
+        "sfc-service-function": [
+          {
+            "type": "napt44",
+            "name": "nat44-nv"
+          },
+          {
+            "type": "proxy",
+            "name": "proxy-or"
+          }
+        ]
+      }
+    ]
+  }
+}
+
+</pre>
+
+==== Retrying creation of another service Function chain ====
+
+The previous result is certainly bad since in all other tests I got some data from at least one of those two APIs. The question is then how to get access to the Service Function Chain that was added after the first one.
+
+Hummm...Looking around I see that in the first test I get four entries in the map set
+
+dataCreatedConfigurationObject = {java.util.Collections$UnmodifiableMap@11537} size = 4
+[0] = {java.util.Collections$UnmodifiableMap$UnmodifiableEntrySet$UnmodifiableEntry@11541}"KeyedInstanceIdentifier{targetType=interface org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.service.function.chain.SfcServiceFunction, path=[org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns...
+[1] = {java.util.Collections$UnmodifiableMap$UnmodifiableEntrySet$UnmodifiableEntry@11542}"KeyedInstanceIdentifier{targetType=interface org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.service.function.chain.SfcServiceFunction, path=[org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns...
+[2] = {java.util.Collections$UnmodifiableMap$UnmodifiableEntrySet$UnmodifiableEntry@11543}"InstanceIdentifier{targetType=interface org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.ServiceFunctionChains, path=[org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.ServiceFunctionChains]}" -> "Serv...
+[3] = {java.util.Collections$UnmodifiableMap$UnmodifiableEntrySet$UnmodifiableEntry@11544}"KeyedInstanceIdentifier{targetType=interface org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.ServiceFunctionChain, path=[org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev1407...
+
+'''But only one is instanceof ServiceFunctionChains!''' That's the one that tripped my code, all the others are the pieces that together make up [2]
