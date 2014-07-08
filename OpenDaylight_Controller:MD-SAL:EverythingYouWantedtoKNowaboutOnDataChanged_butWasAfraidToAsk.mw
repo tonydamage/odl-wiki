@@ -703,3 +703,51 @@ put /config/service-function-chain:service-function-chains/service-function-chai
 === Discussion ===
 
 A possible solution would be to attach the listeners to the list level (but see bug [https://bugs.opendaylight.org/show_bug.cgi?id=1329 Entry deserialization failed]) , or maybe to every level that internally is represented by an class. This might or might not work. But the bigger question given complex Yang modules is whether such callback design is appropriate, and if yes, what sort of guidelines need to be in place.
+
+== Data Deserialization Issues with Yang ==
+
+During all these tests I spotted several limitations on the Yangtools Generated code. The limitation appears as a stack dump on the console after you create an element in teh data store but before onDataChanged() is called. 
+
+Actually I had to redo many SFC Yang models to try to overcome such limitations. These made the models worse than I would like. I do not have time to open a bug for each one at this point but off the top of my mind:
+
+- Any serious use of groupings makes the generated code barf when the data change listener is attached to a internal node such as a list. Groups within groups, reference to groups in containers, etc. Try yourself, super easy to reproduce.
+- Any serious use of identityrefs also makes the code barf. A classic case is have a base identity type, a derived reference type and many "registered" identities such as "Firewall", Napt44", etc. if you use the derived reference type as the "type" in another module the code barfs.
+
+Example of a barf:
+
+<pre>
+
+osgi> 2014-07-08 00:57:26.309 PDT [pool-14-thread-1] WARN  o.o.y.s.b.g.i.RuntimeGeneratedMappingServiceImpl - Failed to deserialize entry (urn:cisco:params:xml:ns:yang:sfc-sfc?revision=2014-07-01)service-function-chains/(urn:cisco:params:xml:ns:yang:sfc-sfc?revision=2014-07-01)service-function-chain[{(urn:cisco:params:xml:ns:yang:sfc-sfc?revision=2014-07-01)name=Chain-1}]/(urn:cisco:params:xml:ns:yang:sfc-sfc?revision=2014-07-01)sfc-service-function[{(urn:cisco:params:xml:ns:yang:sfc-sfc?revision=2014-07-01)name=dpi-ut}]
+2014-07-08 00:57:26.318 PDT [pool-14-thread-1] WARN  o.o.c.m.s.b.i.AbstractForwardedDataBroker - Failed to transform (urn:cisco:params:xml:ns:yang:sfc-sfc?revision=2014-07-01)service-function-chains/(urn:cisco:params:xml:ns:yang:sfc-sfc?revision=2014-07-01)service-function-chain/(urn:cisco:params:xml:ns:yang:sfc-sfc?revision=2014-07-01)service-function-chain[{(urn:cisco:params:xml:ns:yang:sfc-sfc?revision=2014-07-01)name=Chain-1}]/(urn:cisco:params:xml:ns:yang:sfc-sfc?revision=2014-07-01)sfc-service-function/(urn:cisco:params:xml:ns:yang:sfc-sfc?revision=2014-07-01)sfc-service-function[{(urn:cisco:params:xml:ns:yang:sfc-sfc?revision=2014-07-01)name=dpi-ut}]=ImmutableMapEntryNode{nodeIdentifier=(urn:cisco:params:xml:ns:yang:sfc-sfc?revision=2014-07-01)sfc-service-function[{(urn:cisco:params:xml:ns:yang:sfc-sfc?revision=2014-07-01)name=dpi-ut}], value=[ImmutableLeafNode{nodeIdentifier=(urn:cisco:params:xml:ns:yang:sfc-sfc?revision=2014-07-01)type, value=dpi, attributes={}}, ImmutableLeafNode{nodeIdentifier=(urn:cisco:params:xml:ns:yang:sfc-sfc?revision=2014-07-01)name, value=dpi-ut, attributes={}}], attributes={}}, omitting it
+org.opendaylight.yangtools.yang.data.impl.codec.DeserializationException: Entry deserialization failed
+	at org.opendaylight.yangtools.sal.binding.generator.impl.RuntimeGeneratedMappingServiceImpl.fromDataDom(RuntimeGeneratedMappingServiceImpl.java:311) ~[bundlefile:na]
+	at org.opendaylight.controller.config.yang.md.sal.binding.impl.RuntimeMappingModule$RuntimeGeneratedMappingServiceProxy.fromDataDom(RuntimeMappingModule.java:151) ~[bundlefile:na]
+	at org.opendaylight.controller.md.sal.binding.impl.BindingToNormalizedNodeCodec.toBindingImpl(BindingToNormalizedNodeCodec.java:202) ~[bundlefile:na]
+	at org.opendaylight.controller.md.sal.binding.impl.BindingToNormalizedNodeCodec.toBinding(BindingToNormalizedNodeCodec.java:132) ~[bundlefile:na]
+	at org.opendaylight.controller.md.sal.binding.impl.BindingToNormalizedNodeCodec.toBinding(BindingToNormalizedNodeCodec.java:258) ~[bundlefile:na]
+	at org.opendaylight.controller.md.sal.binding.impl.AbstractForwardedDataBroker.toBinding(AbstractForwardedDataBroker.java:103) ~[bundlefile:na]
+	at org.opendaylight.controller.md.sal.binding.impl.AbstractForwardedDataBroker$TranslatedDataChangeEvent.getCreatedData(AbstractForwardedDataBroker.java:187) [bundlefile:na]
+	at org.opendaylight.controller.md.sal.binding.impl.AbstractForwardedDataBroker$TranslatedDataChangeEvent.toString(AbstractForwardedDataBroker.java:244) [bundlefile:na]
+	at java.lang.String.valueOf(String.java:2854) [na:1.7.0_51]
+	at java.lang.StringBuilder.append(StringBuilder.java:128) [na:1.7.0_51]
+	at org.opendaylight.controller.md.sal.binding.impl.LegacyDataChangeEvent$ConfigurationChangeEvent.toString(LegacyDataChangeEvent.java:201) [bundlefile:na]
+	at org.opendaylight.sfc.provider.SfcProviderSfcEntryDataListener.onDataChanged(SfcProviderSfcEntryDataListener.java:30) [bundlefile:na]
+	at org.opendaylight.controller.md.sal.binding.impl.ForwardedBackwardsCompatibleDataBroker$BackwardsCompatibleConfigurationDataChangeInvoker.onDataChanged(ForwardedBackwardsCompatibleDataBroker.java:452) [bundlefile:na]
+	at org.opendaylight.controller.md.sal.binding.impl.AbstractForwardedDataBroker$TranslatingDataChangeInvoker.onDataChanged(AbstractForwardedDataBroker.java:162) [bundlefile:na]
+	at org.opendaylight.controller.md.sal.dom.store.impl.ChangeListenerNotifyTask.run(ChangeListenerNotifyTask.java:33) [bundlefile:na]
+	at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:471) [na:1.7.0_51]
+	at java.util.concurrent.FutureTask.run(FutureTask.java:262) [na:1.7.0_51]
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1145) [na:1.7.0_51]
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:615) [na:1.7.0_51]
+	at java.lang.Thread.run(Thread.java:744) [na:1.7.0_51]
+Caused by: java.lang.IllegalStateException: Failed to lookup instantiated type for path SchemaPath [path=[(urn:cisco:params:xml:ns:yang:sfc-sfc?revision=2014-07-01)service-function-chains, (urn:cisco:params:xml:ns:yang:sfc-sfc?revision=2014-07-01)service-function-chain, (urn:cisco:params:xml:ns:yang:sfc-sfc?revision=2014-07-01)sfc-service-function], absolute=true]
+	at com.google.common.base.Preconditions.checkState(Preconditions.java:176) ~[bundlefile:na]
+	at org.opendaylight.yangtools.sal.binding.generator.impl.LazyGeneratedCodecRegistry.getClassForPath(LazyGeneratedCodecRegistry.java:201) ~[bundlefile:na]
+	at org.opendaylight.yangtools.sal.binding.generator.impl.InstanceIdentifierCodecImpl.deserializeNodeIdentifierWithPrecicates(InstanceIdentifierCodecImpl.java:108) ~[bundlefile:na]
+	at org.opendaylight.yangtools.sal.binding.generator.impl.InstanceIdentifierCodecImpl.deserializePathArgument(InstanceIdentifierCodecImpl.java:221) ~[bundlefile:na]
+	at org.opendaylight.yangtools.sal.binding.generator.impl.InstanceIdentifierCodecImpl.deserialize(InstanceIdentifierCodecImpl.java:69) ~[bundlefile:na]
+	at org.opendaylight.yangtools.sal.binding.generator.impl.RuntimeGeneratedMappingServiceImpl.fromDataDom(RuntimeGeneratedMappingServiceImpl.java:308) ~[bundlefile:na]
+	... 19 common frames omitted
+2014-07-08 00:57:26.320 PDT [pool-14
+
+</pre>
