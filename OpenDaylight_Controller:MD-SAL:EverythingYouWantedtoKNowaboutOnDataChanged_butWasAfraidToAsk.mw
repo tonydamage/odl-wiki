@@ -439,3 +439,72 @@ module service-function-chain {
 
 
 </pre>
+
+=== Creating a single Service Chain ===
+
+<pre>
+{
+  "service-function-chains ": {
+    "service-function-chain": [
+      {
+        "name": "Chain-1",
+        "sfc-service-function" : [
+          {
+          "name" : "dpi-ut",
+          "type" : "dpi"
+          },
+          {
+          "name" : "fw-ca",
+          "type" : "firewall"
+          }
+        ]
+      }
+    ]
+  }
+}
+
+2014-07-07 21:19:28.261 PDT [pool-14-thread-2] INFO  o.o.s.p.SfcProviderSfcDataListener -
+########## Start: org.opendaylight.sfc.provider.SfcProviderSfcDataListener.onDataChanged(SfcProviderSfcDataListener.java:43)
+2014-07-07 21:19:28.275 PDT [pool-14-thread-2] INFO  o.o.s.p.SfcProviderSfcDataListener -
+########## getUpdatedConfigurationData
+2014-07-07 21:19:28.275 PDT [pool-14-thread-2] INFO  o.o.s.p.SfcProviderSfcDataListener -
+########## Updated ServiceFunctionChain name: Chain-1
+2014-07-07 21:19:28.276 PDT [pool-14-thread-2] INFO  o.o.s.p.SfcProviderSfcDataListener -
+########## Updated ServiceFunction name: dpi-ut
+2014-07-07 21:19:28.276 PDT [pool-14-thread-2] INFO  o.o.s.p.SfcProviderSfcDataListener -
+########## Updated ServiceFunction name: fw-ca
+2014-07-07 21:19:28.276 PDT [pool-14-thread-2] INFO  o.o.s.p.SfcProviderSfcDataListener -
+########## getOriginalConfigurationData
+2014-07-07 21:19:28.276 PDT [pool-14-thread-2] INFO  o.o.s.p.SfcProviderSfcDataListener -
+########## Stop: org.opendaylight.sfc.provider.SfcProviderSfcDataListener.onDataChanged(SfcProviderSfcDataListener.java:84)
+
+</pre>
+
+Below you find he code used to actually go through all the data so you can do something useful with it. 
+
+<pre>
+
+    @Override
+    public void onDataChanged(
+            DataChangeEvent<InstanceIdentifier<?>, DataObject> change) {
+
+        Map<InstanceIdentifier<?>, DataObject> dataUpdatedConfigurationObject = change.getUpdatedConfigurationData();
+        LOG.info("\n########## getUpdatedConfigurationData");
+
+        for (Map.Entry<InstanceIdentifier<?>, DataObject> entry : dataUpdatedConfigurationObject.entrySet())
+        {
+            if( entry.getValue() instanceof ServiceFunctionChains) {
+                ServiceFunctionChains updatedServiceFunctionChains = (ServiceFunctionChains) entry.getValue();
+                List<ServiceFunctionChain>  serviceFunctionChainList = updatedServiceFunctionChains.getServiceFunctionChain();
+                for (ServiceFunctionChain serviceFunctionChain : serviceFunctionChainList) {
+                    LOG.info("\n########## Updated ServiceFunctionChain name: {}", serviceFunctionChain.getName());
+                    List<SfcServiceFunction>  SfcServiceFunctionList = serviceFunctionChain.getSfcServiceFunction();
+                    for (SfcServiceFunction sfcServiceFunction : SfcServiceFunctionList) {
+                        LOG.info("\n########## Updated ServiceFunction name: {}", sfcServiceFunction.getName());
+                    }
+                }
+            }
+            //System.out.println(entry.getKey() + "/" + entry.getValue());
+        }
+
+</pre>
