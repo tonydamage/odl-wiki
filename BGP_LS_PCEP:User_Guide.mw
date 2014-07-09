@@ -1,3 +1,5 @@
+<big>This user guide is updated to conform SNAPSHOT version of the service edition. The HYDROGEN release has a different configuration. You can find it [[BGP-LS/PCEP:User_Guide_HYDROGEN|here]] </big>
+
 === BGP ===
 OpenDaylight SP edition comes pre-configured with baseline BGP configuration. You can find it in the opendaylight/configuration/initial directory and it consists of two files:
 * [https://jenkins.opendaylight.org/integration/view/Integration%20jobs/job/integration-project-centralized-integration/lastSuccessfulBuild/artifact/distributions/serviceprovider/target/distributions-serviceprovider-0.1.2-SNAPSHOT-osgipackage/opendaylight/configuration/initial/31-bgp.xml 31-bgp.xml], which defines the basic parser and RIB support. Unless you need to add a new AFI/SAFI, you should keep this file as is
@@ -44,6 +46,63 @@ You can also add more BGP peers with different instance name and hostname.
     </executor>
  </module>
 
+==== BGP Speaker configuration ====
+
+Previous entries addressed the configuration of a BGP connection initiated by ODL. ODL also supports BGP Speaker functionality and accepts incoming BGP connections.
+<br/><br />
+The configuration of BGP speaker is located in: 
+[https://jenkins.opendaylight.org/integration/view/Integration%20jobs/job/integration-project-centralized-integration/lastSuccessfulBuild/artifact/distributions/serviceprovider/target/distributions-serviceprovider-0.1.2-SNAPSHOT-osgipackage/opendaylight/configuration/initial/41-bgp-example.xml 41-bgp-example.xml] :
+
+<source>
+<module>
+    <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:bgp:rib:impl">prefix:bgp-peer-acceptor</type>
+    <name>bgp-peer-server</name>
+
+    <!--Default parameters-->
+    <!--<binding-address>0.0.0.0</binding-address>-->
+    <!--<binding-port>179</binding-port>-->
+
+    <bgp-dispatcher>
+        <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:bgp:rib:impl">prefix:bgp-dispatcher</type>
+        <name>global-bgp-d
+    <!--Drops or accepts incoming BGP connection, every BGP Peer that should be accepted needs to be added to this registry-->
+    <peer-registry>
+        <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:bgp:rib:impl">prefix:bgp-peer-registry</type>
+        <name>global-bgp-peer-registry</name>
+    </peer-registry>
+</module>
+</source>
+
+===== Changing speaker configuration =====
+* Changing binding address: Uncomment tag ''binding-address'' and change the address to e.g. 127.0.0.1. The default binding address is 0.0.0.0.
+* Changing binding port: Uncomment tag ''binding-port'' and change the port to e.g. 1790. The default binding port is 179 as specified in BGP RFC.
+
+===== Configuring incoming BGP connections =====
+By default, the BGP speaker drops all BGP connections from unknown BGP peers. The decision is made in component bgp-peer-registry that is injected into the speaker (The registry is configured in [https://jenkins.opendaylight.org/integration/view/Integration%20jobs/job/integration-project-centralized-integration/lastSuccessfulBuild/artifact/distributions/serviceprovider/target/distributions-serviceprovider-0.1.2-SNAPSHOT-osgipackage/opendaylight/configuration/initial/31-bgp.xml 31-bgp.xml]).
+<br />
+<br />
+To add BGP Peer configuration into the registry, it is necessary to configure regular BGP peer just like in example in [https://jenkins.opendaylight.org/integration/view/Integration%20jobs/job/integration-project-centralized-integration/lastSuccessfulBuild/artifact/distributions/serviceprovider/target/distributions-serviceprovider-0.1.2-SNAPSHOT-osgipackage/opendaylight/configuration/initial/41-bgp-example.xml 41-bgp-example.xml]. Notice that the BGP peer depends on the same ''bgp-peer-registry'' as ''bgp-speaker'':
+<source>
+<peer-registry>
+   <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:bgp:rib:impl">prefix:bgp-peer-registry</type>
+   <name>global-bgp-peer-registry</name>
+</peer-registry>
+</source>
+BGP peer registers itself into the registry and allows incoming BGP connections handled by ''bgp-speaker''. (Config attribute ''peer-registry'' is optional for now to preserve backwards comatibility). With this configuration, the connection is initiated by ODL but will also be accepted from remote device. In case both connections are being established, only one of them will be preserved and the other will be dropped. The connection initiated from device with lower bgp id will be dropped by the registry. 
+<br />
+<br />
+There is a way to configure the peer only for incoming connections (The connection will not be initiated by the ODL, ODL will only wait for incoming connection from the peer. The peer is identified by its IP address). To configure peer only for incoming connection add attribute ''initiate-connection'' to peer's configuration:
+<source>
+<module>
+     <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:bgp:rib:impl">prefix:bgp-peer</type>
+     <name>example-bgp-peer</name>
+     <host>192.0.2.1</host>                         // IP address or hostname of the speaker
+     <holdtimer>180</holdtimer>
+     <initiate-connection>false</initiate-connection>  // Connection will not be initiated by ODL
+</source>
+
+The defualt value for ''initiate-connection'' is true.
+
 === PCEP ===
 OpenDaylight SP edition comes pre-configured with baseline PCEP configuration.The default shipped configuration will start a PCE server on port 4189.
 
@@ -56,9 +115,12 @@ There are already two extensions for PCEP: <br />
 '''[http://tools.ietf.org/html/draft-ietf-pce-stateful-pce draft-ietf-pce-stateful-pce]''' - in versions 02 and 07 <br />
 '''[http://tools.ietf.org/html/draft-ietf-pce-pce-initiated-lsp draft-ietf-pce-pce-initiated-lsp]''' - versions crabbe-initiated-00 and ietf-initiated-00 <br />
 
-Note, that they extend each other, so it is vital to load the extensions with compatible versions. In this case crabbe-initiated-00 is compatible with stateful-02 and ietf-initiated-00 is compatible with stateful-07. Default configuration is to use newest versions of the drafts. If you want to use older version, switch commented code to ignore stateful-7 and ietf-initiated-00 versions. <br />
+Note, that they extend each other, so it is vital to load the extensions with compatible versions. In this case crabbe-initiated-00 is compatible with stateful-02 and ietf-initiated-00 is compatible with stateful-07. Default configuration is to use newest versions of the drafts. 
 
-In [https://jenkins.opendaylight.org/integration/view/Integration%20jobs/job/integration-project-centralized-integration/lastSuccessfulBuild/artifact/distributions/serviceprovider/target/distributions-serviceprovider-0.1.2-SNAPSHOT-osgipackage/opendaylight/configuration/initial/32-pcep.xml 32-pcep.xml]:
+'''You have to complete all three steps in order to get stateful02 PCEP connection running and synchronized.'''
+
+If you want to use older version: <br />
+1. Switch commented code to ignore stateful-7 and ietf-initiated-00 versions in [https://jenkins.opendaylight.org/integration/view/Integration%20jobs/job/integration-project-centralized-integration/lastSuccessfulBuild/artifact/distributions/serviceprovider/target/distributions-serviceprovider-0.1.2-SNAPSHOT-osgipackage/opendaylight/configuration/initial/32-pcep.xml 32-pcep.xml]:
 
  <nowiki>
  <!-- This block is draft-ietf-pce-stateful-pce-07 + draft-ietf-pce-inititated-pce-00 -->
@@ -80,14 +142,14 @@ In [https://jenkins.opendaylight.org/integration/view/Integration%20jobs/job/int
   <name>pcep-parser-crabbe-initiated00</name>
  </extension>
 
-Make sure the proposal matches your chosen draft version:
+2. In the same file, make sure the proposal matches your chosen draft version. Change ''stateful07-proposal'' to ''stateful02-proposal'' :
 
  <pcep-session-proposal-factory>
      <type>pcep:pcep-session-proposal-factory</type>
      <name>stateful02-proposal</name>
  </pcep-session-proposal-factory>
 
-In [https://jenkins.opendaylight.org/integration/view/Integration%20jobs/job/integration-project-centralized-integration/lastSuccessfulBuild/artifact/distributions/serviceprovider/target/distributions-serviceprovider-0.1.2-SNAPSHOT-osgipackage/opendaylight/configuration/initial/39-pcep-provider.xml 39-pcep-provider.xml], stateful-plugin also needs to match:
+3. In [https://jenkins.opendaylight.org/integration/view/Integration%20jobs/job/integration-project-centralized-integration/lastSuccessfulBuild/artifact/distributions/serviceprovider/target/distributions-serviceprovider-0.1.2-SNAPSHOT-osgipackage/opendaylight/configuration/initial/39-pcep-provider.xml 39-pcep-provider.xml], stateful-plugin also needs to match. Change ''stateful07'' to ''stateful02'':
 
  <stateful-plugin>
      <type>prefix:pcep-topology-stateful</type>
