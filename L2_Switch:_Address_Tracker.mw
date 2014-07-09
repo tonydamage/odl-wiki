@@ -1,0 +1,121 @@
+= Overview =
+Address tracker is component that observes address tuples on a switch's port.
+
+= Model =
+The yang model for address tracker is essentially an augmentation of a node connector from inventory data model.
+<pre>
+module address-tracker {
+  yang-version 1;
+  namespace "urn:opendaylight:address-tracker";
+  prefix address-tracker;
+
+  import yang-ext {
+    prefix ext;
+    revision-date "2013-07-09";
+  }
+  import ietf-inet-types {
+    prefix inet;
+    revision-date 2010-09-24;
+  }
+  import ietf-yang-types {
+    prefix yang;
+    revision-date 2010-09-24;
+  }
+  import opendaylight-inventory {
+    prefix inv;
+    revision-date 2013-08-19;
+  }
+
+  description
+    "Address Tracker Data Model";
+
+  revision 2014-06-17 {
+    description
+      "Address Tracker module draft.";
+  }
+
+  grouping address-node-connector {
+    list addresses {
+      key "first-seen";
+      leaf mac {
+        type yang:mac-address;
+        description "MAC address";
+      }
+      leaf ip {
+        type inet:ip-address;
+        description "IPv4 or IPv6 address";
+      }
+      leaf vlan {
+        type uint16;
+        description "VLAN id";
+      }
+      leaf first-seen {
+        type int64;
+        description "Timestamp (number of ms since January 1, 1970, 00:00:00 GMT) of observing this address for the first time";
+      }
+      leaf last-seen {
+        type int64;
+        description "The most recent timestamp (tnumber of ms since January 1, 1970, 00:00:00 GMT) of observing this address";
+      }
+    }
+  }
+
+  augment "/inv:nodes/inv:node/inv:node-connector" {
+    ext:augment-identifier "address-capable-node-connector";
+    uses address-node-connector;
+  }
+}
+</pre>
+
+= How does it look in data store? =
+If you want to view the addresses tracked on any particular port / node connector. The following rest conf request should show that.
+
+<pre>
+HTTP GET
+URL http://localhost:8080/restconf/operational/opendaylight-inventory:nodes/node/openflow:1/node-connector/openflow:1:1
+</pre>
+
+For example this would return.
+
+<pre>
+{
+    "node-connector": [
+        {
+            "id": "openflow:1:1",
+            "address-tracker:addresses": [
+                {
+                    "address-tracker:last-seen": 1404918398057,
+                    "address-tracker:ip": "10.0.0.1",
+                    "address-tracker:first-seen": 1404918392926,
+                    "address-tracker:mac": "f2:0c:dd:80:9f:f7"
+                }
+            ],
+            "opendaylight-port-statistics:flow-capable-node-connector-statistics": {
+                "opendaylight-port-statistics:duration": {
+                    "opendaylight-port-statistics:nanosecond": 333000000,
+                    "opendaylight-port-statistics:second": 17
+                },
+                "opendaylight-port-statistics:receive-crc-error": 0,
+                "opendaylight-port-statistics:packets": {
+                    "opendaylight-port-statistics:received": 9,
+                    "opendaylight-port-statistics:transmitted": 8
+                },
+                "opendaylight-port-statistics:transmit-drops": 0,
+                "opendaylight-port-statistics:receive-frame-error": 0,
+                "opendaylight-port-statistics:transmit-errors": 0,
+                "opendaylight-port-statistics:receive-errors": 0,
+                "opendaylight-port-statistics:receive-drops": 0,
+                "opendaylight-port-statistics:receive-over-run-error": 0,
+                "opendaylight-port-statistics:bytes": {
+                    "opendaylight-port-statistics:received": 658,
+                    "opendaylight-port-statistics:transmitted": 532
+                },
+                "opendaylight-port-statistics:collision-count": 0
+            }
+        }
+    ]
+}
+</pre>
+
+
+= How to access via code? =
