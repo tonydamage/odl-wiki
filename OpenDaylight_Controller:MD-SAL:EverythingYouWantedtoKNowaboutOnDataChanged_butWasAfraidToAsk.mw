@@ -712,6 +712,50 @@ put /config/service-function-chain:service-function-chains/service-function-chai
 
 A possible solution would be to attach the listeners to the list level (but see bug [https://bugs.opendaylight.org/show_bug.cgi?id=1329 Entry deserialization failed]) , or maybe to every level that internally is represented by an class. This might or might not work. But the bigger question given complex Yang modules is whether such callback design is appropriate, and if yes, what sort of guidelines need to be in place.
 
+== Attaching Listeners to list Level ==
+
+One of the possible solutions to the problem of headless notifications is to attach a data listener to the list level (list sfc-service-function) as below. 
+
+<pre>
+public static final InstanceIdentifier<ServiceFunctionChain>  sfcEntryIID =
+            InstanceIdentifier.builder(ServiceFunctionChains.class)
+                    .child(ServiceFunctionChain.class).build();
+
+final ListenerRegistration<DataChangeListener> sfcEntryDataChangeListenerRegistration =
+  dataBrokerService.registerDataChangeListener( OpendaylightSfc.sfcEntryIID, sfcProviderSfcEntryDataListener  );
+
+</pre>
+
+This strategy allow you to catch all events at the list level and below. 
+
+<pre>
+
+2014-07-09 00:31:21.568 PDT [pool-15-thread-1] INFO  o.o.s.p.SfcProviderSfcDataListener -
+########## Start: org.opendaylight.sfc.provider.SfcProviderSfcEntryDataListener.onDataChanged(SfcProviderSfcEntryDataListener.java:43)
+2014-07-09 00:31:23.111 PDT [pool-15-thread-1] INFO  o.o.s.p.SfcProviderSfcDataListener -
+########## getUpdatedConfigurationData
+2014-07-09 00:31:32.648 PDT [pool-15-thread-1] INFO  o.o.s.p.SfcProviderSfcDataListener -
+########## Updated ServiceFunctionChain name: Chain-2
+2014-07-09 00:31:34.823 PDT [pool-15-thread-1] INFO  o.o.s.p.SfcProviderSfcDataListener -
+########## Updated ServiceFunction name: nat44-nv
+2014-07-09 00:31:36.199 PDT [pool-15-thread-1] INFO  o.o.s.p.SfcProviderSfcDataListener -
+########## Updated ServiceFunction name: proxy-or
+2014-07-09 00:31:42.059 PDT [pool-15-thread-1] INFO  o.o.s.p.SfcProviderSfcDataListener -
+########## getOriginalConfigurationData
+2014-07-09 00:31:46.589 PDT [pool-15-thread-1] INFO  o.o.s.p.SfcProviderSfcDataListener -
+########## getCreatedConfigurationData
+2014-07-09 00:31:53.805 PDT [pool-15-thread-1] INFO  o.o.s.p.SfcProviderSfcDataListener -
+########## Created ServiceFunctionChain name: Chain-2
+2014-07-09 00:31:54.674 PDT [pool-15-thread-1] INFO  o.o.s.p.SfcProviderSfcDataListener -
+########## Created ServiceFunction name: nat44-nv
+2014-07-09 00:31:55.853 PDT [pool-15-thread-1] INFO  o.o.s.p.SfcProviderSfcDataListener -
+########## Created ServiceFunction name: proxy-or
+2014-07-09 00:31:59.359 PDT [pool-15-thread-1] INFO  o.o.s.p.SfcProviderSfcDataListener -
+########## Stop: org.opendaylight.sfc.provider.SfcProviderSfcEntryDataListener.onDataChanged(SfcProviderSfcEntryDataListener.java:98)
+
+</pre>
+
+
 == Data Deserialization Issues with Yang ==
 
 During all these tests I spotted several limitations on the Yangtools Generated code. The limitations appears as a stack dump on the console after you create an element in the data store but before onDataChanged() is called. 
