@@ -226,29 +226,29 @@ A portion of the class is shown below:
    
     //making this public because this unique ID is required later on in other classes.
     public static final InstanceIdentifier<Toaster>  TOASTER_IID = InstanceIdentifier.builder(Toaster.class).build();
-    private static final Logger LOG = LoggerFactory.getLogger(OpendaylightToaster.class);
        
     private static final DisplayString TOASTER_MANUFACTURER = new DisplayString("Opendaylight");
     private static final DisplayString TOASTER_MODEL_NUMBER = new DisplayString("Model 1 - Binding Aware");
      
-    private DataBrokerService dataProvider;
+    private DataBroker dataProvider;
    
     public OpendaylightToaster() {
     }
      
-    private Toaster buildToaster() {
-        //note - we are simulating a device whose manufacture and model are fixed (embedded) into the hardware.
-        //This is why the manufacture and model number are hardcoded.
-        ToasterBuilder tb = new ToasterBuilder();
-        tb.setToasterManufacturer(TOASTER_MANUFACTURER) 
-           .setToasterModelNumber(TOASTER_MODEL_NUMBER) 
-           .setToasterStatus( ToasterStatus.Up );
-        return tb.build();
+    private Toaster buildToaster( ToasterStatus status ) {
+
+        // note - we are simulating a device whose manufacture and model are
+        // fixed (embedded) into the hardware.
+        // This is why the manufacture and model number are hardcoded.
+        return new ToasterBuilder().setToasterManufacturer( TOASTER_MANUFACTURER )
+                                   .setToasterModelNumber( TOASTER_MODEL_NUMBER )
+                                   .setToasterStatus( status )
+                                   .build();
     }
     
-    public void setDataProvider(DataBrokerService salDataProvider) {
-         this. dataProvider = salDataProvider;
-         updateStatus();
+    public void setDataProvider( final DataBroker salDataProvider ) {
+         this.dataProvider = salDataProvider;
+         setToasterStatusUp( null );
     }
   
     /**
@@ -257,26 +257,57 @@ A portion of the class is shown below:
     @Override
     public void close() throws ExecutionException, InterruptedException {
         if (dataProvider != null) {
-            final DataModificationTransaction t = dataProvider.beginTransaction();
-            t.removeOperationalData(TOASTER_IID);
-            t.commit().get();
+            WriteTransaction t = dataProvider.newWriteOnlyTransaction();
+            t.delete(LogicalDatastoreType.OPERATIONAL,TOASTER_IID);
+            ListenableFuture<RpcResult<TransactionStatus>> future = t.commit();
+            Futures.addCallback( future, new FutureCallback<RpcResult<TransactionStatus>>() {
+                @Override
+                public void onSuccess( RpcResult<TransactionStatus> result ) {
+                    LOG.debug( "Delete Toaster commit result: " + result );
+                }
+
+                @Override
+                public void onFailure( Throwable t ) {
+                    LOG.error( "Delete of Toaster failed", t );
+                }
+            } );
         }
     }
     
-    private void updateStatus() {
-        if (dataProvider != null) {
-            final DataModificationTransaction t = dataProvider.beginTransaction();
-            t.removeOperationalData(TOASTER_IID);
-            t.putOperationalData(TOASTER_IID, buildToaster()); 
-            try {
-                t.commit().get();
-            } catch (InterruptedException | ExecutionException e) {
-                LOG.warn("Failed to update toaster status, operational otherwise", e);
+    private void setToasterStatusUp( final Function<Boolean,Void> resultCallback ) {
+
+        WriteTransaction tx = dataProvider.newWriteOnlyTransaction();
+        tx.put( LogicalDatastoreType.OPERATIONAL,TOASTER_IID, buildToaster( ToasterStatus.Up ) );
+
+        ListenableFuture<RpcResult<TransactionStatus>> commitFuture = tx.commit();
+
+        Futures.addCallback( commitFuture, new FutureCallback<RpcResult<TransactionStatus>>() {
+            @Override
+            public void onSuccess( RpcResult<TransactionStatus> result ) {
+                if( result.getResult() != TransactionStatus.COMMITED ) {
+                    LOG.error( "Failed to update toaster status: " + result.getErrors() );
+                }
+
+                notifyCallback( result.getResult() == TransactionStatus.COMMITED );
             }
-        } else {
-            LOG.trace("No data provider configured, not updating status");
-        }
-    }  
+
+            @Override
+            public void onFailure( Throwable t ) {
+                // We shouldn't get an OptimisticLockFailedException (or any ex) as no
+                // other component should be updating the operational state.
+                LOG.error( "Failed to update toaster status", t );
+
+                notifyCallback( false );
+                notifyCallback( false );
+            }
+
+            void notifyCallback( boolean result ) {
+                if( resultCallback != null ) {
+                    resultCallback.apply( result );
+                }
+            }
+        } );
+    }
  }
 </code>
 
