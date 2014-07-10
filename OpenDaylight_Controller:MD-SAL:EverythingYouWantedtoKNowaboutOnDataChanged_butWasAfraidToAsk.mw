@@ -755,51 +755,36 @@ This strategy allow you to catch all events at the list level and below.
 
 </pre>
 
-== How to create entries in nested lists ==
+== How to Operate on the Datastore from within OnDataChanged() context ==
 
-Unfortunately I do not have the answer for this one yet. Based on the example below, how one can create a entry in the sft-service-function-name list.
+Use-case: As you process an onDataChanged() event you want to change the datastore.
+
+Summary: You can not. The transaction will hang inexplicably.
+
+Solution: the code that operates on the data store needs to be executed in another thread. In the solution below I used an executor service 
 
 <pre>
-  container service-function-types {
-    description
-      "A list of Service function Types. For each type we keep a list of Service Functions";
 
-    list service-function-type {
-      key "type";
-      leaf type {
-        type string;
-        description
-            "The name of the service function.";
-      }
-      list sft-service-function-name {
-        key "name";
-        leaf name {
-          type string;
-          description
-            "The name of the service function.";
+public class SfcProviderSfEntryDataListener implements DataChangeListener  {
+
+....
+
+        Map<InstanceIdentifier<?>, DataObject> dataUpdatedConfigurationObject = change.getUpdatedConfigurationData();
+        LOG.info("\n########## getUpdatedConfigurationData");
+
+        for (Map.Entry<InstanceIdentifier<?>, DataObject> entry : dataUpdatedConfigurationObject.entrySet())
+        {
+            if( entry.getValue() instanceof  ServiceFunction) {
+                ServiceFunction updatedServiceFunction = (ServiceFunction) entry.getValue();
+                //createServiceFunctionTypeEntry(updatedServiceFunction);  <=== This does not work
+                odlSfc.executor.execute(SfcProviderServiceTypeAPI.getSfcProvideCreateServiceType(updatedServiceFunction));
+                LOG.info("\n########## getUpdatedConfigurationData {}  {}",
+                        updatedServiceFunction.getType(), updatedServiceFunction.getName());
+            }
+            //System.out.println(entry.getKey() + "/" + entry.getValue());
         }
-      }
-    }
-  }
-}
-
-</pre>
-
-Based on my understanding I should create an InstanceIdentifier all the way down to the bottom child and add a entry there. 
 
 <pre>
-
-        sftentryIID = InstanceIdentifier.builder(ServiceFunctionTypes.class)
-                .child(ServiceFunctionType.class, serviceFunctionTypeKey)
-                .child(SftServiceFunctionName.class,sftServiceFunctionNameKey).build();
-
-...
-
-t.putConfigurationData(sftentryIID, sftServiceFunctionName);
-
-</pre>
-
-'''Unfortunately this does not work. The code halts without any meaningful message!'''
 
 == Rule of thumb for Data Change Events == 
 
