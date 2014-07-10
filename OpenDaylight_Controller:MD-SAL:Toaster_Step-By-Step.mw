@@ -1507,7 +1507,22 @@ After re-generating the source, modify the '''KitchenServiceImpl''' to implement
 <pre>
     @Override
     public Boolean makeScrambledWithWheat() {
-        return makeBreakfast( EggsType.SCRAMBLED, WheatBread.class, 2 );
+        try {
+            // This call has to block since we must return a result to the JMX client.
+            RpcResult<Void> result = makeBreakfast( EggsType.SCRAMBLED, WheatBread.class, 2 ).get();
+            if( result.isSuccessful() ) {
+                log.info( "makeBreakfast succeeded" );
+            } else {
+                log.warn( "makeBreakfast failed: " + result.getErrors() );
+            }
+  
+            return result.isSuccessful();
+  
+        } catch( InterruptedException | ExecutionException e ) {
+            log.warn( "An error occurred while maing breakfast: " + e );
+        }
+  
+        return Boolean.FALSE;
     }
 </pre>
 
