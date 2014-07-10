@@ -32,45 +32,66 @@ module service-function {
     "This module contains a collection of YANG definitions for
      managing service function."
 
+
   revision 2014-07-01 {
     description
     "Changes based on Opendaylight Testing.";
   }
 
+
+  typedef service-function-ref {
+    type leafref {
+      path "/sfc-sf:service-functions/sfc-sf:service-function/sfc-sf:name";
+    }
+    description
+      "This type is used by data models that need to reference
+       configured service functions.";
+  }
+
+  grouping service-function-entry {
+    leaf name {
+      type string;
+      description
+          "The name of the service function.";
+    }
+    leaf type {
+      type string;
+      mandatory true;
+      description
+        "Service Function Type from service-function-type.yang.";
+    }
+    leaf ip-mgmt-address {
+      type inet:ip-address;
+    }
+    container sf-data-plane-locator {
+      uses sfc-sl:data-plane-locator;
+    }
+
+    leaf-list service-function-forwarder {
+      type string;
+      description
+        "The service function forwarders associated with this Service Function";
+    }
+  }
+
   container service-functions {
     description
-      "Service Function";
+      "A network or application based packet
+      treatment, application, compute or storage resource, used
+      singularly or in concert with other service functions within a
+      service chain to enable a service offered by an operator.
+
+      A non-exhaustive list of Service Functions includes: firewalls,
+      WAN and application acceleration, Deep Packet Inspection (DPI),
+      server load balancers, NAT44 [RFC3022], NAT64 [RFC6146], HOST_ID
+      injection, HTTP Header Enrichment functions, TCP optimizer, etc.";
 
     list service-function {
       key "name";
-      leaf name {
-        type string;
-        description
-            "The name of the service function.";
-      }
-      leaf type {
-        type string;
-        mandatory true;
-        description
-          "Service Function Type from service-function-type.yang.";
-      }
-      leaf ip-mgmt-address {
-        type inet:ip-address;
-      }
-
-      container data-plane-locator {
-        uses sfc-sl:data-plane-locator;
-      }
-
-      leaf-list service-function-forwarder {
-        type string;
-        description
-          "The service function forwarders associated with this Service Function";
-      }
+      uses service-function-entry;
     }
   }
 }
-
 </pre>
 
 I register a dataChangeListener at the "list service-function" level as below. '''If you register your listener one level above (container), the results are very different - and that's another source of confusion (at least to me).'''
