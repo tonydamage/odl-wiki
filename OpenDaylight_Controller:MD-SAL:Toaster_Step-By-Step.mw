@@ -1620,6 +1620,36 @@ Next we add code to the '''OpenDaylightToaster''' to implement the '''restockToa
     '''}
     ...
     <br>
+    private void checkStatusAndMakeToast( final MakeToastInput input,
+                                          final SettableFuture<RpcResult<Void>> futureResult ) {
+   
+        ...  
+        final ListenableFuture<RpcResult<TransactionStatus>> commitFuture =
+            Futures.transform( readFuture, new AsyncFunction<Optional<DataObject>,
+                                                                    RpcResult<TransactionStatus>>() {
+  
+                @Override
+                public ListenableFuture<RpcResult<TransactionStatus>> apply(
+                        Optional<DataObject> toasterData ) throws Exception {
+  
+                    ...
+                    if( toasterStatus == ToasterStatus.Up ) {
+  
+                       '''if( outOfBread() ) {
+                           '''LOG.debug( "Toaster is out of bread" );
+  
+                           '''return Futures.immediateFuture( Rpcs.<TransactionStatus>getRpcResult(
+                           '''            false, null, makeToasterOutOfBreadError() ) );
+                       '''}
+  
+                       ...
+                   }
+                   ...
+               }
+       } );
+       ...  
+   }
+   ...
     '''/**
      '''* RestConf RPC call implemented from the ToasterService interface.
      '''* Restocks the bread for the toaster and sends a ToasterRestocked notification.
