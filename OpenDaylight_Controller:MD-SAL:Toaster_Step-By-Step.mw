@@ -1626,30 +1626,7 @@ Next we add code to the '''OpenDaylightToaster''' to implement the '''restockToa
         '''this.notificationProvider = salService;
     '''}
     ...
-    /**
-     * RestConf RPC call implemented from the ToasterService interface.
-     */
-    @Override
-    public Future<RpcResult<Void>> makeToast(MakeToastInput input) {
-        ...
-        synchronized (taskLock) {
-            if (currentTask != null) {
-                ...
-            }
-            '''else if( outOfBread() ) {
-                '''RpcResult<Void> result = Rpcs.<Void> getRpcResult(false, null, Arrays.asList(
-                        '''RpcErrors.getRpcError( null, null, null, null,
-                                               '''"Toaster is out of bread", null, null ) ) );
-                '''return Futures.immediateFuture(result);
-            '''}
-            else {
-                ...
-            }
-        }
-        <br>
-        updateStatus();
-        return currentTask;
-    }
+    
     <br>
     '''/**
      '''* RestConf RPC call implemented from the ToasterService interface.
@@ -1659,14 +1636,12 @@ Next we add code to the '''OpenDaylightToaster''' to implement the '''restockToa
     '''public Future<RpcResult<java.lang.Void>> restockToaster(RestockToasterInput input) {
         '''LOG.info( "restockToaster: " + input );
         '''
-        '''synchronized( taskLock ) {
-            '''amountOfBreadInStock.set( input.getAmountOfBreadToStock() );
-            '''
-            '''if( amountOfBreadInStock.get() > 0 ) {
-                '''ToasterRestocked reStockedNotification =
-                    '''new ToasterRestockedBuilder().setAmountOfBread( input.getAmountOfBreadToStock() ).build();
-                '''notificationProvider.publish( reStockedNotification );
-            '''}
+        '''amountOfBreadInStock.set( input.getAmountOfBreadToStock() );
+        '''
+        '''if( amountOfBreadInStock.get() > 0 ) {
+            '''ToasterRestocked reStockedNotification =
+                '''new ToasterRestockedBuilder().setAmountOfBread( input.getAmountOfBreadToStock() ).build();
+            '''notificationProvider.publish( reStockedNotification );
         '''}
         '''
         '''return Futures.immediateFuture(Rpcs.<Void> getRpcResult(true, Collections.<RpcError> emptySet()));
@@ -1677,12 +1652,11 @@ Next we add code to the '''OpenDaylightToaster''' to implement the '''restockToa
         '''return amountOfBreadInStock.get() == 0;
     '''}
     <br>
-    private class MakeToastTask implements Callable<RpcResult<Void>> {
+    private class MakeToastTask implements Callable<Void> {
         ...
         @Override
-        public RpcResult<Void> call() throws InterruptedException {
+        public Void call() throws InterruptedException {
             ...
-            toastsMade.incrementAndGet();
             <br>
             '''amountOfBreadInStock.getAndDecrement();
             '''if( outOfBread() ) {
