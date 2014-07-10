@@ -572,12 +572,281 @@ When a reference to a static class member must be qualified, it is qualified wit
 Foo.aStaticMethod(); // good
 aFoo.aStaticMethod(); // bad
 somethingThatYieldsAFoo().aStaticMethod(); // very bad</pre>
+
 === Finalizers ===
 
 It is extremely rare to override <code>Object.finalize</code>.
 
 <blockquote>Tip: Don't do it. If you absolutely must, first read and understand [http://books.google.com/books?isbn=8131726592 Effective Java] Item 7, &quot;Avoid Finalizers,&quot; very carefully, and then don't do it.
 </blockquote>
+
+=== File Length ===
+
+Files should be no longer than 2000 lines.
+If a source file becomes very long it is hard to understand. Therefore long classes should usually be refactored into several individual classes that focus on a specific task. 
+
+=== Padding of empty <code>for</code> initializers and iterators ===
+
+No space is required to pad an empty for intializer or iterator
+
+Best:
+
+ for (; i < j; i++, j--)
+ for (int i = 0; i < j;)
+
+Acceptable:
+ 
+ for (
+     ; i < j; i++, j--) 
+
+ for (Iterator i = very.long.line.iterator();
+      foo.hasNext();
+     )
+
+No:
+
+ for ( ; i < j; i++, j--)
+ for (int i = 0; i < j; )
+
+=== Modifier Ordering ===
+
+Modifiers should be ordered per the suggestions in the Sun Java Language specification.
+The correct order is:
+
+# public
+# protected
+# private
+# abstract
+# static
+# final
+# transient
+# volatile
+# synchronized
+# native
+# strictfp
+
+=== Redundant Modifiers ===
+
+The Java Language Specification strongly discourages the usage of "public" and "abstract" for method declarations in interface definitions as a matter of style.
+
+Variables in interfaces and annotations are automatically public, static and final, so these modifiers are redundant as well.
+
+As annotations are a form of interface, their fields are also automatically public, static and final just as their annotation fields are automatically public and abstract.
+
+Final classes by definition can not be extended so the final modifier on the method of a final class is redundant. 
+
+=== Avoid Inline Conditionals ===
+
+Some developers find inline conditionals hard to read, so it's best practice to avoid using them
+
+=== Covariant Equals ===
+
+Mistakenly defining a covariant equals() method without overriding method equals(java.lang.Object) can produce unexpected runtime behaviour.
+
+=== Override both equals() and hashCode() ===
+
+The contract of equals() and hashCode() requires that equal objects have the same hashCode. Hence, whenever you override equals() you must override hashCode() to ensure that your class can be used in collections that are hash based. 
+
+=== Use "final" ===
+
+Local variables that never have their values changed should be declared final.
+
+=== Avoid "shadowing" variables ===
+
+Local variables and parameters should not shadow fields that have been defined in the same class.
+This makes code difficult to read.
+
+=== Avoid Inner Assignment ===
+
+Good:
+ 
+ Integer i = 2;
+ String s = Integer.toString(i);
+
+Bad:
+
+ String s = Integer.toString(i = 2);
+
+With the exception of for iterators, all assignments should occur in their own toplevel statement to increase readability. With inner assignments like the above it is difficult to see all places where a variable is set. 
+
+=== Avoid "Magic Numbers" ===
+
+Magic numbers are numeric literals that are not defined but a constant.
+-1, 0, 1, and 2 are not considered to be magic numbers
+
+=== Don't modify loop control variables inside a block ===
+
+Bad:
+
+ for (int i = 0; i < 1; i++) {
+     i++;
+ }
+
+If the control variable is modified inside the loop body, the program flow becomes more difficult to follow. An option is to replace the for loop with a while loop. 
+
+=== Use simple boolean logic ===
+
+Bad:
+
+  if (b == true), b || true, !false, ...etc...
+
+Complex boolean logic makes code hard to understand and maintain. 
+
+Bad:
+
+ if (valid())
+     return false;
+ else
+     return true;
+
+This could be written as:
+
+  return !valid();
+
+=== Don't compare strings with <code>==</code> or <code>!=</code> ===
+
+Strings should be compared using .equals().
+
+Bad:
+
+ if (x == "something")
+
+Good:
+ 
+ if ("something".equals(x))
+
+=== No more than 3 nested If, Try and For Statements ===
+
+Nested <code>for</code>, <code>if</code> and <code>try</code> statements make it difficult to determine the conditions under which a given block of code should be executed. It's therefore recommended not to nest more than 3 <code>for</code>, <code>if</code> or <code>try</code> blocks.
+
+=== Never throw or catch a java.lang Exception ===
+
+Catching or throwing java.lang.Exception, java.lang.Error or java.lang.RuntimeException is almost never acceptable. A more specific exception should always be thrown/caught and preferably that Exception should be package specific.
+
+=== Enforce JUnit method naming ===
+
+A method that runs before test execution should be called "setUp" and should be either a public or protected method which returns void.
+A method that runs before test execution should be called "tearDown" and should be either a public or protected method which returns void.
+
+=== Avoid more than 3 "return" statements per method ===
+
+Too many return points can be indication that code is attempting to do too much or may be difficult to understand. 
+
+=== Always use Interface types where possible ===
+
+In variable declarations, return values or parameters an Inteface type should be used.
+This helps reduce coupling on concrete classes. In addition abstract classes should be thought of a convenience base class implementations of interfaces and as such are not types themselves.
+
+The following are forbidden from being used by Checkstyle:
+
+* java.util.GregorianCalendar
+* java.util.Hashtable
+* java.util.HashSet
+* java.util.HashMap
+* java.util.ArrayList
+* java.util.LinkedList
+* java.util.LinkedHashMap
+* java.util.LinkedHashSet
+* java.util.TreeSet
+* java.util.TreeMap
+* java.util.Vector
+
+=== Don't use duplicate string literals ===
+
+Code duplication makes maintenance more difficult, so it can be better to replace the multiple occurrences with a constant. When a string occurs more than 2 times it should be replaced with a constant. Empty strings are the only exception to this rule.
+
+== Class Design ==
+
+=== Declaration Order ===
+
+ According to [http://java.sun.com/docs/codeconv/html/CodeConventions.doc2.html#1852 Code Conventions for the Java Programming Language], the parts of a class or interface declaration should appear in the following order:
+
+# Class (static) variables. First the public class variables, then the protected, then package level (no access modifier), and then the private.
+# Instance variables. First the public class variables, then the protected, then package level (no access modifier), and then the private.
+# Constructors
+# Methods
+# Inner Classes
+
+=== Method Length ===
+
+Methods should be no longer than 150 lines
+If a method becomes very long it is hard to understand. Therefore long methods should usually be refactored into several individual methods that focus on a specific task. 
+
+=== Anonymous Inner Class Length ===
+
+Anonymous Inner Classes should be no longer that 20 lines
+If an anonymous inner class becomes very long it is hard to understand and to see the flow of the method where the class is defined. Therefore long anonymous inner classes should usually be refactored into a named inner class. See also Bloch, Effective Java, p. 93. 
+
+=== Parameter Number ===
+
+A class method or constructor should contain no more than 7 parameters
+
+=== Methods per Class ===
+
+There should be no more than a total of 100 methods per class.
+Classes with more than 100 methods should be refactored into smaller classes that focus on individual tasks.
+
+=== No non-static public members ===
+
+Only static final members may be public.
+Other class members must be private and accessed through public Getter/Setter methods
+
+=== Use "final" for a class with only private constructors ===
+
+A class with a priavte constructor should be declared final
+
+ public final class Foo {
+     private Foo(){
+       // Create a foo
+     }
+ } 
+
+=== An interface is a type ===
+
+See Bloch, Effective Java, Item 17 - Use Interfaces only to define types.
+
+According to Bloch, an interface should describe a type. It is therefore inappropriate to define an interface that does not contain any methods but only constants. The Standard class javax.swing.SwingConstants is an example of a class that would be flagged by this check.
+
+=== Hide constructors of utility classes ===
+
+Make sure that utility classes (classes that contain only static methods or fields in their API) do not have a public constructor.
+
+Instantiating utility classes does not make sense. Hence the constructors should either be private or (if you want to allow subclassing) protected. A common mistake is forgetting to hide the default constructor.
+
+If you make the constructor protected you may want to consider the following constructor implementation technique to disallow instantiating subclasses: 
+
+public class StringUtils // not final to allow subclassing
+{
+    protected StringUtils() {
+        // prevents calls from subclass
+        throw new UnsupportedOperationException();
+    }
+
+    public static int count(char c, String s) {
+        // ...
+    }
+}
+
+=== Design classes for extension ===
+
+This enforces a programming style where superclasses provide empty "hooks" that can be implemented by subclasses.
+
+The exact rule is that nonprivate, nonstatic methods of classes that can be subclassed must either be
+
+* abstract or
+* final or
+* have an empty implementation
+
+This API design style protects superclasses against being broken by subclasses. The downside is that subclasses are limited in their flexibility, in particular they cannot prevent execution of code in the superclass, but that also means that subclasses cannot corrupt the state of the superclass by forgetting to call the super method. 
+
+=== Exceptions should be Immutable ===
+
+Exception instances should represent an error condition. Having non final fields not only allows the state to be modified by accident and therefore mask the original condition but also allows developers to accidentally forget to initialise state thereby leading to code catching the exception to draw incorrect conclusions based on the state. 
+
+=== Methods should throw no more than 1 exception ===
+
+Exceptions form part of a methods interface. Declaring a method to throw too many differently rooted exceptions makes exception handling onerous and leads to poor programming practices such as catch (Exception). This check forces developers to put exceptions into a hierarchy such that in the simplest case, only one type of exception need be checked for by a caller but allows any sub-classes to be caught specifically if necessary.
+
 == Javadoc ==
 
 === Formatting ===
