@@ -1257,28 +1257,70 @@ public class KitchenServiceImpl implements KitchenService {
     }
 
     @Override
-    public boolean makeBreakfast( EggsType eggs, Class<? extends ToastType> toast, int toastDoneness ) {
-
-        // Access the ToasterService to make the toast.
-        // We don't actually make the eggs for this example - sorry.
-        MakeToastInputBuilder toastInput = new MakeToastInputBuilder();
-        toastInput.setToasterDoneness( (long) toastDoneness);
-        toastInput.setToasterToastType( toast );
-
-        try {
-            RpcResult<Void> result = toaster.makeToast( toastInput.build() ).get();
-
-            if( result.isSuccessful() ) {
-                log.trace( "Toast was successfully finished" );
-            } else {
-                log.warn( "Toast was not successfully finished" );
+    public Future<RpcResult<Void>> makeBreakfast( EggsType eggs, Class<? extends ToastType> toast, int toastDoneness ) {
+  
+        // Call makeToast and use JdkFutureAdapters to convert the Future to a ListenableFuture,
+        // The OpendaylightToaster impl already returns a ListenableFuture so the conversion is
+        // actually a no-op.
+  
+        ListenableFuture<RpcResult<Void>> makeToastFuture = JdkFutureAdapters.listenInPoolThread(
+                makeToast( toastType, toastDoneness ), executor );
+  
+        ListenableFuture<RpcResult<Void>> makeEggsFuture = makeEggs( eggsType );
+  
+        // Combine the 2 ListenableFutures into 1 containing a list of RpcResults.
+  
+        ListenableFuture<List<RpcResult<Void>>> combinedFutures =
+                Futures.allAsList( ImmutableList.of( makeToastFuture, makeEggsFuture ) );
+  
+        // Then transform the RpcResults into 1.
+  
+        return Futures.transform( combinedFutures,
+            new AsyncFunction<List<RpcResult<Void>>,RpcResult<Void>>() {
+                @Override
+                public ListenableFuture<RpcResult<Void>> apply( List<RpcResult<Void>> results )
+                                                                                 throws Exception {
+                    boolean atLeastOneSucceeded = false;
+                    Builder<RpcError> errorList = ImmutableList.builder();
+                    for( RpcResult<Void> result: results ) {
+                        if( result.isSuccessful() ) {
+                            atLeastOneSucceeded = true;
+                        }
+  
+                        if( result.getErrors() != null ) {
+                            errorList.addAll( result.getErrors() );
+                        }
+                    }
+  
+                    return Futures.immediateFuture(
+                              Rpcs.<Void> getRpcResult( atLeastOneSucceeded, errorList.build() ) );
+                }
+        } );
+    }
+  
+    private ListenableFuture<RpcResult<Void>> makeEggs( EggsType eggsType ) {
+  
+        return executor.submit( new Callable<RpcResult<Void>>() {
+  
+            @Override
+            public RpcResult<Void> call() throws Exception {
+  
+                // We don't actually do anything here - just return a successful result.
+                return Rpcs.<Void> getRpcResult( true, Collections.<RpcError>emptyList() );
             }
-
-            return result.isSuccessful();
-        } catch( InterruptedException | ExecutionException e ) {
-            log.warn( "Error occurred during toast creation" );
-        }
-        return false;
+        } );
+    }
+  
+    private Future<RpcResult<Void>> makeToast( Class<? extends ToastType> toastType,
+                                               int toastDoneness ) {
+        // Access the ToasterService to make the toast.
+  
+        MakeToastInput toastInput = new MakeToastInputBuilder()
+            .setToasterDoneness( (long) toastDoneness )
+            .setToasterToastType( toastType )
+            .build();
+  
+        return toaster.makeToast( toastInput );
     }
 }
 </pre>
