@@ -674,9 +674,9 @@ We've defined the data model interface for the RPC calls - now we must provide t
    @Override
    public Future<RpcResult<Void>> makeToast(final MakeToastInput input) {
        final SettableFuture<RpcResult<Void>> futureResult = SettableFuture.create();
-
+  
        checkStatusAndMakeToast( input, futureResult );
-
+  
        return futureResult;
    }
   
@@ -780,33 +780,59 @@ We've defined the data model interface for the RPC calls - now we must provide t
            }
        } );
    }
-    private class MakeToastTask implements Callable<Void> {
-
-        final MakeToastInput toastRequest;
-        final SettableFuture<RpcResult<Void>> futureResult;
-
-        public MakeToastTask( final MakeToastInput toastRequest,
-                              final SettableFuture<RpcResult<Void>> futureResult ) {
-            this.toastRequest = toastRequest;
-            this.futureResult = futureResult;
-        }
-
-        @Override
-        public Void call() {
-            try
-            {
-                // make toast just sleeps for n seconds per doneness level.
-                long darknessFactor = OpendaylightToaster.this.darknessFactor.get();
-                Thread.sleep(darknessFactor * toastRequest.getToasterDoneness());
-
-            }
-            catch( InterruptedException e ) {
-                LOG.info( "Interrupted while making the toast" );
-            }
-
-            toastsMade.incrementAndGet();
   
+   private class MakeToastTask implements Callable<Void> {
+  
+       final MakeToastInput toastRequest;
+       final SettableFuture<RpcResult<Void>> futureResult;
+  
+       public MakeToastTask( final MakeToastInput toastRequest,
+                             final SettableFuture<RpcResult<Void>> futureResult ) {
+           this.toastRequest = toastRequest;
+           this.futureResult = futureResult;
+       }
+  
+       @Override
+       public Void call() {
+           try
+           {
+               // make toast just sleeps for n seconds per doneness level.
+               long darknessFactor = OpendaylightToaster.this.darknessFactor.get();
+               Thread.sleep(darknessFactor * toastRequest.getToasterDoneness());
+           }
+           catch( InterruptedException e ) {
+               LOG.info( "Interrupted while making the toast" );
+           }
 
+           toastsMade.incrementAndGet();
+  
+           amountOfBreadInStock.getAndDecrement();
+           if( outOfBread() ) {
+               LOG.info( "Toaster is out of bread!" );
+  
+               notificationProvider.publish( new ToasterOutOfBreadBuilder().build() );
+           }
+  
+           // Set the Toaster status back to up - this essentially releases the toasting lock.
+           // We can't clear the current toast task nor set the Future result until the
+           // update has been committed so we pass a callback to be notified on completion.
+  
+           setToasterStatusUp( new Function<Boolean,Void>() {
+               @Override
+               public Void apply( Boolean result ) {
+  
+                   currentMakeToastTask.set( null );
+  
+                   LOG.debug("Toast done");
+  
+                   futureResult.set( Rpcs.<Void>getRpcResult( true, null,
+                                                          Collections.<RpcError>emptyList() ) );
+  
+                   return null;
+               }
+           } );
+           return null;
+      }
  }
 </code>
 In the above code you can see that we have implemented the ''makeToast'' and ''cancelToast'' methods, in addition to the ''close'' method from the AutoCloseable interface to ensure that we properly clean up our embedded threadpool. Refer to inline comments for more details on what is happening.
