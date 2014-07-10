@@ -1752,21 +1752,27 @@ Next we modify the '''KitchenServiceImpl''' to implement the '''ToasterListener'
     ...
     '''private volatile boolean toasterOutOfBread;
     <br>
-    public KitchenServiceImpl(ToasterService toaster) {
-        this.toaster = toaster;
-    }
-    <br>
-    @Override
-    public boolean makeBreakfast( EggsType eggs, Class<? extends ToastType> toast, int toastDoneness ) {
-        <br>
+    private Future<RpcResult<Void>> makeToast( Class<? extends ToastType> toastType,
+                                               int toastDoneness ) {
+
         '''if( toasterOutOfBread )
         '''{
-            '''log.info( "We're out of toast but we can make eggs" );
-            '''return true;
+        '''    log.info( "We're out of toast but we can make eggs" );
+        '''    return Futures.immediateFuture( Rpcs.<Void> getRpcResult( true,
+        '''               Arrays.asList( RpcErrors.getRpcError( "", "partial-operation", null,
+        '''                                  ErrorSeverity.WARNING,
+        '''                                  "Toaster is out of bread but we can make you eggs",
+        '''                                  ErrorType.APPLICATION, null ) ) ) );
         '''}
-        <br>
-        ...
-        return false;
+
+        // Access the ToasterService to make the toast.
+
+        MakeToastInput toastInput = new MakeToastInputBuilder()
+            .setToasterDoneness( (long) toastDoneness )
+            .setToasterToastType( toastType )
+            .build();
+
+        return toaster.makeToast( toastInput );
     }
     ...
     '''/**
