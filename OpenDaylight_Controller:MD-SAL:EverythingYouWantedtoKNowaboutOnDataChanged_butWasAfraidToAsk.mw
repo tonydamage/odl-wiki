@@ -833,6 +833,87 @@ container top {
 
 </pre>
 
+== JSON in and out of MD-SAL is Inconsistent
+
+The JSON you send in and get out of MD-SAL should be consistent but today are not. '''The Yang model is the contract, everything starts from the Yang model, therefore is I give the Yang model to somebody building a RESTserver they should have a good idea of what they will receive.''' 
+
+Therefore If I send the JSON below through a PUT RESTconf, it is accepted and data store is populated, I expect to get the same object when reading the same info from datastore and converting to JSON.
+
+<pre>
+
+{
+  "service-function-forwarders": {
+    "service-function-forwarder": [
+      {
+        "name": "ovs-4",
+        "path-id": 3,
+        "service-function-dictionary": [
+          {
+            "name": "fw-or",
+            "sf-data-plane-locator": {
+              "port": 5050,
+              "ip": "10.0.0.1"
+            },
+            "service-function-forwarder": "ovs-4",
+            "type": "firewall"
+          }
+        ]
+      }
+    ]
+  }
+}
+</pre>
+
+Unfortunately what I get back is something quite different. There are many problems:
+
+* The yang names are mangled. Hyphens removed, case changed, others. I understand Java has conventions on variable names but then annotate variables, or provide a method that restore the proper Yang names when converting to JSON.
+* Certain elements that should not appear in the datastore (Yang constructs like Choice) find their way back to JSON in the form of full interface class names.
+* Revision numbers in certain elements. Yang models have revision numbers, a final static variable could hold the version instead of putting it on a JSON name or class names. '''More and more I feel revision numbers in Yang classes and packages are a bad idea.''' 
+
+'''After string processing''' I managed to transform the JSON I originally get to the form below. The original is even more confusing. 
+
+<pre>
+
+{
+  "name" : "ovs-4",
+  "key" : {
+    "name" : "ovs-4"
+  },
+  "transport" : null,
+  "pathId" : 3,
+  "sffDataPlaneLocator" : null,
+  "serviceFunctionDictionary" : [ {
+    "name" : "fw-or",
+    "key" : {
+      "name" : "fw-or"
+    },
+    "type" : "firewall",
+    "failmode" : null,
+    "ipMgmtAddress" : null,
+    "serviceFunctionForwarder" : "ovs-4",
+    "sfDataPlaneLocator" : {
+      "locatorType" : {
+        "port" : {
+          "value" : 5050
+        },
+        "ip" : {
+          "value" : "10.0.0.1",
+          "ipv4Address" : {
+            "value" : "10.0.0.1"
+          },
+          "ipv6Address" : null
+        }
+      }
+    }
+  } ]
+}
+
+
+</pre>
+
+I tried with both Gson (which as I understand uses reflection) and Jackson and both gave very similar bad results. I'm not sure there is a way around that unless changes are made to Yang tools. 
+
+
 == Data Deserialization Issues with Yang ==
 
 During all these tests I spotted several limitations on the Yangtools Generated code. The limitations appears as a stack dump on the console after you create an element in the data store but before onDataChanged() is called. 
