@@ -1,0 +1,47 @@
+= Why we need internal message statistics =
+We need message counts in OFPlugin for testing and diagnosting purposes. 
+Expected result contains amount of messages of particular type per unit of time.
+
+= Implemented strategy =
+There are 2 tasks - collect counts and expose counts. By collecting the counts are grouped by message type and checkpoint. 
+Results are exposed via log, osgi and jmx.
+
+== Collect ==
+There are following checkpoints where messages are counted while passing (defined as enum):
+   /**
+     * statistic groups overall in OFPlugin
+     */
+    enum STATISTIC_GROUP {
+        /** message from switch, enqueued for processing */
+        FROM_SWITCH_ENQUEUED,
+        /** message from switch translated successfully - source */
+        FROM_SWITCH_TRANSLATE_IN_SUCCESS,
+        /** message from switch translated successfully - target */
+        FROM_SWITCH_TRANSLATE_OUT_SUCCESS,
+        /** message from switch where translation failed - source */
+        FROM_SWITCH_TRANSLATE_SRC_FAILURE,
+        /** message from switch finally published into MD-SAL */
+        FROM_SWITCH_PUBLISHED_SUCCESS,
+        /** message from switch - publishing into MD-SAL failed */
+        FROM_SWITCH_PUBLISHED_FAILURE,
+        
+        /** message from MD-SAL to switch via RPC enqueued */
+        TO_SWITCH_ENQUEUED_SUCCESS,
+        /** message from MD-SAL to switch via RPC NOT enqueued */
+        TO_SWITCH_ENQUEUED_FAILED,
+        /** message from MD-SAL to switch - sent to OFJava successfully */
+        TO_SWITCH_SUBMITTED_SUCCESS,
+        /** message from MD-SAL to switch - sent to OFJava but failed*/
+        TO_SWITCH_SUBMITTED_FAILURE
+    }
+
+When a message passes any of those checkpoints then counter assigned to corresponding checkpoint and message class is increased by 1.
+
+== Expose results ==
+In order to access statistics there are 3 ways:
+* osgi command (on demand) - this is considered deprecated
+*: <tt>osgi> dumpMsgCount</tt>
+* controller console (stats are dumped here each 10 seconds)
+*: required logback settings : <tt><logger name="org.opendaylight.openflowplugin.openflow.md.queue.MessageSpyCounterImpl" level="DEBUG"\/></tt>
+* JMX (via jconsole)
+*: TBD
