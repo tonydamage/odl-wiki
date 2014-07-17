@@ -1,0 +1,305 @@
+= Developing YANG applications in Java using Opendaylight =
+
+== Introduction ==
+
+This tutorial aims to provide quick jump start for developing YANG applications<br />based on Java and using Opendaylight Yangtools, MD-SAL and Restconf infrastracture.
+
+We will explore application generator, which will setup your development environment<br />to be used for Opendaylight development and generates skeleton application which<br />consists of:
+
+* '''YANG model''' - Which introduces rpc '''saveEntry''' and data tree '''task'''<br />
+* two Java applications
+** '''Provider''' - Application implementing support for '''saveEntry''' RPC, which stores entry received via rpc into data tree '''task'''<br />
+** '''Consumer''' - Application which uses generated Java Binding to invoke saveEntry RPCs.<br />
+* Web application which uses Restconf to invoke '''saveEntry''' RPCs and retrieve<br /> data.
+
+== Prerequisities ==
+
+* Java 7<br />
+* Maven 3.0+<br />
+* (Optional) Eclipse
+
+== Step-by-step tutorial ==
+
+=== 1. Generating skeleton of application ===
+
+Run following commands to start generation of application skeleton
+
+git clone https://git.opendaylight.org/gerrit/p/toolkit.git && cd toolkit && mvn clean install -D skipTests
+
+This will compile extensions for maven, which you could use to generate base applications.
+
+Next go to directory, when you want your application code live and run
+
+<pre>mvn archetype:generate -DarchetypeGroupId=org.opendaylight.toolkit  -DarchetypeArtifactId=md-sal-app-simple</pre>
+
+This command is longer, but will take care of downloading all necessary dependencies<br />and bootstraping your development environment for Opendaylight.
+
+Application will ask you few questions about few properties of your application:
+
+# '''groupId''' - That is group ID for your application, usually it is reverse DNS for your app, eg. '''com.example.yangapp'''<br />
+# '''artifactId''' - name of your application component, usually it is separated with dashes and must be unique inside groupId. Lets use '''yang-demo-app'''. This is also name of folder, in which your application code will reside.<br />
+# '''version''' - Version of your application. -SNAPSHOT suffix means is development version. Press enter to use default version.<br />
+# '''package''' - Package name which will be used for generated sources. Press enter to use default.<br />
+# It will ask you for additional details, just simple press enter to continue with defaults.
+
+Archetype will generate initial structure needed to generate project.
+
+You need to go into '''generate''' directory which is inside folder named after your<br />artifacId, and run '''mvn clean install -Dgen''' there, to finish generation of<br />code.
+
+<pre>cd yang-demo-app/generate
+mvn clean install -Dgen</pre>
+This will generate additional sources for:
+
+* '''yang-demo-app/model''' - YANG Model, project is configured to generate<br /> Java sources describing data structures from YANG models located in<br /> yang-demo-app/model/src/main/yang.<br />
+* '''yang-demo-app/provider''' - Component responsible for implementing RPC in model,<br />and exporting operational state of component using MD-SAL.<br />
+* '''yang-demo-app/consumer''' - Sample app which uses MD-SAL to invoke RPCs<br />
+* '''yang-demo-app/web''' - Sample web app which uses RESTCONF to invoke RPCs<br /> described in YANG Model and retrieving operational state.
+
+After that you may delete whole generate folder.
+
+<pre>cd ..
+rm generate</pre>
+=== 2. Compiling your application from command line ===
+
+In order to compile your skeleton application, you need to go to root folder of<br />your project ('''yang-demo-app''') and run following maven command:
+
+<pre>mvn clean install</pre>
+This will parse YANG model, generate all sources from YANG files and compile<br />initial sample code for you.
+
+=== 3. Importing code to Eclipse ===
+
+# Start Eclipse<br />
+# Go to File-&gt;Import<br />
+# Select General-&gt;Existing Maven Projects<br />
+# Click Browse and select directory with sources of your app<br />
+# Eclipse will scan folder and provide you with list of projects<br />
+# Click Finish
+
+=== 4. Exploration: YANG to Java mapping ===
+
+Model, which defines RPC and data tree is present in
+
+<pre>yang-demo-app/model/src/main/yang/task.yang </pre>
+YANG Tools from Opendaylight parses this YANG file and generate various Java<br />classes, which represents data structures and RPCs defined in YANG model.
+
+For example following rpc '''saveEntry''' statemen:
+
+<pre>rpc saveEntry {
+    description &quot; Method to add a new entry into datastore.&quot;;
+    input {
+    ...</pre>
+Is translated into method call representing RPC invocation in interface '''TaskService''':
+
+<pre>/**
+   Method to add a new entry into datastore.
+**/
+Future&lt;RpcResult&lt;java.lang.Void&gt;&gt; saveEntry(SaveEntryInput input);</pre>
+For input statement there is generated interface SaveEntryInput which represents<br />an input and also SaveEntryInputBuilder which Java programmers<br />may use to create or parse input for saveEntry RPC.
+
+As a rule of thumb YANGTools generate pair of this Interface and Builder for each<br />container, list, case and augmentation statements, which are used to construct<br />YANG-modeled payload.
+
+For following data tree statements
+
+<pre>container task {
+      description
+        &quot;Top-level container for all application database objects.&quot;;
+      list entry {</pre>
+YANGTools generated interfaces '''Task''' and '''Entry''' for container task and entry,<br />builders for data tree were also generated.
+
+=== 5. Implementation of provider ===
+
+Implementation of RPC '''saveEntry''' could be found in '''TaskProvider.java'''.<br />If you notice, this class is implementing generating '''TaskService''' interface<br />and needs to implement '''saveEntry''' method in order to provide RPC.
+
+If '''saveEntry''' RPC is invoked by other Java component or using Restconf,<br />this method '''saveEntry''' is called, and input payload will be available via<br />java interface '''SaveEntryInput'''.
+
+<pre>@Override
+public Future&lt;RpcResult&lt;Void&gt;&gt; saveEntry(SaveEntryInput input) {
+    log.debug(&quot;Saving the entry&quot;);
+    if(input == null || input.getEntryId() == null) {
+    ...</pre>
+Initial implementation of '''saveEntry''' RPC just gets value from RPC input<br />and uses generated '''EntryBuilder''' to create item for '''list entry''' statement.
+
+<pre>EntryBuilder entryBuilder = new EntryBuilder(); 
+entryBuilder.setKey(new EntryKey(new EntryId(input.getEntryId())));
+...
+entryBuilder.setTitle(value);
+entryBuilder.setDesc(value);
+Entry entry = entryBuilder.build();</pre>
+'''TaskProvider''' then stores this data into '''MD-SAL''' provided operational YANG data store.
+
+In order to store data, application must first construct '''Instance Identifier''' pointing<br />to location of data (similar to Restconf URI) using generated classes:
+
+<pre>InstanceIdentifier.InstanceIdentifierBuilder&lt;Entry&gt; entryIdBuilder =
+        InstanceIdentifier
+        .builder(Task.class)
+        .child(Entry.class, entry.getKey());
+InstanceIdentifier&lt;Entry&gt; path = entryIdBuilder.toInstance();</pre>
+This instance identifier is equivalent of Restconf URI:
+
+<pre>task:task/task:entry/{key}</pre>
+And then allocates transaction, do put operation and commits it, in order to<br />store this data into data store, and made them available for other users
+
+<pre>// Place entry in data store tree
+final DataModificationTransaction it = dataService.beginTransaction();
+it.putOperationalData(path, entry);
+it.commit();</pre>
+When commit finishes this entry is available for any component with access to<br />data store (other applications, Restconf).
+
+=== 6. Downloading Opendaylight Distribution ===
+
+You are able to download Hydrogen distribution from official download page,<br />but this archetype is targeted for Helium, when you could download latest<br />development snapshot from:
+
+<pre>https://jenkins.opendaylight.org/integration/view/Integration%20jobs/job/integration-master-project-centralized-integration/lastSuccessfulBuild/artifact/distributions/base/target/distributions-base-0.2.0-SNAPSHOT-osgipackage.zip</pre>
+After downloading distribution unzip it to folder of your choice.
+
+=== 7. Installing application ===
+
+Copy all compiled JAR files from your project to plugins folder of Opendaylight distribution.<br />In case of our sample application this files are:
+
+<pre>./provider/target/yang-demo-app-provider-1.0-SNAPSHOT.jar
+./consumer/target/yang-demo-app-consumer-1.0-SNAPSHOT.jar
+./model/target/yang-demo-app-model-1.0-SNAPSHOT.jar
+./web/target/yang-demo-app-web-1.0-SNAPSHOT.jar</pre>
+E.g.
+
+<pre> cp ./provider/target/yang-demo-app-provider-1.0-SNAPSHOT.jar ./consumer/target/yang-demo-app-consumer-1.0-SNAPSHOT.jar ./model/target/yang-demo-app-model-1.0-SNAPSHOT.jar ./web/target/yang-demo-app-web-1.0-SNAPSHOT.jar ../opendaylight/plugins</pre>
+You need also copy configuration for your sample application to configuration/initial folder
+
+<pre>./configuration/initial/05-task-sample.xml</pre>
+For example:
+
+<pre>cp configuration/initial/05-task-sample.xml ../opendaylight/configuration/initial</pre>
+You have all setup to run your sample application.
+
+=== 8. Run of application ===
+
+Go to your Opendaylight installation folder and run '''./run.sh''' (on Linux / MAC)<br />or '''./run.bat''' on Windows to start Opendaylight.
+
+During startup your components will be picked-up by Opendaylight infrastructure<br />and registered to system:
+
+* YANG models are discovered by MD-SAL, which updates datastore and restconf to support<br /> your model<br />
+* Provider, Consumer bundle and configuration are discovered by Config Subsystem,<br /> which starts them based on Configuration.<br />
+* Provider registers itself to MD-SAL as implementation of RPC<br />
+* Web Bundle is picked up by Webserver (Tomcat) and is available via browser (this<br /> is for UI, Restconf integration is provided by MD-SAL).
+
+In log you should see something like
+
+<pre>15:31:06.395 CEST [config-pusher] INFO  o.o.c.c.y.c.t.i.TaskProviderModule - TaskProvider (...) initialized</pre>
+This means your application is started.
+
+=== 9. Using application via Web User interface ===
+
+Go to:
+
+<pre>http://localhost:8080/controller/web/yang-demo-app</pre>
+User interface is pretty self explanatory, you may add data using Add Entry button<br />and it displays a list of all entries stored by your provider.
+
+Note that Add Entry issues and RPC in background using Restconf to your provider<br />and also uses Restconf to retrieve all data which were stored by provider.
+
+=== 10. Using application via Restconf ===
+
+==== Retrieving Operational Data for task provider ====
+
+To retrieve all tasks from restconf you simply issue GET request<br />for URL
+
+<pre>http://localhost:8080/restconf/operational/task:task</pre>
+If you just started your controller it should return '''404 Not Found''', if no<br />tasks were written by your provider into MD-SAL Data store via<br />Data Service interfaces.
+
+Otherwise you could see Restconf XML for all entries which were added by provider.
+
+<pre>&lt;?xml version=&quot;1.0&quot; encoding=&quot;UTF-8&quot; standalone=&quot;no&quot;?&gt;
+&lt;task xmlns=&quot;opendaylight:sample&quot;&gt;
+    &lt;entry&gt;
+        &lt;title&gt;test&lt;/title&gt;
+        &lt;entry-id&gt;34701633593067530&lt;/entry-id&gt;
+        &lt;desc&gt;description&lt;/desc&gt;
+    &lt;/entry&gt;
+&lt;/task&gt;</pre>
+===== Retrieving data in JSON =====
+
+If you change '''Accept''' header to '''application/json''' or '''application/yang.data+json''' you will retrieve JSON representation of stored data.
+
+<pre>{
+    &quot;task&quot;: {
+        &quot;entry&quot;: [
+            {
+                &quot;title&quot;: &quot;test&quot;,
+                &quot;entry-id&quot;: &quot;34701633593067530&quot;,
+                &quot;desc&quot;: &quot;description&quot;
+            }
+        ]
+    }
+}</pre>
+==== Invoking RPC on provider ====
+
+===== Invoking RPC using XML payload =====
+
+In order to invoke '''saveEntry''' RPC from our initial sample model using Restconf<br />we need to make '''POST''' request for saveEntry RPC URL
+
+<pre>POST /restconf/operations/task:saveEntry HTTP/1.1
+Content-Type: application/xml
+Accept: application/xml
+
+&lt;input&gt;
+  &lt;entryId&gt;10&lt;/entryId&gt;
+  &lt;entryField&gt;
+    &lt;key&gt;title&lt;/key&gt;
+    &lt;value&gt;From IETF&lt;/value&gt;
+  &lt;/entryField&gt;
+  &lt;entryField&gt;
+    &lt;key&gt;desc&lt;/key&gt;
+    &lt;value&gt;Example Demonstrated on IETF&lt;/value&gt;
+  &lt;/entryField&gt;
+&lt;/input&gt;</pre>
+This RPC is then delivered to our provider in form of Java generated classes,<br />which it stores into operational data store.
+
+If you issue following GET for http://localhost:8080/restconf/operational/task:task<br />you will see your entry added there.
+
+===== Invoking RPC using JSON Payload =====
+
+For JSON URL is same, you need only to change Content-Type and Accept headers<br />to '''application/json''' or corresponding ones as per Restconf draft.
+
+<pre>POST /restconf/operations/task:saveEntry HTTP/1.1
+Content-Type: application/json
+Accept: application/json
+
+{  
+   &quot;input&quot;:{  
+      &quot;entryField&quot;:[  
+         {  
+            &quot;key&quot;:&quot;title&quot;,
+            &quot;value&quot;:&quot;From IETF&quot;
+         },
+         {  
+            &quot;key&quot;:&quot;desc&quot;,
+            &quot;value&quot;:&quot;Payload in JSON&quot;
+         }
+      ],
+      &quot;entryId&quot;:&quot;12&quot;
+   }
+}</pre>
+=== 11. Invoking RPC via Java ===
+
+'''TaskConsumerImpl''' shows how RPCs are invoked from Java Code.
+
+In order to invoke any RPC from YANG module, user code must obtain implementation<br />from MD-SAL using RpcConsumerRegistry:
+
+<pre>TaskService service = getRpcRegistryDependency().getRpcService(TaskService.class);</pre>
+Returned service is not our provider, but implementation provided by MD-SAL,<br />which makes sure reference to actual implementation is never leaked and<br />may translate data to different payload format if necessary (e.g. Netconf XML).
+
+In order to construct input consumer uses '''SaveEntryInputBuilder'''<br />to construct RPC input.
+
+<pre>SaveEntryInputBuilder inputbuilder = new SaveEntryInputBuilder();
+...
+inputbuilder.setEntryField(fields);</pre>
+Finally we are invoking RPC and blocking for result to be delivered:
+
+<pre>RpcResult&lt;Void&gt; result = service.saveEntry(inputbuilder.build()).get();</pre>
+== Summary ==
+
+This tutorial showed up how to use archetype and Opendaylight to create<br />simple YANG-modeled application, install it into system and use it via<br />Restconf and Java.
+
+== Further Reading ==
+
+* [https://www.youtube.com/watch?v=IMKFMJ-toGA Original Presentation of Archetype]<br />
+* [https://wiki.opendaylight.org/view/OpenDaylight_Controller:MD-SAL#Tutorials Other MD-SAL Tutorials]
