@@ -255,13 +255,12 @@ Resulting method body should be:
     }
 </pre>
 
-==== 5.2 Implementation of RPC saveEntry =====
+==== 5.2 Implementation of RPC saveEntry ====
 
 Notice that our generated skeleton of TaskProvider is s implementing '''TaskService''' interface<br />which requires it to implement method '''saveEntry'''.
 This method is actually implementation of saveEntry RPC. User supplied input will be available via provided instance of '''SaveEntryInput'''.
 
 This method will be invoked if someone invokes saveEntry RPC  using Restconf or generated TaskService java interface. invokes or using ,<br />this method '''saveEntry''' is called, 
-
 
 <pre>
 @Override
@@ -276,6 +275,24 @@ which is scheduled to be executed asynchronously using executor, but skeleton im
 
 We are going to modify SaveEntry task to store data into operational data tree, so these tasks could be accessible for others by reading data tree
 using Java APIs and Restconf.
+
+===== 5.1 Registering RPC implementation =====
+
+RPC implementation must be registered with MD-SAL in order to exposed to Restconf or other Java skeletons, generated skeleton of application
+has already did that for us in '''TaskProviderModule''', by invoking addRpcImplementation method on RpcProviderRegistry, with specifying
+that we are implementing RPCs defined in '''TaskService''' interface.
+
+<pre>
+        RpcProviderRegistry rpcRegistryDependency = getRpcRegistryDependency();
+        final BindingAwareBroker.RpcRegistration<TaskService> rpcRegistration =
+                                rpcRegistryDependency
+                                    .addRpcImplementation(TaskService.class, appProvider);
+</pre>
+
+Invoking close() on returned rpcRegistration, unregister our implementation from MD-SAL. After closing registration, no one will
+be able to invoke our RPC using MD-SAL or Restconf.
+
+===== 5.2 Modifying RPC to store entries to task:task data tree =====
 
 In order to modify SaveEntry task we need to modify method '''call()''', which is invoked once that task is processed by executor.
 
