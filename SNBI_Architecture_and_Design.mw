@@ -51,6 +51,61 @@ Once the new device gets a neighbour invite message, it tries to boot strap itse
 NTP is used for clock synchronization of network devices, and is capable of delivering accurate and reliable time. NTP is required for SNBI to work effectively because of the expiry time associated with certificates that the CA offers to valid devices. Certificates allocated are valid for only certain periods of time and devices with different clocks could misinterpret the start time / end time of certificates, therefore devices in the network need to be clock synchronized with the CA authorizing the certificates. An NTP server would run at the SNBI RA (controller) which is clock synchronized with the CA offering the certificates, rest of the devices in the network then clock synchronize themselves with the SNBI RA.
 For now we will inherit the host clocks to into the containers running SNBI agents. The idea is SNBI will manage the containers but the host itself will be configured and managed by an administrator.
 
+=== Registrar YANG Definition ===
+module snbi {
+    //The yang version - today only 1 version exists. If omitted defaults to 1.
+    yang-version 1; 
+    //a unique namespace for this SNBI module, to uniquely identify it from other modules that may have the same name.
+    namespace "http://netconfcentral.org/ns/snbi";
+    //a shorter prefix that represents the namespace for references used below
+    prefix snbi;
+    //Defines the organization which defined / owns this .yang file.
+    organization "Netconf Central";
+    //defines the primary contact of this yang file.
+    contact "snbi-dev";
+    //provides a description of this .yang file.
+    description "YANG version for SNBI.";
+    //defines the dates of revisions for this yang file
+    revision "2024-07-02" {
+        description "SNBI module";
+    }
+    typedef UDI {
+        type string;
+        description "Unique Device Identifier";
+    }
+    container snbi-domain {
+        leaf domain-name {
+            type string;
+            description "The SNBI domain name";
+        }
+        list device-list {
+	    key "list-name";
+	    leaf list-name {
+		type string;
+		description "Name of the device list";
+	    }
+	    leaf list-type {
+	   	type enumeration {
+	           enum "white";
+		}
+		description "Indicates the type of the list";
+	    }
+	    leaf active {
+		type boolean;
+	        description "Indicates whether the list is active or not";
+	    }
+	    list devices {
+                key "device-identifier";
+                leaf device-identifier {
+                     type union {
+                         type UDI;
+                     }
+                }
+	    }
+        }
+    }
+}
+
 == Forwarding Element Components ==
 
 The SNBI functions in the Forwarding Elements will be implemented
