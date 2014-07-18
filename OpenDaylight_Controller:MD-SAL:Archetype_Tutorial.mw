@@ -8,9 +8,11 @@ We will explore the application generator, which will setup your development env
 
 * '''A YANG model''' - the definition of the '''saveEntry''' RPC and the data tree '''task'''<br />
 * Two Java applications:
-** '''A Provider''' - An application that implements the support for the '''saveEntry''' RPC; it simply stores the entry received via rpc into the data tree '''task'''<br />
+** '''A Provider''' - An application that implements the support for the '''saveEntry''' RPC; it simply receives RPC and builds data for data tree. '''Note''' that initial version of provider '''does not store''' data in data tree '''task'''<br />
 ** '''A Consumer''' - An application that uses the generated Java Binding to invoke the saveEntry RPC.<br />
 * A Web application that  uses Restconf to invoke the '''saveEntry''' RPC and retrieve<br /> data.
+
+Also we will showcase how to write data into operational tree, by implementing missing feature which stores of data.
 
 == Prerequisities ==
 
@@ -113,20 +115,44 @@ Implementation of RPC '''saveEntry''' could be found in '''TaskProvider.java'''.
 
 If '''saveEntry''' RPC is invoked by other Java component or using Restconf,<br />this method '''saveEntry''' is called, and input payload will be available via<br />java interface '''SaveEntryInput'''.
 
-<pre>@Override
+<pre>
+@Override
 public Future&lt;RpcResult&lt;Void&gt;&gt; saveEntry(SaveEntryInput input) {
     log.debug(&quot;Saving the entry&quot;);
     if(input == null || input.getEntryId() == null) {
-    ...</pre>
+    ...
+</pre>
+
 Initial implementation of '''saveEntry''' RPC just gets value from RPC input<br />and uses generated '''EntryBuilder''' to create item for '''list entry''' statement.
 
-<pre>EntryBuilder entryBuilder = new EntryBuilder(); 
+<pre>
+EntryBuilder entryBuilder = new EntryBuilder(); 
 entryBuilder.setKey(new EntryKey(new EntryId(input.getEntryId())));
 ...
 entryBuilder.setTitle(value);
 entryBuilder.setDesc(value);
-Entry entry = entryBuilder.build();</pre>
-'''TaskProvider''' then stores this data into '''MD-SAL''' provided operational YANG data store.
+Entry entry = entryBuilder.build();
+</pre>
+
+
+Generated '''TaskProvider''' does not stores this data into '''MD-SAL''' provided operational YANG data store,
+but we will learn of to store it.
+
+==== 1. Implementation of storing top level item ====
+
+First, when provider is started, we should write top level container task:task into data tree,
+to signalize via Restconf that we are running.
+
+In order to write data, we need to allocate ReadWriteTransaction and write empty task container,
+to operational data tree.
+
+We need to do this only once, during startup of TaskProvider, so lets modify constructor of TaskProvider.
+
+<pre>
+
+</pre>
+
+
 
 In order to store data, application must first construct '''Instance Identifier''' pointing<br />to location of data (similar to Restconf URI) using generated classes:
 
