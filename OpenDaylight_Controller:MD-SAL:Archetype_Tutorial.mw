@@ -264,12 +264,6 @@ This method is actually implementation of saveEntry RPC. User supplied input wil
 This method will be invoked if someone invokes saveEntry RPC  using Restconf or generated TaskService java interface. invokes or using ,<br />this method '''saveEntry''' is called, 
 
 
-Generated skeleton of application provided us with base implementation of save
-
-Implementation of RPC '''saveEntry''' could be found in '''TaskProvider.java'''.<br />If you notice, this class is implementing generating '''TaskService''' interface
-and needs to implement '''saveEntry''' method in order to provide RPC.
-
-
 <pre>
 @Override
 public Future&lt;RpcResult&lt;Void&gt;&gt; saveEntry(SaveEntryInput input) {
@@ -278,40 +272,70 @@ public Future&lt;RpcResult&lt;Void&gt;&gt; saveEntry(SaveEntryInput input) {
     ...
 </pre>
 
-Initial implementation of '''saveEntry''' RPC just gets value from RPC input<br />and uses generated '''EntryBuilder''' to create item for '''list entry''' statement.
+Generated skeleton of application provided us with base implementation of saveEntry which translates SaveEntryInput into Entry object and creates SaveEntry task,
+which is scheduled to be executed asynchronously using executor, but skeleton implementation of SaveEntry task does not store data to operational data tree.
+
+We are going to modify SaveEntry task to store data into operational data tree, so these tasks could be accessible for others by reading data tree
+using Java APIs and Restconf.
+
+In order to modify SaveEntry task we need to modify method '''call()''', which is invoked once that task is processed by executor.
+
+First you could notice there is some code in call method, but we will not need it in this tutorial so for start delete everything
+inside call method except return statement.
 
 <pre>
-EntryBuilder entryBuilder = new EntryBuilder(); 
-entryBuilder.setKey(new EntryKey(new EntryId(input.getEntryId())));
-...
-entryBuilder.setTitle(value);
-entryBuilder.setDesc(value);
-Entry entry = entryBuilder.build();
+      @Override
+      public RpcResult<Void> call() throws InterruptedException {
+          return Rpcs.<Void> getRpcResult(true, null, Collections.<RpcError> emptySet());
+      }
+</pre>
+
+This return statement returns successful RPC result with no data and errors associated with it.
+
+As we learned before in order to write data, we need write transaction, which we will use to modify data tree.
+
+<pre>
+      @Override
+      public RpcResult<Void> call() throws InterruptedException {
+          WriteTransaction tx = dataService.newWriteOnlyTransaction();
+
 </pre>
 
 
-Generated '''TaskProvider''' does not stores this data into '''MD-SAL''' provided operational YANG data store,
-but we will learn of to store it.
+To write data, we need construct instance identifier for entry, which we are going to add. Notice that generated skeleton
+already constructed entry for us, so we need only to construct instance identifier, which will be equivalent
+of restconf path /task:task/entry/(entry-id)
 
+<pre>
+        // Each entry will be identifiable by a unique key, we have to create that identifier
+        InstanceIdentifier<Entry> path = InstanceIdentifier.create(Task.class).child(Entry.class, entry.getKey());
+</pre>
 
+You could see we used same pattern as before, but we added '''.child(Entry.class, entry.getKey())''' part. 
+This means that we are referencing list item entry in task container with key from our builded entry.
+Next we need to PUT this entry to data tree and commit transaction.
+<pre>
+        tx.put(LogicalDatastoreType.OPERATIONAL, path, entry);
+        tx.commit();
+</pre>
 
-In order to store data, application must first construct '''Instance Identifier''' pointing<br />to location of data (similar to Restconf URI) using generated classes:
+We should end-up with call() method like this:
+<pre>
+      @Override
+      public RpcResult<Void> call() throws InterruptedException {
+          WriteTransaction tx = dataService.newWriteOnlyTransaction();
+        // Each entry will be identifiable by a unique key, we have to create that identifier
+        InstanceIdentifier<Entry> path = InstanceIdentifier.create(Task.class).child(Entry.class, entry.getKey());
+        tx.put(LogicalDatastoreType.OPERATIONAL, path, entry);
+        tx.commit();
+        return Rpcs.<Void> getRpcResult(true, null, Collections.<RpcError> emptySet());
+      }
+</pre>
 
-<pre>InstanceIdentifier.InstanceIdentifierBuilder&lt;Entry&gt; entryIdBuilder =
-        InstanceIdentifier
-        .builder(Task.class)
-        .child(Entry.class, entry.getKey());
-InstanceIdentifier&lt;Entry&gt; path = entryIdBuilder.toInstance();</pre>
-This instance identifier is equivalent of Restconf URI:
+So our implementation of '''saveEntry''' RPC takes and SaveEntryInput translated it into item of list entry
+and writes that to operational data store using path pointing directly to write place.
 
-<pre>task:task/task:entry/{key}</pre>
-And then allocates transaction, do put operation and commits it, in order to<br />store this data into data store, and made them available for other users
-
-<pre>// Place entry in data store tree
-final DataModificationTransaction it = dataService.beginTransaction();
-it.putOperationalData(path, entry);
-it.commit();</pre>
-When commit finishes this entry is available for any component with access to<br />data store (other applications, Restconf).
+So now is part to compile our code, install is into controller and give it a test ride.
 
 === 6. Downloading Opendaylight Distribution ===
 
