@@ -251,10 +251,10 @@ Resulting method body should be:
 
 ==== 5.2 Implementation of RPC saveEntry ====
 
-Notice that our generated skeleton of TaskProvider is s implementing '''TaskService''' interface<br />which requires it to implement method '''saveEntry'''.
-This method is actually implementation of saveEntry RPC. User supplied input will be available via provided instance of '''SaveEntryInput'''.
+Notice that our generated skeleton for TaskProvider is s implementing the '''TaskService''' interface which requires it to implement the '''saveEntry'' method'.
+This method is actually the implementation of saveEntry RPC. User supplied input will be available via provided instance of '''SaveEntryInput'''.
 
-This method will be invoked if someone invokes saveEntry RPC  using Restconf or generated TaskService java interface. invokes or using ,<br />this method '''saveEntry''' is called, 
+This method will be invoked if someone invokes the '''saveEntry''' RPC using Restconf or generated TaskService java interface. invokes or using ,                                  '........................................................................................................................................................................wrsdthis method '''saveEntry''' is called, 
 
 <pre>
 @Override
@@ -264,16 +264,13 @@ public Future&lt;RpcResult&lt;Void&gt;&gt; saveEntry(SaveEntryInput input) {
     ...
 </pre>
 
-Generated skeleton of application provided us with base implementation of saveEntry which translates SaveEntryInput into Entry object and creates SaveEntry task,
-which is scheduled to be executed asynchronously using executor, but skeleton implementation of SaveEntry task does not store data to operational data tree.
+The generated skeleton of the application contains base implementation of the '''saveEntry''' method. translates '''SaveEntryInput''' into and Entry object and creates the '''SaveEntry''' task,which is scheduled to be executed asynchronously using an executor; The skeleton implementation of the '''SaveEntry''' task does not write data data into operational data tree.
 
-We are going to modify SaveEntry task to store data into operational data tree, so these tasks could be accessible for others by reading data tree
-using Java APIs and Restconf.
+We are going to modify the '''SaveEntry''' task to write data into operational data tree, so the provider's operational data can be accessed by clients (data consumers) by reading data tree using Java APIs and Restconf.
 
-===== 5.1 Registering RPC implementation =====
+===== 5.1 Registering the RPC Implementation =====
 
-RPC implementation must be registered with MD-SAL in order to exposed to Restconf or other Java skeletons, generated skeleton of application
-has already did that for us in '''TaskProviderModule''', by invoking addRpcImplementation method on RpcProviderRegistry, with specifying
+The RPC implementation must be registered with MD-SAL in order to be exposed to Restconf or other Java consumers. The RPC registration code is generated in the application skeleton. The code is in the '''TaskProviderModule''' - look for the '''addRpcImplementation''' method on '''RpcProviderRegistry''', with specifying
 that we are implementing RPCs defined in '''TaskService''' interface.
 
 <pre>
@@ -283,15 +280,14 @@ that we are implementing RPCs defined in '''TaskService''' interface.
                                     .addRpcImplementation(TaskService.class, appProvider);
 </pre>
 
-Invoking close() on returned rpcRegistration, unregister our implementation from MD-SAL. After closing registration, no one will
-be able to invoke our RPC using MD-SAL or Restconf.
+Invoking close() on returned rpcRegistration, unregisters our implementation from the MD-SAL. After a registration is closed, no one will be able to invoke our RPC using MD-SAL or Restconf.
 
-===== 5.2 Modifying RPC to store entries to task:task data tree =====
+===== 5.2 Modifying the Generated RPCs to Write Entries into the MD-SAL Data Tree =====
 
-In order to modify SaveEntry task we need to modify method '''call()''', which is invoked once that task is processed by executor.
+In order to modify the '''SaveEntry''' task we need to modify method '''call()''', which is invoked once that task is processed by an executor.
 
-First you could notice there is some code in call method, but we will not need it in this tutorial so for start delete everything
-inside call method except return statement.
+Note that there is already some code in the call method's body, but we will not need it in this tutorial,so just delete everything
+inside call method except for the '''return''' statement.
 
 <pre>
       @Override
