@@ -458,14 +458,38 @@ This action is typically followed by an allow or redirect action.
 table=$POLICY_ENFORCER reg1=$SEPG, reg3=$DEPG,
 actions=mod_nw_tos:TOS, mod_nw_ecn:ECN, ...</nowiki>
 
-==== Redirect ====
+==== Redirect / Service Redirection ====
 
-This action can be used to overwrite the standard bridging or routing decision that would be
-taken for regular network operation. This can be used for service redirection or NAT purposes.
+Service insertion or redirection can be defined as an action between EPGs in the policy. It may occur transparently, i.e. without changing the packet in any way, or non-transparently by explicitly redirecting the packet to the service node.
+
+===== Non-transparent Service Insertion =====
+Non-transparent service insertion is used to redirect packets to a service such as a web proxy which requires the packet to be addressed to the service. The vSwitch forwarding behavior to achieve this is identical to a L2/L3 switching/routing action to any other EP.
+
+The specific action chain will depend on whether the service is located within the same BD or whether routing is required. The controller/agent is aware of the location of both EPs and will insert the required action set. The following is an example for a L2 non-transparent service redirection:
 
  <nowiki>
 table=$POLICY_ENFORCER reg1=$SEPG, reg3=$DEPG,
-actions=mod_nw_tos:TOS, mod_nw_ecn:ECN</nowiki>
+actions=mod_dl_dst:$MAC_OF_SERVICE,
+        load:$TUNNEL_PORT->NXM_NX_REG4[],
+        move:NXM_NX_REG1[]->NXM_NX_TUN_ID[],
+        load:$TUNNEL_DST->NXM_NX_TUN_IPV4_DST[],
+        action:output:NXM_NX_REG4[]</nowiki>
+
+===== Transparent Service Insertion =====
+Transparent service insertion is used to redirect packets to a service such as a firewall which does not require a packet to be specifically addressed to the service. The service will be applied to all packets on the virtual network. This requires that the service only sees packets to which the service should be applied.
+
+The required forwarding behavior is to encapsulate the packet with the appropriate VNID. There is no need to rewrite any of the L2 headers.
+
+ <nowiki>
+table=$POLICY_ENFORCER reg1=$SEPG, reg3=$DEPG,
+actions=load:$TUNNEL_PORT->NXM_NX_REG4[],
+             move:$VNI_OF_SERVICE->NXM_NX_TUN_ID[],
+             load:$TUNNEL_DST->NXM_NX_TUN_IPV4_DST[],
+             output:$NXM_NX_REG4[]</nowiki>
+
+The redirect action in the policy will specify the VNID and VTEP to be used.
+
+TBD: Does the pipeline always stop after a redirect action has been processed?
 
 ==== Mirror ====
 
