@@ -59,6 +59,45 @@ This format is displayed when listing features through the features:list command
 
 Features should be provided with appropriate granularity. As such where there are different choices of implementation the API should be available as a seperate feature on which the implementations would depend. The same applies to "add-ons" to a core-level feature to the project such as additional protocols, transports etc. which might not be required all the time by the users of this component. As such we expect projects to provide the appropriate level of granularity to their projects.
 
+== Avoid overinclusion ==
+
+Features should define roughly the minimal shell of things they need to function. As such, be cautious to avoiid overinclusion.  If you only need a single bundle, you probably should declare the bundle, not a <otherproject>-all feature.
+
+== Making it easy to consume your features.xml file ==
+
+You can have a transitive tree of features.xml files.  You would like to make it easy for folks to consume your feature file as a standalone unit.  Because one features.xml can depend on features from another, you need to make sure to reference it correctly.  For example, protocol framework below uses features from the config feature:
+<pre>
+<features name="odl-protocol-framework-${protocol-framework.version}" xmlns="http://karaf.apache.org/xmlns/features/v1.2.0"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://karaf.apache.org/xmlns/features/v1.2.0 http://karaf.apache.org/xmlns/features/v1.2.0">
+  <repository>mvn:org.opendaylight.controller/config-features/${config.version}/xml/features</repository>
+  <feature name='odl-protocol-framework' version='${project.version}'>
+    <bundle>mvn:org.opendaylight.controller/protocol-framework/${protocol-framework.version}</bundle>
+    <feature version='${config.version}'>odl-config-api</feature> <!-- needed by netty-config-api -->
+    <feature version='${config.version}'>odl-config-netty-config-api</feature> <!-- needed by netty-config-api -->
+  </feature>
+</features>
+</pre>
+
+The element:
+<pre>
+<repository>mvn:org.opendaylight.controller/config-features/${config.version}/xml/features</repository>
+</pre>
+
+Indicates that this feature file uses features from the config-features features.xml and how to get it (via maven).
+
+Of course, you also then want to put in the pom.xml file for your features/ a proper dependency as well
+<pre>
+<dependency>
+      <groupId>org.opendaylight.controller</groupId>
+      <artifactId>config-features</artifactId>
+      <version>${config.version}</version>
+      <classifier>features</classifier>
+      <type>xml</type>
+      <scope>runtime</scope>
+    </dependency>
+</pre>
+
 ==  Component Meta-Features ==
 
 If the project provides multiple features provide component-level meta-features should be provided to provide easy and quick component-level installation of the feature. This meta-feature will only contain other features that should be logically grouped to provide an easy way for other projects to specify their dependency.  This is especially useful when a feature can have different implementation options off a different core and allows projects to specify and quickly import the correct 'stack'.
