@@ -1,8 +1,7 @@
 =Welcome to CrossProject OpenDaylight Security Analysis Page=
 
 == Introduction ==
-
-The OpenDaylight Security analysis team is documenting what security features are present in OpenDaylight  today. In addition, the team will provide recommendations for enhancements of security measures.
+The OpenDaylight security analysis captures what security features are present in OpenDaylight  today. In addition, it provides some recommendations for security enhancements.
 
 ===OpenDaylight Controller Security ===
 
@@ -43,7 +42,7 @@ Set karaf.shutdown.port=-1 in etc/custom.properties or etc/config.properties
 
 ==== OpenDaylight Controller’s  Plugins Security ====
 
-The document [https://docs.google.com/presentation/d/1df-GMYVe1zGEU6DgKzFQ3xeceicqcGNRRsT5l5QNd_E/edit?pli=1#slide=id.g26bf015a9_2_42 here] captures the existing northbound and southbound plugins. These plugins should provide secure communication access to the controller. The following table captures the state of the plugins.
+The document [https://docs.google.com/presentation/d/1df-GMYVe1zGEU6DgKzFQ3xeceicqcGNRRsT5l5QNd_E/edit?pli=1#slide=id.g26bf015a9_2_42 here] captures the existing northbound and southbound plugins. These plugins should provide secure communication access to the controller. The following table captures the state of the plugin’s transport layer security. 
 
 {| class="wikitable"
 |-
@@ -57,8 +56,8 @@ The document [https://docs.google.com/presentation/d/1df-GMYVe1zGEU6DgKzFQ3xecei
 
 |- align="right"
 | align="left" | Neutron
-| HTTP
-| align="left" | HTTPS
+| HTTPS
+| align="left" | 
 
 |- align="right"
 | align="left" | VTN Coordinator
@@ -83,27 +82,27 @@ The document [https://docs.google.com/presentation/d/1df-GMYVe1zGEU6DgKzFQ3xecei
 |- align="right"
 | align="left" | BGP-LS/PCEP
 | TCP
-| align="left" | TCP-MD5, TLS
+| align="left" | TCP-MD5, TLS 1.2
 
 |- align="right"
 | align="left" | NETCONF
-| SSH (username/passwd) / TCP
-| align="left" | TLS
+| SSH  / TCP
+| align="left" | SSH /  TLS 1.2
 
 |- align="right"
 | align="left" | OpenFlow 1.0/1.3 (openflowjava)
-| TCP
-| align="left" | TLS
+| TCP  / TLS 1.2
+| align="left" | 
 
 |- align="right"
 | align="left" | OpenFlow 1.0 (openflowj)
-| TLS
+| TLS 1.2
 | align="left" | 
 
 |- align="right"
 | align="left" | OVSDB
 | TCP
-| align="left" | TLS
+| align="left" | TLS 1.2
 
 |- align="right"
 | align="left" | SNMP
@@ -127,22 +126,23 @@ General recommendation for the plugins is as follows
 
 From security standpoint, direct access needs  to be restricted; who and how users can interact  with  controllers  needs  to  be clearly defined (best practice dictates access should be limited to only those admins who absolutely need it and be authenticated and logged). Although OpenDaylight supports secure communication access via the northbound APIs, it is desirable to further harden the security by providing role based access control for the external users. The recommendations for the security requirements are
 
-*User access authentication
+*User access authentication : OpenDaylight today allows configuration of username/password.
 *Access protocol authorization: e.g. a user can only access via HTTPS
-*Resources/Services authorization: e.g. what data in the URI tree can the user config/view
+*Services / Resource authorization: e.g. a user has access to NETCONF and subsection of  URI tree  under NETCONF 
 *Auditing access/authorization: useful for incident response analysis.
+*Pluggable AAA service
 
-==== Device/Forwarding Elements Secure BootStrap, Authentication and Authorization ====
+==== Secure Device/Controller BootStrap, Authentication and Authorization ====
 
 Today, the discovery of OpenDaylight controller and devices it controls is manual.  For example, in the case of OpenFlow, the devices/switches have to be configured with the controller’s IP address. It is desirable to automatically and securely bring up integrated set of network devices and controllers.
 
-The following is the recommendation to support the zero touch bootstrap requirements
+The following is the recommendation to support the zero touch secure bootstrap requirements
 *Controller automatically discovers devices, assigns IP address and establishes secure IP connectivity. If routing is required to reach the devices, the routing is also automatically established.
 *Controller has the ability to authenticate and authorize against a device registry.
 *For the devices to participate in the automatic bootstrap, the devices should require minimal bootstrap software.
 *A southbound syslog plugin should be added to capture bootstrap log information from the devices. This log information would be useful to correlate for incident response.
 
-==== Controller Availability/Clustering and Security ====
+==== Controller Clustering and Security ====
 Clustering provides scalability and availability. It is desirable that the clustering communication channel is secure. Current ODL controller clustering is built on top of Infinispan v5.3.0 distributed-caching/data-grid platform. Infinispan uses Jgroups as a reliable messaging layer for the cluster. Jgroups currently supports UDP, TCP, and Tunnel over TCP as the three transport protocol options. 
 In standard configurations, UDP is used as the default transport protocol that uses IP multicast for sending 1-to-many messages to the cluster.
 TCP is used when there are cluster nodes outside a LAN and message needs to go through a router where IP multicast does not work. 1-to-many cluster messages are sent out as multiple TCP unicast messages.
@@ -156,10 +156,11 @@ OpenDaylight AD-SAL clustering uses TCP as the transport for Jgroups. It is reco
 Overall, the OpenDaylight controller should have following components to build a secure framework.
 
 *Ongoing vulnerability analysis to pinpoint security flaws that can be exploited by the attackers
+** It is recommended to have a special mechanism to report security bugs/issues to OpenDaylight. For example, the approach taken by OpenStack would be suitable. [https://www.openstack.org/projects/openstack-security/ link]
+** In addition, a vulnerability management team similar to OpenStack would be beneficial. [https://wiki.openstack.org/wiki/Vulnerability_Management link] 
 *Robust incident response support for controller/devices/user. A southbound syslog plugin to incorporate capture logs from devices in incident analysis.
-* AAA service for applications/users/devices
-*Secure communication channel to connect to plugins. Common trusted crypto key storage for all plugins. DDoS protection on plugins expose ports.
-*Pluggable / Built-in Certificate Authority
+*Secure communication channel to connect to plugins. Common trusted crypto key storage for all plugins. DDoS protection on plugins expose ports. Pluggable / Built-in Certificate Authority.
+*AAA service for applications/users/devices
 *Framework to securely discover, connect and configure the devices
 *Secure mechanism to cluster the controller for scalability and availability
 
