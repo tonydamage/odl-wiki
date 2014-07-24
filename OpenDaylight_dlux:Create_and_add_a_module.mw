@@ -16,10 +16,18 @@ This section describes how to create and add a module to OpenDaylight Dlux.
 
 ==Define the module==
 First, create an empty file with the module name.
-First, we need to surround our module with a define function. This allows DefineJs to see our module.js file. The first argument is an array who contain all the module dependencies. The second is a callback function
+Next, we need to surround our module with a define function. This allows DefineJs to see our module.js files. The first argument is an array who contain all the module dependencies. The second is a callback function whose body contain the AngularJs code base. The function parameters correspond with the order of dependencies. Each dependences is injected into a parameter if it is provided.
+
+For each new module, you must have at least those two dependencies :
+* angularAMD : It's a wrapper arround angularjs to provide an AMD ('''A'''synchronous '''M'''odule '''D'''efinition) support. For more information click [https://github.com/amdjs/amdjs-api/blob/master/AMD.md here].
+* app/core/core.services : This one is mandatory if you want to add content in the navigation menu, the left bar or the top bar.
+
+The following are not mandatory, but very often used.
+* angular-ui-router : A library to provide url routing
+* routingAccess : To set level access to a page
 
 <pre>
-define(['angularAMD','routingAccess','app/core/core.services'], function(ng) {
+define(['angularAMD','routingAccess', 'angular-ui-router','app/core/core.services'], function(ng) {
     var module = angular.module('app.a_module', ['ui.router.state', 'app.core']);
     
     // module configuration
@@ -32,8 +40,8 @@ define(['angularAMD','routingAccess','app/core/core.services'], function(ng) {
 If your module is only require by the main application, you will need register your angular components because the app will be already bootstraped. Otherwise, it won't see your component on the runtime.
 '''Node :''' If your module is only use by an other module, you don't have to do this step.
 <pre>
-  nodes.config(function($compileProvider, $controllerProvider, $provide) {
-    nodes.register = {
+  module.config(function($compileProvider, $controllerProvider, $provide) {
+    module.register = {
       controller : $controllerProvider.register,
       directive : $compileProvider.directive,
       factory : $provide.factory,
@@ -85,7 +93,7 @@ The ID parameter support, for now, one level of depth. So if your ID look like '
     NavHelperProvider.addControllerUrl('<path_to_module_folder>/<module_name>.controller');
 </pre>
 
-The module.js is now complete
+The module.js file is now complete
 
 == Create the Controllers, factory, directive, etc==
 Creating the controller and other components are similar to the module.
