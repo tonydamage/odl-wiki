@@ -17,6 +17,9 @@ Presently the Ping 2.0 source is not in master yet. You can find it on this gerr
 
 Once the source is downloaded, copy the src/main/resources/configuration/initial/06-icmpdiscovery.xml to the same directory under your running distribution. Copy the .jar file to the plugin directory. Restart the controller.
 
+ $ cp opendaylight/md-sal/samples/pingDiscovery/src/main/resources/configuration/initial/06-icmpdiscovery.xml opendaylight/distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/configuration/initial/
+ $ cp opendaylight/md-sal/samples/pingDiscovery/target/sample-pingDiscovery-1.1-SNAPSHOT.jar opendaylight/distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/plugins/org.opendaylight.controller.samples.sample-pingDiscovery-1.1-SNAPSHOT
+
 = Architecture =
 
 There are two major parts to our system:
@@ -39,7 +42,7 @@ Perform the following RESTCONF call:
 <pre>
      URL: http://localhost:8080/restconf/operations/icmp-discovery:discover
      METHOD: POST
-     HEADER: ContentType: application/json
+     HEADER: Content-Type: application/json
      BODY:
       {
          "input": {
@@ -48,6 +51,12 @@ Perform the following RESTCONF call:
                 timeout-seconds: "6"
          }
      }
+</pre>
+
+example of above using curl:
+
+<pre>
+curl -v -i -H "Content-Type: application/json" -X POST -d '{ "input" : { id: "discProf1", ip-list: ["192.168.1.1", "192.168.1.2"], timeout-seconds: "6" } }' http://localhost:8080/restconf/operations/icmp-discovery:discover
 </pre>
 
 This will create a discovery profile with ID "discProf1", and will immediately attempt to ping the multiple IP addresses.<br><Br>
@@ -112,4 +121,4 @@ In our example we only supported the operational data store, but supporting the 
 
 == AutoCloseable ==
 
-You will notice that there are a lot of closeables getting based around. Every registration method with MD-SAL returns an autocloseable object. When close is called, the logic unregisters from MD-SAL and will no longer receive notifications. So make sure that you store all of hte registration objects so you can unregister them correctly when the bundle is shutting down.
+You will notice that there are a lot of closeables getting based around. Every registration method with MD-SAL returns an autocloseable object. When close is called, the logic unregisters from MD-SAL and will no longer receive notifications. So make sure that you store all of the registration objects so you can unregister them correctly when the bundle is shutting down.
