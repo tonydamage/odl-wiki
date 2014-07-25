@@ -173,12 +173,12 @@ commit and its state.
 <pre>
         ReadWriteTransaction writeTx = dataBroker.newReadWriteTransaction();
 
-        ListenableFuture<RpcResult<TransactionStatus>> commitFuture = writeTx.commit();
+        CheckedFuture<Void,TransactionCommitFailedException> submitFuture = writeTx.submit();
 
-        Futures.addCallback(commitFuture, new FutureCallback<RpcResult<TransactionStatus>>() {
+        Futures.addCallback(submitFuture, new FutureCallback<Void>() {
 
             @Override
-            public void onSuccess(final RpcResult<TransactionStatus> result) {
+            public void onSuccess(final Void result) {
                 // Commited successfully
             }
 
@@ -188,8 +188,9 @@ commit and its state.
 
                 if(t instanceof OptimisticLockFailedException) {
                     // Failed because of concurrent transaction modifying same data
+                } else {
+                   // Some other type of TransactionCommitFailedException
                 }
-
             }
 
         });
