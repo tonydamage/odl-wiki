@@ -2,19 +2,19 @@
 In order to use extensions it is needed to augment existing model and register new (de)serializers.
 
 '''Augmenting the model:''' <br />
-1. Create new augmentation (you can check how do the existing ones look like in openflow-augments.yang) <br />
+1. Create new augmentation (you can check how do so in openflow-nx-resubmit-action/src/main/yang/nx-resubmit-action.yang) <br />
 
 '''Register (de)serializers:''' <br />
 1. Create your (de)serializer <br />
 2. Let it implement OFDeserializer<> / OFSerializer<> <br />
 - in case the structure you are (de)serializing needs to be used in Multipart TableFeatures messages, let it implement HeaderDeserializer<> / HeaderSerializer <br />
 3. Implement prescribed methods <br />
-4. Register your class under MessageCodeKey / EnhancedMessageCodeKey when registering deserializer <br />
-5. Register your class under MessageTypeKey / EnhancedMessageTypeKey when registering serializer <br />
-6. Done, test the change <br />
+4. Register your deserializer under appropriate key (in our case ExperimenterActionDeserializerKey) <br />
+5. Register your serializer under appropriate key (in our case ExperimenterActionSerializerKey) <br />
+6. Done, test your implementation <br />
 
 '''NOTE:''' <br />
-There is also an exemplary bundle called openflow-protocol-ext (in the openflowjava project). One can inspire how to register custom (de)serializers based on the implementation of this bundle. <br />
+There is also an exemplary bundle called openflow-nx-resubmit-action (in the openflowjava project). One can inspire how to register custom (de)serializers based on the implementation of this bundle. <br />
 If you don't know what key should be used with your (de)serializer implementation, please visit 
 [[Openflow Protocol Library:Openflow Protocol Library's extensibility:Registration keys | Registration keys]] page.
 
@@ -45,9 +45,6 @@ Now we must augment existing action structure, so that we will have the desired 
  import openflow-action {prefix ofaction;}
  augment "/ofaction:actions-container/ofaction:action" {
      ext:augment-identifier "foo-action";
-         leaf experimenter {
-             type uint32;
-         }
          leaf first {
              type uint16;
          }
@@ -63,15 +60,18 @@ Deserializer:
     @Override
     public Action deserialize(ByteBuf input) {
         ActionBuilder builder = new ActionBuilder();
-        input.skipBytes(SIZE_OF_SHORT_IN_BYTES); // we know the type of action
+        input.skipBytes(SIZE_OF_SHORT_IN_BYTES); '''// we know the type of action'''
         builder.setType(Foo.class);
-        input.skipBytes(SIZE_OF_SHORT_IN_BYTES); // we don't need length
-        FooActionBuilder fooBuilder = new FooActionBuilder();
-        fooBuilder.setExperimenter(input.readUnsignedInt());
+        input.skipBytes(SIZE_OF_SHORT_IN_BYTES); '''// we don't need length'''
+        '''// now create experimenterIdAugmentation - so that openflowplugin can differentiate correct vendor codec'''
+        ExperimenterIdActionBuilder expIdBuilder = new ExperimenterIdActionBuilder();
+        expIdBuilder.setExperimenter(new ExperimenterId(input.readUnsignedInt()));
+        builder.addAugmentation(ExperimenterIdAction.class, expIdBuilder.build());
+        FooActionBuilder fooBuilder = new FooActionBuilder();        
         fooBuilder.setFirst(input.readUnsignedShort());
         fooBuilder.setSecond(input.readUnsignedShort());
         builder.addAugmentation(FooAction.class, fooBuilder.build());
-        input.skipBytes(4); // padding
+        input.skipBytes(4); '''// padding'''
         return builder.build();
     }
  }
@@ -82,18 +82,21 @@ Serializer:
     public void serialize(Action action, ByteBuf outBuffer) {
         outBuffer.writeShort(FOO_CODE);
         outBuffer.writeShort(16);
+        '''// we don't have to check for ExperimenterIdAction augmentation - our serializer'''
+        '''// was called based on the vendor / experimenter ID, so we simply write it to buffer'''
+        outBuffer.writeInt(VENDOR / EXPERIMENTER ID);
         FooAction foo = action.getAugmentation(FooAction.class);
-        outBuffer.writeInt(foo.getExperimenter());
         outBuffer.writeShort(foo.getFirst());
         outBuffer.writeShort(foo.getSecond());
-        for (int i = 0; i < 4; i++) {
-            outBuffer.writeByte(0); //write padding
-        }
+        outBuffer.writeZero(4); //write padding        
     }
  }
 
 Register both deserializer and serializer: <br />
-SwitchConnectionProvider.registerDeserializer(new MessageCodeKey(0x04, 0xFFFF, Action.class), new FooActionDeserializer()); <br />
-SwitchConnectionProvider.registerSerializer(new EnhancedMessageTypeKey<>(0x04, Action.class, Experimenter.class)), new FooActionSerializer()); <br />
+SwitchConnectionProvider.registerDeserializer(new ExperimenterActionDeserializerKey(0x04, VENDOR / EXPERIMENTER ID), new FooActionDeserializer()); <br />
+SwitchConnectionProvider.registerSerializer(new ExperimenterActionSerializerKey(0x04, VENDOR / EXPERIMENTER ID), new FooActionSerializer()); <br />
 
 We are ready to test our implementation.
+
+
+NOTE: Vendor / Experimenter structures define only vendor / experimenter ID as common distinguisher (besides action type). Vendor / Experimenter ID is unique for all vendor messages - that's why vendor is able to register only one class under ExperimenterAction(De)SerializerKey. And that's why vendor has to switch / choose between his subclasses / subtypes on his own.
