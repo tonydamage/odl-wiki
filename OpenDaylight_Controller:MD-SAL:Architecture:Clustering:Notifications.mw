@@ -14,9 +14,29 @@ There are 2 kinds of Publish/Subscribe notifications:
 In both cases, the notifications are broadcasted to all "listeners".
 
 =Requirement=
-We should be able to publish notifications to any subscriber in the cluster. A lot has been discussed on the thread [https://lists.opendaylight.org/pipermail/controller-dev/2014-July/005923.html here]
+
+A lot has been discussed on the thread [https://lists.opendaylight.org/pipermail/controller-dev/2014-July/005923.html here]
+
+*We should be able to publish notifications to any subscriber in the cluster. 
+
+*Subscribers should be able to specify delivery policy
+**1 of N - Deliver the notification to any one of N instances of application running in the cluster
+** N of N - Broadcase
+** Local only - The events generated on the same node as the application instance
+** Load Balance - Round robin, least loaded etc
+** Content Based or any other application specified custom logic
+
+*Publisher should be able to attach properties to the message
+**Message priority
+**Delivery guarantee
+
+
 
 ==Issue==
-When controller is deployed in a cluster with ''n'' nodes, there will be "n" instances of an application running in the cluster. All these instances would subscribe to the same event and will receive notification. 
+When controller is deployed in a cluster with ''n'' nodes, there will be "n" instances of an application running in the cluster. All these instances would subscribe to the same event and will receive notification. This may lead to data corruption as all instances would react to the notification and do their processing. An overly simple example could be thought as maintaining counter in database. All instances of application may end up incrementing the counter for the same event.
+
 =Proposal for helium=
-Based on the discussion in the mailing list thread
+Based on above requirement and the discussion in the mailing list, following have been proposed.
+
+*Any data change notification would be published only to subscribers who are on shard manager.
+*Yang notifications would be published to local subscribers only when the notification was generated.
