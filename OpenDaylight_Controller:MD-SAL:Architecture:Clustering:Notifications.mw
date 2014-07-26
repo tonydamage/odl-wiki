@@ -79,14 +79,23 @@ Clustering solutions is based on Akka. For clustering of notifications, we'll us
 
 '''DistributedPubSubProxy''' - An interface to define contract for distributed pub/sub.
 
-'''AkkaPubSubBrokerProxy'''
+'''AkkaPubSubBrokerProxy''' - Implementation of <code>DistributedPubSubProxy</code> interface. It uses Akka's Actor System to exchange messages across nodes in the cluster.
 
-====MessageQueue====
+'''AmqpPubSubProxy''' - While we dont intend to build this, any 3rd party system can be plugged in by implementing <code>DistributedPubSubProxy</code>.
 
-===SubscriptionRegistry===
-This will be global state used by AkkaPubSubBroker. To globally share the state across nodes in the cluster, SubscriptionRegistry will use gossip protocol following eventually consistent model.
+'''AkkaPubSubActor''' - Its the main class that does the work of messaging across nodes. 
+* It uses <code>GlobalSubscriptionRegistry</code> to route published messages or add/update/delete subscriptions.
+* It uses <code>MessageDispatcher</code> to send messages to another node. <code>MessageDispatchers</code> are a bunch of actors sharing a common mailbox. 
 
-===MessageSender===
+[TBD]: Add a sequence diagram of how it determines where to send messages to.
+
+'''GlobalSubscriptionRegistry''' - Global state used by AkkaPubSubBroker. To globally share the state across nodes in the cluster, SubscriptionRegistry will use gossip protocol following eventually consistent model.<br />
+Every node in the cluster will keep a "bucket" in the registry where it and only it will be responsible to update. The buckets will be versioned and hold subscription information.
+
+'''MessageDispatchers''' - These are actors that are responsible for serializing and transmitting data to other nodes in the cluster. They use a separate execution context (i.e thread pool) than <code>AkkaPubSubActor</code>. This is to ensure serialization and message dispatch processing time does not come in the way of <code>AkkaPubSubActor</code>.<br />
+<code>MessageDispatchers</code> create a <code>MessageEnvelope</code> that contains <code>Notification</code> and a list of subscribers to deliver the notification to. There's one envelop created per node.<br />
+<code>MessageDispatchers</code> could be a simple (<code>SimpleMessageDispatcher</code>) or reliable (<code>ReliableMessageDispatcher</code>). <code>ReliableMessageDispatchers</code> may implement [http://doc.akka.io/docs/akka/current/contrib/reliable-proxy.html reliable proxy pattern], store-and-forward or any other mechanism to ensure the level of guarantee needed.
+
 
 ====ReliableMessageSender====
 
