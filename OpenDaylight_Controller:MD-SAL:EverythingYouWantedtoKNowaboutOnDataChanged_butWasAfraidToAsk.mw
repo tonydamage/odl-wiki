@@ -1329,3 +1329,16 @@ Caused by: java.lang.IllegalStateException: Failed to lookup instantiated type f
 2014-07-08 00:57:26.320 PDT [pool-14
 
 </pre>
+
+== Data Commit Handler Issues ==
+
+# Commit Handler is called for every commit independent of attachment point. If I attach a Commit Handler to a Yang List in a specific model, I expect it to be called only for transaction at that level or lower, but it is called for every controller config transaction.
+# Even though I return a failed transaction from callback handler, data is still pushed to the datastore. Basically a RESTconf PUT request triggers the callback which returns "RpcResultBuilder.<Void> failed().build()" (I also tried returning null), but data is not rolled back. This does not agree with documentation and defeats the core value of this construct. 
+
+<pre>
+
+https://jenkins.opendaylight.org/controller/job/controller-merge/lastSuccessfulBuild/artifact/target/apidocs/org/opendaylight/controller/md/sal/common/api/data/DataCommitHandler.html
+
+"If error occured, the broker starts a commit rollback phase. "
+
+</pre>
