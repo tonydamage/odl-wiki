@@ -14,9 +14,11 @@ The remaining projects have not yet been modified to play nice with Eclipse.
 
 ==Installing Eclipse==
 
+# Make sure you have a Java 1.7 JDK installed.
 # Download and install Eclipse ("for Java EE Developers", "for Java Developers" and "for RCP and RAP Developers" all seem to work)
-# Increase the memory for the Eclipse installation by modifiying the eclipse.ini file in the same directory as the eclipse executable.
-#*Change the -Xmx setting to be AT least 1G, recommended 2GB.  (i.e.    -Xmx2048m ).  ''Note: This file may be in a different location depending on your OS. Refere to eclipse documentation if you don't see the file.'' 
+# Increase the memory for the Eclipse installation by modifying the [http://wiki.eclipse.org/Eclipse.ini eclipse.ini] file in the same directory as the eclipse executable.
+#*Change the -Xmx setting to be AT least 1G, recommended 2GB.  (i.e.    -Xmx2048m ).  ''Note: This file may be in a different location depending on your OS. Refer to [http://wiki.eclipse.org/Eclipse.ini eclipse documentation] if you don't see the file.'' 
+#*Also change the PermGen space (-XX:MaxPermSize) to be at most 512MB, i.e., -XX:MaxPermSize=512m. If you are only using 1 GB for max memory, then I would suggest 300 MB to start for PermSize.
 # Install Eclipse Maven Integration
 ## From Eclipse, go to Help => Install New Software...
 ## Paste "http://download.eclipse.org/technology/m2e/releases" into the "Work with:" field
@@ -35,7 +37,7 @@ The remaining projects have not yet been modified to play nice with Eclipse.
 ##Select the Tycho Project Configurators. Click Next, OK, Finish etc until it installs.
 ##Restart Eclipse when it asks.
 #Install the build-helper-maven plugin (this allows eclipse to see yang/xtend generated directories as source folders)
-## From Eclipse, go to Windows => Preferences, expand the Maven folder and select Discover.
+## From Eclipse, go to Windows => Preferences, expand the Maven folder and select Discovery.
 ## In the right panel, click 'Open Catalog'.
 ## Type 'build' in he Find box to filter the list.
 ## You should see 'buildhelper' listed. Select it and click Finish.
@@ -48,6 +50,15 @@ The remaining projects have not yet been modified to play nice with Eclipse.
 ## Select 'Groovy-Eclipse' and 'm2e Confgurator for Groovy-Eclipse' to install.
 ## Click Next, accept the license terms and click Finish.
 ## Restart Eclipse when it asks.
+
+===Automatically Avoiding Trailing Whitespace===
+
+OpenDaylight (at least in the controller project) will refuse to compile code which has trailing whitespaces in in. Eclipse can be configured to automatically eliminate them for Java files.
+
+# Go to Preferences => Java => Editor => Save Actions
+# check "Perform the selected actions on save" and "Additional actions", but uncheck the rest
+# click "Configure..." next to the additional actions
+# Check "Remove trailing whitespace" and "All lines" on the first tab ("Code Organizing"), uncheck everything else on the other tabs.
 
 ===Eclipse Maven Integration (m2e) version===
 
@@ -66,17 +77,29 @@ Previously, there were issues with m2e 1.3 and we recommended using 1.2, but tho
 
 == Help - I still have Red X's! (i.e. Eclipse compile errors) ==
 *The first thing to try when you still have eclipse compile errors is to right click the offending projects and choose:
-**Maven -> Update Projects       <-- This will cause eclipse to reevaluate the pom.xml and possibly pull in missing (runtime generated) files.
 **Refresh    <-- Causes eclipse to scan the project directory and pull in any files that were manipulated (generated etc) outside of eclipse.
-*If you still have compile errors, then you may need to run mvn clean install from the command line the offending projects. Yang and xtend source files are only generated when maven is invokved directly (either by right clicking and choosing Run -> mvn generate-sources or via the command line).
+**Maven -> Update Projects       <-- This will cause eclipse to reevaluate the pom.xml and possibly pull in missing (runtime generated) files. Additionally this refreshes the source as well (above command).
+*If you still have compile errors, then you may need to run mvn clean install from the command line the offending projects. Yang and xtend source files are only generated when maven is invoked directly (either by right clicking and choosing Run -> mvn generate-sources or via the command line).
+*Sometimes you may have auto generated files under src/main/sal-gen-config or sal-gen-yang or xtend directories. Occasionally some sources can be generated but not cleaned up properly which can lead to compile errors. Try removing the generated directories manually and then rebuilding, or pulling a clean copy of the source.
 
-== To Remotely Debug the Controller ==
-To remotely debug the controller you need to:
+== Debugging the Controller ==
+
+=== Attaching the Debugger to a Running ODL ===
+Using Eclipse you can debug a locally running, or a remote running controller. Thankfully, the way you do either debugging is the same. First you start ODL with a debug flag, and then you tell Eclipse to attach to the running application via IP. If it is a local instance, use localhost, otherwise provide the hostname or IP address of the remote server!
+<br><Br>To remotely debug the controller you first need to start ODL with the '''-debug''' flag.
 # Start the controller with the -debug flag passed to the run.sh script. <pre>./run.sh -debug   </pre>''This starts the controller, opening up port 8000 for debugging.''
 #In Eclipse choose Run->"Debug Configurations" 
 #*Under "Remote Java Application" choose a standard connection type, and enter the hostname (localhost or remote controller name) and port (8000 by default).
 #*Under the "Source" tab click "Add" and then "Java Project". This will give you a list of all java projects in the workspace. Select them all and click OK a few times to close out of the dialogs. <br>''Note: this should only be required once per debug configuration.''
 #*Click debug to launch the debugger.
+
+=== Debugging a Start Up Issue ===
+
+Sometimes it is necessary to debug an issue that only occurs at start-up. If thats the case, the above technique can be frustrating because it becomes a race condition between you and the start up process! Thankfully there is a way you can start ODL, but pause any initialization code until a debugger is attached! To do this, start ODL using the '''-debugsuspend''' flag.
+<code>
+ ./run.sh -debugsuspend
+</code> ''This starts the controller, but pauses before any initialization code is run. Additionally it opens port 8000 for debugging.
+In order for ODL to start up now you MUST connect a debugger remotely, using the same process defined above.
 
 ==Debugging Weird Errors==
 
@@ -123,3 +146,23 @@ Sometimes m2eclipse plugin does weird things like compiling in infinite loop, up
 # run in folder with pom:
 #: <code>mvn eclipse:eclipse -DdownloadSources=true</code>
 # start eclipse and import ''existing project'' (navigate to folder with pom)
+
+==Import ordering==
+Configure import ordering to avoid noise when doing code review. Open Preferences (Window/Preferences), then Java/Code Style/Organize Imports. Remove all rules and add following rule: 
+
+ * - all unmatched type imports.
+
+This should organize imports in following way:
+
+# static imports sorted alphabetically
+# <blank line>
+# imports sorted alphabetically
+
+See following screenshot:
+[[File:Eclipse-imports.png|thumbnail|left]]
+
+<br><br>
+== Integrating Eclipse with Gerrit and GIT ==
+See this link for a visual walk-through of getting Gerrit and GIT integrated into eclipse.
+
+https://wiki.opendaylight.org/view/OpenDaylight_Controller:Eclipse_Setup
