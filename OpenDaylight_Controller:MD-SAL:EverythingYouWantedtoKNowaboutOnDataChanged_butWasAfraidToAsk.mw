@@ -1342,3 +1342,31 @@ https://jenkins.opendaylight.org/controller/job/controller-merge/lastSuccessfulB
 "If error occured, the broker starts a commit rollback phase. "
 
 </pre>
+
+
+If I change the code below to honor a failed RpcResult from Provider, the transaction still goes through. It seems there is no stopping RESTconf from failing a transaction
+
+<pre>
+
+       return Futures.transform(dataStoreCommit, new Function<RpcResult<TransactionStatus>,RpcResult<TransactionStatus>>() {
+            @Override
+            public RpcResult<TransactionStatus> apply(final RpcResult<TransactionStatus> input) {
+                if(input.isSuccessful()) {
+                    for(DataCommitTransaction<InstanceIdentifier<? extends DataObject>, DataObject> subTx : subTrans ) {
+                        if (!subTx.finish().isSuccessful()) {  //<=== Changed Code
+                            LOG.error("Provider {} commit failed.", subTx.toString());
+                            RpcResult<TransactionStatus> rpcResult = RpcResultBuilder.<TransactionStatus>failed().build();
+                            return rpcResult;
+                        }
+                    }
+                } else {
+                    LOG.error("Tx: {} Rollback - Datastore commit failed.",tx.getIdentifier());
+                    for(DataCommitTransaction<InstanceIdentifier<? extends DataObject>, DataObject> subTx : subTrans ) {
+                        subTx.rollback();
+                    }
+                }
+                return input;
+            }
+        });
+
+</pre>
