@@ -224,6 +224,36 @@ For example, to make-toast on the node with id '''netopeer''' server, you would 
 
 Note: In the case of the netopeer server, you get an immediate response (204). However, if you immediately reissue the command again you will see that we get an RPC error because the "make-toast" action is still running! Further proof that the request is going out to the remote server.
 
+==== Remote RPC with loopback netconf mount ====
+The default configuration of ODL controller contains file 99-netconf-connector. This file mounts the netconf server present in ODL (0.0.0.0:1830) and makes it accessible via RESTCONF under mount id: controller-config. To verify that the mount was successful, issue GET request to following URL:
+<source>
+http://localhost:8080/restconf/config/opendaylight-inventory:nodes/node/controller-config/yang-ext:mount/
+</source>
+
+You should see the current configuration of the ODL controller in XML.
+<br />
+<br />
+
+Now you can invoke rpcs on the netconf server using RESTCONF. In this example we will invoke get-schema rpc from [http://tools.ietf.org/html/rfc6022 ietf-netconf-monitoring]. To do this, issue a POST request to:
+<source>
+http://localhost:8080/restconf/operations/opendaylight-inventory:nodes/node/controller-config/yang-ext:mount/ietf-netconf-monitoring:get-schema
+</source>
+with:
+<source>
+Accept application/xml
+Content-Type application/xml
+</source>
+and payload:
+<source>
+<input xmlns="urn:ietf:params:xml:ns:yang:ietf-netconf-monitoring">
+  <identifier>toaster</identifier>
+</input>
+</source>
+
+This will invoke the get-schema rpc and request the yang schema for toaster module present in the controller. The rpc will be executed immediately and the output should contain the schema of toaster module.
+
+Get-schema rpc can be invoked on any netconf device supporting ietf-netconf-monitoring. The identifier input attribute contains the name of the requested yang module (revision can be specified also in case of multiple revisions of one module under tag ''version'').
+
 == Debugging ==
 
 A simple way to check both connectivity and whether Netconf Server is up and running is to use SSH as described in [http://tools.ietf.org/search/rfc6242 Using the NETCONF Protocol over Secure Shell (SSH)]. For example:
