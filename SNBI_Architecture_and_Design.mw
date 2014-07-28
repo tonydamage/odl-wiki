@@ -226,6 +226,13 @@ the bootstrap phase with this identifier. Once the container device
 is authenticated, a global IPv6 address will be assigned to the SNBI interface
 that is reachable via the interface that ran the neighbor discovery.
 
-== Controller - Forwarding-Element Communication ==
+== Controller - Forwarding-Element Communications Overview ==
 
-[[File:controller-fe-communication-channels.png|600px|center]]
+[[File:Controller-fe-communication-channels.png|600px|center]]
+
+The picture above outlines the different communication mechanisms SNBI leverages:
+
+* The SNBI-plugin on the Controller and the SNBI agent on the "first hop" Forwarding Element establish a DTLS/SSL connection to secure their communication. It is assumed that the device/server which runs the Controller runs an instance of the portable foundation/container. This will allow for the full benefit of SNBI, i.e. SNBI automatically establishes secure IP connectivity throughout the network without a need to pre-configure any IP connectivity between the devices in the network. If the Controller is hosted on a device which does not run an instance of an SNBI-agent within a portable foundation, then IP connectivity between the Controller and the "first hop" Forwarding Element which runs an instance of an SNBI-agent within a portable foundation needs to be configured by other means (e.g. manually). It is recommended to always host the Controller on a device (server) which also runs an instance of the SNBI-agent within the portable foundation.
+* SNBI-agents discover each other through the above described discovery protocol.
+* SNBI-agents establish a secure channel among themselves, which is typically an IPsec connection. One the secure channel, i.e. IPsec connection, is established other services running on the same host (be it a forwarding element or a controller) can leverage the secure IP connectivity for their means. In the above picture, an example "protocol x plugin" leverages the secure channel to communicate between different instances of protocol x. Example protocols which could use the secure channel include e.g. OpenFlow, Netconf, etc. - which would not need to bother any more establishing their own secure transport (e.g. using DTLS/SSL). That said, any protocol can of course establish its own additional secure transport on top of the already provided secure connectivity by SNBI.
+* A SNBI-agent hosted in a portable foundation/container controls and retrieves certain configuration parameters through a RESTconf/Netconf interface. This includes the establishment and configuration of the secure channel (i.e. the IPsec connection), routing table control, as well as the retrieval of a UDI (see above). The  configuration interface between container and underlying host is based on standard IETF YANG models (e.g. RFC 7223 for interface configuration, draft-ietf-netmod-routing-cfg for route management, etc.). This approach decouples the underlying host and its configuration specifics from the portable foundation/container hosting environment and allows for simplified portability of the portable foundation.
