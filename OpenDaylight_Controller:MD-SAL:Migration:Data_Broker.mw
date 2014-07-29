@@ -20,6 +20,161 @@ Implementation of MD-SAL already uses new DOM Data Broker and DOM APIs and provi
 
 Please consult Javadocs for [https://jenkins.opendaylight.org/controller/job/controller-merge/lastSuccessfulBuild/artifact/target/apidocs/org/opendaylight/controller/md/sal/binding/api/DataBroker.html org.opendaylight.controller.md.sal.binding.api.DataBroker] which contains detailed description about new APIs alongside with examples.
 
+=== Migrating DataChangeListener ===
+
+If you have DataChangeListener(s) in your code this is what you should do to migrate them to the new Data Broker
+
+Substitute
+
+<pre>
+    @Override
+    public void onDataChanged(
+            DataChangeEvent<InstanceIdentifier<?>, DataObject> change) {
+
+</pre>
+
+by
+<pre>
+    @Override
+    public void onDataChanged(
+            final AsyncDataChangeEvent<InstanceIdentifier<?>, DataObject> change ) {
+</pre>
+
+==== DataChangeListener Registration ====
+
+Before
+
+<pre>
+
+        final ListenerRegistration<DataChangeListener> sfEntryDataChangeListenerRegistration =
+                dataBrokerService.registerDataChangeListener( OpendaylightSfc.sfEntryIID, 
+                        sfcProviderSfEntryDataListener);
+
+</pre>
+
+After
+
+<pre>
+
+        final ListenerRegistration<DataChangeListener> sfEntryDataChangeListenerRegistration =
+                dataBrokerService.registerDataChangeListener( LogicalDatastoreType.CONFIGURATION,
+                        OpendaylightSfc.sfEntryIID, sfcProviderSfEntryDataListener, DataBroker.DataChangeScope.SUBTREE);
+
+
+</pre>
+
+=== Imports ===
+
+Fixing imports can be frustrating because methods can have similar names, or it is not clear which ones to add or remove.
+
+As far as imports go, you should certainly remove all instances of:
+
+<pre>
+import org.opendaylight.controller.sal.binding.api.data.DataChangeListener;
+import org.opendaylight.controller.sal.binding.api.data.DataProviderService;
+
+</pre>
+
+and add the following whenever appropriate.
+
+<pre>
+import org.opendaylight.controller.md.sal.common.api.data.AsyncDataChangeEvent;
+import org.opendaylight.controller.md.sal.binding.api.DataBroker;
+import org.opendaylight.controller.md.sal.binding.api.DataChangeListener;
+</pre>
+
+If you are going to perform data store transactions, also add right off the bat:
+
+<pre>
+
+import com.google.common.base.Optional;
+import org.opendaylight.controller.md.sal.binding.api.ReadOnlyTransaction;
+import org.opendaylight.controller.md.sal.binding.api.ReadWriteTransaction;
+import org.opendaylight.controller.md.sal.binding.api.WriteTransaction;
+import org.opendaylight.controller.md.sal.common.api.data.LogicalDatastoreType;
+
+</pre>
+
+Do not worry about unused imports, most IDEs can optimize them so the code looks sharp.
+
+=== Migrating Read Transactions ===
+
+Now let me show how to migrate an actual read transaction
+
+Before
+
+<pre>
+        InstanceIdentifier<ServiceFunctionForwarder> sffIID;
+        sffIID = InstanceIdentifier.builder(ServiceFunctionForwarders.class)
+                .child(ServiceFunctionForwarder.class, serviceFunctionForwarderKey)
+                .build();
+        DataObject dataObject = odlSfc.dataProvider.readConfigurationData(sffIID);
+        if (dataObject instanceof ServiceFunctionForwarder) {
+            ServiceFunctionForwarder serviceFunctionForwarder = (ServiceFunctionForwarder) dataObject;
+            return serviceFunctionForwarder;
+        } else {
+            return null;
+        }
+
+</pre>
+
+After
+
+<pre>
+
+        sffIID = InstanceIdentifier.builder(ServiceFunctionForwarders.class)
+                .child(ServiceFunctionForwarder.class, serviceFunctionForwarderKey)
+                .build();
+
+        ReadOnlyTransaction readTx = odlSfc.dataProvider.newReadOnlyTransaction();
+        Optional<ServiceFunctionForwarder> serviceFunctionForwarderObject = null;
+        try {
+            serviceFunctionForwarderObject = readTx.read(LogicalDatastoreType.CONFIGURATION, sffIID).get();
+        } catch (InterruptedException | ExecutionException e) {
+            e.printStackTrace();
+        }
+
+        if (serviceFunctionForwarderObject.get() instanceof ServiceFunctionForwarder) {
+            LOG.debug("\n########## Stop: {}", Thread.currentThread().getStackTrace()[1]);
+            return serviceFunctionForwarderObject.get();
+        } else {
+            LOG.debug("\n########## Stop: {}", Thread.currentThread().getStackTrace()[1]);
+            return null;
+        }
+
+</pre>
+
+'''There are some very important things to notice:'''
+
+* You have to supply an actual class to Optional<> in order for the code to behave. You can not use the generic Optional<DataObject> since the return of your read is ''not'' a DataObject
+* The well-known construct ''if (dataObject instanceof ServiceFunctionForwarder)'' does not work anymore. If you want to test or use the results of the read you actually have to perform an extra step: serviceFunctionForwarderObject.get()
+* You have to use a try-catch, which means some code reshuffling is necessary in order to make sure things are processed within the try or catch blocks
+
+=== Migrating Write (merge) Transactions ===
+
+If you have legacy code that saved data in the datastore and relied implicitly or explicitly that:
+
+# The API took care of creating all parents.  In plain English this means that if you create a leaf node without creating the parents first, the API would take care of creating the parents (whether with or without data). '''A good analogy: the mkdir -p UNIX command. '''
+# The API actually merged data instead of complete overwrite
+
+then you the following is needed
+
+</pre>
+        WriteTransaction writeTx = odlSfc.dataProvider.newWriteOnlyTransaction();
+        writeTx.merge(LogicalDatastoreType.CONFIGURATION,
+                sffIID, serviceFunctionForwarderBuilder.build(), true);
+
+</pre>
+
+Notice
+
+* The use of a merge transaction
+* The use of an extra parameter (true), so that parents are created.
+
+=== Design Discussion: Blocking vs. Non-blocking Reads ===
+
+Although non-blocking reads are discourage in some situations there is nothing you can do to recover if a transaction fails in a callback context. What this means is that a delayed failure or delayed success mean the same thing if the code depends on the answer of the read right there in order to proceed. 
+
 === Reading Data ===
 
 New DataBroker APIs requires all reads to happen inside transaction, and provides specific transaction type
