@@ -52,3 +52,34 @@ Note: See TroubleShooting of User Guide for any issue in running the mininet.
 SDNiAggregator connects with the Base Network Service Functions of the controller. Currently it is querying topology manager, switch manager, host tracker and statistics manager for creating SDNi network capability.
 
 SDNiAggregator is customized to retrieve the host controller’s details, while running the controller in cluster mode. Rest of the northbound APIs of controller will retrieve the entire topology information of all the connected controllers.
+
+Diagrammatic Representation is as below:
+
+[[File:SDNiRestAPI.png|500px |none]] 
+<br />
+
+The SDNiAggregator creates a topology structure.This structure is populated by the various network funtions as shown in the diagram above.
+
+==Developer’s Guide for SDNiRestAPI==
+There are three rest calls in ODL-SDNi App. All these calls, query SDNiAggregator to get the required information.
+<pre>
+http://localhost:8080/controller/nb/v2/sdni/<containername>/topology
+http://localhost:8080/controller/nb/v2/sdni/<containername>/qos
+http://localhost:8080/controller/nb/v2/sdni/<containername>/linkbandwidth/<value>
+</pre>
+
+Topology Data:Controller Ip Address,Links,Nodes,Link Bandwidths,MAC Address of switches,Latency,Host IP address
+QoS Data:Packet Loss rate,Packets Transmitted,Packets Received
+Update Bandwidth: <value> can be a valid number like 5 or list.We can modify the link bandwidth as linkname=0102,linkbandwidth=4&linkname=0203,linkbandwidth=5 
+
+==Developer’s Guide for SDNiWrapper==
+
+The SDNiWrapper diagrammatic representation is as below:
+[[File:SDNiWrapper.png]] 
+
+SDNiWrapper is an extension of ODL-BGPCEP where Topology data is exchanged along with the LinkState NLRI message. 
+Refer http://tools.ietf.org/html/draft-ietf-idr-ls-distribution-04 for more information on LinkState NLRI
+
+SDNiWrapper gets the controller’s network capabilities through SDNi REST API and serialize it  with LinkState NLRI message. This NLRI message will get exchange between the clustered controllers through BGP-UPDATE message. Similarly peer controller’s UPDATE message is received and unpacked then format to SDNi Network capability data, which will be stored for further purpose.
+
+Please refer User Guide([[ODL-SDNiApp:User_Guide|User Guide]]) for running and integration.
