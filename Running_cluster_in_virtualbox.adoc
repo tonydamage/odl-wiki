@@ -1,0 +1,132 @@
+[[install-first-guest-vm]]
+=== Install first Guest VM
+
+_Notes:_ This was tested on laptop with 8GB RAM.
+
+* Install ubuntu server 14.04 on VirtualBox
++
+::
+  Guest settings: 2GB RAM, 8GB HDD.
+  +
+  set _odl1_ for hostname
+  +
+  default user: odl/cisco
+  +
+  During instalation choose to install OpenSSH server
+* When installation is complete, turn off the guest. (*sudo poweroff*).
+Then add the host-only adapter as a secondary network interface for
+guest OS.
+
+Select your VM and go to the Settings Tab. Go to Network->Adapter 2.
+Select the "Enable adapter" box, and attach it to "host-only
+network".(Sidenote: on a new VirtualBox installation you may not have
+any "host-only network" configured yet. To have one select File
+menu/Preferences/Network and "Add host-only network" button with default
+settings. Then you can try the attach.) This will allow you to easily
+access your VM through your host machine.
+
+* Configure secondary interface as static (edit
+*/etc/network/interfaces*)
+
+`` +
+`# Secondary network interface` +
+`auto eth1` +
+`iface eth1 inet static` +
+`address 192.168.56.151` +
+`netmask 255.255.255.0` +
+`network 192.168.56.0` +
+`broadcast 192.168.56.255`
+
+* Install JAVA jre or jdk
+
+`sudo apt-get install openjdk-7-jre`
+
+* Set JAVA_HOME. Add at the end of */etc/profile*
+
+`export JAVA_HOME=/usr/lib/jvm/java-7-openjdk-amd64/jre`
+
+[[make-clones-of-created-vm]]
+=== Make clones of created VM
+
+* Right-click on the VM and run the Clone… command.
++
+::
+  Set name for the new VM (e.g. _odl2_)
+  +
+  Check box: _Reinitialize the MAC address of all network cards_
+  +
+  Clone type: _Full clone_
+* Now run cloned VM and change hostname and IP
+
+`hostname odl2`
+
+* edit _/etc/hostname_ and change the line to *odl2*
+* edit _/etc/hosts_ and change the line which reads:
+
+`127.0.1.1     change-odl1-to-odl2`
+
+* edit /etc/network/interfaces and change line with addresss to
+
+`address 192.168.56.152`
+
+Repeat all steps also for odl3 (and configure IP 192.168.56.153)
+
+[[deploy-odl-cluster]]
+=== Deploy ODL cluster
+
+Download deploy script from
+https://github.com/peterband/odl-cluster-install.git[here]. Or install
+git and clone it.
+
+`sudo apt-get install git` +
+`mkdir cluster_install` +
+`cd cluster_install` +
+`git clone https://github.com/peterband/odl-cluster-install.git`
+
+Install sshpass package (required by deploy script)
+
+`sudo apt-get install sshpass`
+
+To deploy the cluster run downloaded script. Configuration is based on
+Running_and_testing_an_OpenDaylight_Cluster
+
+`bash cluster.sh`
+
+This will download and install odl on all three VMs and configures
+clustering between them inside the script there are Environment
+variables which you can change according your setup
+
+`` +
+`# Env` +
+`DISTRIBUTION_LOCATION="http://nexus.opendaylight.org/content/groups/public/org/opendaylight/integration/distribution-karaf/0.2.0-Helium/distribution-karaf-0.2.0-Helium.tar.gz"` +
+`HOST1="192.168.56.151"` +
+`HOST2="192.168.56.152"` +
+`HOST3="192.168.56.153"` +
+`FEATURES="odl-openflowplugin-flow-services,odl-restconf,odl-mdsal-clustering,feature-jolokia"` +
+`INSTALL_DIR="/home/odl/deploy"`
+
+At the end, the script checks if odl is online (if listens on ports 6653
+or 6633). If it fails, that might means that odl is starting slow or
+installing features takes too long. Check odl log on particular VM or
+try to run script waitForOdl.sh localy from affected VM.
+
+[[mininet-install]]
+=== Mininet install
+
+Install instructions for mininet can be found here:
+http://mininet.org/download/
+
+follow Option 1: Mininet VM Installation (easy, recommended)
+
+There are additional setup notes for Virtual Box here:
+http://mininet.org/vm-setup-notes/
+
+To test, start mininet:
+
+`sudo mn --controller=remote,ip=192.168.56.151,port=8181`
+
+check topology on each odl (for example):
+
+`curl -X GET http://192.168.56.151:8181/restconf/operational/network-topology:network-topology` +
+`curl -X GET http://192.168.56.152:8181/restconf/operational/network-topology:network-topology` +
+`curl -X GET http://192.168.56.153:8181/restconf/operational/network-topology:network-topology`

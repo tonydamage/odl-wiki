@@ -1,0 +1,85 @@
+Binding Java API Generator doesn't handle non-alphabetic signs in names
+of enum constants, allowed by rfc6020 though. As an output of this
+issue, we're not able to compile generated code.
+
+Bug: https://bugs.opendaylight.org/show_bug.cgi?id=2332
+
+Very first proposal of how to handle this issue.
+
+`   public class NonAlphabeticHandler {` +
+`     //give occurence enum constants meanings` +
+`     private static final String ASTERISK_PATTERN = "\\*";` +
+`     private static final String ASTERISK_REPLACEMENT = "_OccurenceZeroOrMultipleTimes";` +
+`     private static final String PLUS_PATTERN = "\\+";` +
+`     private static final String PLUS_REPLACEMENT = "_OccurenceAtLeastOnce";` +
+`   ` +
+`     private static final String ONE_PATTERN = "1";` +
+`     private static final String ONE_REPLACEMENT = "_OccurenceExactlyOnce";` +
+`   ` +
+`     private static final String QUESTIONMARK_PATTERN = "\\?";` +
+`     private static final String QUESTIONMARK_REPLACEMENT = "_OccurenceZeroOrOneTime";` +
+`  ` +
+`     //might get deleted and be part of generic one, detected it in name of protocol` +
+`     private static final String COLON_PATTERN = ":";` +
+`     private static final String COLON_REPLACEMENT = "_Colon";` +
+`   ` +
+`     private static final String GENERIC_PATTERN = "[^A-Za-z0-9]";` +
+`     private static final String GENERIC_REPLACEMENT = "_GenericNonAlpha";` +
+`   /**` +
+`    * This static method takes className as an input argument and looks for non-alphabetic signs in it.` +
+`    * It aims to replace them in order to get valid Java class names and be able to compile them.` +
+`    * Indicate by underscore sign ('_') that replacement has been made up.` +
+`    * I propose to give meaning to replacements to mimic occurence enum constants names like '*', '?', '+', etc...` +
+`    * Test implementation with various inputs to see coverage area and performance.` +
+`    * ` +
+`    * @param className` +
+`    * @return className` +
+`    */` +
+`   public static String getValidClassName(String className) {` +
+`       String backup = className;` +
+`       ` +
+`       className = className.replaceAll(ASTERISK_PATTERN, ASTERISK_REPLACEMENT);` +
+`       if (!className.equals(backup))` +
+`           return className;` +
+`       ` +
+`       className = className.replaceAll(COLON_PATTERN, COLON_REPLACEMENT);` +
+`       if (!className.equals(backup))` +
+`           return className;` +
+`       className = className.replaceAll(PLUS_PATTERN, PLUS_REPLACEMENT);` +
+`       if (!className.equals(backup))` +
+`           return className;` +
+`       ` +
+`       className = className.replaceAll(ONE_PATTERN, ONE_REPLACEMENT);` +
+`       if (!className.equals(backup))` +
+`           return className;` +
+`       ` +
+`       className = className.replaceAll(QUESTIONMARK_PATTERN, QUESTIONMARK_REPLACEMENT);` +
+`       if (!className.equals(backup))` +
+`           return className;` +
+`       className = className.replaceAll(GENERIC_PATTERN, GENERIC_REPLACEMENT);` +
+`       if (!className.equals(backup))` +
+`           return className;` +
+`       return className;` +
+`   }` +
+`   public static void main(String[] args) {` +
+`       String className = "+";` +
+`       ` +
+`       System.out.println(System.currentTimeMillis());` +
+`       System.out.println(className + " -> " + NonAlphabeticHandler.getValidClassName(className));` +
+`       System.out.println(System.currentTimeMillis() + "\n");` +
+ +
+`       className = "Tdp:";` +
+`       ` +
+`       System.out.println(System.currentTimeMillis());` +
+`       System.out.println(className + " -> " + NonAlphabeticHandler.getValidClassName(className));` +
+`       System.out.println(System.currentTimeMillis() + "\n")       ` +
+`   .` +
+`   .` +
+`   .` +
+`   .` +
+`   }`
+
+Note: There are nonalphabetic signs, which are part of words like device
+names, perhaps Device+ -> Device_Plus would be more reasonable.
+
+_TODO: Cover all possible occurences and test them well._

@@ -1,33 +1,42 @@
 This page summarizes how data from BGP and PCEP can be viewed through
 RESTCONF. Currently it is the only way to view the data.
 
+From releases Helium and up, the port changed from 8080 to 8181.
+
 Basic URL for both protocols is
 
-_http://localhost:8080/restconf/operational/network-topology:network-topology/_
+_http://localhost:8181/restconf/operational/network-topology:network-topology/_
 
-If BGP-LS and PCEP are configured properly, it should display output
+If BGP and PCEP are configured properly, it should display output
 similar to this one:
 
- +
-` ` +
-`  ``pcep-topology` +
-`  ` +
-`   ` +
-`  ` +
-` ` +
-` ` +
-`  ``true` +
-`  ``example-ipv4-topology` +
-`  ` +
-` ` +
-` ` +
-`  ``true` +
-`  ``example-linkstate-topology` +
-`  ` +
-` ` +
+code,xml,numberLines-------------------------------------------------------
+code,xml,numberLines
+<network-topology>
+ <topology>
+  <topology-id>pcep-topology</topology-id>
+  <topology-types>
+   <topology-pcep/>
+  </topology-types>
+ </topology>
+ <topology>
+  <server-provided>true</server-provided>
+  <topology-id>example-ipv4-topology</topology-id>
+  <topology-types/>
+ </topology>
+ <topology>
+  <server-provided>true</server-provided>
+  <topology-id>example-linkstate-topology</topology-id>
+  <topology-types/>
+ </topology>
+</network-topology>
+-------------------------------------------------------
 
-[[bgp-ls]]
-== BGP-LS
+[[bgp]]
+== BGP
+
+[[network-topology]]
+=== Network Topology
 
 BGP data as were sent from BGP speaker are listed in three topologies
 (if all three are configured):
@@ -35,38 +44,55 @@ BGP data as were sent from BGP speaker are listed in three topologies
 *example-linkstate-topology* - displays links and nodes advertised
 through linkstate Update messages
 
-_http://localhost:8080/restconf/operational/network-topology:network-topology/topology/example-linkstate-topology_
+_http://localhost:8181/restconf/operational/network-topology:network-topology/topology/example-linkstate-topology_
 
 *example-ipv4-topology* - display Ipv4 adresses of nodes in the topology
 
-_http://localhost:8080/restconf/operational/network-topology:network-topology/topology/example-ipv4-topology_
+_http://localhost:8181/restconf/operational/network-topology:network-topology/topology/example-ipv4-topology_
 
-Another view of BGP data is through *BGP local RIB*, located here:
+*example-ipv6-topology* - display Ipv6 adresses of nodes in the topology
 
-_http://localhost:8080/restconf/operational/bgp-rib:bgp-rib/rib/example-bgp-rib/loc-rib/_
+_http://localhost:8181/restconf/operational/network-topology:network-topology/topology/example-ipv6-topology_
+
+[[route-information-base-rib]]
+=== Route Information Base (RIB)
+
+Another view of BGP data is through *BGP RIB*, located here:
+
+_http://localhost:8181/restconf/operational/bgp-rib:bgp-rib/rib/example-bgp-rib/_
 
 This is how the output looks like, when address families for IPv4 and
 Linkstate were configured:
 
- +
-` ` +
-`  ``true` +
-`  ``bgp-ls:linkstate-subsequent-address-family` +
-`  ``bgp-ls:linkstate-address-family` +
-` ` +
-` ` +
-`  ``true` +
-`  ``bgp-t:unicast-subsequent-address-family` +
-`  ``bgp-t:ipv4-address-family` +
-` ` +
+code,xml,numberLines-----------------------------------------------------
+code,xml,numberLines
+<rib>
+ <id>example-bgp-rib</id>
+ <loc-rib>
+  <tables>
+   <afi>x:ipv4-address-family</afi>
+   <safi>x:unicast-subsequent-address-family</safi>
+   <ipv4-routes/>
+   <attributes/>
+  </tables>
+  <tables>
+   <afi>x:linkstate-address-family</afi>
+   <safi>x:linkstate-subsequent-address-family</safi>
+   <linkstate-routes/>
+   <attributes/>
+  </tables>
+ </loc-rib>
+ <peer/>
+</rib>
+-----------------------------------------------------
 
 You can see details for each AFI by expanding the RESTCONF link:
 
-Linkstate :
-_http://localhost:8080/restconf/operational/bgp-rib:bgp-rib/rib/example-bgp-rib/loc-rib/tables/bgp-types:ipv4-address-family/bgp-types:unicast-subsequent-address-family/ipv4-routes_
-
 IPv4 :
-_http://localhost:8080/restconf/operational/bgp-rib:bgp-rib/rib/example-bgp-rib/loc-rib/tables/bgp-linkstate:linkstate-address-family/bgp-linkstate:linkstate-subsequent-address-family/linkstate-routes_
+_http://localhost:8181/restconf/operational/bgp-rib:bgp-rib/rib/example-bgp-rib/loc-rib/tables/bgp-types:ipv4-address-family/bgp-types:unicast-subsequent-address-family/ipv4-routes_
+
+Linkstate :
+_http://localhost:8181/restconf/operational/bgp-rib:bgp-rib/rib/example-bgp-rib/loc-rib/tables/bgp-linkstate:linkstate-address-family/bgp-linkstate:linkstate-subsequent-address-family/linkstate-routes_
 
 [[pcep]]
 == PCEP
@@ -74,126 +100,73 @@ _http://localhost:8080/restconf/operational/bgp-rib:bgp-rib/rib/example-bgp-rib/
 PCEP data is displayed only through one URL that is accessible from the
 base network-topology URL:
 
-_http://localhost:8080/restconf/operational/network-topology:network-topology/topology/pcep-topology_
-
-Note that the output changes slightly when using different versions of
-stateful draft.
-
-[[draft-stateful-v02]]
-=== draft-stateful-v02
+_http://localhost:8181/restconf/operational/network-topology:network-topology/topology/pcep-topology_
 
 Each PCC will be displayed as a node:
 
- +
-` ` +
-`  ``42.42.42.42` +
-`  ``synchronized` +
-`  ` +
-`   ` +
-`    ``false` +
-`    ``true` +
-`    ``true` +
-`   ` +
-`  ` +
-` ` +
-` ``pcc://42.42.42.42` +
+code,xml,numberLines-------------------------------------------------------
+code,xml,numberLines
+<node>
+ <path-computation-client>
+  <ip-address>42.42.42.42</ip-address>
+  <state-sync>synchronized</state-sync>
+  <stateful-tlv>
+   <stateful>
+    <initiation>true</initiation>
+    <lsp-update-capability>true</lsp-update-capability>
+   </stateful>
+  </stateful-tlv>
+ </path-computation-client>
+ <node-id>pcc://42.42.42.42</node-id>
+</node>
+-------------------------------------------------------
 
 If some tunnels are configured on the network, they would be displayed
 on the same page, within a node that initiated the tunnel:
 
- +
-` ` +
-`  ``synchronized` +
-`  ` +
-`   ` +
-`    ``false` +
-`    ``true` +
-`    ``true` +
-`   ` +
-`  ` +
-`  ` +
-`   ``update-tunel` +
-`   ` +
-`    ``true` +
-`    ``false` +
-`    ``false` +
-`    ``50` +
-`    ``false` +
-`    ``false` +
-`    ``false` +
-`    ` +
-`     ` +
-`      ``dXBkYXRlLXR1bmVs` +
-`     ` +
-`    ` +
-`   ` +
-`  ` +
-`  ``39.39.39.39` +
-` ` +
-` ``pcc://39.39.39.39` +
-
-Note that, __ tag displays tunnel name in Base64 encoding.
-
-[[draft-stateful-v07]]
-=== draft-stateful-v07
-
-Each PCC will be displayed as a node:
-
- +
-` ` +
-`  ``42.42.42.42` +
-`  ``synchronized` +
-`  ` +
-`   ` +
-`    ``true` +
-`    ``true` +
-`   ` +
-`  ` +
-` ` +
-` ``pcc://42.42.42.42` +
-
-If some tunnels are configured on the network, they would be displayed
-on the same page, within a node that initiated the tunnel:
-
- +
-` ` +
-`  ``synchronized` +
-`  ` +
-`   ` +
-`    ``true` +
-`    ``true` +
-`   ` +
-`  ` +
-`  ` +
-`   ``foo` +
-`   ` +
-`    ``down` +
-`    ``false` +
-`    ``false` +
-`    ``1` +
-`    ``false` +
-`    ``true` +
-`    ``false` +
-`    ``true` +
-`    ``false` +
-`    ` +
-`     ` +
-`      ` +
-`       ``43.43.43.43` +
-`       ``0.0.0.0` +
-`       ``0.0.0.0` +
-`      ` +
-`      ``0` +
-`      ``0` +
-`     ` +
-`     ` +
-`      ``Zm9v` +
-`     ` +
-`    ` +
-`   ` +
-`  ` +
-`  ``43.43.43.43` +
-` ` +
-` ``pcc://43.43.43.43` +
+code,xml,numberLines---------------------------------------------------------------------------
+code,xml,numberLines
+<node>
+ <path-computation-client>
+  <state-sync>synchronized</state-sync>
+  <stateful-tlv>
+   <stateful>
+    <initiation>true</initiation>
+    <lsp-update-capability>true</lsp-update-capability>
+   </stateful>
+  </stateful-tlv>
+  <reported-lsp>
+   <name>foo</name>
+   <lsp>
+    <operational>down</operational>
+    <sync>false</sync>
+    <ignore>false</ignore>
+    <plsp-id>1</plsp-id>
+    <create>false</create>
+    <administrative>true</administrative>
+    <remove>false</remove>
+    <delegate>true</delegate>
+    <processing-rule>false</processing-rule>
+    <tlvs>
+    <lsp-identifiers>
+      <ipv4>
+       <ipv4-tunnel-sender-address>43.43.43.43</ipv4-tunnel-sender-address>
+       <ipv4-tunnel-endpoint-address>0.0.0.0</ipv4-tunnel-endpoint-address>
+       <ipv4-extended-tunnel-id>0.0.0.0</ipv4-extended-tunnel-id>
+      </ipv4>
+      <tunnel-id>0</tunnel-id>
+      <lsp-id>0</lsp-id>
+     </lsp-identifiers>
+     <symbolic-path-name>
+      <path-name>Zm9v</path-name>
+     </symbolic-path-name>
+    </tlvs>
+   </lsp>
+  </reported-lsp>
+  <ip-address>43.43.43.43</ip-address>
+ </path-computation-client>
+ <node-id>pcc://43.43.43.43</node-id>
+</node>
+---------------------------------------------------------------------------
 
 Note that, __ tag displays tunnel name in Base64 encoding.

@@ -1,0 +1,391 @@
+[[introduction]]
+= Introduction
+
+The technologies in the design of the OpenDaylight controller software
+architecture lie at the intersection of three recent technology trends
+in software engineering and networking: Software Defined Networking
+(SDN) innovations, model driven software engineering (MDSE) and model
+driven network management. Because SDN is driven (in part) by the
+demands for increased network programmability (enabling the networking
+agility component of the movement toward increased virtualization,
+abstraction and programmatic control), the controller functions as both
+“middleware” in solution delivery and “foundry” in application
+development. The OpenDaylight controller software architecture defines
+patterns of application creation and interaction (APIs and RPC
+governance), underlying application services (e.g. message routing,
+formatting and data storage) and has ultimately lead to new development
+tools for an environment enabled for open source collaboration.
+
+The following sections are organized as follows. Section
+OpenDaylight Controller:MD-SAL:MD-SAL_Document_Review:Architecture#Background[Background]
+provides a brief background of these key software and networking
+technologies/approaches used in the model-driven controller
+architecture/design. Section
+OpenDaylight Controller:MD-SAL:MD-SAL_Document_Review:Architecture#Requirements[Requirements]
+describes the context and requirements for the OpenDaylight controller
+architecture/design. Finally, Section
+OpenDaylight Controller:MD-SAL:MD-SAL_Document_Review:Architecture#Architecture[Architecture]
+describes the architecture of the OpenDaylight controller.
+
+[[background]]
+= Background
+
+[[software-defined-networking]]
+== Software Defined Networking
+
+Software-defined networking emerged from work done at UC Berkeley and
+Stanford University around 2008. The original SDN network architecture
+proposed decoupling of network control from packet forwarding and a
+direct programmability of the network control function [1]. Network
+intelligence is (logically) centralized in software-based SDN
+controllers, which maintain a global view of the network. As a result,
+the network appears to the applications and policy engines as a single,
+logical switch. This architecture has been further evolved in the Open
+Networking Foundation (ONF), an organization that also drives the
+evolution of the
+https://www.opennetworking.org/sdn-resources/onf-specifications/openflow[OpenFlow
+protocol standard]. OpenFlow allows the network control function to
+remotely program the packet forwarding function.
+
+Over the years, multiple controllers were developed for this
+architecture: https://openflow.stanford.edu/display/Beacon/Home[Beacon],
+http://www.projectfloodlight.org/floodlight/[Floodlight],
+http://www.noxrepo.org/nox/about-nox[NOX],
+http://www.noxrepo.org/pox/about-pox/[POX],
+http://osrg.github.com/ryu/[Ryu] and more recently
+http://onosproject.org/[ONOS]. Each controller implemented OpenFlow as
+the sole southbound protocol towards the packet forwarding function, and
+provided access to its control plane functions through northbound REST
+APIs. These controller platforms supported mostly network control plane
+applications, with the “killer app” being
+http://www.vmware.com/files/pdf/products/nsx/VMware-NSX-Datasheet.pdf[network
+virtualization].
+
+While decoupling of control and forwarding functions is a valid and
+useful SDN use case, SDN can be defined more broadly than by the
+OpenFlow protocol abstractions. OpenFlow only supports retrieval and
+programming of data related to the network forwarding function. However,
+the network is a source of a vast amount of other useful data that can
+be utilized by SDN applications. Moreover, network data can be retrieved
+and networks can be programmed through a variety of protocols and APIs
+at different levels of information abstraction, such as BGP, NETCONF,
+Netflow/IP-Fix, SNMP, or vendor-specific CLIs. Basically, SDN defines a
+generic feedback/control/policy loop between applications and the
+network: applications get data/information from the network, process the
+data and make policy/control decisions that are driven back into the
+network, as shown in the following figure:
+
+image:Arch-Fig1.jpg[Arch-Fig1.jpg,title="Arch-Fig1.jpg"]
+
+SDN use cases now encompass, in addition to Data Center specific
+orchestration applications, a variety of diverse SDN applications that
+harvest network information and use network APIs to program the network.
+Examples are, in addition to virtualization
+(OpenDaylight_Virtual_Tenant_Network_(VTN):Main[VTN] or
+Open_DOVE:Main[Open DOVE]), applications such as multi-layer path
+optimization, network analytics, Group_Policy:Main[Group Policy
+configuration], Service Function Chaining:Main[ Service Function
+Chaining] or Defense4All:Main[Security].
+
+[[model-driven-software-engineering]]
+== Model-Driven Software Engineering
+
+OpenDaylight leverages Model Driven Software Engineering (MDSE) defined
+by the http://www.omg.org/[Object Management Group (OMG)]. MDSE
+describes a framework based on consistent relationships between
+(different) models, standardized mappings and patterns that enable model
+generation and, by extension, code/API generation from models. This
+generalization can overlay any specific modeling language. Although OMG
+focus their MDA solution on UML, YANG has emerged as the data modeling
+language for the networking domain.
+
+The models created are portable (cross platform) and can be leveraged to
+describe business policies, platform operation or component specific
+capability (vertically) as well as (in the case of SDN) manifest at the
+service interfaces provided by a network control entity (horizontally
+and vertically within an application service framework).
+
+MDSE enables run-time mediation and inter-model mapping, for example, if
+the models are of two different domain types, such as J2EE and UML
+
+[[model-driven-network-managementprogrammability]]
+== Model-Driven Network Management/Programmability
+
+The model-driven approach is being increasingly used in the networking
+domain to describe the functionality of network devices [4], services
+[15], policies [18], [19], and network APIs [16], [17]. The protocols of
+choice are NETCONF and RESTCONF; the modeling language of choice is
+YANG.
+
+http://tools.ietf.org/html/rfc6241[NETCONF] is an IETF network
+management protocol that defines configuration and operational
+conceptual data stores and a set of Create, Retrieve, Update, Delete
+(CRUD) operations that can be used to access these data stores. In
+addition to the data stores CRUD operations, NETCONF also supports
+simple Remote Procedure Call (RPC) and Notification operations. NETCONF
+operations are realized on top of a simple Call (RPC) layer. NETCONF
+uses an XML- based data encoding for the configuration and operational
+data, as well as for its protocol messages.
+
+http://tools.ietf.org/html/draft-ietf-netconf-restconf-03[RESTCONF] is a
+REST-like protocol that provides a programmatic interface over HTTP for
+accessing data defined in YANG, using the data stores defined in
+NETCONF. Configuration data and state data are exposed as resources that
+can be retrieved with the HTTP GET method. Resources representing
+configuration data can be modified with the HTTP DELETE, PATCH, POST,
+and PUT methods. Data is encoded in either XML or JSON.
+
+http://datatracker.ietf.org/doc/rfc6020/[YANG] was originally developed
+to model configuration and state data in network devices, but it can
+also be used to describe other network constructs, such as services,
+policies, protocols, or subscribers. YANG is tree- structured rather
+than object-oriented; data is structured into a tree and it can contain
+complex types, such as lists and unions. In addition to data
+definitions, YANG supports constructs to model Remote Procedure Calls
+(RPCs) and Notifications, which make it suitable for use as an Interface
+Description Language (IDL) in a model-driven system.
+
+[[requirements]]
+= Requirements
+
+The SDN controller should be both a *platform* for deploying SDN
+applications and provide (or be associated with) an *SDN application
+development environment*.
+
+An SDN controller _platform_ should be built to meet the following key
+requirements:
+
+* *Flexibility*: The controller must be able to accommodate a variety of
+diverse applications; at the same time, controller applications should
+use a common framework and programming model and provide consistent APIs
+to their clients. This is important for troubleshooting, system
+integration, and for combining applications into higher-level
+orchestrated workflows.
+* *Scale the development process*: There should be no common controller
+infrastructure subsystem where a plugin would have to add code. The
+architecture must allow for plugins to be developed independently of
+each other and of the controller infrastructure, and it must support
+relatively short system integration times. Currently, there are 18
+active OpenDaylight projects. Fifteen more projects are in the proposal
+stage. OpenDaylight projects are largely autonomous, and are being
+developed by independent teams, with little coordination between them.
+* *Run-time Extensibility*: The controller must be able to load new
+protocol and service/application plugins at run-time. The controller’s
+infrastructure should adapt itself to data schemas (models) that are
+either ingested from dynamically loaded plugins or discovered from
+devices. Run-time extensibility allows the controller to adapt to
+network changes (new devices and/or new features) and avoids the lengthy
+release cycle typical for legacy EMS/NMS systems, where each new feature
+in a network device results in a manual change of the device model in
+the NMS/EMS.
+* *Performance & scale*: A controller must be able to perform well for a
+variety of different loads/applications in a diverse set of
+environments; however, performance should not be achieved at the expense
+of modularity. The controller architecture should allow for horizontal
+scaling in clustered/cloud environments.
+
+To support _development of SDN applications_, an SDN controller should
+also provide (or be associated with) an application development
+environment that should meet the following key requirements:
+
+* *Code generation* from models should be used to enforce standard API
+contracts and to generate boilerplate code performing repetitive and
+error-prone tasks, such as parameter range checking.
+** Code generation should produce functionally equivalent APIs for
+different language bindings.
+* Use a *domain-specific modeling language* to describe internal and
+external system behavior; this fosters co- operation between developers
+and network domain experts and facilitates system integration.
+** A domain-specific modeling language and code generation tools should
+enable *rapid evolution APIs and protocols* (Agility).
+** Domain-specific language/technologies/tools used in the controller
+must be usable for *modeling of generic network constructs*, such as
+services, service chains, subscriber managements and policies.
+* *Modeling tools* for the controller should be aligned with modeling
+tools for devices. Then, a common tool chain can be used for both, and
+device models can be re-used in the controller, creating a zero-touch
+path between the device and a controller application/plugin that uses
+its models.
+* The *tool chain* should support code generation for model-to-model
+adaptations for services and devices.
+
+[[architecture]]
+= Architecture
+
+[[history-and-overview]]
+== History and Overview
+
+OpenDaylight was originally inspired by Beacon, which introduced the use
+of Open Service Gateway Interface (OSGi) that is key for modularity and
+run-time loading of components (plugins) into the controller. The
+initial “bootstrap” contribution to ODL introduced a major innovation:
+the Service Adaptation Layer (SAL) that separated southbound (SB)
+protocol plugins and northbound (NB) service/application plugins. The
+architecture comprised three layers: SB protocol plugins, the SAL, and
+the NB Application/Service Functions., as shown in the following figure.
+
+image:Arch-Fig2.jpg[Arch-Fig2.jpg,title="Arch-Fig2.jpg"]
+
+The SB (protocol) plugins interface with network devices. The SAL
+adapted the SB plugin functions to higher-level Application/Service
+functions, which provide the controller’s ￼NB APIs to applications.
+Examples of Application/Service functions are the Topology Exporter, the
+Inventory Manager and the OpenFlow Statistics Manager. The layered
+architecture allows the controller to support multiple southbound
+protocols (via SB protocol plugins) and to provide a uniform set of
+services and APIs to applications through a common set of NB APIs.
+
+In the original SAL (referred to as the “API-Driven SAL”, AD-SAL),
+developers had to define the SAL APIs used by the plugins and code the
+adaptation functionality between the northbound and southbound plugins.
+It quickly became apparent that hand-coding the SAL APIs and adaptations
+to support new plugin functionality would not scale in an initiative of
+ODP’s magnitude.
+
+[[evolution-to-the-model-driven-service-adaptation-layer]]
+== Evolution to the Model-Driven Service Adaptation Layer
+
+To address the requirements for the controller listed in Section
+OpenDaylight Controller:MD-SAL:MD-SAL_Document_Review:Architecture#Requirements[Requirements]
+, a new model-driven architecture was proposed and implemented for the
+Service Adaptation Layer (referred to as the “Model-Driven SAL”,
+MD-SAL). The architecture is built around concepts, protocols and
+modeling language described in detail in Section
+OpenDaylight Controller:MD-SAL:MD-SAL_Document_Review:Architecture#Background[Background].
+
+Controller plugins can be either data/service Providers or data/service
+Consumers. A Provider provides data/services through its APIs. A
+Consumer consumes services/data provided by one or more Providers. For
+example, the OpenFlow protocol plugin provides services to add, modify
+or delete flows from switches connected to the plugin. One of the
+consumers of the OpenFlow plugin’s services is the Forwarding Rules
+Manager that provides higher-level flow programming services to
+controller clients.
+
+The OpenDaylight development environment includes tooling that generates
+this code (codecs and Java APIs). The tooling preserves YANG data type
+hierarchies, retains data tree hierarchy (providing normal Java
+compile-time type safety) and data addressing hierarchies. A plugin’s
+APIs are resolved when the plugin is loaded into the controller. The SAL
+does not contain any plugin-specific code or APIs and is therefore a
+generic plumbing that can adapt itself to any plugins or
+services/applications loaded into the controller.
+
+From the infrastructure’s point of view, there is no difference between
+a protocol plugin and an application/service plugin. All plugin
+life-cycles are the same, each plugin is an OSGi bundle that contains
+models defining the plugin’s APIs. Since all plugins are the same to the
+controller infrastructure, the architecture can be drawn as shown in the
+following figure, which also shows how in a cluster of multiple
+controller instances an MD- SAL instance within a JVM container will be
+connected to the cluster’s message bus and data store.
+
+image:Arch-Fig3.jpg[Arch-Fig3.jpg,title="Arch-Fig3.jpg"]
+
+[[opendaylight-yang-models]]
+== OpenDaylight YANG Models
+
+The Hydrogen production code contains approximately 110 YANG models; 3
+models were defined in IETF RFCs, 8 in IETF drafts, the rest have been
+defined for specifically for the controller and its applications.
+Approximately 10 models describe IETF protocol PDUs, 27 models describe
+various aspects of the OpenFlow protocol and 35 models define the
+controller’s internal wiring and configuration. Approximately 15
+additional models were used for prototyping and proof-of- concept work.
+
+TODO: Helium statistics
+
+[[model-driven-sal-md-sal-detailed-description]]
+== Model-Driven SAL (MD-SAL) Detailed Description
+
+TODO: Add a summary of the three things that MD-SAL is: RPC,
+Notification, Data Store, all described in yang.
+
+[[common-concepts]]
+=== Common Concepts
+
+The common concepts used in the MD-SAL design are as follows. An RPC is
+a one-to-one call triggered by a Consumer, which may be processed by a
+Provider either local or remote. A Notification is an event, which a
+Consumer may be interested in to receive, and which is triggered /
+originated in a Provider. The Data Store is a conceptual data tree,
+which is described by YANG schemas. A Path is a unique locator of a leaf
+or sub-tree in the conceptual data tree. Finally, a Mount is a
+logically-nested MD-SAL instance, which may be using a separate set of
+YANG models; it supports its own RPCs and Notifications and it allows
+for reusing device models and a context in network-wide contexts without
+having to redefine the device models in the controller (“Mount”, as its
+name suggests, is basically a logical mount of a remote conceptual data
+store).
+
+[[md-sal-functionality-and-data-representations]]
+=== MD-SAL Functionality and Data Representations
+
+The MD-SAL provides a variety of functions required for adaptation
+between Providers and Consumers. First, it routes RPC calls between
+Consumers and Providers (*RPC Call Router*). Second, it provides a
+subscription-based mechanism for delivery of Notifications from
+Publishers to Subscribers (*Notification Broker*). Third, it routes data
+reads from Consumers to a particular data store and coordinates data
+changes between Providers (*Data Broker*). Finally, it creates and
+manages Mounts (*Mount Manager*).
+
+The implementation of the above SAL functions requires the use of two
+data representations and two sets of SAL Plugin APIs. The
+*Binding-Independent data format/APIs* is a Data Object Model (DOM)
+representation of YANG trees. This format is suitable for generic
+components, such as the data store, the NETCONF Connector, RESTCONF,
+which can derive behavior from a YANG model itself. The *Binding- Aware
+data format/APIs* is a specific YANG to Java language binding, which
+specifies how Java Data Transfer Objects (DTOs) and APIs are generated
+from YANG model. The API definition for these DTOs, interfaces for
+invoking / implementing RPCs, interfaces containing Notification
+callbacks are generated at compile time. Codecs to translate between the
+Java DTOs and DOM representation are generated on demand at run time.
+Note that the functionality and performance requirements for both data
+representations are the same.
+
+[[md-sal-design]]
+=== MD-SAL Design
+
+The data handling functionality is separated into two distinct brokers:
+a binding-independent DOM Broker that interprets YANG models at runtime
+and is the core component of the MD-SAL runtime, and a Binding-Aware
+Broker that exposes Java APIs for plugins using binding-aware
+representation of data (Java DTOs. These brokers, along with their
+supporting components are shown in the following figure:
+
+image:Arch-Fig4.jpg[Arch-Fig4.jpg,title="Arch-Fig4.jpg"]
+
+The DOM Broker uses YANG data APIs to describe data and Instance
+Identifiers specific to YANG to describe paths to data in the system.
+Data structures in the Binding-Aware Broker that are visible to
+applications are generated from YANG models in YANG tools. The DOM
+Broker relies on presence of YANG schemas, which are interpreted at
+runtime for functionality-specific purposes, such as RPC routing, data
+store organization, and validation of paths.
+
+The Binding-Aware Broker relies on Java APIs, which are generated from
+YANG models, and on common properties of Java DTOs, which are enforced
+by code generation. Therefore data transfer optimizations (zero-copy)
+are possible when a data Consumer and a data Provider are both
+Binding-Aware.
+
+The Binding-Aware Broker connects to the DOM Broker through the BA-BI
+Connector, so that Binding-Aware Consumer/Provider applications/plugins
+can communicate with their respective binding-independent counterparts.
+The BA-BI Connector, together with the Mapping Service, the Schema
+Service, the Codec Registry and the Codec Generator implement dynamic
+late binding: the codecs that translate YANG data representations
+between a binding-independent (DOM) format and DTOs, which are specific
+to Java bindings, are auto-generated on demand.
+
+The physical Data Store is pluggable – MD-SAL provides an SPI through
+which different data store implementations can be plugged in.
+
+The Mount concept and the support for APIs generated from models allow
+for applications talking to NETCONF devices to be compiled directly
+against device models – there is no need for controller-level models
+that represent devices. Device models are loaded into the controller
+from a NETCONF device when the controller connects to the device, and
+apps can work directly with them.

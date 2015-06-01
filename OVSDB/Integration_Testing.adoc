@@ -1,0 +1,100 @@
+[[introduction]]
+= Introduction
+
+The OVSDB project has a variety of integrations tests that can be used
+to accelerate feature development. The typical use case is OpenDaylight
+and OpenStack integration. Testing requires deploying an OpenStack and
+integrating it with OpenDaylight. The OpenStack setup is complex and
+error-prone. Using the integration tests requires only having an
+openvswitch install integrated with OpenDaylight.
+
+The rest of the wiki assumes you have some openvswitch setup. Anything
+using docker or vagrant can be used or even mininet. You can use the
+following wiki to setup a simple linux server with openvswitch:
+OVSDB:Helium and Openstack on Fedora20[OVSDB:Helium and Openstack on
+Fedora20]. The key is anything that has an OVS instance running will
+work because the integration tests will connect to the OVS instance and
+run the requested tests.
+
+[[available-tests]]
+= Available Tests
+
+The following integration tests are available:
+
+* *OvsdbLibraryIT*: tests the basic ovsdb library calls
+* *NetVirtIT*: tests the net-virt layer not including neutron
+* *NeutronIT*: tests the net-virt layer not including neutron. Yeah, the
+name is totally wrong but these were around before the netvirt tests
+were implemented.
+* *OvsdbNorthboundV2IT*: tests the ovsdb v2 northbound rest apis
+* *OvsdbClientTestIT, OvsdbClientTestITTyped*: tests the ovsdbclient
+interface of the library
+* *OvsdbPluginIT, OvsdbPluginV3IT, OvsdbPluginV3CompatIT*: tests the
+older and latest plugin and the compatibility plugin
+* *OpenVSwitchIT, HardwareVTEPIT*: tests the Open_vSwitch and
+Hardware_vtep schemas
+* *SouthboundIT*: tests the southbound
+
+[[ovsdb-project-setup]]
+= OVSDB Project Setup
+
+Clone and build the ovsdb project using the normal development process:
+GettingStarted:Developer Main[GettingStarted:Developer Main].
+
+--------------------------------------------------------------
+git clone ssh://<userid>@git.opendaylight.org:29418/ovsdb.git 
+cd ovsdb
+mvn clean install -DskipTests
+--------------------------------------------------------------
+
+[[running-integration-tests]]
+= Running Integration Tests
+
+The first step is to configure the OVS instance to passive mode. You
+will supply the address and port of the OVS instance via the command
+line arguments and the integration test will connect to the OVS instance
+to execute the tests.
+
+------------------------------------
+sudo ovs-vsctl set-manager ptcp:6640
+------------------------------------
+
+You can run all the integration tests with:
+
+-------------------------------------------------------------------------------------------
+cd integrationtest
+mvn verify -Pintegrationtest -Dovsdbserver.ipaddress=192.168.120.31 -Dovsdbserver.port=6640
+-------------------------------------------------------------------------------------------
+
+`ovsdbserver.ipaddress` and `ovsdbserver.port` are the address and port
+of the openvswitch instance.
+
+To run only a single test class use the following variant. Simply
+replace the class name in `-Dit.test=OvsdbLibraryIT` to run a different
+class of tests:
+
+--------------------------------------------------------------------------------------------------------------------
+cd integrationtest
+mvn -Dit.test=OvsdbLibraryIT verify -Pintegrationtest -Dovsdbserver.ipaddress=192.168.120.31 -Dovsdbserver.port=6640
+mvn -Dit.test=NeutronIT verify -Pintegrationtest -Dovsdbserver.ipaddress=192.168.120.31 -Dovsdbserver.port=6640
+--------------------------------------------------------------------------------------------------------------------
+
+To run a single test with a class use the following variant. Simply
+replace the method name in `-Dit.test=NeutronIT#testPrepareNode` to run
+a different test method:
+
+-------------------------------------------------------------------------------------------------------------------------------
+cd integrationtest
+mvn -Dit.test=NeutronIT#testPrepareNode verify -Pintegrationtest -Dovsdbserver.ipaddress=192.168.120.31 -Dovsdbserver.port=6640
+-------------------------------------------------------------------------------------------------------------------------------
+
+To test the southbound use the similar commands. Notice that the
+southbound tests do not require the -Pintegrationtest profile:
+
+------------------------------------------------------------------------------------------------------------------------------------------
+cd southbound/southbound-it
+
+mvn verify -Pintegrationtest -Dovsdbserver.ipaddress=192.168.120.31 -Dovsdbserver.port=6640
+mvn -Dit.test=SouthboundIT verify -Pintegrationtest -Dovsdbserver.ipaddress=192.168.120.31 -Dovsdbserver.port=6640
+mvn -Dit.test=SouthboundIT#testAddRemoveOvsdbNode2 verify -Pintegrationtest -Dovsdbserver.ipaddress=192.168.120.31 -Dovsdbserver.port=6640
+------------------------------------------------------------------------------------------------------------------------------------------

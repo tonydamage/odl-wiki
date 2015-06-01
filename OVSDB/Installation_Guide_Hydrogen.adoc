@@ -1,0 +1,355 @@
+OVSDB has a wide range of use cases in which it can be deployed or
+developed for and each of those will have varying installations and
+environments. We will briefly cover basic installations and have more
+specific implementation details in the tutorials section.
+
+* Also please see the OVSDB YouTube channel for lots of tutorials and
+weekly Hangouts which are open to anyone:
+
+http://www.youtube.com/results?search_query=opendaylight%20ovsdb&sm=3[OpenDaylight
+OVSDB Youtube Channel]
+
+[[introduction]]
+= Introduction
+
+To get OVSDB up and running quickly for a test/dev environment is as
+simple as downloading the OpenDaylight Virtualization Edition 1.0. OVSDB
+is also included the Base Edition.
+
+Full Installation Guides for each edition can be found here:
+
+* link:Release/Hydrogen/Base/Installation Guide[Base Edition
+Installation Guide]
+* link:Release/Hydrogen/Virtualization/Installation Guide[Virtualization
+Edition Installation Guide]
+
+[[installation]]
+= Installation
+
+[[prerequisites]]
+== Prerequisites
+
+The OpenDaylight controller requires Java 7. First verify that you have
+the necessary Java libraries for running the JVM.
+
+For example, on a Fedora, RHEL or CentOS host, you can run the following
+to satisfy any Java dependencies:
+
+` $ sudo yum install java-1.7.0-openjdk`
+
+* If you are on a Mac download and install the Java JDK from:
+http://www.oracle.com/technetwork/java/javase/downloads/index.html?ssSourceSiteId=otnjp[Java
+SE Downloads].
+
+[[download-the-controller-distribution]]
+== Download the Controller Distribution
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+$ wget http://nexus.opendaylight.org/content/repositories/opendaylight.release/org/opendaylight/integration/distributions-virtualization/0.1.0/distributions-virtualization-0.1.0-osgipackage.zip
+
+$ unzip distributions-virtualization-0.1.0-osgipackage.zip 
+$ cd opendaylight/
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+[[starting-the-controller]]
+= Starting the Controller
+
+[[run-the-controller-with-openflow-v1.0]]
+== Run the controller with OpenFlow v1.0
+
+The controller runs with support for OpenFlow v1.0 default and the OVSDB
+plugin listens on port 6640. To start the controller, change to the
+'opendaylight' directory and run the following command:
+
+` $  ./run.sh -XX:MaxPermSize=512m -virt ovsdb `
+
+When the controller starts, the OSGI console will be opened and a series
+of log messages will be displayed. To run the controller as a background
+process use the '-start' flag:
+
+`  $  ./run.sh -XX:MaxPermSize=512m -virt ovsdb -start`
+
+[[run-the-controller-with-openflow-v1.3]]
+== Run the controller with OpenFlow v1.3
+
+To load the controller with the OpenFlow v1.3 plugin, use the following
+commands:
+
+`$  echo "of.listenport=6653" >> configuration/config.ini (optional)` +
+`$  echo "ovsdb.of.version=1.3" >>  configuration/config.ini` +
+`$ ./run.sh -XX:MaxPermSize=384m -virt ovsdb -of13`
+
+[[ovsdb-developer-installation-for-hacking-and-development]]
+= OVSDB Developer Installation for Hacking and Development
+
+For developing in OpenDaylight you will also need Apache Maven a
+software project management and comprehension tool. You also require the
+Java Framework. Using Git you can clone the OVSDB repository, hack code
+and then build the jars, and copy them into the distribution to execute
+the edited code.
+
+[[pre-requisites-for-fedora-centos-and-rhel]]
+== Pre-requisites for Fedora, CentOS and RHEL
+
+Install both Maven3 and the Java JDK:
+
+`$ sudo yum install maven3 java-1.7.0-openjdk`
+
+Next export the following ENV variables for Java and Maven. You will add
+this to your ~/.bashrc directory:
+
+`$ vi ~/.bashrc` +
+`$ export M2_REPO=/Users/``/.m2/repository` +
+`$ export JAVA_HOME=/Library/Java/JavaVirtualMachines/jdk1.7.0_51.jdk/Contents/Home/` +
+`#If plenty of memory is available on the target system you can go as high as:` +
+`$ export MAVEN_OPTS="-Xms2048m -Xmx2048m -XX:MaxPermSize=2048m"` +
+`# Or as low as ` +
+` $ export MAVEN_OPTS="-Xmx1024m -XX:MaxPermSize=512m"`
+
+Verify the ENV with the following:
+
+`$ export` +
+`declare -x MAVEN_OPTS="-Xmx1024m -XX:MaxPermSize=512m"` +
+`declare -x JAVA_HOME="/Library/Java/JavaVirtualMachines/jdk1.7.0_51.jdk/Contents/Home/"` +
+`declare -x M2_REPO="/Users/username/.m2/repository"` +
+`declare -x MAVEN_OPTS="-Xms2048m -Xmx2048m -XX:MaxPermSize=2048m"`
+
+[[pre-requisites-for-mac-os-x]]
+== Pre-requisites for Mac OS X
+
+* Download and install the Java JDK from:
+http://www.oracle.com/technetwork/java/javase/downloads/index.html?ssSourceSiteId=otnjp[Java
+SE Downloads].
+* There are various ways to install Maven on a Mac. Two easy options are
+to install via http://www.macports.org/install.php[Mac Ports] or
+http://brew.sh/[Homebrew].
+* Once installed. Run the following from the terminal:
+
+`$ sudo port install maven3` +
+`$ mvn --version` +
+`Apache Maven 3.0.5 (r01de14724cdef164cd33c7c8c2fe155faf9602da` +
+`Maven home: /opt/local/share/java/maven3` +
+`Java version: 1.7.0_51, vendor: Oracle Corporation` +
+`Java home: /Library/Java/JavaVirtualMachines/jdk1.7.0_51.jdk/Contents/Home/jre` +
+`Default locale: en_US, platform encoding: UTF-8` +
+`OS name: "mac os x", version: "10.9.1", arch: "x86_64", family: "mac"`
+
+Next setup your ENV variables:
+
+`vi ~/.bash_profile` +
+`# Add the following: ` +
+`export M2_REPO=/Users/brent/.m2/repository` +
+`export MAVEN_OPTS="-Xms2048m -Xmx2048m -XX:MaxPermSize=2048m"`
+
+[[download-and-build-ovsdb-source-code]]
+== Download and Build OVSDB Source Code
+
+There are various ways to pull the controller code and artifacts using
+Maven. The easiest way to avoid any float between upstream Nexus and
+your local .m2 cache is to merely download the controller zip. The
+zipped distribution is updated every 30 minutes by an upstream job. So
+periodically download a fresh copy as code is committed upstream in
+order to stay consistent.
+
+For information on using Maven for dependency management see the
+following
+https://wiki.opendaylight.org/view/OpenDaylight_Controller:Eclipse_CLI_Setup[link.]
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+$ wget http://nexus.opendaylight.org/content/repositories/opendaylight.release/org/opendaylight/integration/distributions-virtualization/0.1.0/distributions-virtualization-0.1.0-osgipackage.zip
+
+$ unzip distributions-virtualization-0.1.0-osgipackage.zip 
+$ cd opendaylight/
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Next clone and build the OVSDB project from Gerrit:
+
+`$ sudo yum install git` +
+`$ git clone `https://git.opendaylight.org/gerrit/ovsdb[`https://git.opendaylight.org/gerrit/ovsdb`]` ` +
+`$ cd ovsdb` +
+`$ mvn clean install -DskipTests `
+
+You can then import the OVSDB project into your IDE. See the following
+tutorials for IDE specific imports:
+OpenDaylight Controller:Developing With Intellij[Importing and
+Developing OpenDaylight Using Intellij]
+
+OpenDaylight Controller:Pulling, Hacking, and Pushing the Code from Eclipse[Importing
+Project Into Eclipse]
+
+http://www.youtube.com/watch?v=ieB645oCIPs[OpenDaylight OVSDB Developer
+Getting Started Youtube Video]
+
+[[building-and-running-edited-ovsdb-project-code]]
+== Building and Running Edited OVSDB Project Code
+
+After you change a piece of code in lets say the ovsdb/neutron bundle.
+You next need to build and copy that jar to the controller distribution
+directory where you run the controller.
+
+`$ cd neutron` +
+`$ mvn clean install -DskipTests ` +
+`# copy the newly built jar to the controller to load ` +
+`$ cp target/ovsdb.neutron*.jar  /Users/roomba/opendaylight/plugins/`
+
+* Note you do not need to stop a running controller to refresh a bundle.
+OSGI will automatically reload the jar/bundle for you.
+
+For committing code back upstream you will need to setup your ssh keys
+and register them with Gerrit. See the following tutorial:
+OpenDaylight_Controller:Eclipse_Setup[OpenDaylight Getting Started with
+Gerrit]
+
+[[generate-ssh-keys-for-git]]
+== Generate SSH Keys for Git
+
+A brief example of generating the SSH key is the following:
+
+----------------------------------------------------------------
+roomba$ cd ~/.ssh
+roomba$ ls
+known_hosts
+$ ssh-keygen -t rsa -C "roomba@gmail.com"
+Generating public/private rsa key pair.
+Enter file in which to save the key (/Users/roomba/.ssh/id_rsa):
+Enter passphrase (empty for no passphrase):
+Enter same passphrase again:
+Your identification has been saved in /Users/roomba/.ssh/id_rsa.
+Your public key has been saved in /Users/roomba/.ssh/id_rsa.pub.
+
+The key fingerprint is:
+<Super Top Secret Roomba's eyes only> roomba@gmail.com
+The key's randomart image is:
++--[ RSA 2048]----+
+|  E+=*+.. .      |
+|   ++oo. . .     |
+|  ..+. o  . .    |
+| . +  .o. . .    |
+|  + o  S.   .    |
+|   o ..          |
+|                 |
+|                 |
+|                 |
++-----------------+
+$ ssh-add id_rsa
+Identity added: id_rsa (id_rsa)
+
+$ pbcopy < ~/.ssh/id_rsa.pub
+# !! Copy this key to your account on Gerrit
+$ ssh -p 29418 roomba@git.opendaylight.org
+# Clone the OVSDB repo via ssh now
+git clone ssh://roomba@git.opendaylight.org:29418/ovsdb.git
+----------------------------------------------------------------
+
+[[installing-open-vswitch]]
+== Installing Open vSwitch
+
+The following will install Open vSwitch v2.x+ and the associated kernel
+modules.
+
+`$ sudo yum install openvswitch` +
+`$ sudo /sbin/service openvswitch start`
+
+Verify kernel modules loaded with the following:
+
+`$ lsmod | grep openv` +
+`openvswitch            66772  0 ` +
+`vxlan                  37238  1 openvswitch` +
+`gre                    13888  1 openvswitch` +
+`libcrc32c              12603  1 openvswitch`
+
+http://networkstatic.net/install-open-vswitch-networking-red-hat-fedora-20/[More
+Tutorials for Installing Open vSwitch]
+
+[[additional-tools-postman-mininet-and-wireshark]]
+== Additional Tools, Postman, Mininet and Wireshark
+
+The following are some handy tools that are used in various tutorials
+and dev environments:
+
+*Install Postman REST Tool*
+
+`Postman is a Chrome App used for performing and sharing nerdy REST API calls with your friends!`
+
+https://chrome.google.com/webstore/detail/postman-rest-client/fdmmgilgnpjigdojojpjoooidkmcomcm?hl=en[Download
+Postman] After installing Postman, you can import the shared collection
+https://git.opendaylight.org/gerrit/gitweb?p=ovsdb.git;a=tree;f=resources/commons;h=6c56fbcf6daf619bee1f0562d3cbb06623217493;hb=d312047b5267c1ed5f11ed53a4c8699e4559051b[found
+here]
+
+*Install Wireshark*
+
+Install Wireshark for a Fedora host not running a desktop manager and
+using X over SSH 1- Install RPMs
+
+`$ sudo yum install wireshark xorg-x11-xauth xorg-x11-fonts-* xorg-x11-utils wireshark-gnome wireshark`
+
+2- Disable selinux (for Dev only).
+
+`$ sudo sed -i 's/#X11Forwarding\ no/X11Forwarding\ yes/'  /etc/ssh/sshd_config ` +
+`$ sudo systemctl restart sshd.service `
+
+* You also may need to disable selinux. Edit /etc/selinux/config for a
+persistent disable across reboots.
+
+`$ sudo sed -i 's/SELINUX=enforcing/SELINUX=disabled/g' /etc/selinux/config `
+
+* Disable with setenforce for a temporary disable until the next reboot.
+
+`$ getenforce ` +
+` Enforcing` +
+`$ sudo setenforce 0` +
+`$ getenforce` +
+` Permissive`
+
+3- Run Wireshark over X
+
+` $ ssh -X roomba@x.x.x.x`
+
+For example:
+
+`$ ssh -X roomba@192.168.1.10` +
+`$ sudo wireshark`
+
+* Start the packet capture.
+* Add a filter of tcp.port == 6653 && tcp.port == 6633
+* Right click on a packet and "decode as" open flow.
+
+ *Installing Mininet*
+
+As root execute the following operations:
+
+* Install git
+
+`$ sudo yum install git`
+
+* create an user account (e.g. mininet) and add it to the wheel group
+
+`$ sudo useradd -d mininet` +
+`$ sudo usermod -a -G wheel mininet`
+
+* Change the SElinux setting to permissive. It can be done temporarily
+with:
+
+`$ sudo setenforce 0`
+
+Next, login with the new account (e.g. mininet) and do the following:
+
+* clone the Mininet repository
+
+git clone git://github.com/mininet/mininet.git
+
+* Install Mininet, the OpenFlow reference implementation, and Open
+vSwitch
+
+`$ sudo mininet/util/install.sh -fnv`
+
+* Enable and start openvswitch
+
+`$ sudo systemctl enable openvswitch` +
+`$ sudo systemctl start openvswitch`
+
+* test the mininet installation
+
+sudo mn --test pingall
+
+More information at http://mininet.org/walkthrough/[mininet.org]

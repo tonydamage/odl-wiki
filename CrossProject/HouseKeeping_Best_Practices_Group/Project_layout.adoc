@@ -1,0 +1,320 @@
+[[introduction]]
+== Introduction
+
+This page attempts to document current best practices in organizing
+content of your project, both in terms of code and in terms of build
+system metadata, and also provide reasoning behind it. For documentation
+purposes, our project is Foo Bar Project, with repository foobar.git and
+package prefix org.opendaylight.foobar.
+
+[[general-layout]]
+== General layout
+
+This is the basic layout, which is independent of your actual code
+structure. Its primary reason for existence is threefold:
+
+* to provide common look'n'feel for all projects
+* split build system metadata to ease interactions with infrastructure
+services as well as with other projects
+* future-proof your project such that it can be evolved without major
+shake-ups
+
+This is the basic filesystem layout:
+
+`/` +
+`|--- LICENSE                            Project license text, usually Eclipse Public License` +
+`|` +
+`|--- README.md                          A short description of the project, in MarkDown syntax` +
+`|` +
+`|--- pom.xml                            Root (Aggregator) pom` +
+`|` +
+`|--- parent/pom.xml                     Parent pom` +
+`|` +
+`|--- artifacts/pom.xml                  Public artifacts pom` +
+`|` +
+`|--- features                           Karaf Features` +
+`|    |--- pom.xml` +
+`|    |` +
+`|    |--- foobar` +
+`|    |    |` +
+`|    |    |--- pom.xml` +
+`|    |    +--- src/main/feature/features.xml` +
+`|    |...` +
+`|` +
+`|--- foobar-api` +
+`|    |--- pom.xml` +
+`|    |...` +
+`|` +
+`|--- foobar-simple` +
+`|    |--- pom.xml` +
+`|    |...` +
+`...`
+
+The first five of the pom.xmls form the common project infrastructure.
+We detail them in the following section. The other two, foobar-api and
+foobar-simple are an example, refer to the Artifact naming section for
+details. In general each directory needs to have a working pom.xml,
+which builds modules located directly underneath it. While this is not
+strictly required by maven, it is convenient when navigating through the
+project and trying partial (re)builds.
+
+[[well-known-artifacts]]
+== Well-known artifacts
+
+Each project should contain a few artifacts whose locations, names and
+content should follow the guidelines listed here.
+
+[[pom.xml]]
+=== /pom.xml
+
+This is the root artifact of the entire project. All the Jenkins jobs
+start at this artifact by default. It is known as 'root pom', or
+'project aggregator'. Its sole role in life is to kick of the top-level
+build and lists the projects build artifacts. It's canonical name is
+-aggregator, so in our example that is foobar-aggregator. Here is a
+bare-minimum example:
+
+`<!--` +
+` Copyright (c) 20xx Example, Corp. All rights reserved.` +
+ +
+` This program and the accompanying materials are made available under the` +
+` terms of the Eclipse Public License v1.0 which accompanies this distribution,` +
+` and is available at `http://www.eclipse.org/legal/epl-v10.html[`http://www.eclipse.org/legal/epl-v10.html`] +
+`-->` +
+ +
+ +
+`    ` +
+`        ``org.opendaylight.foobar` +
+`        ``foobar-parent` +
+`        ``1.0.0-SNAPSHOT` +
+`        ``parent` +
+`    `
+
+Pointing to the parent brings in repositories, pluginRepositories,
+distributionManagement and the pluginManagement section. Next up is the
+classic maven boiler plate, be sure to specify pom as your packaging,
+description is free-form. You can include a tag, but that is not
+strictly necessary.
+
+`    ``4.0.0` +
+`    ``foobar-aggregator` +
+`    ``Foo Bar top-level aggregator` +
+`    ``pom` +
+ +
+`    ` +
+`       ``3.1.1` +
+`    `
+
+The prerequisite section provides fail-fast detection for maven 2.x,
+which we do not support. As of this writing minimum supported version is
+3.0.4, but we are already migrating to 3.1.1. The section provides
+pointers to source code management and wiki.
+
+`    ` +
+`        ``scm:`git:ssh://git.opendaylight.org:29418/foobar.git[`git:ssh://git.opendaylight.org:29418/foobar.git`] +
+`        ``scm:`git:ssh://git.opendaylight.org:29418/foobar.git[`git:ssh://git.opendaylight.org:29418/foobar.git`] +
+`        `https://wiki.opendaylight.org/view/FooBar:Main[`https://wiki.opendaylight.org/view/FooBar:Main`] +
+`        ``HEAD` +
+`    `
+
+Next up we suppress publishing of this artifact in the deploy phase.
+Since this pom is only ever used by the build, there is no point in
+publishing it.
+
+`    ` +
+`        ` +
+`            ` +
+`                ``maven-deploy-plugin` +
+`                ` +
+`                    ``true` +
+`                ` +
+`            ` +
+`        ` +
+`    `
+
+Finally we have the list of modules which should be built. Please list
+the well-known artifacts alphabetically first and follow them up with
+list of project-specific artifacts (code, etc.).
+
+`    ` +
+`        <!-- Well-known -->` +
+`        ``artifacts` +
+`        ``feature` +
+`        ``feature-it` +
+`        ``parent` +
+ +
+`        <!-- Depends on code structure -->` +
+`        ``foobar-api` +
+`        ``foobar-simpl` +
+`    ` +
+
+[[parentpom.xml]]
+=== /parent/pom.xml
+
+This is the project-wide parent. It acts as the base template for your
+other artifacts, carrying common settings. Unless you have a very good
+reason not to, all your artifacts should mention this one as their
+parent, thus inheriting the settings. It is usually named -parent, e.g.
+foobar-parent in our example project.
+
+`<!--` +
+` Copyright (c) 20xx Example Corp. and others.  All rights reserved.` +
+ +
+` This program and the accompanying materials are made available under the` +
+` terms of the Eclipse Public License v1.0 which accompanies this distribution,` +
+` and is available at `http://www.eclipse.org/legal/epl-v10.html[`http://www.eclipse.org/legal/epl-v10.html`] +
+`-->` +
+ +
+ +
+`    ` +
+`        ``org.opendaylight.odlparent` +
+`        ``odlparent` +
+`        ``1.5.0-SNAPSHOT` +
+`    `
+
+This inheritence will ensure that your project inherits all the ODL-wide
+defaults, such as third-party dependency versions and plugin
+configuration.
+
+Another important part is the dependencyManagement section. This should
+be the centralized place where you define your third-party and
+project-internal dependencies, with their versions. Note that
+dependencyManagement makes a particular artifact known to maven, but
+does not automatically make it part of the dependency tree. It just
+allows you to then refer to the artifact without specifying the version
+tag -- thus reducing verbosity and the number of places where you need
+to update things. Even if you do not have any other dependencies, you
+need to have the following:
+
+`    ` +
+`        ` +
+`            ` +
+`                ``org.opendaylight.foobar` +
+`                ``foobar-artifacts` +
+`                ``${foobar.version}` +
+`                ``import` +
+`                ``pom` +
+`            ` +
+`        ` +
+`    ` +
+
+This will ensure that your internal and external artifact versions and
+dependecies on them are kept synchronized. This is covered in detail in
+the next section. Note how the version is specified as
+$\{foobar.version} and not $\{project.version}. This is because
+$\{project.version} is substituted from the actual pom, so if you
+explicitly override the version in one of the child artifacts, the
+declaration would pick up the overridden version, which is not what we
+want.
+
+If your are depending on any upstream OpenDaylight project, be sure to
+import that project's artifact pom, too. If you find yourself in a
+position where you need to specify a dependency on a code artifact from
+an OpenDaylight project, please contact the committers of that project
+and work with them to rectify the situation.
+
+[[artifactspom.xml]]
+=== /artifacts/pom.xml
+
+The artifacts artifact is where you declare the artifacts which form
+your external interface. Its canonical name is -artifacts, e.g.
+foobar-artifacts in our example. It is quite bare-bones, as it really
+needs to contain only a dependencyManagement section. It should not have
+a parent specified:
+
+`<!--` +
+` Copyright (c) 20xx FooBar Corp. and others.  All rights reserved.` +
+ +
+` This program and the accompanying materials are made available under the` +
+` terms of the Eclipse Public License v1.0 which accompanies this distribution,` +
+` and is available at `http://www.eclipse.org/legal/epl-v10.html[`http://www.eclipse.org/legal/epl-v10.html`] +
+`-->` +
+ +
+ +
+`    ``4.0.0` +
+`    ``org.opendaylight.foobar` +
+`    ``foobar-artifacts` +
+`    ``1.0.0-SNAPSHOT` +
+`    ``pom` +
+ +
+`    ` +
+`        ``3.1.1` +
+`    ` +
+ +
+`    ` +
+`        ` +
+`            <!-- Code artifacts -->` +
+`            ` +
+`                ``org.opendaylight.foobar` +
+`                ``foobar-api` +
+`                ``${project.version}` +
+`            ` +
+`            ` +
+`                ``org.opendaylight.foobar` +
+`                ``foobar-simple` +
+`                ``${project.version}` +
+`            ` +
+ +
+`            <!-- Feature artifact -->` +
+`            ` +
+`                ``org.opendaylight.foobar` +
+`                ``features-foobar` +
+`                ``features` +
+`                ``xml` +
+`                ``${project.version}` +
+`            ` +
+`        ` +
+`    ` +
+
+You will typically want to list all your production all artifacts except
+integration tests, as this section is imported into the parent pom and
+also your users will import it to learn your artifacts and their
+dependencies. One notable difference between this pom's and parent pom's
+version handling is that while parent pom's $\{project.version} picks up
+whatever the child pom specifies, this pom's version is always
+interpreted locally, e.g. maps to the version of the artifacts pom, NOT
+to the version of importing module. Another difference is that it is
+only the dependencyManagement section which gets imported, so you cannot
+lean properties, plugin cnfiguration, etc. through this mechanism.
+
+This file is crucial to making inter-project versioning working sanely,
+because it allows us to have a single "project" version, all the while
+retaining Semantic Versioning of our code artifacts. The single version
+is useful for identifying a release train, such as the Helium release
+cycle, without caring what is in that particular release, especially
+version-wise. Note the above example does not take advantage of that.
+The downstream's import is done precisely the same way we do it in the
+parent pom.
+
+[[featurepom.xml]]
+=== /feature/pom.xml
+
+[[artifact-and-package-naming]]
+== Artifact and package naming
+
+Artifact naming conventions are usually not of huge consequence, but
+there are a few points that need to be considered when creating
+artifacts. Each OpenDaylight project has the namespace
+'org.opendaylight.' at their disposal, irrespective of the context in
+which it is used. This includes groupIds, Java package names, URNs and
+any other hierarchical namespace which can be modelled akin to DNS.
+
+[[directory-and-artifact-names]]
+=== Directory and artifact names
+
+It is very important to maintain consistency between the name of the
+artifact (*artifactId*) and the directory in which it stored. People
+tend to navigate the filesystem without an IDE, usually looking for a
+specific artifact and it is very painful when *sal-broker-impl* is in a
+directory called *sal-dom-broker*. While grepping pom.xmls works, it is
+slower than just walking directories.
+
+For simple projects, with all code artifacts under the root directory,
+it is recommended to use directory names matching the artifactId. Larger
+projects, which feel they need to split the artifacts into several
+'module' directories, it may be simpler to drop prefixess and let the
+directory hierarchy carry parts of the artifact name -- this is
+something which is completely up to you.
+
+[[artifact-name-and-java-package-names]]
+=== Artifact name and Java package names

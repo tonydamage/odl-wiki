@@ -1,0 +1,140 @@
+[[prepare-vm-to-run-devstack]]
+== Prepare VM to run Devstack
+
+`git clone https://github.com/mestery/odl-openstack-ci-1.git` +
+`cd odl-openstack-ci-1` +
+`grep -v vm.synced_folder centos/Vagrantfile > ./Vagrantfile` +
+`sed -i -e 's/\.\.\/bootstrap\.sh/\.\/bootstrap\.sh/g' Vagrantfile`
+
+Edit vagrantfile so that the ip address of the internal interface is
+inline with the subnet you have as private_network. The idea here is
+that you will be running ODL locally, and openstack (running inside VM)
+will use ml2 to connect to ODL on host.
+
+`config.vm.network "private_network", ip: "w.x.y.z"`
+
+[[vagrant-up]]
+===== Vagrant up
+
+Start VM and tweak script that does the install of devstack, so we can
+manually do the stack later.
+
+`vagrant up && vagrant reload && vagrant ssh` +
+`sed -i -r -e 's/^#*\s*(STACK_AND_TEST=).+$/\1"no"/' /vagrant/odl-devstack-ci.sh` +
+`cd /vagrant && ./odl-devstack-ci.sh`
+
+Prepare local.conf. Set the value of HOST_INTERNAL_IP_ADDR to match the
+ip your system is using.
+
+`# this is the ip where ODL will be running` +
+`# change the ip address below to match the ip of the host internal network` +
+`HOST_INTERNAL_IP_ADDR=192.168.50.1`
+
+`cd /home/vagrant/devstack/` +
+`if [ ! -f ./local.conf.orig ]; then cp ./local.conf{,.orig}; fi` +
+`grep -v ODL_MODE ./local.conf.orig | grep -v ODL_MGR_IP > local.conf` +
+`cat <``> ./local.conf` +
+`ODL_MODE=externalodl` +
+`ODL_PORT=8080` +
+`ODL_MGR_IP=${HOST_INTERNAL_IP_ADDR}` +
+`EOT`
+
+[[prepare-and-start-odl]]
+== Prepare and start ODL
+
+Do these steps in a separate shell window. Here, you are basically
+pulling editing and building the ODL code.
+
+`git clone `ssh://[`ssh://`]`${ODL_USERNAME}@git.opendaylight.org:29418/neutron.git` +
+`...` +
+`mvn clean install -nsu -Dmaven.compile.fork=true -Dskip.karaf=true -DskipTests`
+
+`git clone `ssh://[`ssh://`]`${ODL_USERNAME}@git.opendaylight.org:29418/ovsdb.git` +
+`...` +
+`mvn clean install -nsu -Dmaven.compile.fork=true -Dskip.karaf=true -DskipTests`
+
+`# from top level of ovsdb.git, you can run a karaf distribution` +
+`cd ./karaf/target/assembly` +
+`./bin/karaf` +
+`feature:install odl-ovsdb-openstack` +
+`log:set TRACE org.opendaylight.neutron` +
+`log:set debug org.opendaylight.ovsdb.openstack.netvirt.impl.NeutronL3Adapter`
+
+[[stack]]
+== Stack
+
+At this point, ODL is running locally and you can go back to the VM
+created via Vagrant and invoke stack.
+
+`cd odl-openstack-ci-1` +
+`vagrant ssh` +
+`cd /home/vagrant/devstack` +
+`time ./stack.sh`
+
+The first time stack is invoked takes about 25 mins... be patient. Once
+that is done, you can 'lock down' the stack repo used by changing the
+following values in local.conf
+
+`OFFLINE=True` +
+`RECLONE=no`
+
+[[run-tempest-tests]]
+== Run Tempest Tests
+
+Once stacked, you can run tempest tests by doing the following:
+
+`cd /opt/stack/tempest` +
+`./run_tempest.sh tempest.api.network.test_networks.NetworksTestJSON  tempest.api.network.test_networks_negative`
+
+In the very first time you run ./run_tempest.sh you will see the prompt
+below. Just say 'Y'
+
+`No virtual environment found...create one? (Y/n) Y`
+
+To run all networking tests:
+
+`./run_tempest.sh tempest.api.network`
+
+To run a specific test:
+
+`./run_tempest.sh -d  tempest.api.network.test_allowed_address_pair.AllowedAddressPairIpV6TestJSON`
+
+[[capturing-packets]]
+===== Capturing packets
+
+`vagrant ssh -- -X` +
+`sudo wireshark`
+
+Use filter to capture Neutron REST packets:
+
+`Select interface enp0s8` +
+`Start Capture` +
+`Under filter, type: tcp.srcport == 8080` +
+`Right click on a given packet and select "Follow TCP stream"`
+
+[[known-issues]]
+== Known Issues
+
+[[vagrant-vm-reboot-after-stacking]]
+=== Vagrant VM reboot after stacking
+
+When using Vagrant with Virtual Box as hypervisor, I notice that VBox
+will get out of sync with its vboxsf module due to kernel changes.
+Because of that, you may hit the following issue while rebooting the
+system:
+
+`/sbin/mount.vboxsf: mounting failed with the error: No such device`
+
+To address this issue, do the following:
+
+`vagrant ssh` +
+`sudo yum install -y kernel-devel` +
+`sudo /etc/init.d/vboxadd setup` +
+`exit` +
+`vagrant reload`
+
+[[tempest-tests-daily-results]]
+= Tempest Tests daily Results
+
+There is a Jenkins job that keep tabs on the the latest tempest results.
+To see more info on that, go OVSDB:Tempest_Tests_daily_Results[here].

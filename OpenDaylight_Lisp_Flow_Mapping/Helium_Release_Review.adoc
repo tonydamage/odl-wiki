@@ -1,0 +1,159 @@
+[cols="^",]
+|=======================================================================
+|*Guide Contents*
+
+|OpenDaylight_Lisp_Flow_Mapping:Architecture[Architecture Overview] +
+OpenDaylight_Lisp_Flow_Mapping:Java_API[Java API] +
+OpenDaylight_Lisp_Flow_Mapping:REST_API[REST API] +
+OpenDaylight_Lisp_Flow_Mapping:SimultaneousReleasePlan2014[HeliumRelease
+Plan] +
+OpenDaylight_Lisp_Flow_Mapping:Hacking_Code_From_CLI[Hacking the Code
+From CLI] +
+OpenDaylight_Lisp_Flow_Mapping:Main[Back to LISP Flow Mapping Main]
+|=======================================================================
+
+[[lisp-flow-mapping]]
+== LISP Flow Mapping
+
+[[features]]
+== Features
+
+[[hydrogen-release]]
+=== Hydrogen Release
+
+* First release of Lisp Flow Mapping
+* LISP Map Server with flat key-value mappings
+** Support for basic mappings including multiple RLOCs per EID,
+priority, and weight
+** Support for storing IPv4, IPv6, MAC, Distinguished Name, Segment ID,
+Traffic Engineering with Path Specification, AS Number, Application
+Specific Data
+** Support for Source/Destination 2-Tuple Lookups
+* LISP Map Resolver
+* Northbound (application facing) REST API for Map Server and Map
+Resolver to add/retrieve EID-RLOC (e.g. : virtual IP address to physical
+IP address) mappings
+* Southbound (device facing) LISP API for Map Server and Map Resolver to
+register/request EID-RLOC mappings via LISP protocol
+
+[[helium-release]]
+=== Helium Release
+
+* Proactive Mapping System Pub/Sub: The mapping Service keeps a list of
+subscriber xTRs per mapping record (auto-subscribe at mapping request).
+When the mapping record is updated via NB API, mapping system sends SMR
+message including the updated record to the subscribing xTRs.
+* Map Request Non-Proxy Support: The mapping service supports receiving
+non-proxy map requests, and forward them to the current xTR.
+* Neutron API integration: Improved and expanded Neutron API support in
+LISP Flow Mapping. When a new neutron subnet is created, the subnet is
+added to mapping system with the Neutron net-ID as the key for the EID
+(subnet) prefix.
+* LISP SB plugin integration with Node Inventory and GUI: Enables status
+integration of LISP dateplane nodes in AD-SAL node inventory and AD-SAL
+GUI. Not included in Karaf.
+* Integration with Service Function Chaining: The mapping Service
+supports integration with Service Function Chaining, code is part of
+SFC.
+* Config command : setShouldOverwriteRloc true, enables overwrite of
+mappings instead of appending/merging
+* Port support for non proxy map request
+* Key-value LCAF support
+* Map-Reply in Map Request serialization. we now serialize the embedded
+map reply record.
+* Southbound xTR support. The southbound can now listen on another port
+which is the xTR port, and send a notification with the received map
+request.
+* Adding another address format: a DistinguishedName with value ":"
+* Netconf: API/ability to programmatically connect to a netconf server
+from the LISP project. Not yet a user facing feature.
+
+[[non-code-aspects]]
+== Non-Code Aspects
+
+* OpenDaylight_Lisp_Flow_Mapping:Architecture[Architecture Overview]
+* OpenDaylight_Lisp_Flow_Mapping:User_Guide_for_Hydrogen[Developer
+Guide] has been updated for Helium and is present in the ASCIIDoc
+Developer Guide document, including a tutorial on sample use cases.
+Commits can be found at:
+** https://git.opendaylight.org/gerrit/#/c/11272/ [Merged]
+** https://git.opendaylight.org/gerrit/#/c/11538/ [Merged]
+** https://git.opendaylight.org/gerrit/#/c/11554/ [Merged]
+** https://git.opendaylight.org/gerrit/#/c/11561/ [Merged]
+** https://git.opendaylight.org/gerrit/#/c/11620/ [Waiting for review]
+** https://git.opendaylight.org/gerrit/#/c/11637/ [Waiting for review]
+** Our User Guide was moved to docs project Developer Guide as it was
+based on REST API and had no GUI integration.
+* Documentation on the wiki:
+** OpenDaylight_Lisp_Flow_Mapping:API[API]
+
+[[architectural-issues]]
+== Architectural Issues
+
+An overview of the architecture including API documentation is posted at
+the OpenDaylight_Lisp_Flow_Mapping:Architecture[Architecture Overview]
+page.
+
+* Mappings will expire in 4 minutes. Later versions may provide support
+for deleting mappings per xTR registration and differentiating between
+northbound and southbound registrations with priority.
+
+[[security-issues]]
+== Security Issues
+
+LISP southbound plugin follows LISP RFC6830 security guidelines. A
+key/password is associated with every EID prefix which is used to create
+a MAC (Message Authentication Code) of the UDP LISP control messages for
+authentication and integrity protection of the UDP messages. This is
+implemented as specified in the LISP RFC6830. On the Northbound API, the
+key is passed via JSON and is tested for equality against the stored key
+for the EID prefix being registered. No MAC of the REST request is
+created.
+
+[[quality-assurance-test-coverage-etc]]
+== Quality Assurance (test coverage, etc)
+
+* Unit Tests: Unit tests are implemented and coverage is reported in
+https://sonar.opendaylight.org/dashboard/index/17324[Sonar].
+* Integration Tests: About 30 integration tests have been implemented
+and passed.
+
+[[end-of-life-apifeatures-eoled-in-release]]
+== End-of-life (API/Features EOLed in Release)
+
+No EoL APIs/features at this release.
+
+[[bugzilla-summary-of-bug-situation]]
+== Bugzilla (summary of bug situation)
+
+* No outstanding feature bugs. 2 outstanding design bugs likely to be
+targeted for next release.
+* One critical bug. Fix was just merged. Functional testing in progress.
+*
+https://bugs.opendaylight.org/buglist.cgi?query_format=specific&order=relevance%20desc&bug_status=__open__&product=lispflowmapping&list_id=3345[Lisp
+Flow Mapping project list of bugs]
+
+[[standards-summary-of-standard-compliance]]
+== Standards (summary of standard compliance)
+
+The LISP implementation module and southbound plugin conforms to the
+IETF RFC6830 and RFC6833, with the following exceptions:
+
+* In Map-Request message, M bit(Map-Reply Record exist in the
+MapRequest) is processed but any mapping data at the bottom of a
+Map-Request are discarded.
+* LISP LCAFs are limited to only up to one level of recursion. For
+instance in the case of a traffic engineering policy every hop can only
+be a generic AFI address (IPv4, IPv6, MAC, Dist. Name, AS Number), and
+can not include combinations such as Segment ID, or list.
+
+No standards exist for the LISP Mapping System northbound API as of this
+date.
+
+[[schedule-initial-schedule-and-changes-over-the-release-cycle]]
+== Schedule (initial schedule and changes over the release cycle)
+
+All features planned for this release cycle were met. Integration with
+AD-SAL GUI is not included in karaf. Schedule of next release cycle is
+in the works, and will include integration with MD-SAL node inventory
+and dlux.

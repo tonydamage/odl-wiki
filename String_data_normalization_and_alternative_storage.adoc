@@ -1,0 +1,116 @@
+[[synopsis]]
+=== Synopsis
+
+This effort has multiple aspects, driven by three immediate needs:
+
+1.  store string-derived types in their canonical form, especially
+mac-address, ipv4-address and ipv6-address
+2.  perform string/binary conversions uniformly
+3.  elide performing conversions until it is actually necessary to do so
+
+This effort is tracked in
+https://bugs.opendaylight.org/show_bug.cgi?id=2825[BUG-2825] overall.
+
+[[scope]]
+=== Scope
+
+The scope of this feature spans both Binding Independent and Binding
+Aware components.
+
+[[requirements]]
+=== Requirements
+
+Whatever solution we come up with needs to satisfy the following
+requirements:
+
+1.  the ability to centralize the serdes code for String<->byte[]
+2.  interfaces for instantiating data handles with an adequate
+alternative proof of compliance
+3.  unified access to the serdes code
+4.  its integration into the BI/BA translation layer
+5.  the ability for applications using the binary representation to
+exchange the data without losing type safety
+6.  no data transformation as long as it is not needed
+
+[[issue-break-down]]
+=== Issue break-down
+
+[[yang-string-derived-types-and-their-canonical-format]]
+==== YANG string-derived types and their canonical format
+
+YANG has the notion of a canonical format, which is specified in
+RFC6020. The canonical format for the string type is specified to match
+the lexical format. This can be overridden by derived types, but this
+definition is not machine-readable and there are no current plans to fix
+that in the NETMOD WG, as the current solution of having that
+information human-readable in the description field is deemed good
+enough.
+
+Unfortunately this does not quite work for us, as we are not a
+hand-written box, but interact with models as we discover them. We need
+a mechanism by which we can know that a particular value is in canonical
+form, so we can at least issue a warning when dealing with non-canonical
+data.
+
+We can solve this by introducing a language extension ('canonical '),
+which we will use for our internal models and attach it via an external
+annotation to third-party modules which are somehow known to require it.
+This metadata will be present in SchemaContext, which means that any
+component introducing data into the system can take action based on this
+knowledge. Since our internal wiring depends on correct behavior, the
+components would be advised to reject that data.
+
+[[converting-from-lexical-to-canonical-format]]
+==== Converting from lexical to canonical format
+
+Once we have identified that a particular piece of data is not in the
+canonical format for its data type, we need a way how to convert
+non-canonical forms into canonical form on ingress. While a declarative
+approach, tied to the language extension above would be preferable, the
+normalization specification for IPv6 addresses may prohibit that on
+grounds of complexity of the language required to express it.
+
+While we explore the declarative approach, we can go with hand-written
+approach, where we'd be writing the normalization code by hand and
+deploy/register it with the runtime. This can auto-generated when we see
+the above language extension, for example, with the user needing to fill
+in the proper method.
+
+[[alternative-storageencoding-of-the-canonical-format]]
+==== Alternative storage/encoding of the canonical format
+
+As per the initial bug report, there are some base string-derived types
+which actually represent human-readable form of entities which are
+naturally occurring in a binary representation. For many of these, it is
+much easier to perform logical operations and validation in binary
+format.
+
+Converting to/from the binary representation needs to plug hand-written
+code to be plugged into the both compile-time and run-time of the
+project. The fact that a particular type has an alternative binary
+encoding should be tagged in YANG model, same way as the canonical
+format. That extension would then be recognized by codegen, which would
+emit a binary-enabled accessor DataObject, the boilerplate for
+registering the converter class, and a prototype of that class, which is
+to be edited by a developer and carried with the alternative-encoding
+marker.
+
+Alternative encodings also breaks the inherent assumption in
+NormalizedNodes, which is that each type has precisely one encoding and
+the value is always encoded in it. This assumption along with careful
+alignment of the NormalizedNode/DataObject value representations allows
+us to perform conversions between the two encapsulations rather
+efficiently. In order to retain this efficiency, such polymorphic types
+need to be backed by a versatile representation, which needs to be
+accessible by SB plugins (typically source in binary form), NB plugins
+(typically in string form) as well as BA/BI translation layer (transport
+without translation/on-demand translation). That representation also
+needs to be able to carry a proof of data compliance equivalent to the
+regular expression validation, so that we do run validation. One final
+challenge is that the representation needs to enforce immutability of
+the binary representation.
+
+While making the binary representation match Java byte[], the design
+needs to be extensible to allow other storage alternatives, such as
+carrying an IPv4 address in a simple 'int' (for lower memory overhead),
+or an InetAddress instance, for example.

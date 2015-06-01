@@ -1,267 +1,25 @@
-[[example-configuration-of-thread-pools-using-yuma]]
-= Example configuration of thread pools using yuma
+[[configuration-example-of-thread-pools-using-yangcli-pro]]
+= Configuration example of thread pools using yangcli-pro
 
-[[requirements]]
-== Requirements:
+For a yangcli-pro example, see the
+OpenDaylight Controller:Config:Examples:User guide[user guide]
 
-yangcli-pro version 13.04-7.1 or later
+[[configuration-example-of-thread-pools-using-telnet]]
+= Configuration example of thread pools using telnet
+
+It is also possible to manipulate the configuration without the yuma
+cli. With just a telnet or ssh connection, it is possible to send the
+plain text containing netconf rpcs encoded in the xml format and achieve
+the same results as with yuma cli.
+
+This example reproduces the configuration of a threadpool and a
+threadfactory from the previous example using just a telnet connection.
+We can also use ssh connection, with the netconf rpcs sending procedure
+remaining the same. For detailed information about initial configuration
+for the controller as well as the configuration process, see the example
+using yuma cli.
 
 [[connecting-to-plaintext-tcp-socket]]
-== Connecting to plaintext TCP socket
-
-Currently TCP and SSH is exposed by the controller. The network
-interface and port are configured in configuration/config.ini . Current
-configuration of netconf is:
-
--------------------------------
-# Netconf startup configuration
-netconf.tcp.address=0.0.0.0
-netconf.tcp.port=8383
-
-netconf.ssh.address=0.0.0.0
-netconf.ssh.port=1830
--------------------------------
-
-To connect the yangcli-pro client, use following syntax:
-
-----------------------------------------------------------------------------------
-yangcli-pro --user=a --password=a --transport=tcp --ncport=8383 --server=localhost
-----------------------------------------------------------------------------------
-
-Authentication in this case is ignored.
-
-Alternatively, if you wish to use ssh use syntax :
-
-----------------------------------------------------------------------------------------------
-yangcli-pro --user=netconf --password=netconf --transport=ssh --ncport=1830 --server=localhost
-----------------------------------------------------------------------------------------------
-
-For better debugging please include following arguments:
-
----------------------------------------
- --log=/tmp/yuma.log --log-level=debug4
----------------------------------------
-
-Note that when log file is set, output will not appear on stdout.
-
-[[configuring-threadfactory]]
-== Configuring threadfactory
-
-*threadfactory* is a service interface that can be plugged into
-threadpools, defined in config-threadpool-api (see yang file
-https://git.opendaylight.org/gerrit/gitweb?p=controller.git;a=blob;f=opendaylight/config/threadpool-config-api/src/main/yang/threadpool.yang;h=8f3064822be319dfee6fd7c7061c8bee14db268f;hb=refs/heads/master[here]).
-
-The implementation we are going to use is called *threadfactory-naming*.
-This implementation will set a name for each thread created using
-configurable prefix and auto incremented index. Yang file can be found
-https://git.opendaylight.org/gerrit/gitweb?p=controller.git;a=blob;f=opendaylight/config/threadpool-config-impl/src/main/yang/threadpool-impl.yang;h=a2366f285a0c0b8682b1093f18fb5ee184c9cde3;hb=refs/heads/master[here].
-
-* Launch yangcli-pro and connect to the server.
-* enter *get-config source=running* to see current configuration.
-Example output:
-
--------------------------------------------------------------------------------------------------------------------------
-rpc-reply {
-  data {
-    modules {
-      module  binding-broker-singleton {
-        type binding-impl:binding-broker-impl-singleton
-        name binding-broker-singleton
-      }
-    }
-    services {
-      service  md-sal-binding:binding-broker-osgi-registry {
-        type md-sal-binding:binding-broker-osgi-registry
-        instance  ref_binding-broker-singleton {
-          name ref_binding-broker-singleton
-          provider /config/modules/module[name='binding-broker-impl-singleton']/instance[name='binding-broker-singleton']
-        }
-      }
-    }
-  }
-}
--------------------------------------------------------------------------------------------------------------------------
-
-* enter *merge /modules/module*
-* you will be asked to enter string value for leaf . This is name of the
-config module. Enter *threadfactory-bgp*
-* next set identityref for leaf . You can press Tab to see a list of
-available module names. Enter *threadfactory-naming*
-* you will be then asked to choose case statement. Example output:
-
------------------------------------
-  1: case netty-threadgroup-fixed:
-       leaf thread-count
-  2: case netty-hashed-wheel-timer:
-       leaf tick-duration
-       leaf ticks-per-wheel
-       container thread-factory
-  3: case async-eventbus:
-       container threadpool
-  4: case threadfactory-naming:
-       leaf name-prefix
-  5: case threadpool-fixed:
-       leaf max-thread-count
-       container threadFactory
-  6: case threadpool-flexible:
-       leaf max-thread-count
-       leaf minThreadCount
-       leaf keepAliveMillis
-       container threadFactory
-  7: case threadpool-scheduled:
-       leaf max-thread-count
-       container threadFactory
-  8: case logback:
-       list file-appenders
-       list rolling-appenders
-       list console-appenders
-       list loggers
------------------------------------
-
-In this case, we choose 4.
-
-* Next fill string value for leaf . Enter *bgp*
-
-You should get an OK response from the server.
-
-* Optionally issue *get-config source=candidate* to verify the change.
-* Issue *commit*
-* Issue *get-config source=running*. Example output:
-
--------------------------------------------------------------------------------------------------------------------------
-rpc-reply {
-  data {
-    modules {
-      module  binding-broker-singleton {
-        type binding-impl:binding-broker-impl-singleton
-        name binding-broker-singleton
-      }
-      module  threadfactory-bgp {
-        type th-java:threadfactory-naming
-        name threadfactory-bgp
-        name-prefix bgp
-      }
-    }
-    services {
-      service  th:threadfactory {
-        type th:threadfactory
-        instance  ref_threadfactory-bgp {
-          name ref_threadfactory-bgp
-          provider /config/modules/module[name='threadfactory-naming']/instance[name='threadfactory-bgp']
-        }
-      }
-      service  md-sal-binding:binding-broker-osgi-registry {
-        type md-sal-binding:binding-broker-osgi-registry
-        instance  ref_binding-broker-singleton {
-          name ref_binding-broker-singleton
-          provider /config/modules/module[name='binding-broker-impl-singleton']/instance[name='binding-broker-singleton']
-        }
-      }
-    }
-  }
-}
--------------------------------------------------------------------------------------------------------------------------
-
-[[configuring-fixed-threadpool]]
-== Configuring fixed threadpool
-
-Service interface *threadpool* is defined in config-threadpool-api.
-Implementation we will use is called *threadpool-fixed* that is defined
-in config-threadpool-impl (see previous chapter). This implementation
-creates a threadpool of fixed size. There are two mandatory attributes:
-size and dependency on a threadfactory.
-
-* Issue *get-config source=running*. As you can see in last step of
-configuring threadfactory, /services/service node associated with it has
-instance name *ref_threadfactory-bgp*.
-* Issue *merge /modules/module*
-* Enter name *bgp-threadpool*
-* Enter type *threadpool-fixed*
-* Select appropriate case statement
-* Enter value for leaf : *100*
-* Enter *threadfactory* for attribute threadfactory/type. This is
-reference to /services/service/type, in other words, service interface.
-* Enter *ref_threadfactory-bgp*
-
-Server should reply with OK message.
-
-* Issue commit
-* Issue *get-config source=running*
-
-Example output:
-
--------------------------------------------------------------------------------------------------------------------------
-rpc-reply {
-  data {
-    modules {
-      module  binding-broker-singleton {
-        type binding-impl:binding-broker-impl-singleton
-        name binding-broker-singleton
-      }
-      module  bgp-threadpool {
-        type th-java:threadpool-fixed
-        name bgp-threadpool
-        threadFactory {
-          type th:threadfactory
-          name ref_threadfactory-bgp
-        }
-        max-thread-count 100
-      }
-      module  threadfactory-bgp {
-        type th-java:threadfactory-naming
-        name threadfactory-bgp
-        name-prefix bgp
-      }
-    }
-    services {
-      service  th:threadpool {
-        type th:threadpool
-        instance  ref_bgp-threadpool {
-          name ref_bgp-threadpool
-          provider /config/modules/module[name='threadpool-fixed']/instance[name='bgp-threadpool']
-        }
-      }
-      service  th:threadfactory {
-        type th:threadfactory
-        instance  ref_threadfactory-bgp {
-          name ref_threadfactory-bgp
-          provider /config/modules/module[name='threadfactory-naming']/instance[name='threadfactory-bgp']
-        }
-      }
-      service  md-sal-binding:binding-broker-osgi-registry {
-        type md-sal-binding:binding-broker-osgi-registry
-        instance  ref_binding-broker-singleton {
-          name ref_binding-broker-singleton
-          provider /config/modules/module[name='binding-broker-impl-singleton']/instance[name='binding-broker-singleton']
-        }
-      }
-    }
-  }
-}
--------------------------------------------------------------------------------------------------------------------------
-
-To see actual netconf messages, use the logging arguments described at
-top of this page. To validate that a threadpool has been created, tool
-like VisualVM can be used.
-
-image:Configure-threadpools-visualvm.png[Configure-threadpools-visualvm.png,title="Configure-threadpools-visualvm.png"]
-
-[[example-configuration-of-thread-pools-using-telnet]]
-= Example configuration of thread pools using telnet
-
-It is also possible to manipulate configuration without the yuma cli.
-With just a telnet or ssh connection, it is possible to send plain text
-containing netconf rpcs encoded in xml format and achieve the same
-results as with yuma cli.
-
-In this example we will reproduce configuration of a threadpool and a
-threadfactory from the previous example using just a telnet connection.
-We can also use ssh connection, netconf rpcs sending procedure will be
-the same. For detailed information about initial configuration for the
-controller as well as the configuration process, please consult page
-related to the example using yuma cli.
-
-[[connecting-to-plaintext-tcp-socket-1]]
 == Connecting to plaintext TCP socket
 
 Open a telnet connection:
@@ -270,7 +28,7 @@ Open a telnet connection:
 telnet 127.0.0.1 8383
 ---------------------
 
-Open a ssh connection:
+Open an ssh connection:
 
 ----------------------------------------
 ssh netconf@127.0.0.1 -p 1830 -s netconf
@@ -284,7 +42,7 @@ The separator for messages is:
 ]]>]]>
 ------
 
-and every message needs to be ended with these 6 characters.
+Every message needs end with these 6 characters.
 
 You should see a hello message from the server:
 
@@ -323,7 +81,7 @@ code,xml
 ]]>]]>
 ---------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-You as the client need to respond with hello message:
+You, as the client, need to respond with a hello message:
 
 code,xml-----------------------------------------------------------------
 code,xml
@@ -335,10 +93,10 @@ code,xml
 ]]>]]>
 -----------------------------------------------------------------
 
-There is no response to hello message, but the session is already
+There is no response to the hello message, but the session is already
 established.
 
-[[configuring-threadfactory-1]]
+[[configuring-threadfactory]]
 == Configuring threadfactory
 
 Xml equivalent to *get-config source=running*:
@@ -355,7 +113,7 @@ code,xml
 ]]>]]>
 ----------------------------------------------------------------------
 
-Response containing current configuration:
+Response containing the current configuration:
 
 code,xml---------------------------------------------------------------------------------------------------------------------------------------------------
 code,xml
@@ -372,7 +130,7 @@ code,xml
                 <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:md:sal:binding">prefix:binding-broker-osgi-registry</type>
                 <instance>
                     <name>ref_binding-broker-singleton</name>
-                    <provider>/config/modules/module[name='binding-broker-impl-singleton']/instance[name='binding-broker-singleton']</provider>
+                    <provider>/modules/module[type='binding-broker-impl-singleton'][name='binding-broker-singleton']</provider>
                 </instance>
             </service>
         </services>
@@ -380,8 +138,8 @@ code,xml
 </rpc-reply>]]>]]>
 ---------------------------------------------------------------------------------------------------------------------------------------------------
 
-To create an instance of *threadfactory-naming* with name
-*threadfactory-bgp* and attribute *name-prefix* set to *bgp*, send
+To create an instance of *threadfactory-naming* with the name
+*threadfactory-bgp* and the attribute *name-prefix* set to *bgp*, send
 message:
 
 code,xml--------------------------------------------------------------------------------------------------------------------------------------------
@@ -414,8 +172,8 @@ code,xml
 </rpc>]]>]]>
 ----------------------------------------------------------------------
 
-Netconf endpoint should respond with ok to edit-config as well as commit
-message:
+The Netconf endpoint should respond with ok to edit-config as well as
+the commit message:
 
 code,xml----------------------------------------------------------------------------
 code,xml
@@ -424,8 +182,8 @@ code,xml
 </rpc-reply>]]>]]>
 ----------------------------------------------------------------------------
 
-Now the response to get-config message (same as the first message sent
-in this example) should contain commited instance of
+Now the response to the get-config message (same as the first message
+sent in this example) should contain the commited instance of
 threadfactory-naming:
 
 code,xml---------------------------------------------------------------------------------------------------------------------------------------------------
@@ -450,14 +208,14 @@ code,xml
                 <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:threadpool">prefix:threadfactory</type>
                 <instance>
                     <name>ref_threadfactory-bgp</name>
-                    <provider>/config/modules/module[name='threadfactory-naming']/instance[name='threadfactory-bgp']</provider>
+                    <provider>/modules/module[type='threadfactory-naming'][name='threadfactory-bgp']</provider>
                 </instance>
             </service>
             <service>
                 <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:md:sal:binding">prefix:binding-broker-osgi-registry</type>
                 <instance>
                     <name>ref_binding-broker-singleton</name>
-                    <provider>/config/modules/module[name='binding-broker-impl-singleton']/instance[name='binding-broker-singleton']</provider>
+                    <provider>/modules/module[type='binding-broker-impl-singleton'][name='binding-broker-singleton']</provider>
                 </instance>
             </service>
         </services>
@@ -465,11 +223,11 @@ code,xml
 </rpc-reply>]]>]]>
 ---------------------------------------------------------------------------------------------------------------------------------------------------
 
-[[configuring-fixed-threadpool-1]]
+[[configuring-fixed-threadpool]]
 == Configuring fixed threadpool
 
-To create an instance of '''threadpool-fixed ''' with the same
-configuration and the same dependency as before, we need to send
+To create an instance of '''threadpool-fixed ''', with the same
+configuration and the same dependency as before, we need to send the
 following message:
 
 code,xml----------------------------------------------------------------------------------------------------------------------------------------
@@ -498,7 +256,7 @@ code,xml
                 <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:threadpool">prefix:threadfactory</type>
                 <instance>
                     <name>ref_th-bgp</name>
-                    <provider>/config/modules/module[name='threadfactory-naming']/instance[name='threadfactory-bgp']</provider>
+                    <provider>/modules/module[type='threadfactory-naming'][name='threadfactory-bgp']</provider>
                 </instance>
             </service>
         </services>
@@ -510,14 +268,14 @@ code,xml
 Notice the _services_ tag. If an instance is to be referenced as a
 dependency by another module, it needs to be placed under this tag as a
 service instance with a unique reference name. Tag _provider_ points to
-a unique instance that is already present in the config subsystem or is
-created within current edit-config operation. Tag _name_ contains the
-reference name, that can be referenced by other modules to create a
-dependency (in this case, new instance of threadpool uses this reference
-in its configuration under _threadFactory_ tag).
+a unique instance that is already present in the config subsystem, or is
+created within the current edit-config operation. Tag _name_ contains
+the reference name that can be referenced by other modules to create a
+dependency. In this case, a new instance of threadpool uses this
+reference in its configuration under _threadFactory_ tag).
 
-You should get an ok response again and the configuration subsystem will
-take care of injecting the dependency into the threadpool. Now you can
-commit the configuration (ok response once more) and the process is
-finished. Config subsystem is now in the same state as it was at the end
-of the previous example.
+You should get an ok response again, and the configuration subsystem
+will inject the dependency into the threadpool. Now you can commit the
+configuration (ok response once more) and the process is finished. The
+config subsystem is now in the same state as it was at the end of the
+previous example.

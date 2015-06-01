@@ -1,5 +1,5 @@
 [[overview]]
-==== Overview
+= Overview
 
 In this example we use MD-SAL to implement a simple TCP ping plugin that
 can be used to check reachability of IP addresses. First we will define
@@ -9,19 +9,23 @@ through northbound interface.
 
 This example will create four OSGI bundles.
 
-1.  Northbound API / Implementation [ping-northbound]
+1.  Service Bundle [ping-service]
+* The service bundle links the northbound implementation with the south
+bound (MD-SAL) definitions.
+2.  South Bound API (MD-SAL definition) [model-ping]
+* This bundle defines a simple yang file which results in auto-generated
+data-models ( i.e. auto generated java interfaces)
+3.  Specific Implementation of South Bound Interface
+* Defines the specific of the south bound interface, generally protocol
+specific etc.
+4.  Northbound API / Implementation [ping-northbound] (OPTIONAL)
+* _The fourth bundle created is optional and just illustrates how you
+can create your own REST northbound interface. However by doing so you
+loose the benefits of a consistent auto-generated RESTful interface tied
+to your yang model._
 * The northbound API defines the interface for interacting with the
 given service. For example, a REST, or JSON interface for invoking the
 ping service.
-2.  Service Bundle [ping-service]
-* The service bundle links the northbound implementation with the south
-bound (MD-SAL) definitions.
-3.  South Bound API (MD-SAL definition) [model-ping]
-* This bundle defines a simple yang file which results in auto-generated
-data-models ( i.e. auto generated java interfaces)
-4.  Specific Implementation of South Bound Interface
-* Defines the specific of the south bound interface, generally protocol
-specific etc.
 
 [[shortcut]]
 ====== Shortcut
@@ -30,7 +34,7 @@ A patch file which contains the changes mentioned in this page can be
 obtained via https://git.opendaylight.org/gerrit/#/c/6991/[this link].
 
 [[compile-odl-controller]]
-==== Compile ODL controller
+= Compile ODL controller
 
 Following commands are used to clone ODL controller Git repository and
 compile clean copy of ODL controller.
@@ -54,7 +58,7 @@ mvn clean install
 ----------------------------------------------------
 
 [[yang-definition-for-ping]]
-==== Yang definition for ping
+= Yang definition for ping
 
 First we need to create the Yang project that can generate Java APIs
 from Yang model files. Easiest way to do this is to add the new Yang
@@ -121,7 +125,10 @@ We need to create the pom.xml file for the project.
 
 `vi pom.xml`
 
-When using the 'model-parent' the pom.xml can be really simple.
+When using the 'model-parent' the pom.xml can be really simple. If the
+build fails because parent pom cannot be found, you may need to update
+the tag of the parent to match that used in other poms in the
+md-sal/model directory
 
 ------------------------------------------------------------------
 <?xml version="1.0" encoding="UTF-8"?>
@@ -148,6 +155,11 @@ Now compile and generate the APIs and the bundle.
 Copy the bundle into the plugins directory of compiled ODL controller in
 order to run it.
 
+*`NOTE:` `This` `is` `no` `longer` `the` `supported` `distribution`
+`method.` `We` `should` `be` `using` `karaf` `features` `etc`
+`here.TODO:` `Provide` `updated` `instruction` `on` `how` `to` `push`
+`in` `new` `bundles` `etc`*
+
 -----------------------------------------------------------------------------------
 cp ./target/model-ping-1.1-SNAPSHOT.jar ../../../distribution/opendaylight/target/\
 distribution.opendaylight-osgipackage/opendaylight/plugins/\
@@ -155,18 +167,80 @@ org.opendaylight.controller.model.model-ping-1.1-SNAPSHOT.jar
 -----------------------------------------------------------------------------------
 
 [[ping-plugin]]
-==== Ping plugin
+= Ping plugin
 
 Next we define a project that provides the Ping plugin service. We
-create this project into 'controller/opendaylight/ping' directory.
+create this project into 'controller/opendaylight/md-sal/samples'
+directory.
 
------------------------------------------------------------------------------------
-cd ../../../
-mkdir -p ping/plugin/src/main/java/org/opendaylight/controller/ping/plugin/internal
-cd ping/plugin
------------------------------------------------------------------------------------
+-------------
+cd ../samples
+mkdir ping
+cd ping
+-------------
 
-The new project needs a pom.xml that defines dependencies.
+To create this service we will be using the configuration subsystem to
+wire in our dependencies (in this simple case, just the RPC-registry).
+The configuration for the dependencies that are needed are also defined
+in yang. So we will create a yang file which represents the required
+services. To do this, make the src/main/yang directory structure and vi
+a new .yang file.
+
+----------------------------------------
+mkdir -p src/main/yang/
+vi src/main/yang/ping-provider-impl.yang
+----------------------------------------
+
+Paste in the following contents:
+
+-----------------------------------------------------------------------------------------
+module ping-provider-impl {
+
+    yang-version 1;
+    namespace "urn:opendaylight:params:xml:ns:yang:controller:config:ping-provider:impl";
+    prefix "ping-provider-impl";
+
+    import config { prefix config; revision-date 2013-04-05; }
+    import opendaylight-md-sal-binding { prefix mdsal; revision-date 2013-10-28; }
+
+    description
+        "This module contains the base YANG definitions for
+        ping-provider impl implementation.";
+
+    revision "2014-05-23" {
+        description
+            "Initial revision.";
+    }
+
+    // This is the definition of the service implementation as a module identity.
+    identity ping-provider-impl {
+            base config:module-type;
+
+            // Specifies the prefix for generated java classes.
+            config:java-name-prefix PingProvider;
+    }
+
+    // Augments the 'configuration' choice node under modules/module.  
+    // We consume the three main services, RPCs, DataStore, and Notifications 
+    augment "/config:modules/config:module/config:configuration" {
+        case ping-provider-impl {
+            when "/config:modules/config:module/config:type = 'ping-provider-impl'";
+    
+            container rpc-registry {
+                uses config:service-ref {
+                    refine type {
+                        mandatory true;
+                        config:required-identity mdsal:binding-rpc-registry;
+                    }
+                }
+            }
+        }
+    }
+}
+-----------------------------------------------------------------------------------------
+
+Now that we have the contents of the wiring, we need to create a pom
+that will auto-generate some code for us.
 
 `vi pom.xml`
 
@@ -177,89 +251,143 @@ Also
 'org.opendaylight.yang.gen.v1.urn.ietf.params.xml.ns.yang.ietf.inet.types.rev100924'
 is needed for IPv4 address definition.
 
-------------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0"
- xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
- xsi:schemaLocation="http://maven.apache.org/xsd/maven-4.0.0.xsd">
- <modelVersion>4.0.0</modelVersion>
- <parent>
-   <groupId>org.opendaylight.controller</groupId>
-   <artifactId>commons.opendaylight</artifactId>
-   <version>1.4.2-SNAPSHOT</version>
-   <relativePath>../../commons/opendaylight</relativePath>
- </parent>
- <artifactId>ping.plugin</artifactId>
- <version>0.4.0-SNAPSHOT</version>
- <packaging>bundle</packaging>
- <build>
-   <plugins>
-     <plugin>
-       <groupId>org.apache.felix</groupId>
-       <artifactId>maven-bundle-plugin</artifactId>
-       <version>${bundle.plugin.version}</version>
-       <extensions>true</extensions>
-       <configuration>
-         <instructions>
-           <Import-Package>
-             org.opendaylight.yang.gen.v1.urn.opendaylight.ping.rev130911,
-             org.opendaylight.yang.gen.v1.urn.ietf.params.xml.ns.yang.ietf.inet.types.rev100924,
-             org.opendaylight.yangtools.yang.common,
-             org.opendaylight.yangtools.yang.binding,
-             org.opendaylight.controller.sal.binding.api,
-             org.opendaylight.controller.sal.common.util,
-             com.google.common.util.concurrent,
-             org.osgi.framework
-           </Import-Package>
-           <Export-Package>
-             org.opendaylight.controller.ping.plugin.internal
-           </Export-Package>
-           <Bundle-Activator>
-             org.opendaylight.controller.ping.plugin.internal.PingProvider
-           </Bundle-Activator>
-         </instructions>
-         <manifestLocation>${project.basedir}/META-INF</manifestLocation>
-       </configuration>
-     </plugin>
-   </plugins>
- </build>
- <dependencies>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>org.opendaylight.controller.samples</groupId>
+    <artifactId>sal-samples</artifactId>
+    <version>1.2.0-SNAPSHOT</version>
+  </parent>
+  <artifactId>sample-ping-provider</artifactId>
+  <packaging>bundle</packaging>
+
+  <properties>
+    <sal-binding-api.version>1.1-SNAPSHOT</sal-binding-api.version>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.opendaylight.controller.model</groupId>
+      <artifactId>model-ping</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.opendaylight.controller</groupId>
+      <artifactId>config-api</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.opendaylight.controller</groupId>
+      <artifactId>sal-binding-api</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.opendaylight.controller</groupId>
+      <artifactId>sal-binding-config</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.opendaylight.controller</groupId>
+      <artifactId>sal-common-util</artifactId>
+    </dependency>
     <dependency>
       <groupId>org.osgi</groupId>
       <artifactId>org.osgi.core</artifactId>
     </dependency>
-   <dependency>
-     <groupId>org.opendaylight.controller.model</groupId>
-     <artifactId>model-ping</artifactId>
-     <version>1.1-SNAPSHOT</version>
-   </dependency>
-   <dependency>
-     <groupId>org.opendaylight.controller</groupId>
-     <artifactId>sal-binding-api</artifactId>
-     <version>1.1-SNAPSHOT</version>
-   </dependency>
-   <dependency>
-     <groupId>org.opendaylight.controller</groupId>
-     <artifactId>sal-common-util</artifactId>
-     <version>1.1-SNAPSHOT</version>
-   </dependency>
-   <dependency>
-     <groupId>org.opendaylight.yangtools</groupId>
-     <artifactId>yang-common</artifactId>
-     <version>${yangtools.version}</version>
-   </dependency>
-   <dependency>
-     <groupId>org.opendaylight.yangtools</groupId>
-     <artifactId>yang-binding</artifactId>
-     <version>${yangtools.version}</version>
-   </dependency>
- </dependencies>
+
+    <!-- dependencies to use AbstractDataBrokerTest -->
+    <dependency>
+      <groupId>org.opendaylight.controller</groupId>
+      <artifactId>sal-binding-broker-impl</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.opendaylight.controller</groupId>
+      <artifactId>sal-binding-broker-impl</artifactId>
+      <type>test-jar</type>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+        <artifactId>junit</artifactId>
+        <groupId>junit</groupId>
+        <scope>test</scope>
+    </dependency>
+    <!-- used to mock up classes -->
+     <dependency>
+      <groupId>org.mockito</groupId>
+      <artifactId>mockito-all</artifactId>
+      <scope>test</scope>
+    </dependency>
+
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.felix</groupId>
+        <artifactId>maven-bundle-plugin</artifactId>
+        <configuration>
+          <instructions>
+            <Export-Package>org.opendaylight.controller.config.yang.ping_provider,</Export-Package>
+            <Import-Package>*</Import-Package>
+          </instructions>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.opendaylight.yangtools</groupId>
+        <artifactId>yang-maven-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>config</id>
+            <goals>
+              <goal>generate-sources</goal>
+            </goals>
+            <configuration>
+              <codeGenerators>
+                <generator>
+                  <codeGeneratorClass>org.opendaylight.controller.config.yangjmxgenerator.plugin.JMXGenerator</codeGeneratorClass>
+                  <outputBaseDir>${jmxGeneratorPath}</outputBaseDir>
+                  <additionalConfiguration>
+                    <namespaceToPackage1>urn:opendaylight:params:xml:ns:yang:controller==org.opendaylight.controller.config.yang</namespaceToPackage1>
+                  </additionalConfiguration>
+                </generator>
+                <generator>
+                  <codeGeneratorClass>org.opendaylight.yangtools.maven.sal.api.gen.plugin.CodeGeneratorImpl</codeGeneratorClass>
+                  <outputBaseDir>${salGeneratorPath}</outputBaseDir>
+                </generator>
+              </codeGenerators>
+              <inspectDependencies>true</inspectDependencies>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+  <scm>
+    <connection>scm:git:ssh://git.opendaylight.org:29418/controller.git</connection>
+    <developerConnection>scm:git:ssh://git.opendaylight.org:29418/controller.git</developerConnection>
+    <tag>HEAD</tag>
+    <url>https://wiki.opendaylight.org/view/OpenDaylight_Controller:MD-SAL</url>
+  </scm>
 </project>
-------------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-Create the implementation of the Ping into correct directory.
+Now run a build.
 
-`vi src/main/java/org/opendaylight/controller/ping/plugin/internal/PingImpl.java`
+-----------------
+mvn clean install
+-----------------
+
+Your code should compile and you should see some auto-generated files
+under src/main/yang-gen-sal and yang-gen-config. You will also see some
+code under src/main/java - these files (under java) should be checked
+into source as they will not be generated again. Now we need to create
+the implementation of our ping service. Create the implementation of the
+Ping into correct directory.
+
+--------------------------------------------------------------------------------
+ mkdir -p src/main/java/org/opendaylight/controller/ping/plugin/internal
+ vi src/main/java/org/opendaylight/controller/ping/plugin/internal/PingImpl.java
+--------------------------------------------------------------------------------
 
 The ping implementation uses 'InetAddress.isReachable(timeout)' to check
 if given address is reachable or not. The listed class implements the
@@ -325,79 +453,152 @@ public class PingImpl implements PingService {
             return Futures.immediateFuture(rpcResult);
         }
     }
-
 }
 ----------------------------------------------------------------------------------------------
 
-We need to create a provider class that initiates the plugin service
-when bundle is loaded in OSGi framework.
+Now we have to instantiate our ping service when MD-SAL tries to invoke
+our bundle. We do this by wiring our service into the auto generated
+PingProviderModule.java class. We add to the existing file a logger, and
+modify the createInstance method to create our PingImpl and wire it to
+the MD-SAL.
 
-`vi src/main/java/org/opendaylight/controller/ping/plugin/internal/PingProvider.java`
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+package org.opendaylight.controller.config.yang.config.ping_provider.impl;
 
-This class is defined as bundle activator in the project pom.xml file.
-It needs to extend the 'AbstractBindingAwareProvider' interface and from
-that the method 'onSessionInitiated' is the most important one in our
-example. When this is called by the OSGi framework we can register our
-plugin service as one of the OSGi services. After this the service can
-be found by other bundles.
-
------------------------------------------------------------------------------------------
-package org.opendaylight.controller.ping.plugin.internal;
-
-import java.util.Collection;
-
-import org.opendaylight.controller.sal.binding.api.AbstractBindingAwareProvider;
-// import org.opendaylight.controller.sal.binding.api.BindingAwareBroker.ConsumerContext;
-import org.opendaylight.controller.sal.binding.api.BindingAwareBroker.ProviderContext;
+import org.opendaylight.controller.ping.plugin.internal.PingImpl;
+import org.opendaylight.controller.sal.binding.api.BindingAwareBroker;
 import org.opendaylight.yang.gen.v1.urn.opendaylight.ping.rev130911.PingService;
-import org.opendaylight.yangtools.yang.binding.RpcService;
-import org.osgi.framework.BundleContext;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-public class PingProvider extends AbstractBindingAwareProvider {
+public class PingProviderModule extends org.opendaylight.controller.config.yang.config.ping_provider.impl.AbstractPingProviderModule {
 
-    PingImpl pingImpl;
+    private static final Logger log = LoggerFactory.getLogger(PingProviderModule.class);
 
-    public PingProvider() {
-        pingImpl = new PingImpl();
+    public PingProviderModule(org.opendaylight.controller.config.api.ModuleIdentifier identifier, org.opendaylight.controller.config.api.DependencyResolver dependencyResolver) {
+        super(identifier, dependencyResolver);
+    }
+
+    public PingProviderModule(org.opendaylight.controller.config.api.ModuleIdentifier identifier, org.opendaylight.controller.config.api.DependencyResolver dependencyResolver, org.opendaylight.controller.config.yang.config.ping_provider.impl.PingProviderModule oldModule, java.lang.AutoCloseable oldInstance) {
+        super(identifier, dependencyResolver, oldModule, oldInstance);
     }
 
     @Override
-    public Collection<? extends RpcService> getImplementations() {
-        return null;
+    public void customValidation() {
+        // add custom validation form module attributes here.
     }
 
     @Override
-    public Collection<? extends ProviderFunctionality> getFunctionality() {
-        return null;
-    }
+    public java.lang.AutoCloseable createInstance() {
+        final PingImpl opendaylightPing = new PingImpl();
 
-    @Override
-    public void onSessionInitiated(ProviderContext session) {
-        session.addRpcImplementation(PingService.class, pingImpl);
-    }
+        // Register to md-sal
+        final BindingAwareBroker.RpcRegistration<PingService> rpcRegistration = getRpcRegistryDependency()
+                .addRpcImplementation(PingService.class, opendaylightPing);
 
-    @Override
-    protected void startImpl(BundleContext context) {
-    }
+        // Wrap toaster as AutoCloseable and close registrations to md-sal at
+        // close()
+        final class AutoCloseableToaster implements AutoCloseable {
 
+            @Override
+            public void close() throws Exception {
+                rpcRegistration.close();
+                log.info("Ping provider (instance {}) torn down.", this);
+            }
+
+            private void closeQuietly(final AutoCloseable resource) {
+                try {
+                    resource.close();
+                } catch (final Exception e) {
+                    log.debug("Ignoring exception while closing {}", resource, e);
+                }
+            }
+        }
+
+        AutoCloseable ret = new AutoCloseableToaster();
+        log.info("Ping provider (instance {}) initialized.", ret);
+        return ret;
+    }
 }
------------------------------------------------------------------------------------------
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-Compile the project.
+[[todo---manual-install-bundles-config-file]]
+===== TODO - manual install bundles / config file
 
-`mvn clean install`
+*TODO: These steps do not work. I am not able to deploy these bundles
+and a manual configuration file and have it start up in karaf. We need
+to document how to do this quickly*
 
-Copy the resulting bundle into the plugin folder of the compiled ODL
-controller.
+Now, start the karaf controller, by going to the distribution built
+under
+controller/opendaylight/distributions/opendaylight-karaf/target/distribution.opendaylight-karaf-1.5.0-SNAPSHOT.
+Unzip it, and then run it via bin/karaf.
 
----------------------------------------------------------------------------------
-cp target/ping.plugin-0.4.0-SNAPSHOT.jar ../../distribution/opendaylight/target/\
-distribution.opendaylight-osgipackage/opendaylight/plugins/\
-org.opendaylight.controller.ping.plugin-0.4.0-SNAPSHOT.jar
----------------------------------------------------------------------------------
+--------------------------------------------------------------------
+cd  controller/opendaylight/distributions/opendaylight-karaf/target/
+unzip distribution.opendaylight-karaf-1.5.0-SNAPSHOT.zip
+cd distribution.opendaylight-karaf-1.5.0-SNAPSHOT
+bin/karaf
+--------------------------------------------------------------------
+
+When the karaf user interface starts up, install the odl-restconf
+feature.
+
+----------------------------
+feature:install odl-restconf
+----------------------------
+
+Shutdown the controller.
+
+Copy the two jars (model and provider) to the deploy directory on karaf
+(note: the deploy directory deploys the bundle and makes it available in
+OSGi. It can be used for quick development testing, but should not be
+used in production).
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+cp controller/opendaylight/md-sal/models/model-ping/target/model-ping-1.2.0-SNAPSHOT.jar controller/opendaylight/distributions/opendaylight-karaf/target/distribution.opendaylight-karaf-1.5.0-SNAPSHOT/deploy
+cp controller/opendaylight/md-sal/samples/ping/target/sample-ping-provider-1.2.0-SNAPSHOT.jar controller/opendaylight/distributions/opendaylight-karaf/target/distribution.opendaylight-karaf-1.5.0-SNAPSHOT/deploy
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Now go to /etc/opendaylight/karaf and create a new configuration file
+there. Lets call it 03-ping.xml. In that file, add the following
+contents:
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------------
+<snapshot>
+    <configuration>
+        <data xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+            <modules xmlns="urn:opendaylight:params:xml:ns:yang:controller:config">
+                <module>
+                    <type xmlns:ping="urn:opendaylight:params:xml:ns:yang:controller:config:ping-provider:impl">
+                        ping:ping-provider-impl
+                    </type>
+                    <name>ping-provider-impl</name>
+                    
+                    <rpc-registry>
+                        <type xmlns:binding="urn:opendaylight:params:xml:ns:yang:controller:md:sal:binding">binding:binding-rpc-registry</type>
+                        <name>binding-rpc-broker</name>
+                    </rpc-registry>
+
+                </module>
+            </modules>
+        </data>
+        
+    </configuration>
+    
+    <required-capabilities>
+        <capability>urn:opendaylight:params:xml:ns:yang:controller:config:ping-provider:impl?module=ping-provider-impl&amp;revision=2014-05-23</capability>
+    </required-capabilities>
+    
+</snapshot>
+-----------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Restart the controller (NOTE: unknown how to get this configuration to
+be used). You are all set! Now move onto the next step and issue your
+ping via restconf.
 
 [[accessing-ping-rpc-via-rest-api]]
-==== Accessing Ping RPC via REST API
+= Accessing Ping RPC via REST API
 
 Now that we have created a yang model and implemented a provider for
 this, we can access the send-echo RPC through the RESTCONF API that is
@@ -430,8 +631,16 @@ and then implement a REST API for the consumer. An alternative to
 manually creating the REST API for the ping service consumer is to make
 it a provider as well and create a yang model for the API.
 
+[[defining-a-custom-northbound-rest-api-optional]]
+= Defining a Custom Northbound REST API (Optional)
+
+To define a custom rest interface follow these steps. Note, it is not
+recommended to define a custom REST API that provides the same
+functionality as a restconf API as restconf provides a uniformity of API
+(since they are auto generated) for users among other benefits.
+
 [[ping-service]]
-==== Ping service
+===== Ping service
 
 In this example we use Ping service in between the Ping northbound and
 Ping plugin. This way the northbound doesn't need to be dependent on the
@@ -644,7 +853,7 @@ org.opendaylight.controller.ping.service-1.1-SNAPSHOT.jar
 --------------------------------------------------------------------------------
 
 [[ping-northbound]]
-==== Ping northbound
+===== Ping northbound
 
 To use the Ping service and plugin we implement northbound REST API.
 This project is created into 'controller/opendaylight/ping' directory.
@@ -975,7 +1184,7 @@ org.opendaylight.controller.ping.northbound-1.0-SNAPSHOT.jar
 -----------------------------------------------------------------------------------
 
 [[testing]]
-==== Testing
+= Testing
 
 Run the ODL controller with the Ping bundles.
 
@@ -996,7 +1205,7 @@ https://addons.mozilla.org/en-us/firefox/addon/restclient/[RESTClient]
 in Firefox can be used to test the Ping.
 
 [[compile-together-with-main-project]]
-==== Compile together with main project
+= Compile together with main project
 
 All Ping projects can be compiled and installed as part of the main
 project by adding them as modules to existing pom.xml files.
@@ -1073,7 +1282,7 @@ Compile everything from command line.
 Or use the 'opendaylight-asembleit' in eclipse.
 
 [[comments]]
-==== Comments
+= Comments
 
 Problem #1: After defining ping.yang and the pom.xml, mvn clean install
 gave the below error:

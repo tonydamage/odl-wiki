@@ -27,35 +27,58 @@ existing cluster.
 
 image:OFP-Arbiter.jpg[OFP-Arbiter.jpg,title="OFP-Arbiter.jpg"]
 
-In a multicontroller scenario, the clustering of openflowplugin can
-behave as follows:
+Each controller has a supervisor actor . The supervisor actor is
+responsible for receiving the NodeUpdated notification and replicating
+the info with other supervisors. Upon receiving the notification,
+Supervisors create Election Actors , which in turn kickoff Raft
+election, emerging one of the actors as Leader. The Leader then issues
+make-slave requests to the other Follower actors, which issue
+role-change RPC to make that controller as the SLAVE. The Leader then
+makes itself as the Master.
 
-\1. Each controller will have an Arbiter component which would ensure
-that one of the controllers serves as the Master for a switch
+At the start
 
-\2. Arbiter component will be built over Akka framework. Each switch
-will have an Akka Arbiter actor
+'''''
 
-\3. Actors within the Akka cluster will maintain consensus using Raft
-algorithm and one of the actors will become a leader for a switch
+\1. Controllers are started with static configuration and seed node
+information. Suppose C1, C2 C3 are the controllers. C1 starts as the
+seed node. C2 and C3 start with seed node as C1
 
-\4. The Actor's state (primarily generationId, master/slave info) will
-be replicated using Gossip, as eventual consistency is acceptable
+\2. Each controller node has a supervisor actor. And the supervisor
+shares the peer information. Supervisor Actor (SA1, SA2, SA3) gets
+created for each node. Supervisors get configured with their peers in
+the network, irrespective whether the same switch is connected to that
+controller or not
 
-\5. Serialization between the Akka actors will be done using Protocol
-Buffers.
+3.Supervisor Actors (SA1, SA2, SA3) subscribe itself for NodeUpdated
+Notification
 
-\6. When a switch connects to a controller, on notification, an actor
-will be created for that switch. The Peer map (controller to switches)
-will get replicated between the controller nodes using Gossip. The
-Arbiter actor for that switch will initiate a role change on the switch
-with the role=SLAVE. Rpcs, that are initially registered on handshake,
-will be deregistered on all controller nodes for that switch.
+\4. Switch S1 connects to these controllers and NodeUpdated Notification
+gets created.
 
-\7. The Akka Arbiter actors (based on peer map) would initiate election
-using Raft and then the arbiter(or rather actor) which gets elected as
-Leader will initiate a role change RPC with role=MASTER. Rpcs will get
-registered again for that switch.
+\5. Each of the supervisors receives this notification. They update
+their supervisor peers with their about-to-be-created actor information
+(actor-name, address). So the Su Actors are all aware of the actors
+getting created for switch S1
 
-\8. Role change notifications can be raised on master/slave role changes
-for other clustering services to act upon.
+\6. Then Supervisor SA1 creates actors S1A1, SA2 creates S1A2 and SA3
+creates S1A3. They pass the peer information during creation.
+
+\7. Raft Election begins. Leader gets elected.
+
+\8. Leader actor:
+
+`   For each follower in its peer list, a monotonic generationId is created and a create-slave role-change message is issued, making that follower as the arbiter for the slave controller` +
+`   Each follower , makes a slave request to ofp. On sucess , it recieves the notification from OFP and updates its state.  {s1 : {c2:slave}} ` +
+`   After all followers, the leader issues a create-master role change message to self, making it as the arbiter for the master controller` +
+`   On success , it recieves the notification from OFP and updates its state. {s1 : {c1:master}} `
+
+\9. State is synced up using Gossip.
+
+If the leader dies:
+
+'''''
+
+\1. Raft election take place. And a follower becomes leader.
+
+\2. Step 8-9 above are repeated.

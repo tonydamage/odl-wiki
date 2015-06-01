@@ -1,154 +1,172 @@
 *Back to CrossProject:Documentation_Group[ main Documentation Group
 page]*
 
-The following instructions work with Mac OS X and (probably) Linux.
-Instructions for Windows clients are awaiting a volunteer.
+[[opendaylight-doc-tools]]
+= OpenDaylight Doc Tools
 
-[[getting-ready]]
-= Getting Ready
+The following tools are used to author and manage OpenDaylight
+documentation deliverables:
 
-Before you begin this procedure, be sure to complete the following
-prerequisites:
+* _AsciiDoc_, which is a lightweight markup language that offers writers
+a plain-text format to author the necessary documentation for their
+project. It also provides a toolchain that translates AsciiDoc documents
+into other formats such as HTML and PDF.
+* _Git_, which is an open source distributed version control system that
+OpenDaylight uses to manage its source code and documentation files.
+* _Gerrit_, which is a web-based code review system that integrates
+nicely with Git. It facilitates doc reviews by allowing reviewers to
+compare two versions of a doc side by side and add inline comments.
+* _git-review_, which is a command-line tool that makes it easier to
+work with Git and Gerrit.
+* _Maven_, which is used to create and manage OpenDaylight builds.
 
-* Install https://maven.apache.org/download.cgi[Maven].
-* Install the GitHub client:
-** https://help.github.com/articles/set-up-git#platform-linux[Linux]
-** https://help.github.com/articles/set-up-git#platform-mac[Mac OS X]
-** https://help.github.com/articles/set-up-git#platform-windows[Windows]
+The following sections cover how to set up these tools and describe
+common workflows you will employ while you author your project’s
+documentation.
 
-[[git-cheat-sheet]]
-== Git Cheat Sheet
+[[before-you-get-started]]
+== Before You Get Started
 
-For a quick overview of Git commands, check out the
-link:GIT Cheat Sheet[ Git Cheat Sheet]. For more specifics, see below.
+We recommend you do the following before you install OpenDaylight’s doc
+tools and begin authoring:
 
-[[gerrit-setup]]
-== Gerrit Setup
+* Watch this http://youtu.be/EcGptvuKy0w[video], which summarizes the
+doc tools setup process and provides an overview of the doc repository.
+* Read the http://asciidoc.org/userguide.html[AsciiDoc User Guide] to
+learn the basics of authoring in the AsciiDoc format. If time is of the
+essence and you need to get started quickly, view the
+http://powerman.name/doc/asciidoc[AsciiDoc Cheatsheet] instead.
 
-Creating a Gerrit account, including registering a public/private key
-pair, is required for using Git over SSH as documented below. Gerrit is
-also used for code reviews. If you don't already have an account with
-established keys, follow the documentation on
-OpenDaylight Controller:Gerrit Setup[setting up Gerrit].
+Note that the following procedures were written with Mac OS X clients in
+mind. Hopefully someone from the community can document Windows-specific
+procedures.
 
-[[pull-code-via-git-cli]]
-== Pull code via Git CLI
+[[installing-and-configuring-doc-tools]]
+== Installing and Configuring Doc Tools
 
-Pull the code by cloning the controller repository:
+1.  Install Maven. +
+You can download the latest version (currently 3.3.3) and view the
+installation instructions https://maven.apache.org/download.cgi[here].
+2.  Install Git: +
+• To access the main Git download page, click
+http://www.git-scm.com/downloads[here]. +
+• To view Git installation instructions, click
+http://www.git-scm.com/book/en/v2/Getting-Started-Installing-Git[here].
+3.  Create a Gerrit user account by completing the procedure described
+OpenDaylight_Controller:Gerrit_Setup#Setting_up_a_Gerrit_account[here].
+4.  Set up the SSH key that will be used to secure your communications
+with the doc repository:
+1.  Generate an SSH key for your system by completing the procedure
+described
+OpenDaylight_Controller:Gerrit_Setup#Generating_SSH_keys_for_your_system[here].
+2.  Register your SSH key with Gerrit by completing the procedure
+described
+OpenDaylight_Controller:Gerrit_Setup#Registering_your_SSH_key_with_Gerrit[here].
+5.  Clone a copy of the OpenDaylight doc repository to your system: +
+*git clone https://git.opendaylight.org/gerrit/docs*
+6.  Set up git-review:
+1.  Install git-review by completing the procedure specific to your
+operating system. +
+Instructions are available
+http://www.mediawiki.org/wiki/Gerrit/git-review#Installation[here].
+2.  Configure the commit message hook and default push location: +
+*cd docs* +
+*scp -p -P 29418 @git.opendaylight.org:hooks/commit-msg .git/hooks/* +
+*chmod 755 .git/hooks/commit-msg* +
+*git config remote.origin.push HEAD:refs/for/master*
+3.  Finalize the git-review connection: +
+*git review -s*
+7.  Configure your name, email address, and default text editor: +
+• *git config --global user.name "_firstname lastname_"* +
+• *git config --global user.email "_email address_"* +
+• *git config --global core.editor "_text editor name_"*
 
---------------------------------------------------------------
-git clone ssh://<username>@git.opendaylight.org:29418/docs.git
---------------------------------------------------------------
+[[common-doc-tasks]]
+== Common Doc Tasks
 
-Note that the command above assumes you've registered a Gerrit account
-and have a valid keypair for authentication. The public key should be
-known to Gerrit, and the private key should be on your local system at
-~/.ssh/id_rsa.pub.
+The following sections describe the most common tasks you will need to
+complete while authoring your project’s documentation.
 
-If you just want to do an anonymous git clone, you can use HTTPS:
+[[submitting-a-new-patch]]
+=== Submitting a New Patch
 
---------------------------------------------------------
-git clone https://git.opendaylight.org/gerrit/p/docs.git
---------------------------------------------------------
+1.  On your machine, open a shell and switch to the docs directory: +
+*cd docs*
+2.  To remove any dependencies on other files you are working on, check
+out the master branch: +
+*git checkout master*
+3.  Get a copy of the latest master files from the server: +
+*git pull*
+4.  Create a new branch for your work: +
+'''git checkout -b _*'' +
+*Note:_' Spaces are not allowed in the branch name.
+5.  Create new files or edit existing files, as needed.
+6.  Commit the files you have worked on:
+1.  To commit new files, run *git add __*
+2.  To commit existing files you edited, run *git commit --as* +
+Your default text editor opens. +
+*Note:* The --as options instruct Git to commit all of the files you
+have edited (a) and sign your commit request with your email address and
+name (s).
+3.  Add a brief description of the changes you have made to the
+beginning of the commit request and then save the request.
+7.  Submit your files for review: +
+*git review* +
+You will receive 2 emails from Gerrit Code Review: The first indicating
+that a build to incorporate your changes has started; and the second
+indicating whether the build was created successfully.
+8.  Determine your patch’s change number:
+1.  Open either of the emails you received after submitting your files
+for review.
+2.  Locate the following line: To view, visit __ +
+The number at the end of this URL is your patch’s change number. You
+will need this in order to make updates to the patch later.
 
-[[setup-gerrit-change-id-commit-msg-hook-default-push-location]]
-== Setup Gerrit Change-id Commit Msg Hook & default push location
+[[updating-an-existing-patch]]
+=== Updating an Existing Patch
 
-The following Git hook automatically inserts a unique Change-Id tag in
-the footer of each commit message. Git doesn't track hooks, so after
-pulling the project you'll want to go ahead and grab this one manually.
-Using this hook is optional, but highly recommended for tracking
-changes.
+1.  On your machine, open a shell and switch to the docs directory: *cd
+docs*
+2.  Download the patch you want to update: *git review -d __*
+3.  (Optional) View information on the latest changes made to that
+patch: +
+To view the files that were edited, run *git show* +
+To view a listing of the files that were edited and the number of lines
+in those files that were edited, run *git show --stat*
+4.  Make the necessary changes to the patch’s files.
+5.  Commit your changes:
+1.  To commit a patch you originally authored, run *git commit -a
+–amend*
+2.  To commit a patch authored by another writer (for example, after you
+reviewed someone else’s files and provided feedback), run +
+*git commit -as --amend --author="Firstname Lastname __"* +
+Your default text editor opens.
+3.  Update the current patch description and then save the commit
+request. +
+If you are updating another writer’s patch, be sure to give that writer
+credit in the description so people will know who originally authored
+the files in question.
+6.  Submit your files for review: +
+*git review*
 
-----------------------------------------------------------------------------
-cd docs
-scp -p -P 29418 <username>@git.opendaylight.org:hooks/commit-msg .git/hooks/
-chmod 755 .git/hooks/commit-msg
-git config remote.origin.push HEAD:refs/for/master
-----------------------------------------------------------------------------
+You will receive 2 emails from Gerrit Code Review: the first indicating
+that a build to incorporate your changes has started; and the second
+indicating whether the build was created successfully.
 
-[[building-and-editing-odl-documentation]]
-= Building and Editing ODL Documentation
+[[generating-documentation]]
+=== Generating Documentation
 
-1.  Change to the proper manuals directory and use the *mvn install*
-command to compile the desired documentation.
-2.  Access the compiled guides at
-_./manuals/install-guide/target/docbkx/webhelp/_
-3.  Find ASCIIDoc formatting information here:
-_http://powerman.name/doc/asciidoc_
+1.  Open a shell and switch to the main directory for the documentation
+deliverable you want to generate. +
+For example, if you want to generate a user guide, you would run the
+following command: *cd docs/manuals/user-guide*
+2.  Run the following command to generate the deliverable: *mvn
+install* +
+By default, 2 versions of your deliverable are generated: an HTML
+version and a PDF version. You can access them from the following
+folder: +
+docs/manuals/deliverable-name/target/docbkx/webhelp/deliverable-filename/.
 
-[[pushing-changes-for-review]]
-= Pushing changes for review
-
-After making any local changes to the docs and that PDF builds properly
-in target/docbkx/webhelp you can push your changes for review.
-
-Like many OpenDaylight Projects we suggest the use of git review tool to
-help in pushing your changes for review by other committers. git-review
-is a command-line tool for Git / Gerrit. It makes it easier to configure
-your git clone, to submit a change or to fetch an existing one. The
-upstream project is led by Openstack. Not to be confused with the
-unrelated Facebook project.
-
-[[installation]]
-== Installation
-
-Before you start, make sure you already have your account and SSH keys
-set up in Gerrit. See OpenDaylight_Controller:Gerrit_Setup for
-instructions.
-
-To install git-review, please see the instructions
-http://www.mediawiki.org/wiki/Gerrit/git-review#Installation|here[1]
-
-[[initial-setup]]
-== Initial Setup
-
-Clone your git repository, and in the root directory enter the following
-git review -s This will set up your connection to Gerrit via git-review
-
-[[submitting-patches]]
-== Submitting Patches
-
-Once you've added and committed your changes, you can use git-review to
-publish to Gerrit
-
-`
-git review
-`
-
-Git-review will rebase your changes against the master branch in Gerrit
-before pushing. It will also notify you of merge conflicts so you can
-manually resolve them. You can disable the rebase by using the -R or
---no-rebase flags.
-
-By default, the Gerrit topic will be the name of your local branch. You
-can change this using the -t or --topic flags. `
-git review -t topic
-`
-
-[[reviewing-patches]]
-== Reviewing Patches
-
-If you are downloading code to make changes or test functionality you
-can use the you can do so as follows:
-
-`
-git review -d 6150<br>
-git commit --amend<br>
-git review -t <original-topic> -f<br>
-`
-
-If you wish to diff between two patch sets you can do so using
-git-review
-
-`
-git review -m 6150,3
-`
-
-Will diff between Patch Set 3 of change 6150 and the latest Patch Set.
-
-[[publishing-odl-documentation]]
-= Publishing ODL Documentation
-
-Documentation will be deployed via site-deploy jobs to a maven site and
-available online.
+To view a page that describes common AsciiDoc errors and how to deal
+with them, click
+CrossProject:Documentation_Group:Tools:AsciiDoc_Tips[here].

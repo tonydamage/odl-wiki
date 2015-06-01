@@ -5,295 +5,320 @@ Back to Defense4All:User_Guide[Defense4All User Guide Page]
 
 A well-known DoS attack mitigation and threats detection strategy is to
 divert suspected traffic from its normal network path to dedicated
-attack mitigation infrastructures, for cleaning and threat detection.
-These infrastructures are also known as “Security Centers” or “Scrubbing
-Centers”, mainly built of L3-L7 DoS attack mitigations devices. These
-“Security Centers” can be deployed in dedicated remote sites within the
-network in “out of path” manner (i.e. not “inline” with the native
-traffic flow), so diversion of traffic toward these centers is
-essential. During the traffic cleaning process, the attack mitigation
-infrastructure identifies and drops malicious IP packets and forwards
-legitimate IP packets back to their original targeted network
-destinations. The “Scrubbing Centers” can be located within the
-enterprise cooperate network, datacenter, cloud and also as part of
-carrier’s infrastructure. In general protection against DDoS attacks in
-Out-Off-Path (OOP) systems comprises three main elements:
+attack mitigation infrastructures for cleaning and threat detection.
+These infrastructures are also known as security centers or scrubbing
+centers, mainly composed of Layer 3 through 7 DoS attack mitigation
+devices. These scrubbing centers can be deployed in dedicated remote
+sites within the network in an out-of-path (OOP) manner (not "inline"
+with the native traffic flow), so the diversion of traffic toward these
+centers is essential. During the traffic cleaning process, the attack
+mitigation infrastructure identifies and drops malicious IP packets and
+forwards legitimate IP packets back to their original targeted network
+destinations. The scrubbing centers can be located within the enterprise
+corporate network, data center, or cloud and also as part of carrier's
+infrastructure. In general, protection against DDoS attacks in OOP
+systems comprises the following main elements:
 
-1.  Collection of traffic statistics and learning of statistics behavior
-of protected objects during peace-time. From this collected statistics,
-the normal traffic baselines of the protected objects are built.
-2.  Detection of DoS attack patterns as traffic anomalies deviating from
+* Collection of traffic statistics and learning of statistics behavior
+of protected objects during peacetime. The normal traffic baselines of
+the protected objects are built from these collected statistics.
+* Detection of DoS attack patterns as traffic anomalies deviating from
 normal baselines.
-3.  Diversion of suspicious traffic from its normal path to mitigation
+* Diversion of suspicious traffic from its normal path to mitigation
 (scrubbing) centers for traffic cleansing, selective source blockage,
-etc. “Clean” traffic out of scrubbing centers is re-injected back to
-packet’s original destination.
+and so on. Clean traffic out of scrubbing centers is re- injected back
+into the packet's original destination.
+
+[[defense4all-design]]
+= Defense4All Design
 
 Defense4All is a security SDN application for detecting and driving
-mitigation of DoS/DDoS attacks in different SDN topologies. It realizes
-anti-DoS in Out Of Path mode for OpenDaylight SDN environment.
-Administrators can configure Defense4All to protect certain
-networks/servers (henceforth, protected networks or PNs).
-
+mitigation of DoS and DDoS attacks in different SDN topologies. It
+realizes anti-DoS in OOP mode for the ProgrammableFlow SDN environment.
+Administrators can configure Defense4All to protect certain networks and
+servers, known as protected networks or Protected Objects (POs).
 Defense4All exploits SDN capabilities to count specified traffic, and
-installs traffic counting flows for each protocol of each configured PN
-in every network location through which traffic of the subject PN flows.
-Defense4All then monitors traffic of all configured PNs, summarizing
-readings, rates, and averages from all relevant network locations. In
-case it detects a deviation from normal learned traffic behavior in some
-protocol (TCP, UDP, ICMP, or rest of the traffic) of some PN,
-Defense4All declares an attack against that protocol in the subject PN.
+installs traffic counting flows for each protocol of each configured PO
+in every network location (VTN Vexternals) through which traffic of the
+subject PO flows. Defense4All then monitors traffic of all configured
+POs, summarizing readings, rates, and averages from all relevant network
+locations. If it detects a deviation from normal learned traffic
+behavior in a protocol (such as TCP, UDP, ICMP, or the rest of the
+traffic) of a particular PO, Defense4All declares an attack against that
+protocol in the subject PO. The Defense4All learning period has a
+minimum of one week from the installation of the counting flows in which
+Defense4All does not detect attacks. To mitigate a detected attack,
+Defense4All performs the following procedure:
 
-To mitigate a detected attack Defense4All performs several steps: 1) It
-selects one or more mitigation devices to mitigate the attack. 2) It
-configures SDN to divert attacked traffic through the mitigation
-devices. 3) It continues monitoring attacked traffic both from SDN and
-(optionally) from mitigation devices. When Defense4All receives no
-indications about the attack it cancels attacked traffic diversions and
-returns to peace-time monitoring.
+1.  It validates that the DefensePro device is alive and selects a live
+connection to it (if DefensePro is not alive or does not have a live
+connection from a PFS, then no traffic diversion is performed. For more
+information, refer to the Continuity section.
+2.  Defense4All configures DefensePro with a security policy and normal
+rates of the attacked traffic. The latter speeds up DefensePro’s
+efficient mitigation of the attack.
+3.  Defense4All starts monitoring and logging syslogs arriving from
+DefensePro for the subject traffic. As long as it continues receiving
+syslog attack notifications from DefensePro regarding this attack,
+Defense4All continues attack mitigation through traffic diversion even
+if the Vexternal FlowFilter counters do not indicate any more attacks.
+4.  Defense4All maps the selected physical DefensePro connection to the
+relevant VTN by creating a pair of Vexternals and mapping them to the
+selected pair of physical PFS ports connected to DefensePro.
+Automatically learns and preserves VLAN tagging if it exists. If
+Defense4All has already created and mapped a pair of Vexternals with the
+same VLAN in the VTN, then the same pair is also reused for diversion of
+the new traffic (rather than creating new Vexternals for the same VTN
+and VLAN).
+5.  Defense4All installs higher priority flow filter entries in every
+north Vexternal through which the attacked traffic flows in order to
+redirect traffic to the “north DP-In Vexternal”. It also selects one of
+the live north interfaces of the Vbr connected to all those Vexternals
+(there can be exactly one Vbr with the same VLAN). Defense4All
+re-injects traffic from the “DP-Out Vexternal” to the selected interface
+of the Vbr. When Defense4All decides that the attack is over (no
+indication from either PFC FlowFilter counters or from DefensePro) it
+reverts the previous actions: it stops monitoring for DefensePro syslogs
+about the subject traffic, it removes the traffic diversion FlowFilters,
+removes the “DP-In and DP-Out Vexternals” (if this is the last attack in
+this VTN and VLAN), and removes the security configuration from
+DefensePro. Defense4All then returns to peacetime monitoring.
 
-Administrators need to notify Defense4All about relevant SDN controller,
-switches/routers, and mitigation devices of choice. Defense4All users
-can retrieve all present and past information about PN learned traffic
-normal, attacks and mitigations, health and status of mitigation devices
-and links, SDN configurations, and other operational information. Past
-information is stored in persistent flight recorder storage.
+In this version, Defense4All runs as a single instance (non-clustered),
+but it integrates the following main fault tolerance features:
 
-In this version Defense4All runs as a single instance (non-clustered),
-but it integrates three main fault tolerance features - 1) it runs as a
-Linux service that is automatically restarted should it fail, 2) its
-state is entirely persisted in stable storage, and upon restart
-Defense4All obtains the latest state, and 3) it carries a health tracker
-with restart and (several degrees of) reset capabilities to overcome
-certain logical and aging bugs.
+* It runs as a Linux service that is automatically restarted should it
+fail.
+* Its state is entirely persisted in stable storage, and upon restart
+Defense4All obtains the latest state.
+* It carries a health tracker with restart and reset capabilities to
+overcome certain logical and aging bugs.
 
-Defense4All is designed for pluggability, allowing integration of
-different types of mitigation devices [Defense4All contains a reference
-implementation of a driver to Radware’s mitigation device – DefensePro.
-To attach some other mitigation device one needs to integrate driver to
-that device into Defense4All.], different SDN and non-SDN based attack
-detectors, different mitigation drivers, and different abstraction
-levels of network controller functionality for collecting traffic
-statistics and for traffic diversion. Finally, Defense4All itself
-resides in a framework, and can be replaced by other SDN applications
-[SDN and mitigation device drivers should be repackaged into the
-framework rather than Defense4All].
-
-The diagram below describes the possible state of any given PN. Radware
-DefensePro, abbreviated as "DP" is an example of an incorporated AMS.
+Defense4All monitors the status of DefensePro, switch connections to
+DefensePro, relevant Vbrs in various VTNs, northbound interfaces of
+those Vbrs, and north Vexternals. It adjusts, cancels, and (re)initiates
+attack traffic diversion accordingly. The following figure illustrates
+the possible state of any given PO. Radware’s DefensePro (DP) is an
+example of an incorporated AMS. +
+ +
+ *Figure 1: Workflow of Defense4All Attack Mitigation*
 image:pn_possible_states.jpg[PN possible
 states,title="fig:PN possible states"]
 
-Back to Defense4All:User_Guide[Defense4All User Guide Page]
-
 [[deployment-alternatives]]
-= Deployment alternatives
+= Deployment Alternatives
 
-Defense4All supports “short diversion”, in which the AMS (Attack
-mitigation system) is connected to the edge router, so one hop traffic
-redirection is achieved. See also PE1 and DefensePro 2 in Figure 3.
-“Long diversion”, in which AMS scrubbing centers are located in
-arbitrary remote locations in the network, may be added in future
-Defense4All versions. See also PE2 and DefensePro 1 in Figure below.
+Defense4All supports “short diversion,” in which the AMS (attack
+mitigation system) is connected to the edge router so that one hop
+traffic redirection is achieved. See also PE1 and DefensePro 2 in Figure
+3. “Long diversion,” in which AMS scrubbing centers are located at
+arbitrary remote locations in the network, which may be added in future
+Defense4All versions. See also PE2 and DefensePro 1 in figure below.
 Defense4All supports both automatic and manual diversion modes. The
 manual mode includes user-based confirmation before diversion.
 image:redirection_alternatives.jpg[Defense4All Deployment traffic
 redirection
 alternatives,title="fig:Defense4All Deployment traffic redirection alternatives"]
 
-[[defense4all-in-odl-environment]]
-= Defense4All in ODL Environment
+[[defense4all-in-an-odl-environment]]
+= Defense4All in an ODL Environment
 
 Defense4All is an SDN application for detecting and mitigating DDoS
-attacks. The application communicates with OpenDaylight Controller via
-the ODC north-bound REST API. Through this API Defense4All performs two
-main tasks:
+attacks. The application communicates with the OpenDaylight Controller
+via the ODC north-bound REST API. Through this API, Defense4All performs
+two the following main tasks:
 
-1.  Monitoring behavior of protected traffic - the application sets flow
+* Monitoring behavior of protected traffic - tThe application sets flow
 entries in selected network locations to read traffic statistics for
 each of the PNs (aggregating statistics collected for a given PN from
 multiple locations).
-2.  Diverting attacked traffic to selected AMSs – the application set
+* Diverting attacked traffic to selected AMSs – tThe application sets
 flow entries in selected network locations to divert traffic to selected
-AMSs. When an attack is over the application removes these flow entries,
-thus returning to normal operation and traffic monitoring.
+AMSs. When an attack is overfinished, the application removes these flow
+entries, and thus returnsing to normal operation and traffic monitoring.
 
-Defense4All can optionally communicate with the defined AMSs – e.g., to
-dynamically configure them, monitor them or collect and act upon attack
-statistics from the AMSs. The API to AMS is not standardized, and in any
-case beyond the scope of the OpenDaylight work. Defense4All contains a
-reference implementation pluggable driver to communicate with Radware’s
-DefensePro AMS. The application presents its north-bound REST and CLI
-APIs to allow its manager to:
+Defense4All can optionally communicate with the defined AMSs – e.g.For
+example, to dynamically configure them, monitor them, or collect and act
+upon attack statistics from the AMSs. The API to the AMS is not
+standardized, and in any case beyond the scope of the OpenDaylight
+workdesign. Defense4All contains a reference implementation pluggable
+driver to communicate with Radware’s DefensePro AMS. The application
+presents its north-bound REST and CLI APIs to allow its manager to:
 
-1.  Control and configure the application (runtime parameters, ODC
-connectivity, AMSs in domain, PNs, etc.).
-2.  Obtain reporting data – operational or security, current or
-historical, unified from Defense4All and other sources (like ODC, AMSs).
+* Control and configure the application (runtime parameters, ODC
+connectivity, AMSs in domain, PNs, etc.and so on).
+* Obtain reporting data – oOperational or security, current or
+historical, unified from Defense4All and other sources (likesuch as ODC,
+AMSs).
 
 image:D4A_in_odl.jpg[Defense4All logical positioning in OpenDaylight
 environment,title="fig:Defense4All logical positioning in OpenDaylight environment"]
-Defense4All comprises an SDN applications Framework and the Defense4All
-application itself – packaged as a single entity. Application
-integration into the Framework is pluggable, so any other SDN
-application can benefit from the common Framework services. The main
-advantages of this architecture are:
+Defense4All comprises an SDN application framework and the Defense4All
+application itself, packaged as a single entity. Application integration
+into the framework is pluggable, so any other SDN application can
+benefit from the common framework services. The main advantages of this
+architecture are:
 
-1.  Faster application development and changes - the Framework contains
-common code for multiple applications, complex elements (e.g.,
-clustering or repository services) are implemented once for the benefit
+* Faster application development and changes - The Framework contains
+common code for multiple applications, complex elements (such as
+clustering and repository services) are implemented once for the benefit
 of any application.
-2.  Faster, flexible deployment in different environments, form-factors,
-satisfying different NFRs – the Framework masks from SDN applications
+* Faster, flexible deployment in different environments, form-factors,
+satisfying different NFRs – The Framework masks from SDN application
 factors such as required data survivability, scale and elasticity,
 availability, security.
-3.  Enhanced robustness - complex Framework code is implemented and
-tested once, cleaner separation of concerns leads to more stable code,
-Framework can increase robustness proactively with no additional code in
-application logic (e.g., periodic application recycle).
-4.  Unified management of common aspects – common look and feel.
+* Enhanced robustness - Complex framework code is implemented and tested
+once, cleaner separation of concerns leads to more stable code, and the
+framework can increase robustness proactively with no additional code in
+the application logic (such as periodic application recycle).
+* Unified management of common aspects – Common look and feel.
 
 [[framework-view]]
 = Framework View
 
 image:framework_view.jpg[Defense4All Structure from Framework point of
 view,title="fig:Defense4All Structure from Framework point of view"] The
-Framework contains the following elements:
-
-*FrameworkMain* – the Framework root point contains references to all
+framework contains the following elements: +
+ +
+*FrameworkMain* – The Framework root point contains references to all
 Framework modules and global repositories, as well as the roots of
-deployed SDN applications (in current version the Framework can
-accommodate only one). This is also the point to start, stop or reset
-the Framework (along with its hosted application) WebServer – Jetty web
-server running the Jersey RESTful Web Services framework, with Jackson
-parser for JSON encoded parameters. The REST Web Server runs a servlet
-for Framework and another servlet for each deployed application
-(currently only one). All REST and CLI APIs are supported through this
-REST Web Server.
-
-*FrameworkRestService* – A set of classes constituting the Framework
-Servlet that responds to Framework REST requests (e.g., get latest
-Flight Recorder records, perform factory reset, etc.). The
+deployed SDN applications (in the current version, the framework can
+accommodate only one application). This is also the point to start,
+stop, or reset the framework (along with its hosted application) Web
+server, Jetty Web server running the Jersey RESTful Web services
+framework, with Jackson parser for JSON encoded parameters. The REST Web
+server runs a servlet for the framework and another servlet for each
+deployed application (currently only one). All REST and CLI APIs are
+supported through this REST Web server. +
+ +
+*FrameworkRestService* – A set of classes constituting the framework
+servlet that responds to framework REST requests ( get latest Flight
+Recorder records, perform factory reset, and so on). The
 FrameworkRestService invokes control and configuration methods against
 the FrameworkMgmtPoint, and for reporting it retrieves information
-directly from the relevant repositories. For flight recordings it
-invokes methods against the FlightRecorder.
-
-*FrameworkMgmtPoint* – Is the point to drive control and configuration
-commands (e.g., start, stop, reset, set address of the hosting machine,
-etc.). FrameworkMgmtPoint invokes in turn methods against other relevant
-modules in the right order. It forwards lifecycle requests (start, stop,
-reset) directly to FrameworkMain to drive them in the right order.
-*Defense4All Application* – Is the AppRoot object that should be
-implemented/extended by any SDN application – in our case Defense4All.
-SDN Applications do not have “main”, and their lifecycle (start, stop,
-reset) is managed by the Framework operating against the Application
+directly from the relevant repositories. For flight recordings, it
+invokes methods against the FlightRecorder. +
+ +
+*FrameworkMgmtPoint* – The point to drive control and configuration
+commands (start, stop, reset, set address of the hosting machine, and so
+on). FrameworkMgmtPoint in turn invokes methods against other relevant
+modules in the correct order. It forwards lifecycle requests (start,
+stop, reset) directly to FrameworkMain to drive them in the correct
+order. +
+ +
+*Defense4All Application* – The AppRoot object that should be
+implemented/extended by any SDN application (in this case, Defense4All).
+SDN applications do not have “main,” and their lifecycle (start, stop,
+reset) is managed by the framework operating against the application
 root object, which then drives all lifecycle operations in the
-application. This module also contains reference back to the Framework,
-allowing the application to use Framework services (e.g., create a Repo,
-log a flight record) and common utilities. *Common classes and
-utilities* – is a library of convenience classes and utilities, from
-which any Framework or SDN Application module can benefit. Examples
-include wrapped threading services (for asynchronous, periodic or
-background execution), short hash of a string, confirmation by user,
-etc.
-
-*Repository services* – One of the key elements in the Framework
-philosophy is decoupling compute state from compute logic. All durable
-state should be stored in a set of repositories that can be then
-replicated, cached, distributed under the covers –with no awareness of
-the compute logic (Framework or Application). Repository services
-comprise the RepoFactory and Repo or its annotations friendly equivalent
-– the EntityManager. The RepoFactory is responsible to establish
-connectivity with the underlying Repository plugged in service,
-instantiate new requested repositories and return references to existing
-ones. The chosen underlying Repository service is Hector Client over
-Cassandra NoSQL DB. Repo presents an abstraction of a single DB table.
-It allows reading the whole table, only table keys (tables are indexed
-by only the single primary key), records or single cells, as well as
-writing records or single cells with controlled eagerness. A sub-record
-(with only a portion of cells) may be written. In such a case the
-appearing cells override existing ones in the repository. Other cells in
-the repository remain unchanged. In contrast to relational DB, in which
-all columns must be specified up-front (in schema design), Repo
-leverages the underlying Cassandra support to contain rows (records) in
-the same table with different sets of columns, some of which may not
-being even defined up-front. Furthermore, cells with new columns can be
-added or removed on the fly. RepoFactory and Repo (as well as its Entity
-Manager annotation friendly equivalent) constitute a convenience library
-targeted to Framework and SDN Applications goals – on top of the Hector
-client library communicating with Cassandra Repository cluster. Scaling
-Cassandra cluster, distributing data shards across Cassandra cluster
-members, configuring read/write eagerness and consistency – are for the
-most part encapsulated in this layer.
-
-*Logging and Flight Recorder services* – The logging service simply uses
-Log4J library to log error, warning, trace or informational messages.
-These logs are mainly for Defense4All developers. Administrators can
-obtain additional details about failures from errors log. FlightRecorder
+application. This module also contains references back to the framework,
+allowing the application to use framework services (such as create a
+Repo and log a flight record) and common utilities. +
+ +
+*Common classes and Utilities* – A library of convenient classes and
+utilities from which any framework or SDN application module can
+benefit. Examples include wrapped threading services (for asynchronous,
+periodic, or background execution), short hash of a string, and
+confirmation by user. +
+ +
+*Repository services* – One of the key elements in the framework
+philosophy is decoupling the compute state from the compute logic. All
+durable states should be stored in a set of repositories that can be
+then replicated, cached, distributed under the covers, with no awareness
+of the compute logic (framework or application). Repository services
+comprise the RepoFactory and Repo or its annotations-friendly equivalent
+– the EntityManager. The RepoFactory is responsible for establishing
+connectivity with the underlying repository plugged-in service,
+instantiate new requested repositories, and return references to
+existing ones. The chosen underlying repository service is Hector Client
+over Cassandra NoSQL DB. Repo presents an abstraction of a single DB
+table. It enables reading the whole table, only table keys (tables are
+indexed by only the single primary key), records or single cells, as
+well as writing records or single cells with controlled eagerness. A
+sub-record (with only a portion of cells) may be written. In this case,
+the displayed cells override existing ones in the repository. Other
+cells in the repository remain unchanged. In contrast to a relational
+DB, in which all columns must be specified up-front (in a schema
+design), Repo leverages the underlying Cassandra support to contain rows
+(records) in the same table with different sets of columns, some of
+which may not being even defined up-front. Furthermore, cells with new
+columns can be added or removed on the fly. RepoFactory and Repo (as
+well as its Entity Manager annotation-friendly equivalent) constitute a
+convenient library targeted to framework and SDN applications goals on
+top of the Hector client library communicating with Cassandra Repository
+cluster. Scaling the Cassandra cluster, distributing data shards across
+Cassandra cluster members, and configuring read/write eagerness and
+consistency are for the most part encapsulated in this layer. +
+ +
+*Logging and Flight Recorder services* – The logging service uses Log4J
+library to log error, warning, trace, or informational messages. These
+logs are mainly for Defense4All developers. Administrators can obtain
+additional details about failures from the error log. FlightRecorder
 records all flight records recorded by any Defense4All module, including
-information received from external network elements, such as ODC, AMSs,
-etc. It then allows a user/administrator to obtain that information
-through REST/CLI. Flight records can be filtered by categories (zero or
-more can be specified) and by time ranges. FlightRecorder stores all
-flight records in its own Repo (with another repo holding time ranges
-for efficient time ranges retrieval from the records repo). Because all
-flight records are stored in Cassandra, the number of flight records
-Defense4All can keep is limited only by the size of the underlying
-persistent storage capacity of all Cassandra servers, and so even on a
-single Cassandra instance months of historical information can be kept.
-
-*HealthTracker* – Is the point to hold the aggregated runtime health of
-Defense4All, and to act in response to severe deteriorations. Any
-module, upon sensing an unexpected/faulty behavior in it or in any other
+information received from external network elements such as ODC and
+AMSs. It then allows a user or administrator to obtain that information
+through the REST API or the CLI. Flight records can be filtered by
+categories (zero or more can be specified) and by time ranges.
+FlightRecorder stores all flight records in its own Repo (with another
+repo holding time ranges for efficient time ranges retrieval from the
+records repo). Because all flight records are stored in Cassandra, the
+number of flight records Defense4All can keep is limited only by the
+size of the underlying persistent storage capacity of all Cassandra
+servers, and so even on a single Cassandra instance, months of
+historical information can be kept. +
+ +
+*HealthTracker* – The point to hold the aggregated runtime health of
+Defense4All and to act in response to severe deteriorations. Any module,
+upon sensing unexpected and/or faulty behavior in it or in any other
 module can record a “health issue” in the HealthTracker, providing
-health issue significance. This is instead of directly triggering
-Defense4All termination. The idea is that numerous health issues in a
-short period of time with high aggregated significance are likely to
-indicate a significant wide-spread Defense4All problem, but
-sporadic/intermittent operational “hiccups” can be neglected – even if
-Defense4All remains less than 100% operational (the administrator can
-always reset restart it to fully recover). As such, every non-permanent
-health issue has a gradually diminished affect over time. If Defense4Al
-health deteriorates below a predefined threshold HealthTracker triggers
-responsive actions – depending on the nature of health issues. A restart
-can heal transient problems, and so the HealthTracker triggers
-Defense4All termination (running as a Linux service Defense4All will be
-automatically restarted). To recover from more permanent problems
-HealthTracker may additional trigger a Defense4All reset. If it does not
-help then the next time the HealthTracker will attempt a more severe
-reset. As a last resort the administrator can be suggested to perform
-factory reset.
-
+health issue significance. This is instead of directly triggering a
+Defense4All termination. This means that numerous health issues in a
+short period with high aggregated significance are likely to indicate a
+significant wide-spread Defense4All problem, but sporadic and/or
+intermittent operational “hiccups” can be neglected, even if Defense4All
+remains less than 100% operational (the administrator can always reset
+it to fully recover). As a result, every non-permanent health issue has
+a gradually diminished effect over time. If Defense4Al health
+deteriorates below a predefined threshold, HealthTracker triggers
+responsive actions depending on the nature of the health issues. A
+restart can heal transient problems, and so the HealthTracker triggers
+Defense4All termination (running as a Linux service, Defense4All is
+automatically restarted). To recover from more permanent problems,
+HealthTracker may additionally trigger a Defense4All reset. If this does
+not help, the next time the HealthTracker attempts a more severe reset.
+As a last resort, the administrator can be advised to perform a factory
+reset. +
+ +
 *ClusterMgr* – Currently not implemented. This module is responsible for
 managing a Defense4All cluster (separate from Cassandra or ODC clusters,
 modeled as separate tier clusters). A clustered Defense4All carries
-improved high availability and scalability. Any module in Defense4All
-Framework or Application can register with ClusterMgr for clustered
-operation, specifying whether its functionality should be carried out by
-a single or by multiple/all active instances (running on different
-Defense4All cluster members). When cluster membership changes,
+improved high availability and scalability. Any module in the
+Defense4All framework or application can register with ClusterMgr for a
+clustered operation, specifying whether its functionality should be
+carried out by a single or by multiple/all active instances (running on
+different Defense4All cluster members). When cluster membership changes,
 ClusterMgr notifies each instance in each module about its role in the
-clustered operation of that module. In case of a single active instance
-that instance is told so, while all other instances are told they are
-standby. In case of multiple active instances, each active instance is
-notified about the number of active instances, and its logical
-enumeration in that range. All state is stored in a globally accessible
-and shared repository, so any instance of a module is stateless, and can
-perform any role after every membership change. For example, following
-membership change N an instance can be enumerated as 2 out of 7, and
-thus perform relevant portion of the work. Then at membership change N+1
-the same instance can be enumerated 5 out of 6, and perform the work
-portion allocated for 5 and not for 2. We skip the peer messaging
-services which the ClusterMgr can provide for a more coordinated
-cross-instance operation.
-
-The Defense4All Application is highly pluggable - it can accommodate
+clustered operation of that module. If there is a single active
+instance, that instance is notified of its role in the cluster, while
+all other instances are notified that they are in standby mode. If there
+are multiple active instances, each active instance is notified about
+the number of active instances and its logical enumeration in that
+range. All states are stored in a globally accessible and shared
+repository, so any instance of a module is stateless, and can perform
+any role after every membership change. For example, following
+membership change N, an instance can be enumerated as 2 out of 7, as a
+result performing the relevant portion of the work. At membership change
+N+1, the same instance can be enumerated 5 out of 6, and perform the
+work portion allocated for 5 and not for 2. Peer messaging services are
+skipped which the ClusterMgr can provide for a more coordinated
+cross-instance operation. +
+ +
+The Defense4All application is highly pluggable. It can accommodate
 different attack detection mechanisms, different attack mitigation
-drivers, and drivers (called reps – short for representative) to
-different versions of ODC and different AMSs. Defense4All Application
+drivers, and drivers (called reps [representative]) to different
+versions of the ODC and different AMSs. The Defense4All application
 comprises “core” modules and “pluggable” modules implementing
-well-defined Defense4All Application APIs.
+well-defined Defense4All application APIs.
 
 [[application-view]]
 = Application View
@@ -301,149 +326,154 @@ well-defined Defense4All Application APIs.
 image:d4a_application_view.jpg[Defense4All Defense4All Application
 Structure,title="Defense4All Defense4All Application Structure"]
 
-The Defense4All Application modules are described below:
+The following is a description of the Defense4All application modules:
 
-*DFAppRoot* – This is the root module of the Defense4All Application. As
-mentioned before, the Defense4All Application does not have “main”, and
-its lifecycle (start, stop, reset) is managed by the Framework operating
-against this module, which in turn drives all lifecycle operations in
-the Defense4All Application. DFAppRoot also contains references to all
-Defense4All Application modules (core and pluggable), global
-repositories, and reference back to the Framework, allowing the
-Defense4All Application modules to use Framework services (e.g., create
-a Repo, log a flight record) and common utilities.
+*DFAppRoot* – The root module of the Defense4All application. The
+Defense4All application does not have “main,” and its lifecycle (start,
+stop, reset) is managed by the Framework operating against this module,
+which in turn drives all lifecycle operations in the Defense4All
+application. DFAppRoot also contains references to all Defense4All
+application modules (core and pluggable), global repositories, and
+references back to the framework, allowing the Defense4All application
+modules to use framework services (such as create a Repo and log a
+flight record) and common utilities.
 
 *DFRestService* – A set of classes constituting the Defense4All
-Application Servlet that responds to Defense4All Application REST
+application servlet that responds to Defense4All application REST
 requests. The DFRestService invokes control and configuration methods
 against the DFMgmtPoint, and for reporting it retrieves information
-directly from the relevant repositories. For flight recordings it
+directly from the relevant repositories. For flight recordings, it
 invokes methods against the FlightRecorder.
 
 *DFMgmtPoint* – The point to drive control and configuration commands
-(e.g., addams, addpn). DFMgmtPoint invokes in turn methods against other
-relevant modules in the right order.
+(such as addams and addpn). DFMgmtPoint in turn invokes methods against
+other relevant modules in the right order.
 
-*ODL Reps* – Is a pluggable module-set for different versions of ODC.
-Comprises two functions in two sub-modules – stats collection for and
-traffic diversion of relevant traffic. These two sub-modules adhere to
+*ODL Reps* – A pluggable module-set for different versions of the ODC.
+Comprises two functions in two sub-modules: stats collection for, and
+traffic diversion of, relevant traffic. These two sub-modules adhere to
 StatsCollectionRep DvsnRep APIs. ODL Reps is detailed in Figure 6 and
-description that follows it. SDNStatsCollector – Is responsible to set
-“counters” for every PN at specified network locations (physical or
-logical). A counter is a set of OpenFlow flow entries in ODC enabled
-network switches/routers. The SDNStatsCollector periodically collects
-statistics from those counters and feeds them to the
-SDNBasedDetectionMgr (see next). The module uses the
-SDNStatsCollectionRep to both set the counters and read latest
-statistics from those counters. A stat report consists of read time,
-counter specification, PN label, and a list of trafficData information,
-where each trafficData element contains latest bytes and packets values
-for flow entries configured for in the counter location. Protocol can be
-\{tcp,udp,icmp,other ip}, port is any layer 4 port, and direction can be
-\{inbound, outbound}.
+the description that follows it.
 
-*SDNBasedDetectionMgr* – Is a container for pluggable SDN based
-detectors. It feeds stat reports, received from SDNStatsCollector, to
-plugged-in SDN based detectors. It also feeds to all SDN based detectors
-notifications from AttackDecisionPoint (see ahead) about ended attacks
-(so as to allow reset of detection mechanisms).
+*SDNStatsCollector* – Responsible for setting “counters” for every PN at
+specified network locations (physical or logical). A counter is a set of
+OpenFlow flow entries in ODC-enabled network switches and routers. The
+SDNStatsCollector periodically collects statistics from those counters
+and feeds them to the SDNBasedDetectionMgr (see the description below).
+The module uses the SDNStatsCollectionRep to both set the counters and
+read latest statistics from those counters. A stat report consists of
+read time, counter specification, PN label, and a list of trafficData
+information, where each trafficData element contains the latest bytes
+and packet values for flow entries configured for in the counter
+location. The protocol can be \{tcp,udp,icmp,other ip}, the port is any
+Layer 4 port, and the direction can be \{inbound, outbound}.
+
+*SDNBasedDetectionMgr* – A container for pluggable SDN-based detectors.
+It feeds stat reports received from the SDNStatsCollector to plugged-in
+SDN based detectors. It also feeds all SDN based detectors notifications
+from the AttackDecisionPoint (see the description below) about ended
+attacks (so as to allow reset of detection mechanisms).
 
 *RateBasedDetector sub-module* – This detector learns for each PN its
 normal traffic behavior over time, and notifies AttackDecisionPoint (see
-next) when it detects traffic anomalies. For each protocol \{tcp, udp,
-icmp, other ip} of each PN the RateBasedDetector maintains latest rates
-and exponential moving averages (baselines) of bytes and packets, as
-well as last reading time. The detector maintains those values both for
-each counter as well as aggregation of all counters for each PN. The
-organization at two levels of calculations (counter and PN aggregate)
-allows for better scalability (e.g., working with clustered ODC, where
-each instance is responsible to obtain statistics from a portion of
-network switches, and bypassing the ODC single instance image API). Such
-organization also enables a more precise stats collection (avoiding the
-difficulty to collect all stats during a very small time interval).
-Stats are processed at the counter level, and periodically aggregated at
-the PN level. Continuous detections of traffic anomalies cause the
-RateBasedDetector to notify AttackDecisionPoint about attack detection.
-Then absence of anomalies for some period of time causes the detector to
-stop notifying AttackDecisionPoint about attack detection. The detector
-specifies a detection duration – time within which the detection is
-valid. After that time the detection expires, but can be “prolonged”
-with another notification about the same attack.
+the description below) when it detects traffic anomalies. For each
+protocol \{TCP, UDP, ICMP, other IPs} of each PN, the RateBasedDetector
+maintains latest rates and exponential moving averages (baselines) of
+bytes and packets, as well as last reading time. The detector maintains
+those values both for each counter as well as the aggregation of all
+counters for each PN. The organization at two levels of calculations
+(counter and PN aggregate) allows for better scalability (such as
+working with clustered ODCs, where each instance is responsible for
+obtaining statistics from a portion of network switches, and bypassing
+the ODC single instance image API). Such organizations also enable a
+more precise stats collection (avoiding the difficulty of collecting all
+stats during a very small time interval). Stats are processed at the
+counter level, and periodically aggregated at the PN level. Continuous
+detections of traffic anomalies cause the RateBasedDetector to notify
+AttackDecisionPoint about attack detection. Then, absence of anomalies
+for some period of time causes the detector to stop notifying the
+AttackDecisionPoint about attack detection. The detector specifies a
+detection duration within which the detection is valid. After that time,
+the detection expires but can be “prolonged” with another notification
+about the same attack.
 
-*AttackDecisionPoint* – This module is responsible to maintain attack
-lifecycles. It can receive attack detections from multiple detectors.
-Defense4All supports the RateBasedDetector, external detectors (in
-future versions), and AMS based detector reference implementation (over
-Radware’s DefensePro). In current version AttackDecisionPoint fully
-honors each detection (max detector confidence, max detection
-confidence). It declares a new attack for every detection of a new
-attacked traffic (PN, protocol, port), and add more detections for
-existing (already declared attacks). The module checks periodically the
-statuses of all attacks. As long as there is at least one unexpired
-detection (each detection has an expiration time) attack is kept
-declared. If all detections are expired for a given attack
-AttackDecisionPoint declared attack end. The module notifies the
-MitigationMgr (see next) to start mitigating any new declared attack. It
-notifies the MitigationMgr to stop mitigating ended attacks, and also
-notifies the detectionMgr to reset stats calculations for traffic on
-which an attack has just ended.
+*AttackDecisionPoint* – This module is responsible for maintaining
+attack lifecycles. It can receive attack detections from multiple
+detectors. Defense4All supports the RateBasedDetector, external
+detectors (scheduled for future versions), and AMS-based detector
+reference implementation (over Radware’s DefensePro). In the current
+version, AttackDecisionPoint fully honors each detection (max detector
+confidence and max detection confidence). It declares a new attack for
+every detection of a newly attacked traffic (PN, protocol, and port),
+and adds more detections for existing (already declared) attacks. The
+module periodically checks the statuses of all attacks. As long as there
+is at least one unexpired detection (each detection has an expiration
+time), the attack is kept declared. If all detections are expired for a
+given attack the AttackDecisionPoint declares the attack has ended. The
+module notifies the MitigationMgr (see description below) to start
+mitigating any new declared attack. It notifies the MitigationMgr to
+stop mitigating ended attacks, and also notifies the detectionMgr to
+reset stats calculations for traffic on which an attack has just ended.
 
-*MitigationMgr* - Is a container for pluggable mitigation drivers. The
-MitigationMgr maintains the lifecycle of all mitigations, resulted from
+*MitigationMgr* - A container for pluggable mitigation drivers. The
+MitigationMgr maintains the lifecycle of all mitigations as a result of
 mitigation notifications from AttackDecisionPoint. It holds a
 pre-ordered list of the MitigationDriver sub-modules, and attempts to
 satisfy each mitigation in that order. If MitigationDriveri indicates to
 MitigationMgr that it does not mitigate a mitigation (because of per PN
-preferences, unavailability of AMS resources, network problems, etc.)
-MitigationMgr will attempt mitigation by MitigationDriveri+1. If none of
-the plugged-in MitigationDrivers handle mitigation it remains in status
-‘not-mitigated’.
+preferences, unavailability of AMS resources, network problems, and so
+on) MitigationMgr will attempt mitigation by MitigationDriveri+1. If
+none of the plugged-in MitigationDrivers handle mitigation, it remains
+at the status ‘not-mitigated.’
 
-*MitigationDriverLocal* – This mitigation driver is responsible to drive
-attack mitigations using AMSs in its sphere of management. When
-requested to mitigate an attack this mitigator performs the following
-sequence of steps:
+*MitigationDriverLocal* – This mitigation driver is responsible for
+driving attack mitigations using AMSs in their sphere of management.
+When requested to mitigate an attack, this mitigator performs the
+following sequence of steps:
 
-1.  It consults with the plugged in DvsnRep (see ahead) about
-topologically feasible options of diversion to each of the managed AMSs
-from each of the relevant network locations. In this version diversion
-is always done from the location where the stats counters are installed.
-2.  The MitigationDriverLocal then selects an AMS out of all feasible
-options (in the first release the selection is trivial – first in list.
+1.  It consults with the plugged in DvsnRep (see description below)
+about topologically feasible options of diversion for each of the
+managed AMSs from each of the relevant network locations. In this
+version, the diversion is always performed from the location where the
+stats counters are installed.
+2.  The MitigationDriverLocal selects an AMS out of all feasible options
+(in the first release, the selection is trivial—it is the first in
+list).
 3.  It optionally configures all the AMSs (each diversion source may
 have a different AMS associated with it) prior to instructing to divert
 traffic to each. This is done through the plugged in AMSRep.
 4.  The MitigationDriverLocal instructs the DvsnRep to divert traffic
-from each source NetNode (in this version NetNode is modeled over an SDN
-Switch) to the AMS associated with that NetNode. Diversion can be either
-for inbound traffic only or both for inbound and outbound traffic.
+from each source NetNode (in this version, NetNode is modeled over an
+SDN switch) to the AMS associated with that NetNode. Diversion can be
+either for inbound traffic only or both for inbound and outbound
+traffic.
 5.  The mitigation driver notifies the AMSBasedDetector to optionally
-start monitoring attack status in all the AMSs, and feed attack
-detections to AttackDecisionPoint.
-6.  In future versions the MitigationDriverLocal should monitor health
-of all AMSs and relevant portions of network topologies, re-selecting
-AMSs should some fail, or should network topologies changes require
-that.
+start monitoring the attack status in all the AMSs, and feed attack
+detections to the AttackDecisionPoint.
+6.  In future versions, the MitigationDriverLocal is scheduled to
+monitor health of all AMSs and relevant portions of network topologies,
+re-selecting AMSs should some fail, or should network topologies changes
+require that.
 
-When mitigation should be ended the MitigationDriverLocal notifies
-AMSBasedDetector to stop monitoring attack status for the ended attack,
-notifies DvsnRep to stop traffic diversions to all AMSs – for this
+When mitigation should be ended, the MitigationDriverLocal notifies
+AMSBasedDetector to stop monitoring the attack status for the ended
+attack, notifies DvsnRep to stop traffic diversions to all AMSs for this
 mitigation, and finally notifies the AMSRep to optionally clean all
-mitigation related configuration set in each relevant AMS.
+mitigation-related configuration sets in each relevant AMS.
 
-*AMSBasedDetector* – This optional module (can be packaged as part of
-the AMSRep) is responsible for monitoring/querying attack mitigation by
-AMSs. Registering as a detector this module can then notify
+*AMSBasedDetector* – This optional module (which can be packaged as part
+of the AMSRep) is responsible for monitoring/querying attack mitigation
+by AMSs. Registering as a detector, this module can then notify
 AttackDecisionPoint about attack continuations and endings. It monitors
 only specified AMSs and only for specified (attacked) traffic.
 
-*AMSRep* - Is a pluggable module for different AMSs. The module adheres
-to AMSRep APIs. It can support configuration of all introduced AMSs
+*AMSRep* - A pluggable module for different AMSs. The module adheres to
+AMSRep APIs. It can support configuration of all introduced AMSs
 (permanently or before/after attack mitigations). It can also
 receive/query security information (attack statuses), as well as
 operational information (health, load). AMSRep module is entirely
 optional – AMSs can be configured and monitored externally. In many
-cases attacks can continue be monitored solely via SDN counters.
+cases, attacks can continue be monitored solely via SDN counters.
 Defense4All contains a reference implementation AMSRep that communicates
 with Radware’s DefensePro AMSs.
 
@@ -453,599 +483,575 @@ with Radware’s DefensePro AMSs.
 image:d4a_odl_reps_view.jpg[Defense4All Defense4All ODL Reps
 Structure,title="Defense4All Defense4All ODL Reps Structure"]
 
-The figure depicts the Defense4All Application ODL Reps module-set
+The figure above depicts the Defense4All application ODL Reps module-set
 structure. Different versions of OFC may be represented by different
-versions of ODL Reps module-set. As mentioned before, ODLReps comprises
-two functions – stats collection for and traffic diversion of relevant
-traffic. Both or either of the functions may be utilized in a given
-deployment. As such they have a common point to communicate with the ODC
-and hold all general information – the ODC (see below).
+versions of the ODL Reps module-set. ODLReps comprises two functions:
+stats collection for, and traffic diversion of, relevant traffic. Both
+or either of the functions may be utilized in a given deployment. As
+such, they have a common point to communicate with the ODC and hold all
+general information for the ODC (see below).
 
-ODL Reps supports two types of SDN Switches: sdn-hybrid, which support
+ODL Reps supports two types of SDN switches: sdn-hybrid, which supports
 both SDN and legacy routing, and sdn-native, which supports SDN only
-routing. Counting traffic in sdn-hybrid switch can be simply
-accomplished by programming a flow entry with desired traffic selection
-criteria and the action is “send to normal”, i.e., continue with legacy
-routing. Counting traffic in sdn-native switch requires an explicit
-routing action (i.e., which output port to send the traffic to).
-Defense4All avoids learning all routing tables by requiring an
-sdn-native switch which is more or less a bump-in the wire with respect
-to traffic routing, i.e., traffic entering port 1 normally exits port 2
-and traffic entering port 3 normally exits port 4 and vice versa. Such a
-switch allows for easy programming of flow entries just to count traffic
-or to divert traffic to/from attached AMS. So when Defense4All programs
-a traffic counting flow entry with selection criteria that includes port
-1, its action will be output to port 2, and similarly with 3 to 4. In
-future versions this restriction should be lifted.
+routing. Counting traffic on the sdn-hybrid switch is done by
+programming a flow entry with the desired traffic selection criteria and
+the action “send to normal”, that is, to continue with legacy routing.
+Counting traffic on sdn-native switch requires an explicit routing
+action (which output port to send the traffic to). Defense4All avoids
+learning all routing tables by requiring an sdn-native switch which is
+more or less a bump-in the wire with respect to traffic routing (that
+is, traffic entering port 1 normally exits port 2 and traffic entering
+port 3 normally exits port 4 and vice versa). Such a switch allows for
+easy programming of flow entries just to count traffic or to divert
+traffic to/from the attached AMS. When Defense4All programs a traffic
+counting flow entry with selection criteria that includes port 1, its
+action is output to port 2, and similarly with 3 to 4. In future
+versions, this restriction is scheduled to be lifted.
 
-The sub-modules are described below:
+The following is a description of the sub-modules:
 
 *StatsCollectionRep* - The module adheres to StatsCollectionRep APIs.
 Its main tasks are:
 
 * Offer counter placement NetNodes in the network. The NetNodes offered
-are all NetNodes defined for a PN. This essentially maps to all SDN
-Switches through which traffic of the given PN flows.
+are all NetNodes defined for a PN. This essentially maps which of SDN
+switches the traffic of the given PN flows.
 * Add a peacetime counter in selected NetNodes to collect statistics for
 a given PN. StatsCollectionRep creates a single counter for a PN in each
-NetNodes. (Overall, a NetNodes can have multiple counters for different
-PNs; and a PN may have multiple counters - in NetNodes as specified for
-the given PN). StatsCollectionRep translates installation of a counter
-in NetNodes to programming 4 flow entries (for tcp, udp, icmp, and rest
-of ip) for each “north traffic port” in that NetNodes – port from which
-traffic from client to protected PN enters the SDN Switch. For example,
-StatsCollectionRep will add for a given PN 12 flow entries in an SDN
-Switch with 3 ports through that PN’s inbound traffic enters the OFS.
-And, if another NetNode (SDN Switch) was specified to have that PN’s
-inbound traffic entering it through 2 ports, then StatsCollectionRep
-will program for this PN 8 flow entries in that second NetNode.
+NetNode. (Overall, a NetNode can have multiple counters for different
+PNs; and a PN can have multiple counters in NetNodes as specified for
+the given PN). StatsCollectionRep translates the installation of a
+counter in a NetNode to programming four flow entries (for TCP, UDP,
+ICMP, and the rest of the IPs) for each “north traffic port” in that
+NetNode port from which traffic from a client to a protected PN enters
+the SDN switch. For example, StatsCollectionRep adds for a given PN 12
+flow entries in an SDN switch with three ports through that PN’s inbound
+traffic enters the OFS. And, if another NetNode (SDN switch) was
+specified to have that PN’s inbound traffic entering it through two
+ports, then StatsCollectionRep programs for this PN eight flow entries
+in that second NetNode.
 * Remove a peacetime counter.
 * Read latest counter values for a specified counter. StatsCollectionRep
 returns a vector of latest bytes and packets counted for each
 protocol-port in each direction (currently only “north to south” is
-supported), along with the time it received the reading from ODC.
+supported), along with the time it received the reading from the ODC.
 
 *DvsnRep* - The module adheres to DvsnRep APIs. Its main tasks are:
 
 * Return diversion properties from a given NetNode to a given AMS. In
-this version an empty properties is returned if such diversion is
-topologically feasible (AMS is directly attached to the SDN Switch over
-which the specified NetNode is modeled. Otherwise no properties is
-returned. (This leaves room for remote diversions in future versions,
-and topological costs to each distant AMS – e.g., latency, bandwidth
-reservation, cost, etc.).
+this version, an empty property is returned if such a diversion is
+topologically feasible (AMS is directly attached to the SDN switch over
+which the specified NetNode is modeled. Otherwise no properties are
+returned. This leaves room for remote diversions in future versions, and
+topological costs to each distant AMS, such as latency, bandwidth
+reservation, and cost).
 * Divert (attacked) traffic from a specified NetNode through an AMS. As
-such the new flow entries take precedence over the peacetime ones.
+such, the new flow entries take precedence over the peacetime ones.
 DvsnRep programs flow entries to divert inbound attacked traffic (or all
-traffic if so specified for the PN) from every “north traffic port” into
-AMS “north” port. If “symmetric diversion” (for both inbound and
-returning, outbound traffic) has been specified for that PN, DvsnRep
+traffic, if so specified for the PN) from every “north traffic port”
+into the AMS “north” port. If “symmetric diversion” (for both inbound
+and returning, outbound traffic) has been specified for that PN, DvsnRep
 programs another set of flow entries to divert attacked (or all) traffic
-from every “south traffic port” into AMS “south” port. In an sdn-hybrid
-switch deployment DvsnRep adds a flow entry for inbound traffic that
-returns from AMS south port – with action send to normal, and similarly
-it adds a flow entry for outbound returning traffic from AMS north port
-– with action of also send to normal. In sdn-native switch the action is
-to send to the right output port, but things are more complicated here
-determining that right port. We use north port MAC learning to determine
-from the source/destination MAC in the packet the right output port.
-This scheme of flow entries works well for tcp, udp and icmp attacks.
-For “other ip” attacks the flow entries programming is more complex, and
-is suppressed here for clarity. The set of flow entries programmed to
+from every “south traffic port” into the AMS “south” port. In an
+sdn-hybrid switch deployment, DvsnRep adds a flow entry for inbound
+traffic that returns from the AMS south port, with the action sent to
+normal, and similarly it adds a flow entry for outbound returning
+traffic from the AMS north port, with action of also sent to normal. In
+an SDN-native switch, the action is to send to the correct output port,
+however if this scenario the process is more complex for determining the
+correct port. North port MAC learning is used to determine from the
+source/destination MAC in the packet the correct output port. This
+scheme of flow entries works well for TCP, UDP and ICMP attacks. For
+“other IP” attacks, the flow entries programming is more complex, and is
+suppressed here for clarity. The set of flow entries programmed to
 divert (but still count) traffic comprises the “attack traffic floor”.
 There may be many attack traffic floors, all of which take precedence
 over the peacetime stats collection floor (by programming higher
-priority flow entries). Additional attacks (except “other ip” attack
-which is special case, and is suppressed here) are created with higher
+priority flow entries). Additional attacks (except “other IP” attacks,
+which is a special case, and is suppressed here) are created with higher
 priority traffic floors over previously set attack traffic floors.
-Attacks may fully or partially “eclipse” earlier attacks (e.g., tcp port
-80 over tcp or vice versa) or be disjoint (e.g., tcp and udp). Stats
-collection is taken from all traffic floors – peacetime and attacks. SDN
-based detector aggregates all statistics into overall rates, thus
-determining if the attack is still on. (Notice that eclipsed peacetime
-counted traffic may show zero rates, and that counting is complemented
-by the higher priority floor counters.
+Attacks may fully or partially “eclipse” earlier attacks (for example,
+TCP port 80 over TCP, or vice versa), or be disjointed (such as TCP and
+UDP). Stats collection is taken from all traffic floors, both peacetime
+and attacks. An SDN-based detector aggregates all statistics into
+overall rates, thus determining if the attack is still in progress.
+(Note that eclipsed peacetime counted traffic may show zero rates, and
+that counting is complemented by the higher priority floor counters.)
 * End diversion. DvsnRep removes the relevant attack traffic floor
-(removing all its flow entries from the NetNode). Note that this affects
-neither traffic floors “above” the removed floor nor the traffic floors
-“below”. In addition, the SDN based detector receives the same
-aggregated rates from counters of remaining floors, so its operation is
-not affected either.
+(removing all of its flow entries from the NetNode). Note that this
+affects neither traffic floors “above” the removed floor nor the traffic
+floors “below.” In addition, the SDN-based detector receives the same
+aggregated rates from counters of remaining floors, so its operation
+also is not affected.
 
 *ODLCommon* – This module contains all common elements needed to program
-flow entries in ODC. This allows for coherent programming of configured
-ODCs (in this version at most one) by StatsCollectionRep and DvsnRep.
-For instance ODLCommon instantiates connectivity with the ODCs,
-maintains a list of programmed flow entries and cookies assigned each.
-It also maintains references to DFAppRoot and FrameworkMain. When an
-sdn-native NetNode is added ODLCommon programs 2 flow entries per each
-protected link (pair of input-to-output ports) to transfer traffic
+flow entries in the ODC. This allows for coherent programming of
+configured ODCs (in this version, at most one) by StatsCollectionRep and
+DvsnRep. For instance ODLCommon instantiates connectivity with the ODCs,
+maintains a list of programmed flow entries and cookies assigned to
+each. It also maintains references to DFAppRoot and FrameworkMain. When
+an sdn-native NetNode is added ODLCommon programs 2 flow entries per
+each protected link (pair of input-to-output ports) to transfer traffic
 between the two ports (traffic entering north port is routed to south
-port and vice versa). ODLCommon adds 2 more flow entries for each port
-connecting an AMS – to block returning ARP traffic (so as to avoid ARP
-floods if AMSs are not configured to block them). This “common traffic
-floor” flow entries are set with lowest priority. Their counters are
-accounted for neither stats collections nor traffic diversion. When a
-NetNode is removed ODLCommon removes this common traffic floor flow
-entries.
+port and vice versa). ODLCommon adds two more flow entries for each port
+connecting to an AMS to block returning ARP traffic (so as to avoid ARP
+floods if the AMSs are not configured to block them). This “common
+traffic floor” flow entries are set with the lowest priority. Their
+counters are accounted for neither stats collections nor traffic
+diversion. When a NetNode is removed, ODLCommon removes this common
+traffic floor flow entries.
 
 *FlowEntryMgr* – This module provides an API to perform actions on flow
-entries in an SDN switch managed by an ODC, and retrieve information
+entries in an SDN switch managed by an ODC, and retrieves information
 about all nodes managed by an ODC. Flow entries actions include adding a
-specified flow entry in a specified NetNode (SDN Switch/Router),
+specified flow entry in a specified NetNode (SDN switch/router),
 removing a flow entry, toggling a flow entry, getting details of a flow
-entry, and readings statistics gathered by the flow entry. FlowEntryMgr
-uses the Connector modules to communicate with ODC.
+entry, and reading statistics gathered by the flow entry. FlowEntryMgr
+uses the connector modules to communicate with the ODC.
 
-*Connector* – This module provides the basic APIs to communicate with
-ODC, wrapping REST communications. After initializing connection details
-with a specified ODC the Connector allows getting or deleting something
-from ODC, as well as posting or putting something to ODC.
+*Connector* – This module provides the basic API calls to communicate
+with the ODC, wrapping REST communications. After initializing
+connection details with a specified ODC, the connector allows getting or
+deleting data from the ODC, as well as posting or putting data to the
+ODC.
 
-*ODL REST Pojos* – This set of java classes are part of the ODC REST
+*ODL REST Pojos* – This set of Java classes are part of the ODC REST
 API, specifying the Java classes of the parameters and the results of
-interaction with ODC.
+interaction with the ODC.
 
 [[basic-control-flows]]
-= Basic control flows
+= Basic Control Flows
 
 Control flows are logically ordered according to module runtime
 dependencies, so if module A depends on module B then module B should be
-initialized before module A, and terminate after it. Defense4All App
-modules depend on most Framework modules, except RestServer.
+initialized before module A, and terminate after it. Defense4All
+application modules depend on most Framework modules, except WebServer.
 
-*Startup* – The startup consists of first instantiating all modules,
-then initializing them in order. Module instantiation includes setting
-up all externally configured runtime parameters. Initialization starts
-with all Framework modules, except the RestServer, which is activated
-last (after the application is fully ready). The Framework modules are
-initialized in the following order: FrameworkMain, RepoFactory,
-FlightRecorder, FrameworkMgmtPoint. Then the Framework initializes the
-Defense4All Application. Defense4All Application modules are initialized
-in the following order: MitigationDriverLocal, global Defense4All
-Application Repos, ODLStatsCollectionRep, ODLDvsnRep, AmsRep,
-StatsCollector, DetectorMgr and RateBasedDetector, AttackDecisionPoint,
-MitigationMgr, DFMgmtPoint. When FrameworkMgmtPoint initializes it
-retrieves from global repos all user configurations in previous
-lifecycles, and re-applies them in all the relevant modules - as if the
-user has just configured them, however with one difference – any
-dynamically added state to configured elements (e.g., PNs) is preserved.
-Similarly, Defense4All Application MgmtPoint re-applies all user
-configurations done in previous lifecycles. This design leaves all
-modules completely stateless, allowing flexibility, consistency and
-robustness in applying user configurations (whether to latest or any
-previous state snapshot).
-
-*Termination* – In this flow first the RestServer is stopped, then the
-Defense4All Application modules, and finally the Framework modules. The
-order of Defense4All Application modules tear-down is: DFMgmtPoint,
-MitigationMgr and MitigationDriverLocal, AttackDecisionPoint,
-DetectionMgr and RateBasedDetector, StatsCollector, AmsRep,
-OdlStatsCollectoinRep, OdlDvsnRep. The order of Framework modules
-tear-down is: FrameworkMgmtPoint, FlightRecorder, RepoFactory and all
-Repos. Each module is expected to store all durable state in relevant
-Repos. Then RepoFactory, flushes all Repos cached state to stable
-storage and/or replicates to other Repo replicas, of there are any.
-
-*Reset* – In this flow all modules are reset according to reset level
-(currently soft, dynamic or factory). The order of modules’ reset is
-identical to that of termination. Reset includes clearing cached
-information as well as fully or selectively information from Repos –
-according to the type of reset.
+* *Startup* — Defense4All initializes all its modules and re-applies
+previously configured infrastructure and security set-ups, obtaining
+them from persistent repositories. At the end of the Startup process,
+Defense4All resumes its prior operation.
+* *Termination - restart* — Defense4All persists any relevant data into
+stable storage repositories, and terminates itself. If the termination
+is for restart, the automatic restart mechanism restarts Defense4All.
+Otherwise (such as upgrading) Defense4All does not automatically
+restart.
+* *Reset* — In this flow, all modules are reset to factory level. This
+means that all dynamically obtained data as well as user configurations
+are deleted.
 
 [[configurations-and-setup-flows]]
-= Configurations and setup flows
+= Configurations and Setup flows
 
 *OFC (OpenFlowController = ODC)* – When DFMgmtPoint receives from
-DFRestService a request to add OFC, it first records the added OFC in
-OFCs Repo, then notifies ODLStatsCollectionRep and ODLDvsnRep, which in
-turn notifies ODL to initiate connection to added OFC (ODC). ODL
-instantiates a REST client for communication with ODC. NetNode -
-Multiple NetNodes can be added. Each NetNode models a switch or similar
-network device, along with its traffic ports, protected links and
-connections to AMSs. When DFMgmtPoint receives from DFRestService a
-request to add a NetNode, it first records the added NetNode in NetNodes
-Repo, and then notifies ODLStatsCollectionRep and ODLDvsnRep, followed
-by MitigationMgr. ODLStatsCollectionRep and ODLDvsnRep in turn notify
-ODL, and the latter installs low priority flow entries to pass traffic
-between protected links’ port pairs. MitigationMgr notifies
-MitigationDriverLocal, which updates its NetNode-AMS connectivity groups
-for consistent assignment of AMSs to diversion from given NetNodes.
+DFRestService a request to add an OFC, it first records the added OFC in
+the OFC’s Repo, and then notifies ODLStatsCollectionRep and ODLDvsnRep,
+which in turn notify the ODL to initiate a connection to the added OFC
+(ODC). ODL instantiates a REST client for communication with the ODC.
+
+*NetNode* - Multiple NetNodes can be added. Each NetNode models a switch
+or similar network device, along with its traffic ports, protected
+links, and connections to AMSs. When DFMgmtPoint receives from
+DFRestService a request to add a NetNode, it first records the added
+NetNode in NetNodes Repo, and then notifies ODLStatsCollectionRep and
+ODLDvsnRep, followed by MitigationMgr. ODLStatsCollectionRep and
+ODLDvsnRep then notify the ODL, and the ODL installs low priority flow
+entries to pass traffic between the protected links’ port pairs.
+MitigationMgr notifies MitigationDriverLocal, which updates its
+NetNode-AMS connectivity groups for consistent assignment of AMSs to
+diversion from given NetNodes.
 
 *AMS* – Multiple AMSs can be added. When DFMgmtPoint receives from
 DFRestService a request to add an AMS, it first records the added AMS in
-AMSs Repo, then notifies AMSRep. AMSRep can optionally pre-configure
-protection capabilities in the added AMS, and start monitoring its
-health.
+the AMS’s Repo, and then notifies AMSRep. AMSRep can optionally
+pre-configure protection capabilities in the added AMS, and start
+monitoring its health.
 
 *PN* - Multiple PNs can be added. When DFMgmtPoint receives from
 DFRestService a request to add a PN, it first records the added PN in
-PNs Repo, then notifies MitigationMgr, and finally it notifies the
-DetectionMgr. MitigationMgr notifies MitigationDriverLocal, which in
-turn notifies AMSRep. AMSRep can preconfigure the AMS for this PN, as
-well its EventMgr to accept events related to this PN’s traffic.
-DetectionMgr notifies RateBasedDetector, which in turn notifies
-StatsCollector. StatsCollector queries ODLStatsCollectionRep about
-possible placements of stats collection counters for this PN.
-ODLStatsCollectionRep returns all NetNodes configured for this PN (and
-if none configured it returns all NetNodes currently known to
-Defense4All). StatsCollector “chooses” (this only presently available)
-counter locations option. For each of the NetNodes it then asks
-ODLStatsCollectionRep to create a counter for the subject PN in each of
-the selected NetNodes. The counter is essentially a set of flow entries
-set for the protocols of interest (tcp, udp, icmp, and rest of ip) on
-each north traffic port. The counter is given a priority and this
-constitutes the peacetime traffic floor (to monitor traffic by
-periodically reading all counter flow entry traffic count values).
-Because PN may be re-introduced at restart or a change in network
-topology may require re-calculation of counter locations, it is possible
-that some/all counters may already be in place. Only new counters are
-added. No-longer needed counters are removed. ODLStatsCollectionRep
-configures the flow entries according to NetNode type: for hybrid
-NetNodes the flow entry action is “send to normal” (i.e., proceed to
-legacy routing), while for native NetNodes the action is matching output
-port (in each protected link). OdlStatsCollectionRep invokes ODL to
-create each specified flow entry. The latter invokes FlowEntryMgr and
-Connector to send the request to ODC.
+the PN’s Repo, notifies MitigationMgr, and then finally notifies the
+DetectionMgr. MitigationMgr notifies MitigationDriverLocal, which then
+notifies AMSRep. AMSRep can preconfigure the AMS for this PN, as well
+its EventMgr to accept events related to this PN’s traffic. DetectionMgr
+notifies RateBasedDetector, which then notifies StatsCollector.
+StatsCollector queries ODLStatsCollectionRep about possible placement of
+stats collection counters for this PN. ODLStatsCollectionRep returns all
+NetNodes configured for this PN (and if none are configured, it returns
+all NetNodes currently known to Defense4All). StatsCollector “chooses”
+the counter locations option (the only available option in this
+version). For each of the NetNodes, it then asks ODLStatsCollectionRep
+to create a counter for the subject PN. The counter is essentially a set
+of flow entries set for the protocols of interest (TCP, UDP, ICMP, and
+the rest of the IPs) on each north traffic port. The counter is given a
+priority and this constitutes the peacetime traffic floor (to monitor
+traffic by periodically reading all counter flow entry traffic count
+values). Because the PN may be re-introduced at restart or a change in
+network topology may require re-calculation of counter locations, it is
+possible that some/all counters may already be in place. Only new
+counters are added. Counters that are no longer are removed.
+ODLStatsCollectionRep configures the flow entries according to the
+NetNode type. For hybrid NetNodes, the flow entry action is “send to
+normal” (proceed to legacy routing), while for native NetNodes, the
+action is to match the output port (in each protected link).
+OdlStatsCollectionRep invokes the ODL to create each specified flow
+entry. The latter invokes FlowEntryMgr and Connector to send the request
+to the ODC.
 
 [[attack-detection-flow]]
-= Attack Detection flow
+= Attack Detection Flow
 
-Periodically StatsCollector requests ODL StatsCollectionRep to query the
-ODC for the latest statistics for each set counter for each configured
-PN. ODLStatsCollectionRep invokes FlowEntryMgr to obtain statistics in
-each flow entry in a counter. The latter invokes the Connector to obtain
-the desired statistics from the ODC.
+Periodically, the StatsCollector requests the ODL StatsCollectionRep to
+query the ODC for the latest statistics for each set counter for each
+configured PN. ODLStatsCollectionRep invokes FlowEntryMgr to obtain
+statistics for each flow entry in a counter. The latter invokes the
+connector to obtain the desired statistics from the ODC.
 
 ODLStatsCollectionRep aggregates the obtained results in a vector of
 stats (latest bytes and packets readings per each protocol) and returns
 that vector. StatsCollector feeds each counter stats vector to
-DetectionMgr, who forwards the stats vector to RateBasedDetector. The
-latter maintains stats information for every counter as well as
-aggregated counter stats for every PN. Stats information includes time
-of previous reading, and for every protocol - latest rates and
-exponential averages.
+DetectionMgr, which then forwards the stats vector to the
+RateBasedDetector. The RateBasedDetector maintains stats information for
+every counter as well as aggregated counter stats for every PN. Stats
+information includes the time of previous reading, and for every
+protocol the latest rates and exponential averages.
 
-The RateBasedDetector checks for significant and prolonged latest rates
-deviations from the averages, and if such deviations are found in the PN
-aggregated level it notifies AttackDecisionPoint about attack detection.
-As long as deviations continue the RateBasedDetector will continue
-notifying AttackDecisionPoint about the detections. It sets an
-expiration time for every detection notification, and repeatable
+The RateBasedDetector checks for significant and prolonged latest rate
+deviations from the average, and if such deviations are found in the PN
+aggregated level, it notifies the AttackDecisionPoint about attack
+detection. As long as deviations continue, the RateBasedDetector
+continues notifying the AttackDecisionPoint about the detections. It
+sets an expiration time for every detection notification, and repeatable
 notifications essentially prolong the detection expiration.
 
 AttackDecisionPoint honors all detections. If it has already declared an
-attack on that protocol-port, then the AttackDecisionPoint associated
-the additional detection with that existing attack. Otherwise it creates
-a new attack, and notifies MitigationMgr to mitigate that attack (next
-section). Periodically, AttackDecisionPoint checks the status of all
-detections of each live attack. If all detections are expired,
-AttackDecisionPoint declares attack end and notifies MitigationMgr to
-stop mitigating the attack.
+attack on that protocol-port, then the AttackDecisionPoint associates
+the additional detection with that existing attack. Otherwise, it
+creates a new attack and notifies the MitigationMgr to mitigate that
+attack (as described below). Periodically, AttackDecisionPoint checks
+the status of all detections of each live attack. If all detections have
+expired, AttackDecisionPoint declares the end of the attack and notifies
+MitigationMgr to stop mitigating the attack.
 
 [[attack-mitigation-flow]]
-= Attack Mitigation flow
+= Attack Mitigation Flow
 
-MitigationMgr, upon receiving mitigate notification from
+MitigationMgr, upon receiving mitigate notification from yhe
 AttackDecisionPoint, attempts to find a plugged-in MitigationDriver to
-handle the mitigation. Currently, it requests its only plugged-in
+handle the mitigation. Currently, it requests only its plugged-in
 MitigationDriverLocal.
 
-MitigationDriverLocal checks if there are known, live and available AMSs
-to which attacked (or all) traffic can be diverted from NetNodes through
-which attacked traffic flows. It selects one of the suitable AMSs and
-configures it prior to diverting attack traffic to the selected AMS. For
-example MitigationDriverLocal retrieves from Repo the relevant protocol
-averages and configures them in AMS through the AMSRep.
+MitigationDriverLocal checks if there are known, live, and available
+AMSs to which attacked (or all) traffic can be diverted from NetNodes
+through which attacked traffic flows. It selects one of the suitable
+AMSs and configures it prior to diverting attack traffic to the selected
+AMS. For example, MitigationDriverLocal retrieves from Repo the relevant
+protocol averages, and configures them in AMS through the AMSRep.
 
-MitigationDriverLocal then requests ODLDvsnRep to divert attacked PN
-protocol-port (or all PN) traffic from each of the NetNodes through PN
-traffic flows – to the selected AMS.
+MitigationDriverLocal then requests ODLDvsnRep to divert the attacked PN
+protocol-port (or all PN) traffic from each of the NetNodes through
+which the PN traffic flows to the selected AMS.
 
 ODLDvsnRep creates a new highest priority traffic-floor (that contains
-flow entries with priority higher than any flow entry in previously set
-traffic floors). The traffic floor contains all flow entries to divert
-and count traffic from every ingress/northbound traffic port into the
-AMS, and back from AMS to the relevant output (southbound) ports.
-Optionally diversion can be “symmetric” (in both directions), in which
-case flow entries are added to divert traffic from southbound ports into
-the AMS, and back from AMS to northbound ports. Note that StatsCollector
-treats this added traffic floor as any other, and passes obtained
-statistics from this floor to DetectionMgr/RateBasedDetector. Because
-traffic floors are aggregated (in the same NetNode as well as across
-NetNodes) for a given PN the combined rates remain the same as prior to
-diversion. Just like ODLStatsCollectionRep, ODLDvsnRep also utilizes
-lower level modules to install the flow entries in desired NetNodes.
+flow entries with a priority higher than any flow entry in the
+previously set traffic floors). The traffic floor contains all flow
+entries to divert and count traffic from every ingress/northbound
+traffic port into the AMS, and back from the AMS to the relevant output
+(southbound) ports. Optionally, diversion can be “symmetric” (in both
+directions), in which case flow entries are added to divert traffic from
+southbound ports into the AMS, and back from the AMS to northbound
+ports. Note that the StatsCollector treats this added traffic floor as
+any other, and passes obtained statistics from this floor to the
+DetectionMgr/RateBasedDetector. Because traffic floors are aggregated
+(in the same NetNode as well as across NetNodes) for a given PN the
+combined rates remain the same as prior to diversion. Just like
+ODLStatsCollectionRep, ODLDvsnRep also utilizes lower level modules to
+install the flow entries in desired NetNodes.
 
 Finally, MitigationDriverLocal notifies AMSRep to optionally start
-monitoring this attack and notify AttackDecisionPoint if the attack
-continues or new attacks develop. AMSRep can do that through
+monitoring this attack and notify the AttackDecisionPoint if the attack
+continues or new attacks develop. AMSRep can do that through the
 AMSBasedDetector module.
 
-If MitigationDriverLocal finds no suitable AMSs or fails to configure
-any of its mitigation steps it aborts the mitigation attempt,
-asynchronously notifying MitigationMgr about it. The mitigation then
-remains in status “no-resources”.
+If MitigationDriverLocal finds no suitable AMSs, or fails to configure
+any of its mitigation steps, it aborts the mitigation attempt,
+asynchronously notifying MitigationMgr. The mitigation then remains in
+status “no-resources.”
 
 When MitigationMgr receives a notification to stop mitigating an attack,
 it forwards this notification to the relevant (and currently the only)
-MitigationDriver – MitigationDriverLocal. The latter reverses the
-actions in mitigation start: It notifies AMSRep to stop monitoring for
-this attack, it cancels diversion for attacked traffic, and finally
-notifies AMSRep to optionally remove pre-mitigation configurations.
+MitigationDriver, MitigationDriverLocal. MitigationDriverLocal reverses
+the actions in at the start of the mitigation. It notifies AMSRep to
+stop monitoring for this attack, it cancels diversion for the attacked
+traffic, and finally notifies AMSRep to optionally remove pre-mitigation
+configurations.
 
 [[problems-and-troubleshooting]]
 = Problems and troubleshooting
 
-Please refer to Defense4All log for information specific to the problem
-encountered. Defense4All log is */var/log/defense4all/server.log*
+In addition to the procedures listed below, also refer to Defense4All
+log for information on the specific issue you have encountered. The
+Defense4All log is located at /var/log/Defense4All/server.log.
 
-'''Defense4All fails to start '''– If the RestServer fails to start
-check to see if there is a conflict in port number. Defense4All uses
-port 8086. If RepoFactory fails to initialize check if Cassandra service
-is running (sudo service Cassandra stop/start/restart). If the
-Defense4All Application fails to initialize the problem may lie with
-system resources (threads, memory…). Try to restart the machine. Another
-problem may be with corrupted Cassandra DF DB (keyspace). In such a case
-try to perform restore or reset [see guidelines].
+*Defense4All Fails to Start* - If the WebServer fails to start, check to
+see if there is a conflict with the port number. Defense4All uses port
+8086. If RepoFactory fails to initialize, check if the Cassandra service
+is running (sudo service Cassandra stop/start/restart). If Defense4All
+fails to initialize, the problem may lie with system resources (such as
+threads or memory). Try to restart the machine. Another problem may be
+corrupted a Cassandra DF DB (keyspace). If so, try to perform restore or
+reset (see guidelines).
 
-'''Defense4All fails to terminate '''– It is possible that its
-RestServer crashed. The only way to stop Defense4All in such a case is
-by killing its JVM Linux process from command line (kill -9
-<Defense4All-JVM-process-number>).
+*Defense4All Fails to Terminate* - It is possible that its WebServer
+crashed. The only way to stop Defense4All in such a case is to kill its
+JVM Linux process with the following command: kill -9
 
-'''Defense4All fails to reset '''- Some of the problems in starting
-Defense4All may apply to reset as well. Specifically Cassandra service
-should be up for reset. If reset fails manual Cassandra cleanup may be
-required: from command line type “cassandra-cli” then “drop keyspace
-DF;” then “quit;”. Also, flows created by Defense4All in ODC should be
-removed. Unfortunately in this version Defense4All flows are not
-identified as such by their name (rather their name is the cookie number
-used to retrieve statistics from the ODC). To identify a flow entry set
-by Defense4All one has to inspect the protocols set and priorities.
-Protocols: 6,17,1,0. Priorities: 10,11,12,13, 31, 32, 33, 34, 50X, 70X,
-90X… depending on active attacks.
+*Defense4All Fails to Reset* - Some of the problems with starting
+Defense4All may also apply to reset. Specifically, the Cassandra service
+should be up for reset. If the reset fails, you may need to manually
+clean up Cassandra as follows:
 
-'''Defense4All fails to add OFC '''- Check the failure reason (REST or
-CLI). Other than incorrect parameters the problems may be that the added
-ODC is not alive or has addressability (address+port) or security
-(user+password) then specified in the API. Also Cassandra service should
-be up. Note that in this release “remove OFC” is not supported. To
-remove ODC reset needs to be done.
+1.  cassandra-cli
+2.  drop keyspace DF;
+3.  quit;
 
-'''Defense4All fails to add NetNode '''– Check the failure reason (REST
-or API). Other than incorrect parameters Cassandra service may be down.
-Next, the problems may be that flow entries that Defense4All creates at
-NetNode addition may conflict with priorities of other existing flow
-entries in the Switch/Router modeled as NetNode. If so, Defense4All may
-be conflicting with another SDN application. One recovery option is to
-use a second switch modeled as NetNode in a bump in the wire
-configuration before or after the originally planned switch/router, and
-defined that second switch as NetNode for Defense4All to use for stats
-collection and/or traffic redirection to AMSs.
+*Defense4All Fails to Add a OFC* - Check the failure reason (REST or
+CLI). Other than incorrect parameters, the problem may be that the added
+PFC is not alive or has addressability (address+port) or security
+(user+password) specified in the API. Also, the Cassandra service should
+be up.
 
-'''Defense4All fails to remove NetNode '''– Check the failure reason
-(REST or API). Other than incorrect parameters Cassandra service may be
-down. Next, the problem may be that the DF_GLOBAL_NETNODES table (column
-family) is corrupted, so it should be removed entirely (“Cassandra-cli”
-then “use DF;” then “truncate column family DF_GLOBAL_NETNODES;”).
-Another problem maybe that the ODC is not up, so Defense4All cannot
-remove flow entries that it has set on that NetNode.
+*Defense4All Fails to Add a NetNode* - Check the failure reason (REST or
+API). Other than incorrect parameters, the Cassandra service may be
+down.
 
-'''Defense4All fails to add AMS '''– Check the failure reason (REST or
-API). Other than incorrect parameters Cassandra service may be down.
-Next, the problems may be that the AMS is not alive or is not connected.
+*Defense4All Fails to Add an AMS* - Check the failure reason (REST or
+API). Other than incorrect parameters, the Cassandra service may be
+down. In addition, the problem may be that the AMS is not alive or is
+not connected.
 
-'''Defense4All fails to remove AMS '''– Check the failure reason (REST
-or API). Other than incorrect parameters Cassandra service may be down.
-Next, the problems may be that the AMS is not alive or is not connected.
+*Defense4All Fails to Remove an AMS* - Check the failure reason (REST or
+API). Other than incorrect parameters, the Cassandra service may be
+down. In addition, the problem may be that the AMS is not alive or is
+not connected.
 
-'''Defense4All fails to add PN *– Check the failure reason (REST or
-API). Other than incorrect parameters Cassandra service may be down.
-Next, the problems may be that ODC or one of the relevant NetNodes or
-AMSs may not be alive and connected. Next, the problems may be that flow
-entries that Defense4All creates at PN addition may conflict with
-priorities of other existing flow entries in the Switch/Router modeled
-as NetNode through which traffic of this PN flows. If so, Defense4All
-may be conflicting with another SDN application. One recovery option is
-to use a second switch modeled as NetNode in a bump in the wire
-configuration before or after the originally planned switch/router, and
-defined that second switch as NetNode for Defense4All to use for stats
-collection and/or traffic redirection to AMSs.* '''
+*Defense4All Fails to Add a PO* - Check the failure reason (REST or
+API). Other than incorrect parameters, the Cassandra service may be
+down. In addition, the problem may be that PFC may not be alive and
+connected.
 
-'''Defense4All fails to remove PN '''– Check the failure reason (REST or
-API). Other than incorrect parameters Cassandra service may be down.
-Next, the problem may be that the DF_GLOBAL_PNS table (column family) is
-corrupted, so it should be removed entirely (“Cassandra-cli” then “use
-DF;” then “truncate column family DF_GLOBAL_PNS;”). Another problem
-maybe that the ODC or one of the NetNodes is not up, so Defense4All
-cannot remove flow entries that it has set. Finally an AMS may not be up
-to remove configurations set at PN addition.
+*Defense4All Fails to Remove a PO* - Check the failure reason (REST or
+API). Other than incorrect parameters Cassandra service may be down. In
+addition, the problem may be that the DF_GLOBAL_PNS table (column
+family) is corrupted, so it should be removed entirely, as follows:
 
-'''Defense4All fails to retrieve/dump/cleanup flight recorder log
-records '''– Check the failure reason (REST or API). Other than
-incorrect parameters Cassandra service may be down. Next, the problem
-may be that the FWORK_FLIGHT_RECORDER_EVENTS or
-FWORK_FLIGHT_RECORDER_SLICES tables (column families) are corrupted, so
-both of them should be removed entirely (“Cassandra-cli” then “use DF;”
-then “truncate column family FWORK_FLIGHT_RECORDER_EVENTS;” and
-“truncate column family FWORK_FLIGHT_RECORDER_SLICES;”). Caution –
-“truncating” these column families will lead to loss of all flight
-records currently stored in Cassandra.
+1.  Cassandra-cli
+2.  use DF;
+3.  truncate column family DF_GLOBAL_PNS;
 
-'''Defense4All fails to retrieve attack(s)/mitigation(s) '''– Check the
+Another problem maybe that the controller is not up, so Defense4All
+cannot remove that it has set.
+
+*Defense4All Fails to Retrieve/Dump/Clean up Flight Recorder Log
+Records* - Check the failure reason (REST or API). Other than incorrect
+parameters Cassandra service may be down. In addition, the problem may
+be that the FWORK_FLIGHT_RECORDER_EVENTS or FWORK_FLIGHT_RECORDER_SLICES
+tables (column families) are corrupted, so both of them should be
+removed entirely, as follows:
+
+1.  Cassandra-cli"
+2.  use DF;
+3.  truncate column family FWORK_FLIGHT_RECORDER_EVENTS;
+4.  truncate column family FWORK_FLIGHT_RECORDER_SLICES;
+
+Caution: Truncating these column families will lead to the loss of all
+flight records currently stored in Cassandra.
+
+*Defense4All Fails to Retrieve Attacks or Mitigations* - Check the
 failure reason (REST or API). Other than incorrect parameters Cassandra
-service may be down. Next, the problem may be that the
+service may be down. In addition, the problem may be that the
 DF_GLOBAL_ATTACKS/ DF_GLOBAL_MITIGATIONS table (column family) is
-corrupted, so should be removed entirely (“Cassandra-cli” then “use DF;”
-then “truncate column family DF_GLOBAL_ATTACKS or
-DF_GLOBAL_MITIGATIONS;”). Caution – “truncating” these column families
-will lead to loss of all records of current attacks and mitigations. In
-such a case traffic redirection flow entries may need to be manually
-removed from all relevant netnodes (look for priorities 5X, 7X, 9X and
-so on with action “redirect”).
+corrupted, so should be removed entirely, as follows:
 
-'''Defense4All operational errors and failures '''- Depending on the
-nature of the error/failure liveness of external entities (Cassandra,
-ODC, NetNodes, AMSs) may need to be checked/restarted. If it is an
-internal defense4All error the following recovery steps should be
-attempted in this order: Defense4All restart, restart of Defense4All
-hosting machine, Defense4All reset and possibly restore to an earlier
-state (along with manual cleanup of flow entries and AMS configurations
-set by Defense4All).
+1.  Cassandra-cli
+2.  use DF;
+3.  truncate column family DF_GLOBAL_ATTACKS or DF_GLOBAL_MITIGATIONS;
 
-*Attack not detected* – Check Defense4All logs to see if there were any
-errors recorded in stats collection and detection mechanisms. Check if
-ODC and relevant NetNodes are alive. Check latest rates compared to
-averages. Averages may be skewed, but resetting Defense4All during the
-attack will not help, as Defense4All will obtain skewed averages. Wait
-until the attack is over, then reset Defense4All, and re-add the
-attacked PN with different attack thresholds.
+Caution: Truncating these column families will lead to loss of all
+records of current attacks and mitigations. In this case, traffic
+redirection flow entries may need to be manually removed from all
+relevant NetNodes (look for priorities 5X, 7X, 9X, and so on, with
+action redirect).
 
-*Mitigation is in status NO_RESOURCES* – Means that Defense4All
+*Defense4All Operational Errors and Failures* - Depending on the nature
+of the error/failure, liveness of external entities (Cassandra, PFC,
+NetNodes, AMSs) may need to be checked/restarted. If it is an internal
+Defense4All error, the following recovery steps should be attempted in
+this order:
+
+1.  Defense4All restart
+2.  Restart of the Defense4All hosting machine
+3.  Defense4All reset and possibly restore to an earlier state (along
+with manual cleanup of flow entries and AMS configurations set by
+Defense4All).
+
+*Attack Not Detected* - Check the Defense4All logs to see if there were
+any errors recorded in stats collection and detection mechanisms. Check
+if PFC and relevant NetNodes are alive. Check the latest rates compared
+to averages. Averages may be skewed, but resetting Defense4All during
+the attack does not help, as Defense4All will obtain skewed averages.
+Wait until the attack is over, then reset Defense4All, and re-add the
+attacked PO.
+
+*Mitigation has Status NO_RESOURCES* - This means that Defense4All
 mitigationDriverLocal failed to drive this mitigation because of either
 internal Defense4All error or lack of AMS resources. If there are indeed
-no AMS resources – no recovery is needed. Otherwise check the liveness
-of relevant AMS. Also check if Cassandra is running, if ODC is up, and
-if relevant NetNodes are alive. In case of Defense4All internal error
-(according to Defense4All logs) there may be corruption in the
-DF_GLOBAL_ATTACKS/ DF_GLOBAL_MITIGATIONS table (column family), so both
-should be removed entirely (“Cassandra-cli” then “use DF;” then
-“truncate column family DF_GLOBAL_ATTACKS or DF_GLOBAL_MITIGATIONS;”).
-Then, future detections will recreate the relevant attack, and
-mitigation records. If this does not help, restart Defense4All.
+no AMS resources, no recovery is needed. Otherwise check the liveness of
+the relevant AMS. Also check if Cassandra is running, if the PFC is up,
+and if relevant NetNodes are alive. If there is a Defense4All internal
+error (according to the Defense4All logs) there may be a corruption in
+the DF_GLOBAL_ATTACKS/ DF_GLOBAL_MITIGATIONS table (column family), so
+both should be removed entirely, as follows:
 
-'''Mitigation not terminated '''– Cleanup external elements from this
-mitigation: manually remove relevant attack flow entries from all
-relevant netnodes (look for priorities 5X, 7X, 9X and so on with action
-“redirect”). Then restart Defense4All, and finally reset it.
+1.  Cassandra-cli
+2.  use DF;
+3.  truncate column family DF_GLOBAL_ATTACKS or DF_GLOBAL_MITIGATIONS;
+
+Subsequent detections will recreate the relevant attack and mitigation
+records. If this does not help, restart Defense4All.
+
+*Mitigation Not Terminated* - Clean up external elements from this
+mitigation, as follows:
+
+1.  Manually remove the relevant attack.
+2.  Restart Defense4All.
+3.  Reset Defense4All.
 
 [[continuity]]
 = Continuity
 
-Service Continuity is deemed by authors as a more complete term than
-High Availability. It is defined here as the “_ability to deliver
-required *level of service*, at tolerable *cost*, in the presence of
-*disrupting events*_”. Where:
+Service Continuity, as opposed to High Availability, is defined here as
+the ability to deliver a required level of service, at tolerable cost,
+in the presence of disrupting events, where
 
-* *Disrupting events* can be load change, logical error,
-failure/disaster, administrative actions (e.g., upgrade), external
-attacks, etc.
-* *Level of service* can include response time, throughput,
-survivability of data/operations, security/privacy, etc. Required level
-of service may differ for every service function, for every type of
-event, at different event handling phases.
-* '''Cost '''can include people (number, expertise), equipment
-(hardware, software), facilities (space, power).
+* Disrupting events can be load, changes, logical errors, failures and
+disasters, administrative actions (such as an upgrade), external
+attacks, and so on.
+* The level of service can include response time, throughput,
+survivability of data/operations, security/privacy, and so on. The
+required level of service may differ for every service function, for
+every type of event, at different event handling phases.
+* The cost can include people (number, expertise), equipment (hardware,
+software), facilities (space, power).
 
-*Clustering and fault-tolerance* - Clusters help addressing both
-Scalability and High Availability. If one of cluster members fails
-another cluster members can quickly assume its responsibilities. This
-overcomes member failures, member’s hosting machine failures, and member
-network connectivity failures. Defense4All clustering is left to future
-releases. In this release Defense4All runs as a Linux restartable
-service. This allows overcoming intermittent/sporadic Defense4All
-failures. Failure of Defense4All hosting machine means longer time and
-modest additional human effort to revive the machine and its hosted
-Defense4All. If the machine cannot be brought up Defense4All can be
+*Clustering and Fault-tolerance* - Clusters help to address both
+Scalability and High Availability. If one of the cluster members fails,
+another cluster member can quickly assume its responsibilities. This
+overcomes member failures, member hosting machine failures, and member
+network connectivity failures. Defense4All clustering is scheduled for
+future releases. In version 1.0, Defense4All runs as a Linux restartable
+service, so if it fails, the hosting Linux OS revives Defense4All. This
+enables overcoming intermittent/sporadic Defense4All failures. Failure
+of the Defense4All hosting machine means longer time and modest
+additional human effort to revive the machine and its hosted
+Defense4All. If the machine cannot be brought up, Defense4All can be
 started on another machine in the network. To ensure that Defense4All
-will resume its operation (rather that restart from scratch) the user
-needs to pre-load Defense4All (latest or earlier) state snapshot on that
-machine. A none-clustered environment affects the time and the human
+resumes its operation (rather that restart from scratch) you must
+pre-load the Defense4All (latest or earlier) state snapshot on that
+machine. A non-clustered environment affects the time and the human
 effort to recover from machine failures. The time factor is less
-critical, as Defense4All runs out of path anyway, so its longer
-unavailability for the most part means longer time to detect and
-mitigate new attacks.
+critical, as Defense4All runs out-of-path, so its longer
+non-availability period means a longer time to detect and mitigate new
+attacks.
 
-*State persistence* – Defense4All persists state in Cassandra DB running
-in the same machine. In this release only one Cassandra instance cluster
-is configured. As long as local stable storage does not crash, Linux
-restart of the Defense4All service allows Defense4All to quickly pick up
-its latest state from Cassandra and resume its latest operation. The
-same will happen at failure and restart of the machine hosting
-Defense4All. Taking Defense4All state backup, and restoring on another
-machine allows resuming Defense4All operation on that machine.
-Multi-node Cassandra clusters (in future versions) will increase state
-persistence while reducing recovery time and effort.
+*State Persistence* - Defense4All persists the state in the Cassandra DB
+running on the same machine. In version 1.0, only one Cassandra instance
+cluster is configured. As long as local stable storage does not crash, a
+Linux restart of the Defense4All service enables Defense4All to quickly
+retrieve its latest state from Cassandra and resume its latest
+operation. The same happens at failure and restart of the machine
+hosting Defense4All. Taking the Defense4All state backup, and restoring
+on another machine allows for resuming the Defense4All operation on that
+machine. Multi-node Cassandra clusters (scheduled for future versions)
+will increase state persistence while reducing recovery time and effort.
 
-'''Restart process '''– When Defense4All (re)starts it first checks for
-saved configuration data, and simply re-plays the configuration steps
-against all its relevant modules, driving any relevant external
-programming/configuration actions (e.g., against ODC, AMS devices) – for
-example re-adding a PN. The only difference between this configuration
+*Restart Process* - When Defense4All (re)starts, it first checks for
+saved configuration data, and re-plays the configuration steps against
+all its relevant modules, driving any relevant external programming and/
+or configuration actions (such as against the PFC or AMS devices), for
+example, re-adding a PO. The only difference between this configuration
 replay and original configuration is that any dynamically obtained data
-is preserved – for example all PN statistics. This allows to easily
+is preserved, for example, all PO statistics. This allows for easily
 reaching internal consistency, especially in cases where Defense4All or
-its hosting machine crashed. When configuration action derivatives are
-replayed against external entities, for example adding missing PN stats
-counters, and removing no longer necessary ones – consistency with
-external entities is also reached. Defense4All modules are tolerable to
-already existing full or partial configuration of external entities
-(e.g., counters in switches, traffic redirections, or AMS
-configuration). Finally, Defense4All opens for business (launching its
-web server), and allows the user or other component to complete
+its hosting machine has crashed. When configuration action derivatives
+are replayed against external entities, for example adding missing PO
+stats counters, and removing no longer necessary ones, consistency with
+external entities is also reached. Defense4All becomes operational
+(launching its Web server), lets you or some other component to complete
 Defense4All missing configurations according to possible changes while
-Defense4All was down. This allows reaching end-to-end consistency.
+Defense4All was down. This results in reaching end-to-end consistency.
 
-'''Reset '''– Defense4All allows the user to reset its dynamically
-obtained data and configuration information (factory reset). This allows
-overcoming many logical errors and misconfigurations. Note that mere
-Defense4All restart or failover would not overcome such problems. This
-mechanism, is therefore complementary to the restart-failover mechanism,
-and should typically be applied as last resort.
+*Reset* - Defense4All lets you reset its dynamically obtained data and
+configuration information (factory reset). This enables you to overcome
+many logical errors and mis-configurations. Note that a Defense4All
+restart or failover would not overcome such problems. This mechanism is
+therefore complementary to the restart-failover mechanism, and should
+typically be applied as a last resort.
 
-*Failure isolation and Health Tracker* – In Defense4All failure
-isolation takes place in the form of failure immediate recovery or
-compensation (as much as possible), and failure recording in a special
-module called Health Tracker. Except of handful of substantial failures
-(like failure to start the Framework) no failure in any module
-immediately causes Defense4All to stop. Instead, each module records
-each failure in its scope providing severity specification, and
-indication of failure permanence. If the combined severity (permanent or
-temporary) of all failures exceeds a globally set threshold, the
-HealthTracker triggers Defense4All shutdown (and revival by Linux). In
-the future permanent or repeating temporary faults will cause
+*Failure Isolation and Health Tracker* - In Defense4All, failure
+isolation takes place in the form of a failure of immediate recovery or
+compensation (as much as possible), and a failure recording in a special
+module called Health Tracker. Except for a handful of substantial
+failures (such as a failure to start the Framework), no failure in any
+module immediately causes Defense4All to stop. Instead, each module
+records each failure in its scope, providing severity specifications and
+an indication of failure permanence. If the combined severity (permanent
+or temporary) of all failures exceeds a globally set threshold, the
+HealthTracker triggers Defense4All shutdown (and revival by Linux).
+Later on, permanent or repeating temporary faults will cause
 HealthTracker to trigger Defense4All soft and dynamic reset (of
-dynamically obtained data) or suggest the administrator a factory reset
-(that also includes configuration information).
+dynamically obtained data) or suggest to the administrator to perform a
+factory reset (that also includes configuration information).
 
-*State backup and restore* – The administrator can snapshot Defense4All
-state, save the backup in a different location, and restore in the
-original or new Defense4All location. As stated above, this allows
-overcoming certain logical bugs and mis-configurations, as well as
-permanent failure of machine hosting Defense4All. The steps for
-snapshotting Defense4All state:
+*State Backup and Restore* - The administrator can snapshot the
+Defense4All state, save the backup in a different location, and restore
+to the original or new Defense4All location. This allows overcoming
+certain logical bugs and mis-configurations, as well as the permanent
+failure of the machine hosting Defense4All. To snapshot the Defense4All
+state, do the following:
 
-1.  Quiesce Defense4All – shutdown (causing flush of all current state
+1.  Quiesce (shutdown) Defense4All, causing the current state to flush
 to stable storage). Avoid performing any configurations changes when it
-is brought back up. (thus avoiding new state changes).
-2.  Take the Cassandra snapshot for Defense4All DB - “DF”: Refer to
-http://www.datastax.com/docs/1.0/operations/backup_restore[http://www.datastax.com/docs/1.0/operations/backup_restore]
-for Cassandra backup-restore guidelines.
-3.  Copy the snapshot files to desired storage archive.
+is brought back up, avoiding new state changes.
+2.  Take the Cassandra snapshot for Defense4All DB - "DF": For
+backup-restore guidelines, refer to
+http://www.datastax.com/docs/1.0/operations/backup_restore.
+3.  Copy the snapshot files to the desired storage archive.
 
-The steps for restoring a Defense4All backup in a target machine:
+To restore a Defense4All backup to a target machine, do the following:
 
 1.  Restore the desired saved snapshot in the target machine (same as
-backup or different). Refer to
-http://www.datastax.com/docs/1.0/operations/backup_restore[http://www.datastax.com/docs/1.0/operations/backup_restore]
-for Cassandra backup-restore guidelines.
+backup or different). For Cassandra backup-restore guidelines, refer to
+http://www.datastax.com/docs/1.0/operations/ backup_restore.
 2.  Bring up Cassandra on that machine.
 3.  Bring up Defense4All on that machine.
 
 [[maintenance-and-upgrades]]
-= Maintenance and upgrades
+= Maintenance and Upgrades
 
-A key question in upgrade is whether the format of the data changes.
-Future versions of Defense4All will have to tackle the changed data
-format in one of two ways – 1) either automatically upgrade the state
-format in repository as part of the upgrade process or 2) require
-Defense4All to reset, then remove all existing repository tables, prior
-to creating the ones in the new format. Another key question in upgrade
-is compatibility with external entities – OFC, NetNodes, AMSs.
-StatsCollectionRep, DvsnRep and AmsRep in the upgraded version must be
-able to work with their external entities whether from scratch or from
-previously set configuration and data obtained at runtime.
+A key question regarding upgrading is whether the format of data
+changes. Future versions of Defense4All will have to tackle the changed
+data formats in one of two ways:
+
+1.  Automatically upgrade the state format in the repository as part of
+the upgrade process
+2.  Require Defense4All to reset, then remove, all existing repository
+tables, prior to creating the ones in the new format.
+
+Another key question regarding upgrading is compatibility with external
+entities: OFC, NetNodes, and AMSs. StatsCollectionRep, DvsnRep and
+AmsRep in the upgraded version must be able to work with their external
+entities whether from scratch or from a previously set configuration and
+data obtained at runtime.
 
 The upgrade Defense4All process involves:
 
@@ -1069,17 +1075,24 @@ Because in this version Defense4All is not clustered, cluster rolling
 upgrades do not apply here.
 
 [[new-terms-and-concepts]]
-= New terms and concepts
+= New Terms and Concepts
 
-* *PN* – Protected Network, is a user defined protected network element
-with a given protection specification. The network is specified by any
-combination of two parts – 1) network address range (and optionally only
-protocol-L4 port), and 2) network links through which the specified
-traffic flows. Either of the two parts (but not both) may be
-unspecified. In the first release only the second part is implemented.
-Protection specification indicates a range of attributes related to
-detection and mitigation of attacks against the subject PN.
-* *NetNode* – models a switch or similar network device, along with its
+* *AMS* - Attack mitigation system that detects, mitigates and reports
+network cyber-attacks. For example, Radware's DefensePro is such an AMS
+that is capable of detecting, mitigating, and reporting a broad range of
+cyber- attacks.
+* *Attack* - Suspected or detected DDoS or other network cyber-attack on
+a PN. The attack may be on any combination of a network link,
+destination address, protocol, or Layer 4 port. Defense4All maintains an
+attack lifecycle in which it attempts to mitigate the attack according
+to specifications per the subject PN.
+* *Detection* - Detector indication of a monitored traffic anomaly. The
+detection has an expiration time, and can be renewed.
+* *Mitigation* - The activities that are being performed to mitigate a
+given attack. In this release all attacks are mitigated by diverting
+attacked traffic to DefensePro, and re-injecting clean traffic back into
+the VTN.
+* *NetNode* - models a switch or similar network device, along with its
 traffic ports, protected links and connections to AMSs. NetNode
 specifies interesting network location through which traffic of one or
 more PNs normally flows (if not redirected), and/or to which AMSs are
@@ -1087,65 +1100,58 @@ connected. At peace-time Defense4All sets counters for PN in every
 network through that PN’s traffic flows. At attack Defense4All selects
 one or more AMSs connected to introduced NetNodes, and redirects
 attacked/all traffic to the AMSs connected to those NetNodes.
-* *Traffic port* – port through which inbound or outbound traffic enters
-the NetNode
-* *Protected link* – a set of entry-exit ports in a switch. Defense4All
+* *OFC* - The SDN Controller that supports OpenFlow network programming
+(OFC stands for OpenFlow Controller). OpenDaylight Controller provides
+this flavor both for OpenFlow enabled network devices and other network
+devices.
+* *Protected Network (PN)* - This is a user-defined protected network
+element with a given protection specification. The network is specified
+by any combination of two parts: 1) network address range (and
+optionally only protocol-L4 port), and 2) network links through which
+the specified traffic flows. Either of the two parts (but not both) may
+be unspecified. In version 1.0, only the second part is implemented.
+Protection specification indicates a range of attributes related to
+detection and mitigation of attacks against the subject PN.
+* *Protected Object (PO)* - In Defense4All, protected networks (PNs) are
+referred to as protected objects (POs).
+* *Protected link* - A set of entry-exit ports in a switch. Defense4All
 avoids learning all routing tables by requiring an sdn-native switch set
-as “bump-in-the-wire” in the network topology. Defense4All programs
+as "bump-in-the-wire" in the network topology. Defense4All programs
 non-attacked traffic entering one of the entry-exit pair-ports to exit
 the other.
-* *Traffic floor* – a set of flow entries that Defense4All programs on a
-given NetNode. Different PNs have their own traffic floors – both for
+* *sdn-hybrid and sdn- native* - There are two types of SDN Switches:
+sdn-hybrid, which supports both SDN and legacy routing, and sdn-native,
+which supports SDN-only routing. Counting traffic on a sdn-hybrid switch
+can be done by programming a flow entry with the desired traffic
+selection criteria and the action is send to normal, meaning to continue
+with legacy routing. Counting traffic on an sdn-native switch requires
+an explicit routing action (which output port to send the traffic to).
+Defense4All avoids learning all routing tables by requiring an
+sdn-native switch which is more or less a bump-in the wire with respect
+to traffic routing, meaning traffic entering port 1 normally exits port
+2 and traffic entering port 3 normally exits port 4 and vice versa. Such
+a switch allows for easy programming of flow entries just to count
+traffic or to divert traffic to/from attached AMS. When Defense4All
+programs a traffic counting flow entry with selection criteria that
+includes port 1, its action is outputted to port 2, and similarly with 3
+to 4. This restriction is scheduled to be lifted in future versions. See
+also the Protected link term.
+* *Traffic floor* - A set of flow entries that Defense4All programs on a
+given NetNode. Different PNs have their own traffic floors both for
 peacetime attack detection, and for traffic redirection at attack
 mitigation. Attack traffic floors contain flow entries with priorities
-higher than all previously set attack mitigation traffic floor for that
+higher than all previously set attack mitigation traffic floors for that
 PN, as well as the peacetime traffic floor (which contains flow entries
-with sole purpose of counting PN traffic so as to learn behavior and
-anomalies). Attacks may fully or partially “eclipse” earlier attacks
-(e.g., tcp port 80 over tcp or vice versa) or be disjoint (e.g., tcp and
-udp). Stats collection is taken from all traffic floors – peacetime and
-attacks. SDN based detector aggregates all statistics into overall
-rates, thus determining if the attack is still on. (Notice that eclipsed
-peacetime counted traffic may show zero rates, and that counting is
+with the sole purpose of counting PN traffic so as to learn behavior and
+anomalies). Attacks may fully or partially eclipse earlier attacks (such
+as TCP port 80 over TCP or vice versa) or be disjointed (such as TCP and
+UDP). Statistics collection is taken from all traffic floors: peacetime
+and attacks. The SDN-based detector aggregates all statistics into
+overall rates, determining if the attack is still on. The eclipsed
+peacetime counted traffic may show zero rates, and counting is
 complemented by the higher priority floor counters.
-* *AMS* – Attack mitigation system that detects, mitigates and reports
-network cyber-attacks. For example, Radware’s DefensePro is such an AMS
-that is capable to detect, mitigate and report a broad range of
-cyber-attacks.
-* *Detection* – Detector indication of monitored traffic anomaly. The
-detection has an expiration time, and can be “renewed”.
-* *Attack* – Suspected or detected DDoS or other network cyber-attack on
-a PN. The attack may be on any combination of a network link,
-destination address, protocol, and L4 port. Defense4All maintains an
-attack lifecycle in which it attempts to mitigate the attack according
-to specifications per the subject PN.
-* *Mitigation* – The activity/activities that is/are going on to
-mitigate a given attack. The activities are determined by specification
-per the subject PN, as well as available mitigation and network
-resources. For example, a user may specify for PN1 that attacked/all
-traffic should be redirected to a specific AMS. At the same time the
-user can specify for PN2 that only reporting of attack status is needed.
-* *OFC/ODC* – SDN Controller that supports OpenFlow network programming
-(hence OFC = OpenFlow Controller). OpendDaylight Controller provides
-this flavor both for OpenFlow enabled network devices as well as other
-network devices with adequate plugins in the ODC.
-* *sdn-hybrid and sdn-native* – ODL Reps supports two types of SDN
-Switches: sdn-hybrid, which support both SDN and legacy routing, and
-sdn-native, which supports SDN only routing. Counting traffic in
-sdn-hybrid switch can be simply accomplished by programming a flow entry
-with desired traffic selection criteria and the action is “send to
-normal”, i.e., continue with legacy routing. Counting traffic in
-sdn-native switch requires an explicit routing action (i.e., which
-output port to send the traffic to). Defense4All avoids learning all
-routing tables by requiring an sdn-native switch which is more or less a
-bump-in the wire with respect to traffic routing, i.e., traffic entering
-port 1 normally exits port 2 and traffic entering port 3 normally exits
-port 4 and vice versa. Such a switch allows for easy programming of flow
-entries just to count traffic or to divert traffic to/from attached AMS.
-So when Defense4All programs a traffic counting flow entry with
-selection criteria that includes port 1, its action will be output to
-port 2, and similarly with 3 to 4. In future versions this restriction
-should be lifted. See also the_' Protected link_' term.
+* *Traffic port* - North Vexternal through which traffic enters the VTN
+of a PN. ProtectedLink is the name of the Vbridge in a NetNode.
 
 [[other-information]]
 = Other Information
@@ -1153,16 +1159,17 @@ should be lifted. See also the_' Protected link_' term.
 [[security-and-privacy]]
 === Security and privacy
 
-Defense4All REST API presently does not check for credentials. Nor does
-it define user roles according to which usage of certain REST APIs is
-allowed/restricted.
+The Defense4All REST API presently does not check for credentials. Nor
+does it define user roles according to which usage of certain REST APIs
+is allowed or restricted.
 
 [[compatibility]]
 === Compatibility
 
 This Defense4All version (1.0.7) is compatible with ODC 1.0. The
-reference implementation of AmsRep is over Radware’s DefensePro versions
-– hardware version VL, software versions 6.03, 6.07, 6.09.
+reference implementation of AmsRep is over Radware’s DefensePro
+versions: hardware version ODS-VL, software versions 6.03, 6.07, and
+6.09.
 
 [[performance-and-scalability-information]]
 === Performance and scalability information

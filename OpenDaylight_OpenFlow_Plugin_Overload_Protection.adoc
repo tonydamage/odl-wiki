@@ -1,0 +1,77 @@
+[[overload-protection-in-the-openflow-plugin]]
+= Overload protection in the OpenFlow Plugin
+
+(With inputs from Michal Rehak) +
+Overload protection in the OF Plugin works in the following way: +
+
+1.  The ConnectionConductor is the source from where all incoming
+messages are pushed to queues for async processing. It is the part of
+the OFPlugin closest to OFJava, and has on*Message methods (listeners to
+incoming messages).The ConnectionConductorImpl pushes messages to the
+QueueKeeper. Every ConnectionConductor has a local instance of the
+QueueKeeper. +
+
+::
+  ;;
+    The QueueKeeper has two queues:
+    +
+    -- Unordered (for packetIn messages)
+    +
+    -- Ordered (for other messages)
+    +
+    Both are limited and blocking.
+  +
+  2. If a particular queue is full, the messages pushed to it will be
+  dropped. Upon a successful push, the harverster is pinged to rouse it
+  from hibernation. +
+  +
+  3. A QueueZipper wraps the two queues, and provides the poll method.
+  This poll method rotates regularly through the underlying queues. If
+  the currently polled queue is empty, it polls the next queue. (See
+  QueueKeeperFairImpl). +
+  +
+  4. Each QueueKeeper gets registered by the QueueKeeperHarvester. The
+  Harvester runs upon one thread; iterates through all the registered
+  QueueKeepers; and polls them. The polled message is then queued into
+  the QueueProcessor.
+  +
+  ;;
+    If all the registered queueKeepers are empty, the harverster
+    hibernates. +
+  +
+  5. At the QueueProcessor are several threads translating messages from
+  OFJava-API models to MD-SAL models (preserving order). The
+  QueueProcessor uses two threadPools:
+  +
+  ;;
+    -- One threadPool to process the queue items
+    +
+    -- Another threadPool (containing one thread) to publish messages to
+    the MD-SAL
+    +
+    A queue gets filled for different reasons: +
+    : -- The MD-SAL is overloaded +
+    : -- A node is flooding or generally something slowed down the
+    processing pipeline. +
+
+If the queue in the QueueProcessor is full, it blocks the harvester. If
+the harvester is blocked, the queues in the QueueKeeper will not be
+emptied. +
+*Note*: The current implementation of the feature offers no checking of
+the memory or cpu load to actively throttle messages.
+
+image:overloadProtectionBrief.png[overloadProtectionBrief.png,title="overloadProtectionBrief.png"]
+
+[[effects-of-overload-protection]]
+== Effects of overload protection
+
+* When a node floods the controller, it will not block messages from
+other nodes.
+* The processing of messages is fair. Floody node messages are neither
+prioritized nor do they infest queues outside the ConnectionConductor.
+* Memory is not used up on the controller side as messages gets dropped
+immediately upon an unsuccessful push to the local queue.
+* The functionality cannot create back pressure at the netty level as
+pressure affects the echo message, and might cause a connection close
+action on the switch side.
+

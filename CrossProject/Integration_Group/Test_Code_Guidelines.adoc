@@ -1,0 +1,356 @@
+Some guidelines for writing reliable, maintainable, reusable and
+readable Robot test code:
+
+[[trailing-and-separation-spaces]]
+== Trailing and separation spaces
+
+Some http://robotframework.org/#tools[text editors] compatible with
+robot like https://github.com/robotframework/RIDE/wiki[RIDE]
+(recommended IDE) automatically adjusts trailing and separation spaces
+for your Robot test file. However if you are using a normal text editor
+we recommend to watch the following rules:
+
+* Avoid trailing spaces at the end of any text line
+* Use a minimum of 18 space indent in the Settings and Variables
+sections to separate key and value
+* Use 4 spaces between keywords and arguments in the Test Cases and
+Keywords sections
+
+Example:
+
+-----------------------------------------------------------------------------------------------------------------------------
+*** Settings ***
+Documentation     Test suite to verify Restconf is OK
+Suite Setup       Create Session    session    http://${CONTROLLER}:${RESTCONFPORT}    auth=${AUTH}    headers=${HEADERS_XML}
+Suite Teardown    Delete All Sessions
+Library           RequestsLibrary.py
+Variables         ../../../variables/Variables.py
+Resource          ../../../libraries/Utils.txt
+
+*** Variables ***
+${REST_CONTEXT}    /restconf/modules
+
+*** Test Cases ***
+Get Controller Modules
+    [Documentation]    Get the controller modules via Restconf
+    ${resp}    RequestsLibrary.Get    session    ${REST_CONTEXT}
+    Log    ${resp.content}
+    Should Be Equal As Strings    ${resp.status_code}    200
+    Should Contain    ${resp.content}    ietf-restconf
+-----------------------------------------------------------------------------------------------------------------------------
+
+Note: You can use
+http://robotframework.org/robotframework/latest/RobotFrameworkUserGuide.html#tidy[Robot
+tidy tool] to fix your robot file.
+
+[[using-libraries]]
+== Using Libraries
+
+Robot libraries contain python implemented keywords. There are many
+public libraries you can use, so far we have installed the following in
+CI for you to use:
+
+* Robot standard libraries: http://robotframework.org/robotframework/
+* SSH library: https://code.google.com/p/robotframework-sshlibrary/
+* Requests library: https://github.com/bulkan/robotframework-requests/
+* HTTP library: https://github.com/peritus/robotframework-httplibrary/
+
+Besides public libraries we can also use OpenDaylight custom libraries.
+These are stored in test/csit/libraries. Example of custom library is
+RequestsLibrary.py used across many robot files in CI.
+
+_NOTE_': Public libraries are normally better maintained and documented
+than custom libraries, for this reason we recommend the first whenever
+possible.
+
+Libraries are declared at the top of the robot file in the Settings
+section:
+
+----------------------------------------------
+*** Settings ***
+Library           RequestsLibrary
+Library           ../../../libraries/Common.py
+----------------------------------------------
+
+[[using-custom-keywords-and-resources]]
+== Using custom Keywords and Resources
+
+It is possible to define robot keywords using other robot keywords so
+that we save some code. This is normally done in the Keywords section of
+a robot file:
+
+------------------------------------------------------------------------------------
+*** Keywords ***
+Check Nodes Stats
+    [Arguments]    ${node}
+    [Documentation]    A GET on the /node/${node} API is made and specific flow stat
+    ...    strings are checked for existence.
+    ${resp}    RequestsLibrary.Get    session    ${REST_CONTEXT}/node/${node}
+    Should Be Equal As Strings    ${resp.status_code}    200
+    Should Contain    ${resp.content}    flow-capable-node-connector-statistics
+    Should Contain    ${resp.content}    flow-table-statistics
+------------------------------------------------------------------------------------
+
+A resource file is a robot file normally containing keywords that can be
+imported and used in a test file. We have a collection of resource files
+in test/csit/libraries, some examples:
+
+* Utils.txt: useful general keywords like start/stop mininet, check for
+elements in REST answer, extract JSON values, run command on remote
+system, etc...
+* KarafKeywords.txt: useful Karaf keywords like check feature is
+installed or run karaf command
+* FlowLib.txt: keywords to create/modify flow bodies
+
+*NOTE*: Keywords written in robot are easier to debug than keywords
+written in python, for this reason we recommend the first whenever
+possible.
+
+Resource files are declared in the Settings section:
+
+----------------------------------------------
+*** Settings ***
+Resource          ../../../libraries/Utils.txt
+----------------------------------------------
+
+[[using-variables]]
+== Using Variables
+
+Variables are normally declared in the Variables section of a Robot
+file:
+
+---------------------------------
+*** Variables ***
+${throughput_threshold}     30000
+${latency_threshold}        10000
+${switch_count}             8
+${duration_in_secs}         12
+${loops}                    10
+${num_of_unique_macs}       10000
+---------------------------------
+
+Besides you local defined variables you can import common used variables
+from test/csit/variables/Variables.py file:
+
+--------------------------------------------------
+*** Settings ***
+Variables          ../../../variables/Variables.py
+--------------------------------------------------
+
+Or you can also use the variables defined in a resource file if you
+import the file in your test.
+
+*NOTE*: Variables can be passed at test execution time using the robot
+command (pybot) option '-v variable:value'. Any variable passed at
+execution time has preference over any local definition.
+
+[[stay-away-from-using-a-sleep]]
+== Stay away from using a Sleep
+
+Do not use hard coded delays or sleeps, if at all possible. Determine a
+concrete action you can poll on to determine if your test is ready to
+continue. As an example, see the keyword below. After disabling
+authentication on the controller it may take a few seconds for the
+controller to actually respond to unauthenticated requests. The "Wait
+Until Keyword Succeeds" keyword is used to poll every second for 10
+seconds. This may not seem necessary in this instance, but the time
+savings can be a lot greater in other situations and as more and more
+automation is added, every second counts.
+
+`   Disable Authentication And Re-Enable Authentication` +
+`       [Documentation]    Toggles authentication off and verifies that no login credentials are needed for REST transactions` +
+`       Disable Authentication On Controller    ${CONTROLLER}` +
+`       Wait Until Keyword Succeeds    10s    1s    Make REST Transaction    200` +
+`       Enable Authentication On Controller    ${CONTROLLER}` +
+`       Wait Until Keyword Succeeds    10s    1s    Validate That Authentication Fails With Wrong Token` +
+`       ${auth_token}=    Get Auth Token` +
+`       Make REST Transaction    200    ${auth_token}`
+
+[[make-each-test-case-standalone]]
+== Make each test case standalone
+
+With Robot it's easy to cherry pick a single test case to run from a
+full suite using tags. If that test case relies on work done in a
+previous test case, then this benefit cannot be realized. Each test case
+can use a "Test Setup" to ensure it is prepared to continue. A "Test
+Teardown" can be used to clean anything that might be left over and
+conflict with other tests that may run after it. Additionally, more
+basic setup and teardown can be done in the "Suite Setup" and "Suite
+Teardown" sections. There may be more global needs for the entire suite
+(e.g. configuring clustering) that only need to be done once and not
+before each test case.
+
+`   Add Flows And Verify Across All Controllers In Cluster` +
+`       [Documentation]    Requesting a flow creation from one controller should be seen in the operational store of all` +
+`       ...    controllers in the cluser` +
+`       [Setup]    Start Single Switch Mininet` +
+`       ${dpid}=    Get DPID Of Connected Switch    ${CONTROLLER}` +
+`       Push Flow To DPID    ${CONTROLLER}    ${dpid}    ${flow}` +
+`       Verify Flow Exists On Each Controller In Cluster` +
+`       [Teardown]    Clean Mininet And Ensure All Flows Are Removed`
+
+The above Setup and Teardown sections would be keywords defined in the
+suite's ***keyword*** section itself, or possibly from a common library.
+Furthermore, if most test cases will use the same test case setup and
+teardown, you can define it once in the ***settings*** section using
+[Test Setup] and [Test Teardown]
+
+[[try-to-ensure-the-environment-is-clean-before-starting-the-test-suite]]
+== Try to ensure the environment is clean before starting the test suite
+
+Although it's a good idea and standard practice to clean the test
+environment at the conclusion of a test, it's a good idea to ensure the
+environment is clean and prepared at the beginning of each suite and/or
+test case. Robot provides a [Suite Setup] and [Test Setup] to use in
+this case. Unlike typical test case execution, the Setup steps will all
+execute even if there is trouble in one step. This also applies to
+[Suite Teardown] and [Test Teardown]. This is especially helpful for the
+case when suites are run back to back. An earlier suite may leave the
+system in an undesired state, but with a robust [Suite Setup], we can
+attempt to catch those issues and rectify if possible. As a tangible
+example, using the AAA test case above, we could end up leaving the
+controller with authentication disabled. That could be a quick and easy
+step to a [Suite Setup] (among many others) to validate the proper state
+of authentication.
+
+Over time, a common, robust Keyword covering this type of "cleaning" can
+be developed.
+
+[[test-cases-should-be-short-and-readable]]
+== Test cases should be short and readable
+
+One main benefit of Robot test code is that it's very human readable.
+Keywords can consist of other keywords and test logic can be layered
+such that the high level test case reads very clearly and even a non
+programmer can read it and understand the basic idea of the test.
+
+As an example, take this test case:
+
+`   Add And Delete Flows And Verify On Every Member In Cluster` +
+`       [Documentation]    Push a flow via northbound REST.  Verify the flow exists on the switch, as well as in ` +
+`       ...    each controllers operational and config data stores.  Next delete the flow via northbound REST and` +
+`       ...    verify it's gone from the switch and controller data stores.` +
+`       ${dpid}=    Get DPID Of Connected Switch    ${CONTROLLER_1}` +
+`       ${flow_id}=  Get Last Octet Of DPID    ${dpid}` +
+`       ${flow}=     Create Generic Flow    ${flow_id}` +
+`       Push Flow To DPID    ${CONTROLLER}    ${dpid}    ${flow}` +
+`       Verify Flow On Switch    ${switch_ip}    ${flow}` +
+`       Verify Flow In Controller Operational Store    ${CONTROLLER_1}    ${flow}` +
+`       Verify Flow In Controller Operational Store    ${CONTROLLER_2}    ${flow}` +
+`       Verify Flow In Controller Operational Store    ${CONTROLLER_3}    ${flow}` +
+`       Verify Flow In Controller Config Store    ${CONTROLLER_1}    ${flow}` +
+`       Verify Flow In Controller Config Store    ${CONTROLLER_2}    ${flow}` +
+`       Verify Flow In Controller Config Store    ${CONTROLLER_3}    ${flow}` +
+`       Delete Flow On DPID    ${CONTROLLER_1}    ${dpid}    ${flow}` +
+`       Verify Flow Not On Switch    ${switch_ip}    ${flow}` +
+`       Verify Flow In Not Controller Operational Store    ${CONTROLLER_1}    ${flow}` +
+`       Verify Flow In Not Controller Operational Store    ${CONTROLLER_2}    ${flow}` +
+`       Verify Flow In Not Controller Operational Store    ${CONTROLLER_3}    ${flow}` +
+`       Verify Flow In Not Controller Config Store    ${CONTROLLER_1}    ${flow}` +
+`       Verify Flow In Not Controller Config Store    ${CONTROLLER_2}    ${flow}` +
+`       Verify Flow In Not Controller Config Store    ${CONTROLLER_3}    ${flow}`
+
+The above is rather tame, but should illustrate lots of noise that can
+be moved to keywords in the relevant suite itself, or maybe a common
+library. Most likely, this test suite would have other test cases that
+can make use of these types of keywords, and lots of duplication can be
+removed. We can end up with a much more readable and clear test case. If
+needed, we can drill down in to the relevant keywords to understand more
+details.
+
+`   Add And Delete Flows And Verify On Every Member In Cluster` +
+`       [Documentation]    Push a flow via northbound REST.  Verify the flow exists on the switch, as well as in ` +
+`       ...    each controllers operational and config data stores.  Next delete the flow via northbound REST and` +
+`       ...    verify it's gone from the switch and controller data stores.` +
+`       ${flow}    ${dpid}=    Get DPID And Create Flow Data` +
+`       Push Flow To DPID    ${CONTROLLER}    ${dpid}    ${flow}` +
+`       Verify Flow Exists On Switch    ${switch_ip}    ${flow}` +
+`       Verify Flow Is In Both Data Stores On All Controllers` +
+`       Delete Flow On DPID    ${CONTROLLER_1}    ${dpid}    ${flow}` +
+`       Verify Flow Does Not Exist On Switch    ${switch_ip}    ${flow}` +
+`       Verify Flow Is Not In Both Data Stores On All Controllers`
+
+[[make-use-and-enhance-existing-odl-libraries]]
+== Make use, and enhance existing ODL libraries
+
+` there are tools available to parse out the documentation of robot library files and make them more user friendly.  Will` +
+` post a link here when that's available`
+
+Sharing and enhancing common libraries is an efficient way to quickly
+add new and better tests.
+
+[[complete-documentation]]
+== Complete Documentation
+
+The suite level documentation should describe the overall strategy and
+purpose of the entire test suite. Each test case should have a
+documentation section describing the steps taken and expected outcome.
+Using Robot suites as the actual test plan itself is one method of tying
+the actual test code to the plan. Test cases can be stubbed out with
+details about the plan for each test in the documentation section, with
+actual test code coming at a later time. If checked in, the "test plan"
+in robot form can be reviewed and vetted by others by just looking in
+the integration repository.
+
+If the test suite requires an external dependency (e.g. only works with
+virtual switch "X") then it should be noted in the suite level
+documentation.
+
+[[maybe-your-test-suite-is-better-in-a-data-driven-approach]]
+== Maybe your test suite is better in a data-driven approach
+
+Robot Framework allows a test case to use a [Test Template] to do the
+work, using just the arguments given in the test case section. This can
+be very efficient when the test plan consists of the same basic set of
+steps with only a few changes in input.
+
+Here is an example from
+`test/csit/suites/openflowplugin/Flows_OF13/305__ttl.robot` with some
+lines removed for brevity. The basic format of all the test cases is the
+same, but the inputs to the test case are different. The first test case
+uses a flow to set the TTL whereas the second case wants to decrement
+the TTL. Other arguments used in the template are things like flow ID,
+etc. The actual meat of the test case can be seen in the Keywords
+section, although this keyword could have come from a common library as
+well.
+
+`   *** Settings ***` +
+`   Test Template     Create And Remove Flow` +
+`   ` +
+`   *** Test Cases ***    ODL flow action        action key             action value    tableID    flowID    verify OVS?    OVS specific string?` +
+`   Set_IP_TTL            [Documentation]        ${set_ip_ttl_doc}` +
+`                         [Tags]                 ttl                    set` +
+`                         set-nw-ttl-action      nw-ttl                 1               2          101       no             set_ttl` +
+`   ` +
+`   Dec_TTL               [Documentation]        ${dec_ttl_doc}` +
+`                         [Tags]                 ttl                    dec` +
+`                         dec-nw-ttl             none                   none            3          305       yes            dec_ttl` +
+`   ` +
+`   Copy_TTL_In           [Documentation]        ${copy_ttl_in_doc}` +
+`                         [Tags]                 ttl                    copyin` +
+`                         copy-ttl-in            none                   none            9          202       no             copy_ttl_in` +
+`   ` +
+`   *** Keywords ***` +
+`   Create And Remove Flow` +
+`       [Arguments]    ${flow_action}    ${action_key}    ${action_value}    ${table_id}    ${flow_id}    ${verify_switch_flag}` +
+`       ...    ${additional_ovs_flowelements}` +
+`       @{OVS_FLOWELEMENTS}    Create List    dl_dst=${eth_dst}    table=${table_id}    dl_src=${eth_src}    nw_src=${ipv4_src}    nw_dst=${ipv4_dst}` +
+`       ...    ${additional_ovs_flowelements}` +
+`       ##The dictionaries here will be used to populate the match and action elements of the flow mod` +
+`       ${ethernet_match_dict}=    Create Dictionary    type=${eth_type}    destination=${eth_dst}    source=${eth_src}` +
+`       ${ipv4_match_dict}=    Create Dictionary    source=${ipv4_src}    destination=${ipv4_dst}` +
+`       ##flow is a python Object to build flow details, including the xml format to send to controller` +
+`       ${flow}=    Create Inventory Flow` +
+`       Set "${flow}" "table_id" With "${table_id}"` +
+`       Set "${flow}" "id" With "${flow_id}"` +
+`       Clear Flow Actions    ${flow}` +
+`       Set Flow Action    ${flow}    0    0    ${flow_action}` +
+`       Set Flow Ethernet Match    ${flow}    ${ethernet_match_dict}` +
+`       Set Flow IPv4 Match    ${flow}    ${ipv4_match_dict}` +
+`       ##If the ${flow_action} contains the string "set" we need to include a deeper action detail (e.g. set-ttl needs a element to indicate the value to set it to)` +
+`       Run Keyword If    "set" in "${flow_action}"    Add Flow XML Element    ${flow}    ${action_key}    ${action_value}    instructions/instruction/apply-actions/action/${flow_action}` +
+`       Log    Flow XML is ${flow.xml}` +
+`       Add Flow To Controller And Verify    ${flow.xml}    ${node_id}    ${flow.table_id}    ${flow.id}` +
+`       Run Keyword If    "${verify_switch_flag}" == "yes"    Verify Flow On Mininet Switch    ${OVS_FLOWELEMENTS}` +
+`       Remove Flow From Controller And Verify    ${flow.xml}    ${node_id}    ${flow.table_id}    ${flow.id}` +
+`       Run Keyword If    "${verify_switch_flag}" == "yes"    Verify Flow Does Not Exist On Mininet Switch    ${OVS_FLOWELEMENTS}`

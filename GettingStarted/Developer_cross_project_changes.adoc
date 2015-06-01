@@ -1,0 +1,140 @@
+*DRAFT*
+
+There are scenarios in which multiple ODL projects must be edited in
+order to achieve the desired changes. This becomes particularly
+burdensome on the developer, as it impacts the code compilation,
+testing, and contribution.
+
+[[code-compilation]]
+= Code Compilation
+
+A common use case is making a change in a sub-project, and then
+compiling that change against the integration project. This is
+particularly useful because features from all projects can be installed
+in the integration karaf shell.
+
+For this example, all of the ODL projects have been downloaded to the
+location /code/odl. For more information on pulling the code, see
+https://wiki.opendaylight.org/index.php?title=GettingStarted:Pulling,_Hacking,_and_Pushing_All_the_Code_from_the_CLI&section=5#Pull_code_via_git_CLI[Pull
+code via Git CLI].
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------
+[user@localhost ovsdb]$ pwd
+/code/odl
+[user@localhost odl]$ ls
+aaa       controller   dlux-He-changes  groupbasedpolicy  lispflowmapping  openflowjava    ovsdb        reservation      snbi      toolkit  yangtools
+affinity  defense4all  dlux-Li-changes  integration       odlparent        openflowplugin  packetcable  sdninterfaceapp  snmp4sdn  ttp
+bgpcep    dlux         docs             l2switch          opendove         opflex          releng       sfc              tcpmd5    vtn
+-----------------------------------------------------------------------------------------------------------------------------------------------------
+
+For this example, changes will be made to the OVSDB project to add a
+trivial log message.
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------
+[user@localhost odl]$ cd ovsdb
+[user@localhost ovsdb]$ vi southbound/southbound-impl/src/main/java/org/opendaylight/ovsdb/southbound/ovsdb/transact/TerminationPointCreateCommand.java
+-------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Add the following code as the first statement in the execute() method:
+
+--------------------------------------------------------------------------------------------------------------------------------------------------------------
+[ryan@localhost ovsdb]$ git diff
+diff --git a/southbound/southbound-impl/src/main/java/org/opendaylight/ovsdb/southbound/ovsdb/transact/TerminationPointCreateCommand.java b/southbound/southbo
+index d4ee1ac..419b784 100644
+--- a/southbound/southbound-impl/src/main/java/org/opendaylight/ovsdb/southbound/ovsdb/transact/TerminationPointCreateCommand.java
++++ b/southbound/southbound-impl/src/main/java/org/opendaylight/ovsdb/southbound/ovsdb/transact/TerminationPointCreateCommand.java
+@@ -58,6 +58,7 @@ public class TerminationPointCreateCommand extends AbstractTransactCommand {
+ 
+     @Override
+     public void execute(TransactionBuilder transaction) {
++        LOG.debug("TerminationPointCreateCommand.execute() invoked");
+         for (Entry<InstanceIdentifier<?>, DataObject> entry: getChanges().getCreatedData().entrySet()) {
+             DataObject dataObject = entry.getValue();
+             if (dataObject instanceof OvsdbTerminationPointAugmentation) {
+--------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Now there is a three step process to compile the changes. First,
+integration must be compiled on its own so that the proper dependencies
+are resolved.
+
+-------------------------------------------------
+[user@localhost ovsdb]$ cd /code/odl/integration/
+[user@localhost integration]$ mvn clean install
+-------------------------------------------------
+
+After integration builds successfully, then ovsdb is compiled.
+
+------------------------------------------------
+[user@localhost integration]$ cd /code/odl/ovsdb
+[user@localhost ovsdb]$ mvn clean install
+------------------------------------------------
+
+After ovsdb builds successfully, the compiled files with changes made
+above are put into the local .m2/repository. Next, integration is built
+again, but this time options are passed to ensure that mvn chooses the
+local changes in the .m2/repository instead of attempting to download
+them from the ODL Nexus Repository.
+
+-------------------------------------------------
+[user@localhost ovsdb]$ cd /code/odl/integration/
+[user@localhost integration]$ mvn install -nsu -o
+-------------------------------------------------
+
+This compiles integration against the OVSDB changes made above. To run
+the integration karaf shell, you can now invoke the following:
+
+----------------------------------------------------------------------------------------------------------------------------------------
+[user@localhost integration]$ cd distributions/extra/karaf/target/assembly/
+[user@localhost assembly]$ bin/karaf
+karaf: Enabling Java debug options: -Xdebug -Xnoagent -Djava.compiler=NONE -Xrunjdwp:transport=dt_socket,server=y,suspend=n,address=5005
+Listening for transport dt_socket at address: 5005
+                                                                                           
+    ________                       ________                .__  .__       .__     __       
+    \_____  \ ______   ____   ____ \______ \ _____  ___.__.|  | |__| ____ |  |___/  |_     
+     /   |   \\____ \_/ __ \ /    \ |    |  \\__  \<   |  ||  | |  |/ ___\|  |  \   __\    
+    /    |    \  |_> >  ___/|   |  \|    `   \/ __ \\___  ||  |_|  / /_/  >   Y  \  |      
+    \_______  /   __/ \___  >___|  /_______  (____  / ____||____/__\___  /|___|  /__|      
+            \/|__|        \/     \/        \/     \/\/            /_____/      \/          
+                                                                                           
+
+Hit '<tab>' for a list of available commands
+and '[cmd] --help' for help on a specific command.
+Hit '<ctrl-d>' or type 'system:shutdown' or 'logout' to shutdown OpenDaylight.
+
+opendaylight-user@root>feature:install odl-restconf odl-l2switch-switch odl-mdsal-apidocs odl-dlux-core odl-ovsdb-all
+opendaylight-user@root>
+----------------------------------------------------------------------------------------------------------------------------------------
+
+[[testing]]
+= Testing
+
+At a minimum, make sure to test changes against any projects you change,
+as well as integration. In this case, changes are tested against OVSDB
+and integration.
+
+----------------------------------------------------------
+[user@localhost assembly]$ cd /code/odl/ovsdb
+[user@localhost ovsdb]$ mvn verify
+[user@localhost ovsdb]$ mvn verify -Pintegrationtest
+[user@localhost ovsdb]$ cd /code/odl/integration
+[user@localhost integration]$ mvn verify
+[user@localhost integration]$ mvn verify -Pintegrationtest
+----------------------------------------------------------
+
+Ensure that all tests pass, and that your changes have not caused an
+unintended regression.
+
+[[contribution]]
+= Contribution
+
+In the example above, changes are made for one project (OVSDB). However,
+there are instances in which changes span multiple projects, which can
+make the contribution a bit more difficult. In some cases, the changes
+may be contributed in any order, and are not dependent on each other's
+existence. In this easy case, the changes can be reviewed and committed
+in any order. In other cases, changes are linked and must be committed
+in the same relative time span in a multi-phase commit to avoid build
+breakage. This requires human collaboration across projects,
+particularly amongst the project committers. Please make sure the
+committers are aware that the changes span multiple projects and are
+co-dependent.

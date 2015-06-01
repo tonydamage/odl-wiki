@@ -1,0 +1,656 @@
+[[restconf]]
+== RESTCONF
+
+A guide how to view BGP and PCEP data through RESTCONF can be found
+here: BGP LS PCEP:Restconf[Restconf].
+
+[[lsp-manipulation]]
+== LSP manipulation
+
+Manipulating LSPs (tunnels) from PCEP is described here:
+BGP LS PCEP:Lithium Operations Guide[Operations Guide]
+
+[[writing-protocol-extensions]]
+== Writing protocol extensions
+
+An extension to a protocol means basically adding parsers and
+serializers for new elements, such as messages, objects, tlvs or
+subobjects. This is usually necessary when you are extending the
+protocol with another RFC or draft. Both BGP and PCEP parsers are
+pluggable and you can specify which extensions to load alongside to the
+base parser in the configuration file.
+
+[[writing-an-extension-to-pce-protocol]]
+=== Writing an extension to PCE protocol
+
+[[current-standards-support]]
+===== Current standards support
+
+Current pcep base-parser implementation supports following RFCs:
+
+*http://tools.ietf.org/html/rfc5440[RFC5440]* - Path Computation Element
+(PCE) Communication Protocol (PCEP) +
+*http://tools.ietf.org/html/rfc5541[RFC5541]* - Encoding of Objective
+Functions in the Path Computation Element Communication Protocol
+(PCEP) +
+*http://tools.ietf.org/html/rfc5455[RFC5455]* - Diffserv-Aware
+Class-Type Object for the Path Computation Element Communication
+Protocol +
+*http://tools.ietf.org/html/rfc5521[RFC5521]* - Extensions to the Path
+Computation Element Communication Protocol (PCEP) for Route Exclusions +
+*http://tools.ietf.org/html/rfc5557[RFC5557]* - Path Computation Element
+Communication Protocol (PCEP) Requirements and Protocol Extensions in
+Support of Global Concurrent Optimization +
+ There are already two extensions for: +
+*http://tools.ietf.org/html/draft-ietf-pce-stateful-pce[draft-ietf-pce-stateful-pce]*
+- in version 07 +
+*http://tools.ietf.org/html/draft-ietf-pce-pce-initiated-lsp[draft-ietf-pce-pce-initiated-lsp]*
+- version ietf-initiated-00 +
+
+code,xml-------------------------------------------------- code,xml
+ <dependency>
+     <groupId>${project.groupId}</groupId>
+     <artifactId>pcep-ietf-stateful07</artifactId>
+ </dependency>
+--------------------------------------------------
+
+[[how-to-implement-an-extension-to-pcep]]
+===== How to implement an extension to PCEP
+
+* Create a separate artefact (eclipse project) for your extension. Make
+sure it depends on pcep-api and pcep-spi.
+
+* Write yang model for new elements or augment existing ones. Perform
+'mvn install' to generate files from the model.
+
+* Write parsers and serializers. All parsers need to implement *Parser
+and *Serializer interfaces from pcep-spi (e.g. if you are writing a new
+TLV, your parser should implement TlvParser and TlvSerializer). Add
+Activator, that extends AbstractPCEPExtensionProviderActivator, where
+you register your parsers and serializers.
+
+[[update-configuration]]
+====== Update configuration
+
+* Update _32-pcep.xml_. Register your parser as a module in pcep-impl:
+
+code,xml----------------------------------------------------------------------------------------------------------------------
+code,xml
+ <module>
+    <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:pcep:impl">prefix:pcep-parser-new-parser</type>
+    <name>pcep-parser-new-parser</name>
+ </module>
+----------------------------------------------------------------------------------------------------------------------
+
+* Add it as an extension to pcep-parser-base:
+
+code,xml----------------------------------------------------------------------------------------------------------
+code,xml
+ <extension>
+    <type xmlns:pcepspi="urn:opendaylight:params:xml:ns:yang:controller:pcep:spi">pcepspi:extension</type>
+    <name>pcep-parser-new-parser</name>
+ </extension>
+----------------------------------------------------------------------------------------------------------
+
+* Add it's instance to services:
+
+code,xml----------------------------------------------------------------------------------------------------------------------
+code,xml
+ <instance>
+    <name>pcep-parser-new-parser</name>
+    <provider>/config/modules/module[name='pcep-parser-new-parser']/instance[name='pcep-parser-new-parser']</provider>
+ </instance>
+----------------------------------------------------------------------------------------------------------------------
+
+* Update odl-pcep-impl-cfg.yang so that it generates Module and
+ModuleFactory classes for your new parser.
+
+code,java------------------------------------------------ code,java
+ identity pcep-parser-new-parser {
+    base config:module-type;
+    config:provided-service spi:extension;
+    config:java-name-prefix NewParserPCEPParser;
+ }
+------------------------------------------------
+
+------------------------------------------------------------------------------------
+ augment "/config:modules/config:module/config:configuration" {
+    case pcep-parser-new-parser {
+        when "/config:modules/config:module/config:type = 'pcep-parser-new-parser'";
+    }
+ }
+------------------------------------------------------------------------------------
+
+Run mvn install on pcep-impl-config to generate Module and ModuleFactory
+files.
+
+* Update Module to start your NewParserPCEPParserModule.java whent it's
+created.
+
+code,java-------------------------------------------------- code,java
+ @Override
+ public java.lang.AutoCloseable createInstance() {
+    return new InitiatedActivator();
+ }
+--------------------------------------------------
+
+[[vendor-specific-constraints-in-pcep]]
+==== Vendor Specific Constraints in PCEP
+
+http://tools.ietf.org/html/draft-ietf-pce-rfc7150bis-00[_draft-ietf-pce-rfc7150bis-00_]
+- Conveying Vendor-Specific Constraints in the Path Computation Element
+communication Protocol.
+
+Draft defines new PCEP object - Vendor Information object, that can be
+used to carry arbitrary, proprietary information such as vendor-specific
+constraints. Draft also defines new PCEP TLV - Vendor Information TLV
+that can be used to carry arbitrary information within any PCEP object
+that supports TLVs.
+
+The ODL's PCEP supports _draft-ietf-pce-rfc7150bis-00_ and provides
+abstraction for developers to create vendor-specific TLVs/objects
+extensions. The yang model of _vendor-information-tlv/object_ is defined
+in _pcep-types.yang_ and used in pcep objects/messages as defined in the
+draft.
+
+This tutorial shows how to develop PCEP extension of vendor-information
+object and TLV for fictional company named _My Vendor_, whose enterprise
+number is 0. A result will be OSGi bundle and initial configuration xml
+file, that supports MY-VENDOR-TLV and MY-VENDOR-OBJECT in ODL.
+
+* First, create simple maven module named _pcep-my-vendor_. For
+simplification assume the module's parent is _pcep_ maven project. For
+bundle packaging add plugin _maven-bundle-plugin_ into pom.xml and also
+_yang-maven-plugin_ for compile-time java code generating.
+
+code,xml-------------------------------------------------------------------------------
+code,xml
+  <artifactId>pcep-my-vendor</artifactId>
+  <description>PCEP MY VENDOR EXTENSION</description>
+  <packaging>bundle</packaging>
+  <name>${project.artifactId}</name>
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.felix</groupId>
+        <artifactId>maven-bundle-plugin</artifactId>
+        <extensions>true</extensions>
+        <configuration>
+          <instructions>
+            <Bundle-Name>${project.groupId}.${project.artifactId}</Bundle-Name>
+          </instructions>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.opendaylight.yangtools</groupId>
+        <artifactId>yang-maven-plugin</artifactId>
+      </plugin>
+    </plugins>
+  </build>
+-------------------------------------------------------------------------------
+
+* Add required dependencies into _pom.xml_
+
+code,xml---------------------------------------------------- code,xml
+  <dependencies>
+    <dependency>
+      <groupId>org.opendaylight.controller</groupId>
+      <artifactId>config-api</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>pcep-api</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>pcep-spi</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>pcep-impl</artifactId>
+    </dependency>
+  </dependencies>
+----------------------------------------------------
+
+[[vendor-information-tlv]]
+===== Vendor Information TLV
+
+The Vendor Information TLV can be used to carry vendor-specific
+information that applies to a specific PCEP object by including the TLV
+in the object. For the tutorial purposes, define MY-VENDOR-TLV, which
+can be loaded wih just simple unsigned 32-bit integer (4 bytes) as it's
+value and the TLV is carried in Open object.
+
+* *Yang model*
+** Initial step is to extend _pcep-types_ and _pcep-message_ yang
+models, augmentation target is _enterprise-specific-information_
+(choice) located in Open messages's Open object. Create yang file (i.e.
+_pcep-my-vendor.yang_), in project's _src/main/yang_ folder, with
+definition of the vendor information and required augmentations.
+** Now build project with maven, after that generated Java API's appears
+in _target/generated-sources/sal_.
+
+-----------------------------------------------------------------------------------------------------------------------
+grouping my-vendor-information {
+    leaf payload {
+        type uint32;
+    }
+}
+
+augment "/msg:open/msg:open-message/msg:open/msg:tlvs/msg:vendor-information-tlv/msg:enterprise-specific-information" {
+    case my-vendor {
+        when "enterprise-number = 0";
+        uses my-vendor-information;
+    }
+}
+-----------------------------------------------------------------------------------------------------------------------
+
+* *Vendor Information TLV parser/serializer*
+** Next step is an implemantation of the
+_enterprise-sepecific-information_ (TLV's value) parser/serializer. It
+is simple serialization/deserialization of unsigned integer (long type
+in Java representation), other functionality is already presented in
+_org.opendaylight.protocol.pcep.impl.tlv.AbstractVendorInformationTlvParser_
+abstract class. Create class extending
+_AbstractVendorInformationTlvParser_ and implement missing methods.
+
+code,java-----------------------------------------------------------------------------------------------------------------------
+code,java
+public class MyVendorInformationTlvParser extends AbstractVendorInformationTlvParser {
+
+    private static final EnterpriseNumber EN = new EnterpriseNumber(0L);
+
+    @Override
+    public EnterpriseNumber getEnterpriseNumber() {
+        return EN;
+    }
+
+    @Override
+    public EnterpriseSpecificInformation parseEnterpriseSpecificInformation(final ByteBuf buffer)
+            throws PCEPDeserializerException {
+        return new MyVendorBuilder().setPayload(buffer.readUnsignedInt()).build();
+    }
+
+    @Override
+    public void serializeEnterpriseSpecificInformation(final EnterpriseSpecificInformation esi, final ByteBuf buffer) {
+        final MyVendor myVendorInfo = (MyVendor) esi;
+        buffer.writeInt(myVendorInfo.getPayload().intValue());
+    }
+
+}
+-----------------------------------------------------------------------------------------------------------------------
+
+* *Vendor Information TLV activator*
+** Now, parser/serializer needs to be registered to
+_VendorInformationTlvRegistry_. Create class extending
+_AbstractPCEPExtensionProviderActivator_ and implement _startImpl_
+method - register parser idenfied by enterprise number and register
+serializer identified by the class extending
+_EnterpriseSpecificInformation_.
+
+code,java---------------------------------------------------------------------------------------------------
+code,java
+public class Activator extends AbstractPCEPExtensionProviderActivator {
+
+    @Override
+    protected List<AutoCloseable> startImpl(PCEPExtensionProviderContext context) {
+        final List<AutoCloseable> regs = new ArrayList<>();
+        final MyVendorInformationTlvParser parser = new MyVendorInformationTlvParser();
+        regs.add(context.registerVendorInformationTlvParser(parser.getEnterpriseNumber(), parser));
+        regs.add(context.registerVendorInformationTlvSerializer(MyVendor.class, parser));
+        return regs;
+    }
+
+}
+---------------------------------------------------------------------------------------------------
+
+* *Configuration module*
+** Next, create configuration yang module with name i.e.
+_pcep-my-vendor-cfg.yang_. Define My Vendor parser _extension_ service
+provider config module.
+** Build project with maven to generate cofiguration module and module
+factory. They are located in _src/main/java_.
+** Implement _MyVendorPCEPParserModule#createInstance()_ - return
+instance of _Activator_ created above.
+
+-----------------------------------------------------------------------------------
+identity pcep-parser-my-vendor {
+    base config:module-type;
+    config:provided-service spi:extension;
+    config:java-name-prefix MyVendorPCEPParser;
+}
+
+augment "/config:modules/config:module/config:configuration" {
+    case pcep-parser-my-vendor {
+        when "/config:modules/config:module/config:type = 'pcep-parser-my-vendor'";
+    }
+}
+-----------------------------------------------------------------------------------
+
+code,java----------------------------------------------------- code,java
+    @Override
+    public java.lang.AutoCloseable createInstance() {
+        return new Activator();
+    }
+-----------------------------------------------------
+
+* *Initial configuration*
+** Finally, create initial configuration xml file, where module
+_pcep-parser-my-vendor_ is instantiated and injected into the
+_global-pcep-extensions_.
+
+code,xml---------------------------------------------------------------------------------------------------------------------------------------------------
+code,xml
+<snapshot>
+    <required-capabilities>
+        <capability>urn:opendaylight:params:xml:ns:yang:controller:pcep:spi?module=odl-pcep-spi-cfg&amp;revision=2013-11-15</capability>
+       <capability>urn:opendaylight:params:xml:ns:yang:controller:pcep:my:vendor:cfg?module=pcep-my-vendor-cfg&amp;revision=2014-09-20</capability>
+    </required-capabilities>
+    <configuration>
+        <data xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+            <modules xmlns="urn:opendaylight:params:xml:ns:yang:controller:config">
+                <module>
+                    <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:pcep:spi">prefix:pcep-extensions-impl</type>
+                    <name>global-pcep-extensions</name>
+                    <extension>
+                        <type xmlns:pcepspi="urn:opendaylight:params:xml:ns:yang:controller:pcep:spi">pcepspi:extension</type>
+                        <name>pcep-parser-my-vendor</name>
+                    </extension>
+                </module>
+                <module>
+                    <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:pcep:my:vendor:cfg">prefix:pcep-parser-my-vendor</type>
+                    <name>pcep-parser-my-vendor</name>
+                </module>
+            </modules>
+            <services xmlns="urn:opendaylight:params:xml:ns:yang:controller:config">
+                <service>
+                    <type xmlns:pcepspi="urn:opendaylight:params:xml:ns:yang:controller:pcep:spi">pcepspi:extension</type>
+                    <instance>
+                        <name>pcep-parser-my-vendor</name>
+                        <provider>/config/modules/module[name='pcep-parser-my-vendor']/instance[name='pcep-parser-my-vendor']</provider>
+                    </instance>
+                </service>
+           </services>
+        </data>
+    </configuration>
+</snapshot>
+---------------------------------------------------------------------------------------------------------------------------------------------------
+
+[[vendor-information-object]]
+===== Vendor Information object
+
+For the tutorial purposes, define MY-VENDOR-OBJECT, which can be loaded
+with Ipv4 address (4 bytes) as it's value and the object is carried in
+PCRep message's response.
+
+* *Yang model*
+** Initial step is to extend _pcep-types_ and _pcep-message_ yang
+models, augmentation target is _enterprise-specific-information_
+(choice) located in PCRep messages. Create yang file (i.e.
+_pcep-my-vendor.yang_), in project's _src/main/yang_ folder, with
+definition of the vendor information and required augmentations.
+** Now build project with maven, after that generated Java API's appears
+in _target/generated-sources/sal_.
+
+----------------------------------------------------------------------------------------------------------------------
+grouping my-vendor-information {
+    leaf payload {
+        type inet:ipv4-address;
+    }
+}
+
+augment "/msg:pcrep/msg:pcrep-message/msg:replies/msg:vendor-information-object/msg:enterprise-specific-information" {
+    case my-vendor {
+        when "enterprise-number = 0";
+        uses my-vendor-information;
+    }
+}
+----------------------------------------------------------------------------------------------------------------------
+
+* *Vendor Information object parser/serializer*
+** Next step is an implemantation of the
+_enterprise-sepecific-information_ (Object's value) parser/serializer.
+It is simple serialization/deserialization of Ipv4 Address, other
+functionality is already presented in
+_org.opendaylight.protocol.pcep.impl.object.AbstractVendorInformationObjectParser_
+abstract class. Create class extending
+_AbstractVendorInformationObjectParser_ and implement missing methods.
+
+code,java-----------------------------------------------------------------------------------------------------------------------
+code,java
+public class MyVendorInformationObjectParser extends AbstractVendorInformationObjectParser {
+
+    private static final EnterpriseNumber EN = new EnterpriseNumber(0L);
+
+    @Override
+    public EnterpriseNumber getEnterpriseNumber() {
+        return EN;
+    }
+
+    @Override
+    public EnterpriseSpecificInformation parseEnterpriseSpecificInformation(final ByteBuf buffer)
+            throws PCEPDeserializerException {
+        return new MyVendorBuilder().setPayload(Ipv4Util.addressForByteBuf(buffer)).build();
+    }
+
+    @Override
+    public void serializeEnterpriseSpecificInformation(final EnterpriseSpecificInformation esi, final ByteBuf buffer) {
+        final MyVendor myVendor = (MyVendor) esi;
+        buffer.writeBytes(Ipv4Util.bytesForAddress(myVendor.getPayload()));
+    }
+
+}
+-----------------------------------------------------------------------------------------------------------------------
+
+* *Vendor Information object activator*
+** Now, parser/serializer needs to be registered to
+_VendorInformationObjectRegistry_. Create class extending
+_AbstractPCEPExtensionProviderActivator_ and implement _startImpl_
+method - register parser idenfied by enterprise number and register
+serializer identified by the class extending
+_EnterpriseSpecificInformation_.
+
+code,java------------------------------------------------------------------------------------------------------
+code,java
+public class Activator extends AbstractPCEPExtensionProviderActivator {
+
+    @Override
+    protected List<AutoCloseable> startImpl(PCEPExtensionProviderContext context) {
+        final List<AutoCloseable> regs = new ArrayList<>();
+        final MyVendorInformationObjectParser parser = new MyVendorInformationObjectParser();
+        regs.add(context.registerVendorInformationObjectParser(parser.getEnterpriseNumber(), parser));
+        regs.add(context.registerVendorInformationObjectSerializer(MyVendor.class, parser));
+        return regs;
+    }
+
+}
+------------------------------------------------------------------------------------------------------
+
+* *Configuration module*
+** Next, create configuration yang module with name i.e.
+_pcep-my-vendor-cfg.yang_. Define My Vendor parser _extension_ service
+provider config module.
+** Build project with maven to generate cofiguration module and module
+factory. They are located in _src/main/java_.
+** Implement _MyVendorPCEPParserModule#createInstance()_ - return
+instance of _Activator_ created above.
+
+-----------------------------------------------------------------------------------
+identity pcep-parser-my-vendor {
+    base config:module-type;
+    config:provided-service spi:extension;
+    config:java-name-prefix MyVendorPCEPParser;
+}
+
+augment "/config:modules/config:module/config:configuration" {
+    case pcep-parser-my-vendor {
+        when "/config:modules/config:module/config:type = 'pcep-parser-my-vendor'";
+    }
+}
+-----------------------------------------------------------------------------------
+
+code,java----------------------------------------------------- code,java
+    @Override
+    public java.lang.AutoCloseable createInstance() {
+        return new Activator();
+    }
+-----------------------------------------------------
+
+* *Initial configuration*
+** Finally, create initial configuration xml file, where module
+_pcep-parser-my-vendor_ is instantiated and injected into the
+_global-pcep-extensions_.
+
+code,xml---------------------------------------------------------------------------------------------------------------------------------------------------
+code,xml
+<snapshot>
+    <required-capabilities>
+        <capability>urn:opendaylight:params:xml:ns:yang:controller:pcep:spi?module=odl-pcep-spi-cfg&amp;revision=2013-11-15</capability>
+       <capability>urn:opendaylight:params:xml:ns:yang:controller:pcep:my:vendor:cfg?module=pcep-my-vendor-cfg&amp;revision=2014-09-20</capability>
+    </required-capabilities>
+    <configuration>
+        <data xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+            <modules xmlns="urn:opendaylight:params:xml:ns:yang:controller:config">
+                <module>
+                    <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:pcep:spi">prefix:pcep-extensions-impl</type>
+                    <name>global-pcep-extensions</name>
+                    <extension>
+                        <type xmlns:pcepspi="urn:opendaylight:params:xml:ns:yang:controller:pcep:spi">pcepspi:extension</type>
+                        <name>pcep-parser-my-vendor</name>
+                    </extension>
+                </module>
+                <module>
+                    <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:pcep:my:vendor:cfg">prefix:pcep-parser-my-vendor</type>
+                    <name>pcep-parser-my-vendor</name>
+                </module>
+            </modules>
+            <services xmlns="urn:opendaylight:params:xml:ns:yang:controller:config">
+                <service>
+                    <type xmlns:pcepspi="urn:opendaylight:params:xml:ns:yang:controller:pcep:spi">pcepspi:extension</type>
+                    <instance>
+                        <name>pcep-parser-my-vendor</name>
+                        <provider>/config/modules/module[name='pcep-parser-my-vendor']/instance[name='pcep-parser-my-vendor']</provider>
+                    </instance>
+                </service>
+           </services>
+        </data>
+    </configuration>
+</snapshot>
+---------------------------------------------------------------------------------------------------------------------------------------------------
+
+[[writing-an-extension-to-bgp]]
+=== Writing an extension to BGP
+
+[[current-standards-support-1]]
+===== Current standards support
+
+Current bgp base-parser implementation supports following RFCs:
+
+*http://tools.ietf.org/html/rfc4271[RFC4271]* - A Border Gateway
+Protocol 4 (BGP-4) +
+*http://tools.ietf.org/html/rfc4724[RFC4724]* - Graceful Restart
+Mechanism for BGP +
+*http://tools.ietf.org/html/rfc4760[RFC4760]* - Multiprotocol Extensions
+for BGP-4 +
+*http://tools.ietf.org/html/rfc1997[RFC1997]* - BGP Communities
+Attribute +
+*http://tools.ietf.org/html/rfc4360[RFC4360]* - BGP Extended Communities
+Attribute +
+*http://tools.ietf.org/html/rfc6793[RFC6793]* - BGP Support for
+Four-Octet Autonomous System (AS) Number Space (NEW speaker only) +
+ There is already one extension for: +
+*http://tools.ietf.org/html/draft-ietf-idr-ls-distribution[draft-ietf-idr-ls-distribution]*
+- in version 04 +
+
+code,xml------------------------------------------ code,xml
+ <dependency>
+    <groupId>${project.groupId}</groupId>
+    <artifactId>bgp-linkstate</artifactId>
+ </dependency>
+------------------------------------------
+
+[[how-to-implement-an-extension-to-bgp]]
+===== How to implement an extension to BGP
+
+* Create a separate artefact (eclipse project) for your extension. Make
+sure it depends on pcep-api and pcep-spi.
+
+* Write yang model for new elements or augment existing ones. Perform
+'mvn install' to generate files from the model.
+
+* Write parsers and serializers. All parsers need to implement *Parser
+and *Serializer interfaces from bgp-spi (e.g. if you are writing a new
+Capability, your parser should implement CapabilityParser and
+CapabilitySerializer).
+
+* Add Activator, that extends AbstractBGPExtensionProviderActivator,
+where you register your parsers and serializers. If your extension adds
+another AFI/SAFI you also habe to add another Activator that extends
+AbstractRIBExtensionProviderActivator and registrate new address family
+and subsequent address family.
+
+[[update-configuration-1]]
+====== Update configuration
+
+* Update _31-bgp.xml_. Register your parser as a module in bgp-impl:
+
+code,xml-------------------------------------------------------------------------------------------------------------------
+code,xml
+ <module>
+    <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:bgp:new-parser">prefix:bgp-new-parser</type>
+    <name>bgp-new-parser</name>
+ </module>
+-------------------------------------------------------------------------------------------------------------------
+
+* Add it as an extension to bgp-parser-base:
+
+code,xml--------------------------------------------------------------------------------------------------------------
+code,xml
+ <extension>
+    <type xmlns:bgpspi="urn:opendaylight:params:xml:ns:yang:controller:bgp:parser:spi">bgpspi:extension</type>
+    <name>bgp-new-parser</name>
+ </extension>
+--------------------------------------------------------------------------------------------------------------
+
+* Add it's instance to services:
+
+code,xml--------------------------------------------------------------------------------------
+code,xml
+ <instance>
+    <name>bgp-new-parser</name>
+    <provider>/modules/module[type='bgp-new-parser'][name='bgp-new-parser']</provider>
+ </instance>
+--------------------------------------------------------------------------------------
+
+Also, if you are introducing new AFI/SAFI, don't forget to registrate
+your extension also to RIB.
+
+* Create your own configuration file so that it generates Module and
+ModuleFactory classes for your new parser.
+
+------------------------------------------------------------------------------------
+ identity bgp-new-parser {
+        base config:module-type;
+        config:provided-service bgpspi:extension;
+        config:provided-service ribspi:extension; // for new AFI/SAFI
+        config:java-name-prefix NewParser;
+ }
+
+ augment "/config:modules/config:module/config:configuration" {
+        case bgp-new-parser {
+                when "/config:modules/config:module/config:type = 'bgp-new-parser'";
+        }
+ }
+------------------------------------------------------------------------------------
+
+Run mvn install on your extension artefact to generate Module and
+ModuleFactory files.
+
+* Update Module to start your NewParserModule.java whent it's created.
+
+code,java-------------------------------------------------- code,java
+ @Override
+ public java.lang.AutoCloseable createInstance() {
+    return new NewParserActivator();
+ }
+--------------------------------------------------

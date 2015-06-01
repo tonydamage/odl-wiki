@@ -1,7 +1,7 @@
 [[maintainer]]
 == Maintainer
 
-Luis Gomez (luis.gomez@ericsson.com)
+integration-dev@lists.opendaylight.org
 
 [[introduction]]
 == Introduction
@@ -12,14 +12,13 @@ test suite. Please note that all the different components: mininet,
 controller and test tools can be installed in the same VM like in this
 instruction or in separated VMs like in OpenDaylight Lab (split setup).
 
-[[system-test-vm]]
-== System Test VM
+[[test-vm]]
+== Test VM
 
-Before proceeding with the steps below you may consider to download and
-install this
-https://wiki.opendaylight.org/images/HostedFiles/odl_system_test.ovf.zip[Virtualbox
-VM] (Ubuntu 12.04) which has already everything you need for system test
-plus Maven and Eclipse. Login is: user/passw=odluser/odluser1.
+You can skip all steps below if you just download our
+CrossProject:Integration_Group:Test_VMs[Test VM]. Soon there will be a
+Vagrantfile in the integration git repository test/tools/tools_vm/
+directory that provides everything you need for system test.
 
 [[installation-procedure]]
 == Installation Procedure
@@ -27,41 +26,54 @@ plus Maven and Eclipse. Login is: user/passw=odluser/odluser1.
 [[prerequisites]]
 === Prerequisites
 
-This instruction has been verified on Ubuntu 13.10.
+This instruction has been verified on Ubuntu 14.04
 
-[[install-mininet-for-of1.0-and-of1.3]]
-=== Install Mininet for OF1.0 and OF1.3
+[[install-mininet-2.1.0-with-ovs-2.0.1-current-version-in-ci]]
+=== Install Mininet 2.1.0 with OVS 2.0.1 (current version in CI)
 
-Download openvswitch 2.0.0
-(http://openvswitch.org/releases/openvswitch-2.0.0.tar.gz) and build the
-library accoding to instructions in ~/openvswitch-2.0.0/INSTALL.Debian
+Mininet 2.1.0 requires a patch in order to work correctly with OVS OF1.3
+simulation. The first step is to create a patch file. Using VI (vi
+newOptions.patch), edit a file called "newOptions.patch" and paste in
+the following contents:
 
-Install the debian packages:
+----------------------------------------------------------------------------
+--- mininet/node.py 2014-09-12 13:48:03.165628683 +0100
++++ mininet/node.py 2014-09-12 13:50:39.021630236 +0100
+@@ -952,6 +952,10 @@
+            datapath: userspace or kernel mode (kernel|user)"""
+         Switch.__init__( self, name, **params )
+         self.failMode = failMode
++        protKey = 'protocols'
++        if self.params and protKey in self.params:
++               print 'have protcol params!'
++               self.opts += protKey + '=' + self.params[protKey]
+         self.datapath = datapath
+ 
+     @classmethod
+@@ -1027,8 +1031,9 @@
+         if self.datapath == 'user':
+             self.cmd( 'ovs-vsctl set bridge', self,'datapath_type=netdev' )
+         int( self.dpid, 16 ) # DPID must be a hex string
++        print 'OVSswitch opts: ',self.opts
+         self.cmd( 'ovs-vsctl -- set Bridge', self,
+-                  'other_config:datapath-id=' + self.dpid )
++                  self.opts+' other_config:datapath-id=' + self.dpid )
+         self.cmd( 'ovs-vsctl set-fail-mode', self, self.failMode )
+         for intf in self.intfList():
+             if not intf.IP():
+----------------------------------------------------------------------------
 
----------------------------------------------------------------------------------------------------------------------------------------------------------------
-odluser@odl-vm:~\$ sudo dpkg -i openvswitch-common*.deb openvswitch-datapath-dkms*.deb openvswitch-controller*.deb openvswitch-pki*.deb openvswitch-switch*.deb
----------------------------------------------------------------------------------------------------------------------------------------------------------------
+Now that we have created a patch file, which need to download the
+mininet git repository, apply the patch, and then install mininet.
 
-Disable OVS controller:
-
-------------------------------------------------------------------
-odluser@odl-vm:~\$ sudo /etc/init.d/openvswitch-controller stop
-odluser@odl-vm:~\$ sudo update-rc.d openvswitch-controller disable
-------------------------------------------------------------------
-
-Verify OVS installation:
-
---------------------------------------
-odluser@odl-vm:~\$ sudo ovs-vsctl show
-a96f86e7-ca43-487f-b65d-e18b52a64330
-    ovs_version: "2.0.0"
---------------------------------------
-
-Install mininet:
-
---------------------------------------------------
-odluser@odl-vm:~\$ sudo apt-get install mininet -y
---------------------------------------------------
+------------------------------------------
+git clone git://github.com/mininet/mininet
+cd mininet/
+git checkout -b 2.1.0p1 2.1.0p1
+git apply -p0 < ../newOptions.patch
+cd ./util
+./install.sh -nfv
+------------------------------------------
 
 Verify mininet installation:
 
@@ -95,48 +107,6 @@ c0
 completed in 0.541 seconds
 -----------------------------------------
 
-Modify source code of mininet node.py file in similar manner as follows:
-
------------------------------------------------
-odluser@odl-vm:~\$ cd /
-odluser@odl-vm:~\$ sudo patch -p0 < ~/patch.txt
-odluser@odl-vm:~\$ cd -
------------------------------------------------
-
-Where the patch to apply patch.txt is:
-
--------------------------------------------------------------------------------
- --- /usr/share/pyshared/mininet/node.py    2013-12-06 02:54:41.079577722 +0000
-+++ new_node.py 2013-12-06 02:54:20.139578272 +0000
-@@ -952,6 +952,10 @@
-            datapath: userspace or kernel mode (kernel|user)"""
-         Switch.__init__( self, name, **params )
-         self.failMode = failMode
-+   protKey = 'protocols'
-+   if self.params and protKey in self.params:
-+       print 'have protocol params!'
-+       self.opts += protKey + '=' + self.params[protKey]
-         self.datapath = datapath
- 
-     @classmethod
-@@ -1024,12 +1028,13 @@
-         # Annoyingly, --if-exists option seems not to work
-         self.cmd( 'ovs-vsctl del-br', self )
-         self.cmd( 'ovs-vsctl add-br', self )
-+   print 'OVSswitch opts: ',self.opts
-         if self.datapath == 'user':
-             self.cmd( 'ovs-vsctl set bridge', self,'datapath_type=netdev' )
-         int( self.dpid, 16 ) # DPID must be a hex string
-         self.cmd( 'ovs-vsctl -- set Bridge', self,
--                  'other_config:datapath-id=' + self.dpid )
--        self.cmd( 'ovs-vsctl set-fail-mode', self, self.failMode )
-+           self.opts+' other_config:datapath-id=' + self.dpid )
-+   self.cmd( 'ovs-vsctl set-fail-mode', self, self.failMode )
-         for intf in self.intfList():
-             if not intf.IP():
-                 self.attach( intf )
--------------------------------------------------------------------------------
-
 Verify mininet works for OF1.3:
 
 ----------------------------------------------------------------------------------------------------------------
@@ -166,77 +136,99 @@ mininet>
 
 To test the version of used protocol by switch "s1":
 
---------------------------------------------------
-odluser@odl-vm:~\$ ovs-ofctl -O OpenFlow10 show s1
-odluser@odl-vm:~\$ ovs-ofctl -O OpenFlow13 show s1
---------------------------------------------------
+------------------------------------------------------------------------------------------------------------------------
+odluser@odl-vm:~\$ sudo ovs-ofctl -O OpenFlow13 show s1
+OFPT_FEATURES_REPLY (OF1.3) (xid=0x2): dpid:0000000000000001
+n_tables:254, n_buffers:256
+capabilities: FLOW_STATS TABLE_STATS PORT_STATS QUEUE_STATS
+OFPST_PORT_DESC reply (OF1.3) (xid=0x3):
+ 1(s1-eth1): addr:ee:79:6e:02:34:21
+     config:     0
+     state:      0
+     current:    10GB-FD COPPER
+     speed: 10000 Mbps now, 0 Mbps max
+ 2(s1-eth2): addr:32:84:1e:d5:cd:03
+     config:     0
+     state:      0
+     current:    10GB-FD COPPER
+     speed: 10000 Mbps now, 0 Mbps max
+ LOCAL(s1): addr:f6:b3:b1:51:ce:4b
+     config:     PORT_DOWN
+     state:      LINK_DOWN
+     speed: 0 Mbps now, 0 Mbps max
+OFPT_GET_CONFIG_REPLY (OF1.3) (xid=0x5): frags=normal miss_send_len=0
 
-[[install-opendaylight-controller]]
-=== Install OpenDaylight controller
+odluser@odl-vm:~\$ sudo ovs-ofctl -O OpenFlow13 dump-flows s1
+OFPST_FLOW reply (OF1.3) (xid=0x2):
+ cookie=0xa, duration=159.024s, table=0, n_packets=295, n_bytes=54292, send_flow_rem priority=0 actions=CONTROLLER:65535
+------------------------------------------------------------------------------------------------------------------------
 
-Install Java JDK 1.7+:
+[[install-mininet-2.2.1-with-ovs-2.3.1-new-version-in-ci]]
+=== Install Mininet 2.2.1 with OVS 2.3.1 (new version in CI)
 
------------------------------------------------------
-odluser@odl-vm:~\$ sudo apt-get install openjdk-7-jre
------------------------------------------------------
+Download openvswitch 2.3.1
+(http://openvswitch.org/releases/openvswitch-2.3.1.tar.gz) and build the
+library according to instructions in ~/openvswitch-2.3.1/INSTALL.Debian
 
-Set JAVA_HOME in environment. Add follow lines (Java path may change
-depending on the JDK installation) in ~/.bashrc file:
+Install the debian packages:
 
-------------------------------------------------------
-odluser@odl-vm:~\$ vi ~/.bashrc
-...
-export JAVA_HOME=/usr/lib/jvm/java-1.7.0-openjdk-amd64
-...
-------------------------------------------------------
+---------------------------------------------------------------------------------------------------------------------------------------------------------------
+odluser@odl-vm:~\$ sudo dpkg -i openvswitch-common*.deb openvswitch-datapath-dkms*.deb openvswitch-controller*.deb openvswitch-pki*.deb openvswitch-switch*.deb
+---------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-Create directory for base edition distribution:
+Disable OVS controller:
 
-----------------------------------------
-odluser@odl-vm:~\$ mkdir controller-base
-odluser@odl-vm:~\$ cd controller-base
-----------------------------------------
+------------------------------------------------------------------
+odluser@odl-vm:~\$ sudo /etc/init.d/openvswitch-controller stop
+odluser@odl-vm:~\$ sudo update-rc.d openvswitch-controller disable
+------------------------------------------------------------------
 
-Download latest controller base edition:
+Verify OVS installation:
 
-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-$ wget https://jenkins.opendaylight.org/integration/job/integration-project-centralized-integration/lastSuccessfulBuild/artifact/distributions/base/target/distributions-base-0.1.2-SNAPSHOT-osgipackage.zip
-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+--------------------------------------
+odluser@odl-vm:~\$ sudo ovs-vsctl show
+bd38d7bd-7419-40d1-b80e-b48cf773c960
+    ovs_version: "2.3.1"
+--------------------------------------
 
-Run the controller:
+Now Install mininet from source without overwriting OVS version:
 
---------------------------------------------------------------------------
-odluser@odl-vm:~\$ unzip distributions-base-0.1.2-SNAPSHOT-osgipackage.zip
-odluser@odl-vm:~\$ cd opendaylight
-odluser@odl-vm:~\$ ./run.sh 
---------------------------------------------------------------------------
+------------------------------------------
+git clone git://github.com/mininet/mininet
+cd mininet/
+git checkout -b 2.2.1 2.2.1
+cd ./util
+./install.sh -nf
+------------------------------------------
 
-Check controller is running:
+*NOTE*: OVS 2.3.1 starts OpenFlow 1.3 by default so there is no need to
+apply any patch to mininet.
 
------------------------------------------------------------------------------
-osgi> ss
-"Framework is launched."
+[[wireshark-1.12.0]]
+=== Wireshark 1.12.0
 
+Download Wireshark 1.12.0 https://www.wireshark.org/download.html (for
+this distro should be the Source Code option)
 
-id      State       Bundle
-0       ACTIVE      org.eclipse.osgi_3.8.1.v20120830-144521
-1       ACTIVE      org.apache.felix.fileinstall_3.1.6
-2       ACTIVE      org.eclipse.jdt.core.compiler.batch_3.8.0.I20120518-2145
-3       ACTIVE      org.eclipse.equinox.ds_1.4.0.v20120522-1841
-4       ACTIVE      org.eclipse.equinox.util_1.0.400.v20120522-2049
-5       ACTIVE      org.eclipse.osgi.services_3.3.100.v20120522-1822
-6       ACTIVE      org.eclipse.equinox.console_1.0.0.v20120522-1841
-7       ACTIVE      slf4j.api_1.7.2
-8       ACTIVE      ch.qos.logback.classic_1.0.9
-9       ACTIVE      ch.qos.logback.core_1.0.9
-10      ACTIVE      org.opendaylight.controller.logging.bridge_0.4.1.SNAPSHOT
-11      ACTIVE      com.sun.jersey.core_1.17.0
-12      ACTIVE      com.sun.jersey.json_1.17.0
-13      ACTIVE      com.sun.jersey.jersey-server_1.17.0
------------------------------------------------------------------------------
+Wireshark >1.12.0 has filters for openflow 1.3
 
-[[install-test-tools]]
-=== Install Test tools
+-------------------------------------------------------------------------------------------------
+odluser@odl-vm:~\$ sudo apt-get install -y autoconf automake libtool bison flex make pkg-config \
+                   gnutls-bin g++ qt4-dev-tools libqt4-core automake autoconf \
+                   libgtk-3-dev libgtk2.0-dev libglib2.0-dev libpcap0.8-dev flex bison
+odluser@odl-vm:~\$ cd wireshark/ #source code folder
+odluser@odl-vm:~\$ ./autogen.sh
+odluser@odl-vm:~\$ ./configure
+odluser@odl-vm:~\$ make
+odluser@odl-vm:~\$ # Make sure you don't have any version of wireshark installed
+odluser@odl-vm:~\$ # if you want you can stop here and run
+odluser@odl-vm:~\$ ./wireshark
+odluser@odl-vm:~\$ # if you want to install it run the command bellow
+odluser@odl-vm:~\$ # sudo make install
+-------------------------------------------------------------------------------------------------
+
+[[install-robot-framework]]
+=== Install Robot Framework
 
 Check you have Python 2.6 or 2.7 installed (this is normally coming in
 most distributions):
@@ -264,11 +256,13 @@ odluser@odl-vm:~\$ sudo apt-get install python-paramiko
 
 Install Robot Framework and required libraries:
 
---------------------------------------------------------------
+------------------------------------------------------------------------
+odluser@odl-vm:~\$ sudo pip install requests
 odluser@odl-vm:~\$ sudo pip install robotframework
 odluser@odl-vm:~\$ sudo pip install robotframework-sshlibrary
 odluser@odl-vm:~\$ sudo pip install -U robotframework-requests
---------------------------------------------------------------
+odluser@odl-vm:~\$ sudo pip install --upgrade robotframework-httplibrary
+------------------------------------------------------------------------
 
 Verify Robot installation:
 
@@ -276,6 +270,55 @@ Verify Robot installation:
 odluser@odl-vm:~\$ pybot --version
 Robot Framework 2.8.2 (Python 2.7.3 on linux2)
 ----------------------------------------------
+
+[[install-robot-framework-ride]]
+=== Install Robot Framework RIDE
+
+Prerequisites:
+
+`Python` +
+` RIDE runs only on the regular Python, not on Jython or Iron Python. Python 2.5 is the minimum version` +
+ +
+`wxPython toolkit version 2.8.6 or newer with Unicode support is required. RIDE's GUI is implemented using wxPython toolkit. The ANSI ` +
+` version is not supported`
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------
+
+*Note that similarly as Robot Framework, RIDE does not yet support Python 3.
+
+Most other operating systems other than Windows have a recent enough Python installed by default. 
+You can get Windows installers and plenty of other information from http://python.org. In OSX RIDE needs 32-bit Python.
+
+  Using easy_install 
+
+Starting from RIDE 0.31 you can install RIDE with command:
+  * easy_install robotframework-ride
+The above command should always install the latest version. To get a specific version, you can use this version instead:
+  * easy_install robotframework-ride==0.31
+
+This installation approach works on all operating systems but requires you to have setup tools installed. 
+
+*Note 
+You may need to prefix the command with sudo on unix machines.
+In Ubuntu/GNOME recommended wxPython version is 2.8.10.0 or newer.
+
+In Windows 7 recommended wxPython version is 2.8.11.0 or newer.
+
+*Note
+For more information, installation instructions, and download packages see http://wxpython.org. 
+On Linux you should be able to install wxPython with your package manager (e.g. on Ubuntu with sudo apt-get install python-wxgtk2.8). 
+On the latest OS X versions you should have suitable wxPython version automatically, but unfortunately all RIDE features don't yet work on that platform.
+
+Start-up 
+After a successful installation RIDE can be started from the command line with command:
+   ride.py [inpath]
+
+On Windows this requires having <PythonInstallationDir>\Scripts in your PATH. 
+The ride.py file will contain an incorrect shebang line in Windows. 
+This will have effect only if you are trying to start RIDE in Windows from Cygwin. 
+In that case, you will need to edit ride.py manually and insert path to correct Python. 
+If pybot and jybot commands work you should be fine.
+---------------------------------------------------------------------------------------------------------------------------------------------------------
 
 [[robot-environment-adjustment]]
 === Robot Environment Adjustment
@@ -325,26 +368,34 @@ if [ "$color_prompt" = yes ]; then
     PS1='${debian_chroot:+($debian_chroot)}\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\> '
 else
     PS1='${debian_chroot:+($debian_chroot)}\u@\h:\w\> '
+fi
 ...
 -------------------------------------------------------------------------------------------------------------
 
-[[download-and-run-system-test-code]]
-=== Download and Run System Test Code
+Finally it is recommended to disable reverse IP resolution on SSH
+server.
 
-Download latest integration code:
+Edit sshd_config file and add following line:
 
-----------------------------------------------------------------------------
-odluser@odl-vm:~\> git clone https://git.opendaylight.org/gerrit/integration
-----------------------------------------------------------------------------
+-----------------------------------------------
+odluser@odl-vm:~\$ sudo vi /etc/ssh/sshd_config
+...
+UseDNS no
+...
+-----------------------------------------------
 
-Run system with following command:
+[[install-opendaylight-controller]]
+=== Install OpenDaylight controller
 
--------------------------------------------------------------------------------------------------------------------------------------------------------------
-odluser@odl-vm:~\> pybot -v CONTROLLER:127.0.0.1 -v MININET:127.0.0.1 -v USER_HOME:${HOME} -v MININET_USER:${USER} ${HOME}/integration/test/csit/suites/base/
--------------------------------------------------------------------------------------------------------------------------------------------------------------
+Follow
+https://wiki.opendaylight.org/view/CrossProject:Integration_Group:Controller_Artifacts[Controller
+Artifacts] wiki to install desirable controller distribution
 
-*IMPORTANT*: In case you have a split setup (different VMs for
-controller and mininet), you have to use interface IPs instead of
-loopbacks for the controller and mininet
+[[download-and-run-system-test]]
+=== Download and Run System Test
+
+Now you are ready for
+https://wiki.opendaylight.org/view/CrossProject:Integration_Group:Download_and_Run_System_Test[Download
+and Run System Test]
 
 Category:Integration Group[Category:Integration Group]

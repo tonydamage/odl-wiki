@@ -1,0 +1,175 @@
+The recommended way to install Eclipse on Ubuntu is using the
+distribution's package manager. But unfortunately the Ubuntu
+distribution contains Eclipse version is 3.8.1-5.1 which does not
+support Maven integration because the required package
+org.eclipse.m2e.core requires Eclipse Luna (see
+http://stackoverflow.com/questions/24479109/maven-for-eclipse-1-5-0-plugin-cannot-be-installed-under-kepler[this
+question on Stack Overflow for more details]). The Luna is not packaged
+for Ubuntu (yet) so the manual installation is the only option.
+
+Installing Eclipse on Ubuntu manually can become a peculiar task that
+can irreparably damage your Ubuntu installation if done improperly.
+Additionally, the Eclipse Luna exhibits bugs which may confuse new users
+into thinking it is broken while in reality it is not. The following
+installation instructions were tested with package
+eclipse-java-luna-SR1-linux-gtk-x86_64.tar.gz, MD5
+b2ccdb8be4588c79b9ed8b7a80ebf8b0, SHA1
+161640688a8d4c0523e14ecb7017813dd33a99cd installed on Ubuntu 14.04.1
+running on a Oracle VM VirtualBox virtual machine.
+
+[[installing-eclipse-the-easy-way]]
+== Installing Eclipse the easy way
+
+1.  Open a terminal (Ctrl-Alt-T) and switch it to root permissions by
+entering:
++
+::
+  `$ sudo su`
+2.  Make sure Eclipse Indigo is NOT installed in your Ubuntu. You may
+need to remove both "eclipse" and "eclipse-platform" packages to get rid
+of it. If it still gets into way when trying to install Luna using this
+easy way, you may need to look at the "hard way" below.
++
+::
+  `# apt-get remove eclipse eclipse-platform`
+3.  Install a Java 1.7 JDK:
++
+::
+  `# apt-get install openjdk-7-jdk`
+4.  Install Maven:
++
+::
+  `apt-get install maven`
+5.  Get rid of the root access as you won't need it anymore:
++
+::
+  `# exit`
+6.  Download Eclipse. The "for Java EE Developers", "for Java
+Developers" and "for RCP and RAP Developers" versions all seem to work.
+Currently the file which was tested to work is (note that it is for 64
+bit Ubuntu version) available
+https://www.eclipse.org/downloads/download.php?file=/technology/epp/downloads/release/luna/SR1/eclipse-java-luna-SR1-linux-gtk-x86_64.tar.gz[at
+this page]
+7.  Extract the Eclipse installation tarball into your home directory:
++
+::
+  `$ cd`
+  +
+  `$ tar -xzvf <path/to/your-tar-file>`
+8.  Increase the memory for the Eclipse installation by modifying the
+http://wiki.eclipse.org/Eclipse.ini[~/eclipse/eclipse.ini] file.
+* Change the -Xmx setting (line 20) to be AT least 1G, recommended 2GB.
+(i.e. -Xmx2048m).
+* Change the -XX:MaxPermSize (line 18) to at most 512m. If you have the
+-Xmx setting set to 1G, then I suggest to use a lower value, for example
+300m.
+9.  Run the Eclipse:
++
+::
+  `$ ~/eclipse/eclipse`
+10. If everything seems to work, return back to
+GettingStarted: Eclipse[GettingStarted: Eclipse] and continue from step
+5 in the section "Installing Eclipse". The Maven Integration software
+packages as installed in the step 4 are already installed in the Luna so
+that step can be safely skipped.
+
+[[when-something-goes-wrong]]
+=== When something goes wrong
+
+Normally, everything should go OK and there should be no problem using
+the Eclipse Luna installed this "easy way". However in a few cases the
+eclipse fails to work properly, especially if you tried to use Eclipse
+Indigo that is supplied by the Ubuntu Package Manager. Here are some
+tips how to try to recover your Eclipse installation:
+
+1.  Uninstall both "eclipse" and "eclipse-platform" packages:
++
+::
+  `# apt-get remove eclipse eclipse-platform`
+2.  Eclipse Luna can usually pick up workspaces from Eclipse Indigo and
+upgrade them "on the fly" but sometimes things get screwed up. If your
+Eclipse is doing strange things after you load the workspace, try
+deleting the workspace (after you exit Eclipse) and then creating it
+from scratch.
+3.  Sometimes bad workspace can damage the Eclipse installation. If you
+tried to reuse the workspace and after that failed, you have troubles
+recreating it from scratch, try deleting both, the "eclipse" directory
+in your home directory and also the workspace directory. Only AFTER both
+are gone, proceed with the extraction of the eclipse installation
+tarball.
+4.  Make sure you have the Java JDK you intend to use BEFORE you try to
+run Eclipse for the first time.
+5.  Your Eclipse installation could also get damaged by a misbehaving
+plugin. In that case deleting the Eclipse installation and creating a
+new one from scratch will usually do the trick.
+
+[[installing-eclipse-the-hard-way]]
+== Installing Eclipse the hard way
+
+Usually, extracting the Eclipse Luno into your home directory shall be
+enough to allow you to work with it. But sometimes the package requires
+to be installed into "/opt" and refuses to work properly or to work at
+all when installed elsewhere. In that case (if you are not a Linux guru)
+it is often easier to just reinstall the OS from scratch (remember to
+back up your data first). However sometimes reinstallation of the OS is
+not feasible.
+
+The following workflow was used to install Eclipse Luno on one such
+misbehaving system, however it is not guaranteed that this type of
+misbehavior will be exactly the same in your case so your mileage may
+vary. These instructions assume you already have the JDK and Maven
+packages installed and the installation package downloaded as described
+in the "easy way" installation instructions.
+
+1.  Open a terminal (Ctrl-Alt-T) and switch it to root permissions by
+entering:
++
+::
+  `$ sudo su`
+2.  Extract the Eclipse installation package into /opt:
++
+::
+  `# cd /opt`
+  +
+  `# sudo tar -xzvf <path_to_the_downloaded_package>`
+3.  Increase the memory for the Eclipse installation by modifying the
+http://wiki.eclipse.org/Eclipse.ini[/opt/eclipse/eclipse.ini] file. See
+the "easy way" for instructions.
+4.  Create a startup script for the Eclipse:
++
+::
+  `# cd /usr/local/bin`
+  +
+  `# echo 'ECLIPSE=/opt/eclipse/eclipse' >eclipse`
+  +
+  `# echo 'exec $ECLIPSE "$@"' >>eclipse`
+  +
+  `# chmod +x eclipse`
+5.  Now exit the root mode and start the installed eclipse:
++
+::
+  `# exit`
+  +
+  `$ eclipse`
+6.  Confirm the dialog box asking you to create a workspace.
+7.  This instance of eclipse has problems integrating into the Ubuntu's
+window manager. Examples include the menu not working properly (the
+submenus won't show up at all when the main menu items are clicked,
+preventing the user from using any commands from the menu). To fix the
+problem first close the introductory tab that was opened and then exit
+the eclipse. After you start it again, it should work without problems.
+8.  Now go back to GettingStarted: Eclipse[GettingStarted: Eclipse] and
+continue from step 5 in the section "Installing Eclipse". The Maven
+Integration software packages as installed in the step 4 are already
+installed in the Luna so that step can be safely skipped.
+
+[[creating-new-workspaces-in-eclipse-installed-the-hard-way]]
+=== Creating new workspaces in Eclipse installed the hard way
+
+The integration problem mentioned in the installation instructions will
+show its ugly head each time you create a new workspace in the Eclipse
+Luna. This can happen either when you specify nonexistent/empty
+directory in the dialog box asking you for a pointer to workspace or you
+delete or rename the default workspace (to start from scratch). When
+this happens, restart Eclipse to finalize the freshly created workspace
+and fix the behavior.

@@ -3,48 +3,49 @@
 
 There are two ways of configuring the controller:
 
-* Using OpenDaylight Controller:Config:config.ini[config.ini] property
-file to pass configuration properties to OSGi bundles besides config
-subsystem.
-* Using
+* Using OpenDaylight Controller:Config:config.ini[config.ini] the
+property file to pass configuration properties to the OSGi bundles
+besides the config subsystem.
+* Using the
 OpenDaylight Controller:Config:Configuration:Initial#Configuration_Persister[configuration
-persister] to push initial configuration for modules managed by config
-subsystem.
+persister] to push the initial configuration for modules managed by the
+config subsystem.
 
 [[using-config.ini-property-file]]
 == Using config.ini property file
 
-This file can be used to provide a set of properties for any OSGi bundle
-deployed to the controller. It is usually used to configure bundles that
-are not managed by the config subsystem.
+The config.ini property file can be used to provide a set of properties
+for any OSGi bundle deployed to the controller. It is usually used to
+configure bundles that are not managed by the config subsystem.
 
 [[using-configuration-persister]]
 == Using configuration persister
 
-*Configuration persister* is a default service in controller and is
-started automatically using OSGi Activator. Its purpose is to *load
-initial configuration for config subsystem* and *store a snapshot for
-every new configuration state pushed to config-subsystem from external
-clients*. It retrieves base configuration from the config.ini property
-file and tries to load the configuration for config subsystem. The
-configuration for config subsystem is pushed as a set of edit-config
-netconf rpcs followed by a commit rpc since config persister acts as a
-netconf client.
+*Configuration persister* is a default service in the controller, and is
+started automatically using the OSGi Activator. Its purpose is to *load
+the initial configuration for the config subsystem* and *store a
+snapshot for every new configuration state pushed to the
+config-subsystem from external clients*. It retrieves the base
+configuration from the config.ini property file, and tries to load the
+configuration for the config subsystem. The configuration for the config
+subsystem is pushed as a set of edit-config netconf rpcs followed by a
+commit rpc since the config persister acts as a netconf client.
 
 *Configuration persister lifecycle*:
 
 1.  Start config persister service at _config-persister-impl_ bundle
-startup
-2.  Retrieve base configuration of adapters from _config.ini_ property
-file
-3.  Initialize backing storage adapters
-4.  Initialize netconf client and connect to netconf endpoint of config
-subsystem
-5.  Load initial configuration snapshots from latest storage adapter
-6.  Send edit-config rpc with initial configuration snapshots
-7.  Send commit rpc
-8.  Listen for any following changes to configuration and persist a
-snapshot
+startup.
+2.  Retrieve the base configuration of adapters from the _config.ini_
+property file.
+3.  Initialize the backing storage adapters.
+4.  Initialize the netconf client, and connect to the netconf endpoint
+of the config subsystem.
+5.  Load the initial configuration snapshots from the latest storage
+adapter.
+6.  Send the edit-config rpc with the initial configuration snapshots.
+7.  Send the commit rpc.
+8.  Listen for any of the following changes to the configuration and
+persist a snapshot.
 
 *Configuration Persister interactions*: +
 image:Persister.jpg[Persister.jpg,title="fig:Persister.jpg"]
@@ -52,7 +53,7 @@ image:Persister.jpg[Persister.jpg,title="fig:Persister.jpg"]
 [[current-configuration-for-controller-distribution]]
 == Current configuration for controller distribution
 
-The _config.ini_ property file contains following configuration for
+The _config.ini_ property file contains following configuration for the
 configuration persister:
 
 --------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -67,21 +68,21 @@ netconf.config.persister.2.properties.fileStorage=configuration/current/controll
 netconf.config.persister.2.properties.numberOfBackups=1
 --------------------------------------------------------------------------------------------------------------------------------------------------------
 
-With this configuration, configuration persister initializes two
+With this configuration, the configuration persister initializes two
 adapters:
 
-* *AutodetectDirectoryStorageAdapter* to load initial configuration
-files from _configuration/initial/_ folder. These files will be pushed
-as initial configuration for config subsystem. Since this adapter is
-read only, it will not store any configuration snapshot during
-controller's lifecycle.
-* *XmlFileStorageAdapter* to store snapshots of current configuration
-after any change in file
-_configuration/current/controller.currentconfig.xml_ (only 1 snapshot
-backup is kept, every new change overwrites the previous).
+* *AutodetectDirectoryStorageAdapter* to load the initial configuration
+files from the _configuration/initial/_ folder. These files will be
+pushed as the initial configuration for the config subsystem. Since this
+adapter is Read only, it will not store any configuration snapshot
+during the controller lifecycle.
+* *XmlFileStorageAdapter* to store snapshots of the current
+configuration after any change in the file
+_configuration/current/controller.currentconfig.xml_ (Only 1 snapshot
+backup is kept; every new change overwrites the previous one).
 
-The initial configuration in controller distribution consists of 2 files
-in
+The initial configuration in the controller distribution consists of 2
+files in the
 OpenDaylight Controller:Config:Configuration:Initial#Persisted_snapshot_format[xml
 format]:
 
@@ -294,39 +295,39 @@ utilized by controller components that use netty internally.
 This configuration snapshot instantiates md-sal modules.
 
 After the controller is started, all these modules will be instantiated
-and configured. They can be further referenced from new modules as
-dependencies, reconfigured or even deleted. These modules are considered
-to be the base configuration for controller and the purpose of them
-being configured automatically is to simplify the process of controller
-configuration for users, since the base modules will already be ready
-for use.
+and configured. They can be further referenced from the new modules as
+dependencies, reconfigured, or even deleted. These modules are
+considered to be the base configuration for controller and the purpose
+of them being configured automatically is to simplify the process of
+controller configuration for users, since the base modules will already
+be ready for use.
 
 [[adding-custom-initial-configuration]]
 == Adding custom initial configuration
 
-There are multiple ways to add custom initial confguration to controller
-distribution:
+There are multiple ways to add custom initial confguration to the
+controller distribution:
 
-1.  Manually create config file and put it in the initial configuration
-folder.
-2.  Reconfigure running controller using yuma's yangcli tool. The
-XmlFileStorageAdapter adapter will store current snapshot and on the
+1.  Manually create the config file, and put it in the initial
+configuration folder.
+2.  Reconfigure the running controller using the yuma yangcli tool. The
+XmlFileStorageAdapter adapter will store the current snapshot and on the
 next startup of controller (assuming it was not rebuilt since), it will
-load configuration containing your changes.
+load the configuration containing your changes.
 
 [[custom-initial-configuration-in-bgpcep-distribution]]
 === Custom initial configuration in bgpcep distribution
 
-The BGP_LS_PCEP:Main[BGPCEP] project will serve as an example of adding
-custom initial configuration. The bgpcep project contains custom initial
-configuration that is based on initial configuration from controller. It
-adds new modules, which depend on OpenDaylight_Controller:MD-SAL[MD-SAL]
-and netty modules created with controller's initial config files. There
-are multiple config files in bgpcep project, but we will describe only
-the *30-programming.xml* file located under
-_programming-parent/controller-config_ project in this chapter. This
-file contains the configuration for an instance of
-*instruction-scheduler* module:
+The BGP_LS_PCEP:Main[BGPCEP] project will serve as an example for adding
+the custom initial configuration. The bgpcep project contains the custom
+initial configuration that is based on the initial configuration from
+the controller. It adds new modules, which depend on
+OpenDaylight_Controller:MD-SAL[MD-SAL] and netty modules created with
+the initial config files of the controller. There are multiple config
+files in the bgpcep project. Only the *30-programming.xml* file located
+under _programming-parent/controller-config_ project will be described
+in this chapter. This file contains the configuration for an instance of
+the *instruction-scheduler* module:
 
 ---------------------------------------------------------------------------------------------------------------------------------------------------------
 <?xml version="1.0" encoding="UTF-8"?>
@@ -336,7 +337,7 @@ file contains the configuration for an instance of
 
  This program and the accompanying materials are made available under the
  terms of the Eclipse Public License v1.0 which accompanies this distribution,
- and is available at http://www.eclipse.org/legal/epl-v10.html
+ and is available at http://www.eclipse.org/legal/epl-v10.html.
 -->
 <snapshot>
     <required-capabilities>
@@ -419,17 +420,17 @@ certain service that is implemented by the _instruction-scheduler-impl_
 module. With this service type, *global-instruction-scheduler* instance
 can be injected into any other module that requires
 _instruction-scheduler_ as a dependency. One module can
-provide(implement) multiple services and each of this service can be
+provide(implement) multiple services and each of these services can be
 assigned an alias. This alias can be later used to reference the
-implementation it is pointing to. If no alias is assigned by user, a
-default alias will be assigned for each provided service. Default alias
-is constructed from the name of the module instance with a prefix *ref_*
-and a possible suffix containing a number to resolve name clashes. *It
-is advised for users to provide aliases for each service of every module
-instance. And use these aliases for dependency injection.* References to
-the alias *global-instruction-scheduler* can be found in subsequent
-config files in bgpcep project e.g. *32-pcep.xml* located under
-_pcep-parent/pcep-controller-config_ project.
+implementation it is pointing to. If no alias is assigned by the user, a
+default alias will be assigned for each provided service. the default
+alias is constructed from the name of the module instance with a prefix
+*ref_* and a possible suffix containing a number to resolve name
+clashes. *It is advised for users to provide aliases for each service of
+every module instance. And use these aliases for dependency injection.*
+References to the alias *global-instruction-scheduler* can be found in
+subsequent config files in the bgpcep project for example, *32-pcep.xml*
+located under the _pcep-parent/pcep-controller-config_ project.
 
  +
  The configuration contains 4 dependencies on MD-SAL and netty modules:
@@ -466,40 +467,40 @@ MD-SAL dependencies:
 
 All MD-SAL dependencies can be found in the
 OpenDaylight Controller:Config:Configuration:Initial#Current_configuration_for_controller_distribution[MD-SAL
-initial configuration file] e.g. *rpc-registry* dependency points to an
-alias *binding-rpc-broker* of type _binding-rpc-registry_. This alias
-further points to an instance of _binding-broker-impl_ named
-*binding-broker-impl*. Yang module that defines the
-_binding-broker-impl_ module : .
+initial configuration file] for example, *rpc-registry* dependency
+points to an alias *binding-rpc-broker* of the type
+_binding-rpc-registry_. This alias further points to an instance of the
+_binding-broker-impl_ named *binding-broker-impl*. The Yang module that
+defines the _binding-broker-impl_ module : .
 
 Netty dependencies:
 
 * *timer* dependency
 
 This configuration expects these dependencies to be already up and
-ready. It is the responsibility of configuration subsystem to find the
-dependency and inject it. If the configuration of a module points to a
-non-existing dependency, configuration subsystem will produce an
-exception during validation phase. *Every user created configuration
-needs to point to existing dependencies. In case of multiple initial
+ready. It is the responsibility of the configuration subsystem to find
+the dependency and inject it. If the configuration of a module points to
+a non-existing dependency, the configuration subsystem will produce an
+exception during the validation phase. *Every user created configuration
+needs to point to existing dependencies. In the case of multiple initial
 configuration files that depend on one another, their resolution order
-can be ensured by the names of the files as files will be sorted by
-their names in ascending order. This means that every configuration file
-will have the visibility of modules from all previous configuration
-files via aliases.*
+can be ensured by the names of the files. Files are sorted by their
+names in ascending order. This means that every configuration file will
+have the visibility of modules from all previous configuration files via
+aliases.*
 
  +
-Note: Configuration provided by initial config files can also be pushed
-to controller at runtime using netconf client. The whole configuration
-located under *data* tag needs to be inserted into *config* tag in
-*edit-config* rpc. For further information see
+Note: The configuration provided by initial config files can also be
+pushed to the controller at runtime using netconf client. The whole
+configuration located under the *data* tag needs to be inserted into the
+*config* tag in the *edit-config* rpc. For more information, see
 OpenDaylight Controller:Config:Main#Examples[examples].
 
 [[configuration-persister]]
 = Configuration Persister
 
-As a part of the configuration subsystem, purpose of the persister is to
-save and load a permanent copy of a configuration. The *Persister*
+As a part of the configuration subsystem, the purpose of the persister
+is to save and load a permanent copy of a configuration. The *Persister*
 interface represents basic operations over a storage - persist
 configuration and load last config, configuration snapshot is
 represented as string and set of it's capabilities. *StorageAdapter*
@@ -511,12 +512,12 @@ BundleContext, allowing access to the OSGi framework system properties.
 
 Configuration persister implementation is part of the Controller
 Netconf. *PersisterAggregator* class is implemenataion of Presister
-interface. Functionality is delegated to the storage adapters. Storage
-adapters are low level persisters that do the heavy lifting for this
-class. Instances of storage adapters can be injected directly via
+interface. The functionality is delegated to the storage adapters
+Storage adapters are low level persisters that do the heavy lifting for
+this class. Instances of storage adapters can be injected directly via
 constructor or instantiated from a full name of its class provided in a
-properties file. There can be many persisters configured and various
-number of them can be used.
+properties file. There can be many persisters configured, and varying
+numbers of them can be used.
 
 Example of presisters configuration :
 
@@ -535,16 +536,16 @@ Example of presisters configuration :
  netconf.config.persister.3.properties.numberOfBackups=3
 -------------------------------------------------------------------------------------------------------------------------------------------
 
-During server startup ConfigPersisterNotificationHandler requests last
-snapshot from underlying storages. Each storage can respond by giving
-snapshot or absent response.The PersisterAggregator#loadLastConfigs()
-will search for first non-absent response from storages ordered
-backwards as user specified (first '3', then '2'). When a commit
-notification is received, '2' will be omitted because readonly flag is
-set to true, so only '3' will have a chance to persist new
-configuration. If readonly was false or not specified, both storage
-adapters would be called in order specified by
-'netconf.config.persister' property.
+During server startup, ConfigPersisterNotificationHandler requests the
+last snapshot from the underlying storages. Each storage can respond by
+giving a snapshot or an absent response. The
+PersisterAggregator#loadLastConfigs() will search for the first
+non-absent response from storages ordered backwards as user specified
+(first '3', then '2'). When a commit notification is received, '2' will
+be omitted because the read-only flag is set to true, so only '3' will
+have a chance to persist the new configuration. If read-only was false,
+or not specified, both storage adapters would be called in the order
+specified by 'netconf.config.persister' property.
 
 [[persister-notification-handler]]
 == Persister Notification Handler
@@ -560,23 +561,23 @@ saving/loading to the persister.
 [[xml-file-storage]]
 === XML File Storage
 
-*XmlFileStorageAdapter* implementation stores configuration in an xml
-file.
+The *XmlFileStorageAdapter* implementation stores configuration in an
+xml file.
 
 [[xml-directory-storage]]
 === XML Directory Storage
 
-*XmlDirectoryStorageAdapter* retrieves initial configuration from a
+*XmlDirectoryStorageAdapter* retrieves the initial configuration from a
 directory. If multiple xml files are present, files are ordered based on
-file names and pushed in this order (e.g. 00.xml, then 01.xml..) Each
-file define its required capabilities, so it will be pushed when those
-capabilities are advertized by ODL. Writing to this persister is not
-supported.
+the file names and pushed in this order (for example, 00.xml, then
+01.xml..) Each file defines its required capabilities, so it will be
+pushed when those capabilities are advertized by ODL. Writing to this
+persister is not supported.
 
 [[no-operation-storage]]
 === No-Operation Storage
 
-*NoOpStorageAdapter* serves as dummy implementation of the storage
+*NoOpStorageAdapter* serves as a dummy implementation of the storage
 adapter.
 
 [[obsolete-storage-adapters]]
@@ -585,16 +586,16 @@ adapter.
 [[file-storage]]
 ==== File Storage
 
-*FileStorageAdapter* implements StorageAdapter, provides file based
+*FileStorageAdapter* implements StorageAdapter, and provides file based
 configuration persisting. File path and name is stored as a property and
-a number of stored backups, expressing count of last configurations to
-be persisted, too. The implementation can handle persisting input
-configuration and load last configuration.
+a number of stored backups, expressing the count of the last
+configurations to be persisted, too. The implementation can handle
+persisting input configuration and load the last configuration.
 
 [[directory-storage]]
 ==== Directory Storage
 
-*DirectoryStorageAdapter* retrieves initial configuration from a
+*DirectoryStorageAdapter* retrieves initial configurations from a
 directory. If multiple files are present, snapshot and required
 capabilities will be merged together. See configuration later on this
 page for details. Writing to this persister is not supported.
@@ -608,15 +609,15 @@ as plaintext format for configuration files. Xml and plaintext files can
 be combined in one directory. Purpose of this persister is to keep
 backwards compatibility for plaintext configuration files.
 
-*! Important: this functionality will be removed in further release
-since Plaintext File/Directory adapters are deprecated and will be fully
+*! Important: This functionality will be removed in releases since
+Plaintext File/Directory adapters are deprecated, and will be fully
 replaced by xml storage adapters.*
 
 [[persisted-snapshot-format]]
 == Persisted snapshot format
 
 Configuration snapshots are persisted in xml files for both file and
-directory adapter. They share the same format:
+directory adapters. They share the same format:
 
 --------------------------------------------------------------------------------------------------------------------------
 <snapshot>
@@ -641,23 +642,24 @@ directory adapter. They share the same format:
 </snapshot>
 --------------------------------------------------------------------------------------------------------------------------
 
-The whole snapshot is encapsulated in *snapshot* tag that contains two
-children elements:
+The whole snapshot is encapsulated in the *snapshot* tag that contains
+two children elements:
 
-* *required-capabilities* tag contains list of yang capabilities that
-are required to push configuration located under _configuration_ tag.
-Config persister will not push the configuration before the netconf
-endpoint for config subsystem reports all needed capabilities. Every
-yang model that is referenced within this xml file (as namespace for xml
-tag) must be referenced as a capability in this list.
-* *configuration* tag contains configuration to be pushed to config
-subsystem. It is wrapped in a _data_ tag with base netconf namespace.
-The whole _data_ tag with all its child elements will be inserted into
-an edit-config rpc as _config_ tag. For further information about the
-structure of configuration data consult
-OpenDaylight Controller:Config:Model Reference[base yang model for
-config subsystem and all configuration yang files for controller
-modules] as well as provided
+* The *required-capabilities* tag contains the list of yang capabilities
+that are required to push configurations located under the
+_configuration_ tag. The config persister will not push the
+configuration before the netconf endpoint for the config subsystem
+reports all needed capabilities. Every yang model that is referenced
+within this xml file (as namespace for xml tag) must be referenced as a
+capability in this list.
+* The *configuration* tag contains the configurations to be pushed to
+the config subsystem. It is wrapped in a _data_ tag with the base
+netconf namespace. The whole _data_ tag, with all its child elements,
+will be inserted into an edit-config rpc as _config_ tag. For more
+information about the structure of configuration data, see
+OpenDaylight Controller:Config:Model Reference[ base yang model for the
+config subsystem and all the configuration yang files for the controller
+modules] as well as those provided
 OpenDaylight Controller:Config:Main#Examples[examples]. Examples contain
 multiple explained edit-config rpcs that change the configuration.
 

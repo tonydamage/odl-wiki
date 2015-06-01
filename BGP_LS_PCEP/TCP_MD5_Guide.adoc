@@ -4,116 +4,373 @@ user guide, make sure BGP and/or PCEP is configured first via
 BGP LS PCEP:User Guide[User Guide]*
 
 TCP MD5 authentication is *disabled* by default. To enable it (for both
-protocols), uncomment the contents of
-https://jenkins.opendaylight.org/integration/view/Integration%20jobs/job/integration-project-centralized-integration/lastSuccessfulBuild/artifact/distributions/serviceprovider/target/distributions-serviceprovider-0.1.2-SNAPSHOT-osgipackage/opendaylight/configuration/initial/20-tcpmd5.xml[20-tcpmd5.xml]
+protocols), uncomment the contents of _20-tcpmd5.xml_
 
 *There is no warning/error when the connection can't be established, so
 be sure to double-check your configuration and passwords.*
 
-[[bgp]]
-== BGP
+[[manual-configuration]]
+== Manual Configuration
 
-Precondition: make sure your
-https://jenkins.opendaylight.org/integration/view/Integration%20jobs/job/integration-project-centralized-integration/lastSuccessfulBuild/artifact/distributions/serviceprovider/target/distributions-serviceprovider-0.1.2-SNAPSHOT-osgipackage/opendaylight/configuration/initial/20-tcpmd5.xml[20-tcpmd5.xml]
-has it's content uncommented.
+[[bgp]]
+=== BGP
+
+Precondition: make sure your _20-tcpmd5.xml_ has it's content
+uncommented.
 
 To enable TCP MD5 for BGP protocol, you have to follow two steps.
 
-\1. In
-https://jenkins.opendaylight.org/integration/view/Integration%20jobs/job/integration-project-centralized-integration/lastSuccessfulBuild/artifact/distributions/serviceprovider/target/distributions-serviceprovider-0.1.2-SNAPSHOT-osgipackage/opendaylight/configuration/initial/31-bgp.xml[31-bgp.xml]
-uncomment the TCP MD5 section:
+\1. In _31-bgp.xml_ uncomment the TCP MD5 section:
 
-`<!--` +
-` Uncomment this block to enable TCP MD5 Signature support` +
-`-->` +
- +
-` ``prefix:md5-channel-factory` +
-` ``md5-client-channel-factory` +
- +
- +
-` ``prefix:md5-server-channel-factory` +
-` ``md5-server-channel-factory` +
+code,xml-------------------------------------------------------------------------------------------------------------------------------
+code,xml
+ <!--
+  Uncomment this block to enable TCP MD5 Signature support
+ -->
+ <md5-channel-factory>
+  <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:tcpmd5:netty:cfg">prefix:md5-channel-factory</type>
+  <name>md5-client-channel-factory</name>
+ </md5-channel-factory>
+ <md5-server-channel-factory>
+  <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:tcpmd5:netty:cfg">prefix:md5-server-channel-factory</type>
+  <name>md5-server-channel-factory</name>
+ </md5-server-channel-factory>
+-------------------------------------------------------------------------------------------------------------------------------
 
-\2. In
-https://jenkins.opendaylight.org/integration/view/Integration%20jobs/job/integration-project-centralized-integration/lastSuccessfulBuild/artifact/distributions/serviceprovider/target/distributions-serviceprovider-0.1.2-SNAPSHOT-osgipackage/opendaylight/configuration/initial/41-bgp-example.xml[41-bgp-example.xml]
-add __ tag to _example-bgp-peer_:
+\2. In _41-bgp-example.xml_ add __ tag to _example-bgp-peer_:
 
-`<!--` +
-` For TCP-MD5 support, make sure the dispatcher associated with the rib has` +
-` "md5-channel-factory" attribute set and then add a "password" attribute here.` +
-` Note that the peer has to have the same password configured, otherwise the` +
-` connection will not be established.` +
-`-->` +
- +
-` ``prefix:bgp-peer` +
-` ``example-bgp-peer` +
-` ``10.25.2.27` +
-` ``180` +
-` ` +
-`  ``prefix:rib` +
-`  ``example-bgp-rib` +
-` ` +
-` ` +
-`  ``prefix:bgp-table-type` +
-`  ``ipv4-unicast` +
-` ` +
-` ` +
-`  ``prefix:bgp-table-type` +
-`  ``ipv6-unicast` +
-` ` +
-` ` +
-`  ``prefix:bgp-table-type` +
-`  ``linkstate` +
-` ` +
-` `*`changeme`* +
+code,xml,numberLines----------------------------------------------------------------------------------------------------------------
+code,xml,numberLines
+ <!--
+  For TCP-MD5 support, make sure the dispatcher associated with the rib has
+  "md5-channel-factory" attribute set and then add a "password" attribute here.
+  Note that the peer has to have the same password configured, otherwise the
+  connection will not be established.
+ -->
+ <module>
+  <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:bgp:rib:impl">prefix:bgp-peer</type>
+  <name>example-bgp-peer</name>
+  <host>10.25.2.27</host>
+  <holdtimer>180</holdtimer>
+  <password>changeme</password>
+  <rib>
+   <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:bgp:rib:cfg">prefix:rib</type>
+   <name>example-bgp-rib</name>
+  </rib>
+  <advertized-table>
+   <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:bgp:rib:impl">prefix:bgp-table-type</type>
+   <name>ipv4-unicast</name>
+  </advertized-table>
+  <advertized-table>
+   <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:bgp:rib:impl">prefix:bgp-table-type</type>
+   <name>ipv6-unicast</name>
+  </advertized-table>
+  <advertized-table>
+   <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:bgp:rib:impl">prefix:bgp-table-type</type>
+   <name>linkstate</name>
+  </advertized-table>
+  <password>changeme</password>
+ </module>
+----------------------------------------------------------------------------------------------------------------
+
+* 12: *password* - this tag needs to be added
 
 How to set a password on other BGP devices is out of the scope of this
 document.
 
 [[pcep]]
-== PCEP
+=== PCEP
 
-Precondition: make sure your
-https://jenkins.opendaylight.org/integration/view/Integration%20jobs/job/integration-project-centralized-integration/lastSuccessfulBuild/artifact/distributions/serviceprovider/target/distributions-serviceprovider-0.1.2-SNAPSHOT-osgipackage/opendaylight/configuration/initial/20-tcpmd5.xml[20-tcpmd5.xml]
-has it's content uncommented.
+Precondition: make sure your _20-tcpmd5.xml_ has it's content
+uncommented.
 
 To enable TCP MD5 for PCE protocol, you have to follow two steps.
 
-\1. In
-https://jenkins.opendaylight.org/integration/view/Integration%20jobs/job/integration-project-centralized-integration/lastSuccessfulBuild/artifact/distributions/serviceprovider/target/distributions-serviceprovider-0.1.2-SNAPSHOT-osgipackage/opendaylight/configuration/initial/32-pcep.xml[32-pcep.xml]
-uncomment the TCP MD5 section:
+\1. In _32-pcep.xml_ uncomment the TCP MD5 section:
 
-`<!--` +
-` Uncomment this block to enable TCP MD5 Signature support` +
-`-->` +
- +
-` ``prefix:md5-channel-factory` +
-`  ``md5-client-channel-factory` +
- +
- +
-` ``prefix:md5-server-channel-factory` +
-`  ``md5-server-channel-factory` +
+code,xml-------------------------------------------------------------------------------------------------------------------------------
+code,xml
+ <!--
+  Uncomment this block to enable TCP MD5 Signature support
+ -->
+ <md5-channel-factory>
+  <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:tcpmd5:netty:cfg">prefix:md5-channel-factory</type>
+   <name>md5-client-channel-factory</name>
+ </md5-channel-factory>
+ <md5-server-channel-factory>
+  <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:tcpmd5:netty:cfg">prefix:md5-server-channel-factory</type>
+   <name>md5-server-channel-factory</name>
+ </md5-server-channel-factory>
+-------------------------------------------------------------------------------------------------------------------------------
 
-\2. In
-https://jenkins.opendaylight.org/integration/view/Integration%20jobs/job/integration-project-centralized-integration/lastSuccessfulBuild/artifact/distributions/serviceprovider/target/distributions-serviceprovider-0.1.2-SNAPSHOT-osgipackage/opendaylight/configuration/initial/39-pcep-provider.xml[39-pcep-provider.xml]
-uncomment following section:
+\2. In ''39-pcep-provider.xml' uncomment following section:
 
-`<!--` +
-` For TCP-MD5 support make sure the dispatcher has the "md5-server-channel-factory"` +
-` attribute set and then set the appropriate client entries here. Note that if this` +
-` option is configured, the PCCs connecting here must have the same password configured,` +
-` otherwise they will not be able to connect at all.` +
-` -->` +
-` ` +
-` `
+code,xml,numberLines----------------------------------------------------------------------------------------
+code,xml,numberLines
+ <!--
+  For TCP-MD5 support make sure the dispatcher has the "md5-server-channel-factory"
+  attribute set and then set the appropriate client entries here. Note that if this
+  option is configured, the PCCs connecting here must have the same password configured,
+  otherwise they will not be able to connect at all.
+ -->
+  <client>
+   <address>192.0.2.2</address>
+   <password>changeme</password>
+  </client>
+----------------------------------------------------------------------------------------
 
-192.0.2.2
+* 8: *address* - change the value to the address of PCC, the one that is
+advertized to PCE
+* 9: *password* - provide password matching the one set on PCC.
 
-`  ``changeme` +
-` `
+How to set a password on PCC is out of the scope of this document.
 
-change the
+[[restconf-configuration]]
+== RESTCONF Configuration
 
-value to the address of PCC, the one that is advertized to PCE and
-provide password matching the one set on PCC. How to set a password on
-PCC is out of the scope of this document.
+Before you start, make sure, you've completed steps 1-5 in Installation
+Guide. Instead of restarting Karaf, install another feature, that
+provides you the access to 'restconf/config/' URLs.
+
+`feature:install odl-netconf-connector-all`
+
+This log message indicates successful start of netconf-connector:
+Netconf connector initialized successfully
+
+* To check what modules you have currently configured, check following
+link:
+http://localhost:8181/restconf/config/network-topology:network-topology/topology/topology-netconf/node/controller-config/yang-ext:mount/config:modules/
+* To check what services you have currently configured, check following
+link:
+http://localhost:8181/restconf/config/network-topology:network-topology/topology/topology-netconf/node/controller-config/yang-ext:mount/config:services/
+
+These URLs are also used to POST new configuration. If you want to
+change any other configuration that is listed here, make sure you
+include the correct namespaces. The correct namespace for __ is always
+_urn:opendaylight:params:xml:ns:yang:controller:config_. The namespace
+for any other fields can be found by finding given module in
+configuration yang files. RESTCONF will tell you if some namespace is
+wrong.
+
+To enable TCP-MD5 for either one of the protocols, enable TCP-MD5
+modules and services:
+
+You have to make *separate* POST requests for each module/service!
+
+There are dependencies between the following POSTs. A is needed by B, B
+is needed by C and E, C is needed by D and E is needed by F. The
+recommended order of applying them is ABCDEF.
+
+*URL:*
+http://localhost:8181/restconf/config/network-topology:network-topology/topology/topology-netconf/node/controller-config/yang-ext:mount/config:modules/
+
+*POST:*
+
+A:
+
+code,xml>
+ <module xmlns=------------------------------------------------------------------------------------------------------------------
+code,xml>
+ <module xmlns=
+ <module xmlns="urn:opendaylight:params:xml:ns:yang:controller:config">
+  <type xmlns:x="urn:opendaylight:params:xml:ns:yang:controller:tcpmd5:jni:cfg">x:native-key-access-factory</type>
+  <name>global-key-access-factory</name>
+ </module>
+------------------------------------------------------------------------------------------------------------------
+
+C:
+
+code,xml>
+ <module xmlns=---------------------------------------------------------------------------------------------------------------------
+code,xml>
+ <module xmlns=
+ <module xmlns="urn:opendaylight:params:xml:ns:yang:controller:config">
+  <type xmlns:x="urn:opendaylight:params:xml:ns:yang:controller:tcpmd5:netty:cfg">x:md5-client-channel-factory</type>
+  <name>md5-client-channel-factory</name>
+  <key-access-factory xmlns="urn:opendaylight:params:xml:ns:yang:controller:tcpmd5:netty:cfg">
+   <type xmlns:x="urn:opendaylight:params:xml:ns:yang:controller:tcpmd5:cfg">x:key-access-factory</type>
+   <name>global-key-access-factory</name>
+  </key-access-factory>
+ </module>
+---------------------------------------------------------------------------------------------------------------------
+
+E:
+
+code,xml>
+ <module xmlns=------------------------------------------------------------------------------------------------------------------------------------
+code,xml>
+ <module xmlns=
+ <module xmlns="urn:opendaylight:params:xml:ns:yang:controller:config">
+  <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:tcpmd5:netty:cfg">prefix:md5-server-channel-factory-impl</type>
+  <name>md5-server-channel-factory</name>
+  <server-key-access-factory xmlns="urn:opendaylight:params:xml:ns:yang:controller:tcpmd5:netty:cfg">
+   <type xmlns:x="urn:opendaylight:params:xml:ns:yang:controller:tcpmd5:cfg">x:key-access-factory</type>
+   <name>global-key-access-factory</name>
+  </server-key-access-factory>
+ </module>
+------------------------------------------------------------------------------------------------------------------------------------
+
+*URL:*
+http://localhost:8181/restconf/config/network-topology:network-topology/topology/topology-netconf/node/controller-config/yang-ext:mount/config:services/
+
+*POST:*
+
+B:
+
+code,xml>
+ <service xmlns=-----------------------------------------------------------------------------------------------------------
+code,xml>
+ <service xmlns=
+ <service xmlns="urn:opendaylight:params:xml:ns:yang:controller:config">
+  <type xmlns:x="urn:opendaylight:params:xml:ns:yang:controller:tcpmd5:cfg">x:key-access-factory</type>
+  <instance>
+   <name>global-key-access-factory</name>
+   <provider>/modules/module[type='native-key-access-factory'][name='global-key-access-factory']</provider>
+  </instance>
+ </service>
+-----------------------------------------------------------------------------------------------------------
+
+D:
+
+code,xml>
+ <service  xmlns=--------------------------------------------------------------------------------------------------------------
+code,xml>
+ <service  xmlns=
+ <service  xmlns="urn:opendaylight:params:xml:ns:yang:controller:config">
+  <type xmlns:x="urn:opendaylight:params:xml:ns:yang:controller:tcpmd5:netty:cfg">x:md5-channel-factory</type>
+  <instance>
+   <name>md5-client-channel-factory</name>
+   <provider>/modules/module[type='md5-client-channel-factory'][name='md5-client-channel-factory']</provider>
+  </instance>
+ </service>
+--------------------------------------------------------------------------------------------------------------
+
+F:
+
+code,xml>
+ <service xmlns=-------------------------------------------------------------------------------------------------------------------------------
+code,xml>
+ <service xmlns=
+ <service xmlns="urn:opendaylight:params:xml:ns:yang:controller:config">
+  <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:tcpmd5:netty:cfg">prefix:md5-server-channel-factory</type>
+  <instance>
+   <name>md5-server-channel-factory</name>
+   <provider>/modules/module[type='md5-server-channel-factory-impl'][name='md5-server-channel-factory']</provider>
+  </instance>
+ </service>
+-------------------------------------------------------------------------------------------------------------------------------
+
+[[bgp-1]]
+=== BGP
+
+Preconditions:
+
+1.  you have to introduce modules and services mentioned
+BGP LS PCEP:TCP MD5 Guide#RESTCONF_Configuration[here].
+2.  your BGP client needs to be ALREADY configured. Check
+BGP LS PCEP:User Guide[User Guide].
+
+Enable TCP-MD5 in BGP configuration:
+
+*URL:*
+http://localhost:8181/restconf/config/network-topology:network-topology/topology/topology-netconf/node/controller-config/yang-ext:mount/config:modules/
+
+*POST:*
+
+code,xml>
+ <module xmlns=----------------------------------------------------------------------------------------------------------------------
+code,xml>
+ <module xmlns=
+ <module xmlns="urn:opendaylight:params:xml:ns:yang:controller:config">
+  <type xmlns:x="urn:opendaylight:params:xml:ns:yang:controller:bgp:rib:impl">x:bgp-dispatcher-impl</type>
+  <name>global-bgp-dispatcher</name>
+  <md5-channel-factory xmlns="urn:opendaylight:params:xml:ns:yang:controller:bgp:rib:impl">
+   <type xmlns:x="urn:opendaylight:params:xml:ns:yang:controller:tcpmd5:netty:cfg">x:md5-channel-factory</type>
+   <name>md5-client-channel-factory</name>
+  </md5-channel-factory>
+  <md5-server-channel-factory xmlns="urn:opendaylight:params:xml:ns:yang:controller:bgp:rib:impl">
+   <type xmlns:x="urn:opendaylight:params:xml:ns:yang:controller:tcpmd5:netty:cfg">x:md5-server-channel-factory</type>
+   <name>md5-server-channel-factory</name>
+  </md5-server-channel-factory>
+ </module>
+----------------------------------------------------------------------------------------------------------------------
+
+Set password:
+
+*URL:*
+http://localhost:8181/restconf/config/network-topology:network-topology/topology/topology-netconf/node/controller-config/yang-ext:mount/config:modules/
+
+*POST:*
+
+code,xml line>
+ <module xmlns=---------------------------------------------------------------------------------------------------
+code,xml line>
+ <module xmlns=
+ <module xmlns="urn:opendaylight:params:xml:ns:yang:controller:config">
+  <type xmlns:x="urn:opendaylight:params:xml:ns:yang:controller:bgp:rib:impl">x:bgp-peer</type>
+  <name>example-bgp-peer</name>
+  <password xmlns="urn:opendaylight:params:xml:ns:yang:controller:bgp:rib:impl">changeme</password>
+ </module>
+---------------------------------------------------------------------------------------------------
+
+* 4: *password* - change the value
+
+[[pcep-1]]
+=== PCEP
+
+Preconditions:
+
+1.  you have to introduce modules and services mentioned
+BGP LS PCEP:TCP MD5 Guide#RESTCONF_Configuration[here].
+
+Enable TCP-MD5 in PCEP configuration:
+
+*URL:*
+http://localhost:8181/restconf/config/network-topology:network-topology/topology/topology-netconf/node/controller-config/yang-ext:mount/config:modules/
+
+*POST:*
+
+code,xml>
+ <module xmlns=----------------------------------------------------------------------------------------------------------------------
+code,xml>
+ <module xmlns=
+ <module xmlns="urn:opendaylight:params:xml:ns:yang:controller:config">
+  <type xmlns:x="urn:opendaylight:params:xml:ns:yang:controller:pcep:impl">x:pcep-dispatcher-impl</type>
+  <name>global-pcep-dispatcher</name>
+  <md5-channel-factory xmlns="urn:opendaylight:params:xml:ns:yang:controller:pcep:impl">
+   <type xmlns:x="urn:opendaylight:params:xml:ns:yang:controller:tcpmd5:netty:cfg">x:md5-channel-factory</type>
+   <name>md5-client-channel-factory</name>
+  </md5-channel-factory>
+  <md5-server-channel-factory xmlns="urn:opendaylight:params:xml:ns:yang:controller:pcep:impl">
+   <type xmlns:x="urn:opendaylight:params:xml:ns:yang:controller:tcpmd5:netty:cfg">x:md5-server-channel-factory</type>
+   <name>md5-server-channel-factory</name>
+  </md5-server-channel-factory>
+ </module>
+----------------------------------------------------------------------------------------------------------------------
+
+Set password:
+
+*URL:*
+http://localhost:8181/restconf/config/network-topology:network-topology/topology/topology-netconf/node/controller-config/yang-ext:mount/config:modules/
+
+*POST:*
+
+code,xml line>
+ <module xmlns=-----------------------------------------------------------------------------------------------------------------------
+code,xml line>
+ <module xmlns=
+ <module xmlns="urn:opendaylight:params:xml:ns:yang:controller:config">
+  <type xmlns:x="urn:opendaylight:params:xml:ns:yang:controller:pcep:topology:provider">x:pcep-topology-provider</type>
+  <name>pcep-topology</name>
+  <client xmlns="urn:opendaylight:params:xml:ns:yang:controller:pcep:topology:provider">
+   <address xmlns="urn:opendaylight:params:xml:ns:yang:controller:pcep:topology:provider">192.0.2.2</address>
+   <password>changeme</password>
+  </client>
+ </module>
+-----------------------------------------------------------------------------------------------------------------------
+
+* 5: *address* - change the value
+* 6: *password* - change the value
+
+To unset a password for a client, post the same data, but without the
+line.

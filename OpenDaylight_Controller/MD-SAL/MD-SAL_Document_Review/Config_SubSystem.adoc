@@ -1,0 +1,603 @@
+[[what-is-it]]
+== WHAT IS IT
+
+*The config subsystem is an activation and configuration framework,
+roughly similar to what Blueprint would do should it also handle
+statistics and allow for run-time rewiring.*
+
+Config subsystem allows the developers to
+
+* expose configuration and service dependencies of their application,
+* utilize service and configuration injection,
+* expose runtime statistics of their application,
+* leave the lifecycle management of the instances of their application
+to the config subsystem,
+* package their application into one or more configurable Modules* (one
+bundle, Multiple configurable modules in it).
+
+It enables the operators and endusers to
+
+* create new instances of applications at startup or while the
+controller is running,
+* destroy and reconfigure running applications in a safe and
+transactional manner,
+* collect statistics of running applications,
+* and to invoke rpcs on Module instances.
+
+* _Module is a generic, manageable unit recognized by config subsystem
+also suitable for JMX._
+
+*The config subsystem is a home grown solution and in its core it is
+just a manager built around JMX registry that enables its users to
+change Modules in that registry(and their configuration) in a safe
+manner.*
+
+*The config subsystem uses yang modeling language as a language for
+modeling the configuration, dependencies and state data for Modules.*
+
+Note: The word *module* can mean a lot of different things and
+(unfortunately) its also the element of config subsystem. For this
+reason we will try to distinguish the Modules from config subsystem by
+using capital M.
+
+[[additional-components]]
+=== ADDITIONAL COMPONENTS
+
+In addition to the core manager around JMX, there are a few components
+that fall into(or are coupled with) the config subsystem:
+
+* *Netconf northbound interface* - Northbound NETCONF server tied to
+config subsystem.
+* *Yang jmx config generator* - Yang-maven-plugin compatible code
+generator, that generates specific Module interfaces and stub
+implementations from YANG models.
+* *Config persister* - Responsible for persisting configuration changes
+in the controller and pushing initial configuration changes to the
+controller on startup.
+* *Wrapper Modules for commonly used resources* - Configurable Modules
+generated for common resources such as Threadpools to allow
+configurability, manageability and reusability for these resources.
+
+Detailed information about the components forming config subsystem can
+be found at the
+OpenDaylight_Controller:MD-SAL:MD-SAL_Document_Review:Config_SubSystem#COMPONENT_MAP[Component
+map section]. In addition, there is a page briefly describing the
+OpenDaylight_Controller:Config:Design[design of config subsystem]
+(design for netconf subsystem can be found at
+OpenDaylight_Controller:Netconf:Design[design of netconf subsystem]).
+
+[[interfaces-to-config-subsystem]]
+=== INTERFACES TO CONFIG SUBSYSTEM
+
+Config subsystem is accessible in 4 ways:
+
+* NETCONF northbound
+* RESTCONF northbound (via a loopback netconf connection instatiated by
+default using initial config file)
+* JMX (as JMX is the core of config subsystem)
+* From the code
+
+[[assumed-knowledge]]
+=== ASSUMED KNOWLEDGE
+
+Users of the config subsystem should consider consulting following
+resources:
+
+[[for-developers]]
+==== FOR DEVELOPERS
+
+* YANG - Developers of applications use YANG language in order to
+describe the configuration, runtime state and dependencies of their
+applications.
+* JMX (optional) - JMX is used as a core of config subsystem and in
+order to fully understand the config subsystem (especially
+config-manager) one should understand how JMX works.
+* Tutorial on how to develop "config subsystem aware" applications - To
+help application developers start with developing with config subsystem.
+
+[[for-operators]]
+==== FOR OPERATORS
+
+* RESTCONF/NETCONF/JMX(optional) - These interfaces can be used to
+read/write data from config subsystem and thus spawn, reconfigure or
+destroy Modules managed by config subsystem.
+* XML/JSON - RESTCONF enables its users to read/write data using XML or
+JSON, NETCONF requires usage of XML and JMX requires the use of GUI tool
+such as jconsole/jvisualvm (parts of standard java JDK).
+
+[[for-endusers]]
+==== FOR ENDUSERS
+
+Same knowledge assumed as for operators.
+
+[[assumed-environment]]
+=== ASSUMED ENVIRONMENT
+
+(if applicable)
+
+[[why-do-we-have-it]]
+=== WHY DO WE HAVE IT?
+
+* pain points addressed
+* problems solved
+
+[[painpoints]]
+=== PAINPOINTS
+
+* Need a general understanding and description of the Config Subsystem.
+Where to find a good description?
+* What is the “Config Subsystem” and what does it do?
+* Multiple ways of handling config in ODL (via Karaf and via Config
+Subsystem’s XML files)
+* How does Config Subsystem relate to OSGi bundle dependency resolution?
+** It is not tied to it. Rather then following the whiteboard pattern,
+where the consumers have to take of filtering, the service instances are
+directly injected. Services are not imported from the OSGi registry, but
+all services from config subsystem are published into it.
+* Requires a Yang file to describe the model and an XML file to
+instantiate the model
+* How do the config xml files (eg, 00-netty.xml) in the
+configuration/initial directory relate to the Config Subsystem?
+** They are the "initial wiring of the controller". Their format is not
+tie to the config subsystem, but rather to the config-netconf-persister
+(e.g. the NETCONF-specific persistence module). They are read and pushed
+at startup.
+* What is the element in the config xml file (eg, 00-netty.xml) used
+for?
+** These come from NETCONF. They list the models which need to be
+advertised to be present before the configuration file is attempted to
+be pushed. Usually features which we reference are listed there -- so
+that we do not even try to perform a reconfiguration when we know we do
+not have enough ingredients.
+* What is the preferred way to “inject” references into OSGi components?
+
+1.  Define md-sal dependencies in yang file which auto-generated Module
+and ModuleFactory classes. These auto-generated classes take care of the
+injection.
+2.  Use an Activator class
+3.  Use Declarative Services with Dependency Injection using annotations
+in the code (eg, @Component, @Reference)
+
+* There is a lot of documentation that shows you how to do something.
+BUT…we need documentation that describes “why” we are doing something.
+When something doesn’t work, you need to understand why something was
+done to figure out what the problem is.
+
+[[how-does-it-work]]
+=== HOW DOES IT WORK?
+
+This chapter covers basic configuration and use tasks with focus on
+technologies in use e.g. JMX, OSGi.
+
+[[configuration-process]]
+==== CONFIGURATION PROCESS
+
+Configuration process contains details on application development,
+Module spawning/reconfiguration process and configuration
+persisting/pushing.
+
+[[phase-1make-application-config-subsystem-aware]]
+===== Phase 1:Make application config subsystem aware
+
+First step is to get the application recognized by config subsystem.
+Assuming there already is an application ready to be included into
+config subsystem, these are the steps developers need to follow:
+
+1.  Write YANG model describing the interface(in config subsystem called
+service) and implementation(in config subsystem called Module) of your
+application.
+* These yang models might be included inside _src/main/yang_ folder of a
+maven-module for an application or inside a completely separate
+maven-module that will only deal with configuration for a particular
+application.
+* YANG model should contain the definition of one or more services and
+one or more Modules for those services.
+* YANG model needs to depend on _config.yang_ module provided by
+_config-api_ bundle inside config subsystem, therefore depend on the
+_config-api_ bundle on maven dependencies level.
+* YANG model _config.yang_ defines the basic structures necessary for
+the definition of new Modules and services.
+2.  Configure the yang-maven-plugin in pom.xml inside maven-module
+containing YANG models for config subsystem.
+3.  Execute maven build process.
+4.  Yang-maven-plugin with code generator from config subsystem will
+generate 2 classes inside _src/main/java_ folder for each module defined
+in the YANG schemas.
+* _FooModuleFactory_ - Simple factory for Module classes
+* _FooModule_ - JMX compatible wrapper class that wraps an instance of a
+Module(could be an application or its part). Users are expected to
+modify this class
+* Additional classes generated in target folder which are not meant for
+the developer(details in following sections) since these classes are
+regenerated with every build unlike the _FooModuleFactory_ and
+_FooModule_
+* All generated classes are basically the binding between application
+and config subsystem
+5.  Implement the _createInstance()_ method inside the _FooModule_ class
+to instantiate your application.
+* Getters are used to retrieve the dependencies and configuration needed
+for application instantiation
+
+Note: Detailed step by step guide can be found in the education section.
+
+[[phase-1.1-state-data-provisioning-from-modules]]
+===== Phase 1.1: State data provisioning from Modules
+
+Besides configuration and dependencies, the yang files for config
+subsystem are used to model read-only state data provided from
+application (e.g. statistics). Following the steps from previous phase
+you need to:
+
+1.  Implement interface _FooRuntimeMXBean_.
+* Generated inside target folder
+* Contains getters for state data modeled in the YANG models from
+previous phase
+2.  In the _createInstance()_ method inside the _FooModule_ register the
+implementation of _FooRuntimeMXBean_ using injected instance of
+_RootRuntimeBeanRegistrator_.
+
+Note: This phase is entirely optional as provision of state data is
+optional for modules. Note 2: It is also possible to define rpcs along
+with state data in the yang schemas.
+
+[[phase-2config-subsystem-modules-discovery]]
+===== Phase 2:Config subsystem Modules discovery
+
+After the bundles with application and config subsystem bindings are
+ready, they need to be included in the ODL distribution and picked up by
+config subsystem at startup. Config subsystem detects "config subsystem
+aware" bundles by:
+
+1.  Config-manager(in its activator) starts a bundle tracker and listens
+to "Bundle is active" events.
+* By listening on active, config subsystem is guaranteed that all the
+dependencies(bundles) of a bundle are already resolved.
+* If all the dependencies are resolved, all YANG model dependencies are
+resolved as well, since the models are part of those
+dependencies(bundles).
+2.  For every new bundle it looks for generated Module factories.
+* A simple text file:
+_META-INF/services/org.opendaylight.controller.config.spi.ModuleFactory_
+is used to find the generated Module factories
+* The text files contain fully qualified names of all factories inside
+the bundle
+* The file is added by code generator for config subsystem within
+yang-maven-plugin while generating config subsystem bindings
+3.  For every new bundle it also looks for YANG models to create an
+instance of a SchemaContext.
+* The SchemaContext is later used to resolve configuration attributes
+such as identities and also for mapping between NETCONF interface and
+config subsystem
+* SchemaContext is built using resources from yangtools such as:
+_ModuleInfoBackedContext_ and _ModuleInfoBackedContext_
+4.  Config-manager creates and stores a singleton instance of each
+Module factory
+* This instance will be later used to create one or more instances of
+Modules
+* This instance is also registered in the OSGi service registry
+* Instance of _ConfigRegistry_ is responsible for managing the factories
+and their instances
+* _ConfigRegistry_ itself is also exposed into OSGi
+
+[[phase-3application-instantiation]]
+===== Phase 3:Application instantiation
+
+After the distribution is fully started and all bundles scanned, it is
+possible to instantiate available Modules using RESTCONF, NETCONF or
+JMX.
+
+1.  _ConfigRegistry_ is the core class of config-manager and is
+responsible for transactional configuration management.
+* Application instantitation is considered a configuration change.
+2.  Transaction from _ConfigRegistry_ is started.
+3.  New Module instance is created in the transaction (using stored
+instance of Module factory for a particular Module).
+4.  Attributes and dependencies are set for the new instance of the
+module.
+5.  Transaction resolves and validates the dependencies and also other
+configuration parameters.
+* Users can provide additional validation of configuration attributes
+inside the generated Module class in method: _customValidation()_
+* Dependencies are checked for correct dependency type in the module and
+the dependency graph is searched for loops or missing dependencies
+(responsibility of _DependencyResolver_ in config-manager)
+6.  Transaction is committed.
+* All configuration attributes and dependencies are injected into to
+Module instance
+* Method _createInstance()_ is called for the Module instance
+* User code inside _createInstance()_ method should instantiate the
+application and pass all relevant attributes and dependencies to it
+* Returned instance is registered into JMX and optionally into OSGi
+service registry
+
+Note: Detailed how-to guides are included in education section. +
+Note 2: Detailed overview of configuration process is also included in
+education.
+
+[[phase-4-application-reconfiguration]]
+===== Phase 4: Application reconfiguration
+
+After a Module was successfully instantiated, it can be reconfigured at
+any point, the reconfiguration is very similar to instantiation:
+
+1.  Transaction from _ConfigRegistry_ is started.
+2.  The configuration of a Module identified by its type and name is
+changed.
+3.  New module instance is created in the transaction.
+4.  Method _createInstance()_ is not called yet.
+5.  Initially, method _boolean:canReuseInstance(oldModuleInstance)_
+inside generated Module class is called to make the decision whether we
+can reuse old instance of a Module (typically when no configuration was
+changed, but this behavior can be overridden by user to modify the
+default implementation)''
+* The logic of reuse and new instance creation is also generated but is
+located in an abstract class in the target folder. This abstract class
+is the parent of Module class available to the user and its purpose is
+to hide general logic common for all Modules. This abstract class
+however provides some non-final methods, which can be overridden in
+order to modify the default behavior e.g. reuse of instances.
+6.  If old instance can be reused, then the old instance of Module is
+reused and the new one is abandoned.
+* The transaction can be committed at this point.
+7.  If the old instance cannot be reused, then the old Module is
+abandoned and its wrapped instance(the application it manages) is
+closed.
+* Method _createInstance()_ is called for the Module instance.
+* The process continues as described in previous phase with newly
+spawned instances.
+* JMX registration is recreated as the new instance of Module is
+registered.
+
+[[phase-initial-configuration-push]]
+===== Phase: Initial configuration push
+
+In order to automate startup of infrastructural services, plugins and
+applications, a _config-pusher_ mechanism was implemented. It is part of
+a *config-persister* component and detailed documentation can be found
+at: OpenDaylight_Controller:Config:Configuration:Initial[Initial
+configuration for ODL] (// TODO might need an update for karaf based
+distribution). +
+ +
+ Initial configuration push just consists of a few edit-config rpcs sent
+to the northbound NETCONF interface for config subsystem. It does not
+differ from a user sending edit-configs via NETCONF. The format of files
+with initial configuration was chosen as XML since XML is the format of
+NETCONF rpcs and allows for trivial construction of edit-config rpcs,
+since the content is only copied from the files into the rpc. No
+transformation is needed in such case. +
+ +
+_Note: The NETCONF messages with initial config are not transferred over
+network, just inside the JVM_ +
+ +
+_' Required capabilities in files with initial config_' The whole
+environment in ODL is fully dynamic as it uses OSGi container
+internally. This implies the dynamic nature of config subsystem as well
+as its NETCONF northbound interface. Bundles and features can appear at
+any time and config subsystem needs to pick them up as they come and go.
+These bundles may contain YANG models and the binding classes for config
+subsystem. Before a bundle is installed and picked up, initial config
+file that tries to spawn a Module defined in that bundle cannot be
+pushed. Config-pusher has to wait with such config files until required
+bundles are loaded. The required capabilities listed in the files ensure
+this behavior as config pusher waits until NETCONF server lists the
+required YANG models as capabilities. +
+ *The required-capabilities in initial config files ensure that config
+subsystem is ready to spawn required modules in the dynamic environment
+of OSGi* +
+ +
+ *Config push in karaf* +
+ This mechanism was slightly updated for the *Karaf* distribution.
+Initial config files are not picked up from file-system but rather from
+features containing bundles with initial config files. A hook for an
+install feature event was implemented to scan incoming features.
+_Config-persister_ is an extensible component that can be configured to
+use any *storage-adapter* internally to load initial configuration and
+the feature-storage-adapter was implemented in this case. +
+
+[[phase-configuration-persisting]]
+===== Phase: Configuration persisting
+
+Besides the initial configuration push, config-persister also stores
+current configuration snapshot from ODL while its running. After every
+change of configuration, a notification is sent to config-persister with
+current snapshot to store. Notifications are carried over JMX (JMX can
+be used easily to transfer notifications). The notifications are
+generated in the NETCONF interface to config subsystem not config
+subsystem itself. The reason for this is that inside NETCONF interface
+there already is a snapshot of current configuration in an easily
+storeable and restorable format: XML. There is a disadvantage to this
+approach: Changed configuration would not be stored using
+config-persister in case users interact with config subsystem
+directly(from code or JMX). +
+ +
+Stored configuration snapshot will be loaded during the next startup of
+ODL. This is the mechanism to preserve the changes to the configuration
+of ODL initiated by operators/users. +
+ +
+TODO: How does the feature-storage-adapter work with persisted
+configuration ?
+
+[[yang-in-config-subsystem]]
+==== YANG IN CONFIG SUBSYSTEM
+
+Primary interfaces for config subsystem are NETCONF and RESTCONF. These
+interfaces rely on YANG modeling language to describe the data being
+sent. In addition to data description/definition, YANG models are used
+to generate the Modules and related config subsystem binding. +
+YANG modeling language was chosen for config subsystem for 2 reasons:
+
+1.  To fit into the ecosystem of ODL where YANG modeling language is
+highly used by MD-SAL and applications/plugins.
+2.  Considering ODL controller a network device, its management should
+be exposed in a standardized manner. Management of ODL is handled by the
+config subsystem and exposed by NETCONF and RESTCONF using YANG as data
+definition language.
+
+[[base-config-yang-models]]
+===== Base Config yang models
+
+Core models for config subsystem(defining top level constructs) are
+located in *config-api* component inside config subsystem:
+
+*
+https://jenkins.opendaylight.org/controller/job/controller-merge/lastSuccessfulBuild/artifact/opendaylight/config/config-api/target/site/models/config.html[_config.yang_]
+- this model defines following structures:
+** *modules* - Top level container with a single _List_ node where list
+entry = Module instance with module specific configuration and state
+data. Each entry is identified by its module-type and name. Two _Choice_
+nodes are used for configuration and state data. Each new module
+definition then only adds new _Case_ nodes where its configuration and
+state is defined.
+** *services* - Top level container with a single _List_ node where list
+entry = Service reference. Service reference is named reference for an
+instance of a Module. These references are identified by its
+service-type and name and used for dependency injection. Module
+instances cannot be referenced directly as a dependency, instead a
+service instance has to be used.
+** *base identities* - Base identities defining module-type and
+service-type identity. Identities derived from these two specify
+concrete types of services nad Modules usually defined by users.
+** *extensions* - Config subsystem specific extensions.
+*
+https://jenkins.opendaylight.org/controller/job/controller-merge/lastSuccessfulBuild/artifact/opendaylight/config/config-api/target/site/models/rpc-context.html[rpc-context.yang]
+- constructs and extensions required in case runtime rpc invocation is
+desired for Module instances.
+
+_Note: Detailed information can be found inside the models and in the
+tutorial/education section._
+
+[[component-map]]
+==== COMPONENT MAP
+
+* OpenDaylight_Controller:Config:Component_Map[Config subsystem
+component map]
+* Netconf subsystem contains the northbound netconf APIs for config
+subsystem as well as implementation of config pusher so its also
+relevant: OpenDaylight_Controller:Netconf:Component_Map[Netconf
+subsystem component map]
+
+[[how-does-it-fit-into-the-controller-architecture]]
+==== HOW DOES IT FIT INTO THE CONTROLLER ARCHITECTURE?
+
+*Config subsystem is part of infrastructure of the controller but stands
+above other infrastructure services(e.g. md-sal) and running
+applications(e.g. netconf-connector).* It gets activated using OSGi
+Activators and there is only one instance of config subsystem per
+controller node/JVM. Config-subsystem then manages the modules within
+the controller (e.g. datastores, md-sal brokers, restconf northbound,
+netconf southbound connectors etc.). +
+ Everything in the controller that is not config subsystem should be
+managed by it. An example would be md-sal(datastores, brokers etc.).
+With config subsystem, it is possible to easily spawn multiple instances
+of md-sal and wire them with other infrastructure services or
+applications (currently we are using only one md-sal instance but
+multiple instances of md-sal could be used in order to isolate/separate
+concerns within a single controller node and provide different services
+on top of different md-sal instances e.g. restconf).
+
+Following diagram illustrates the position of config subsystem within
+the controller (TODO probably not the best diagram, remodel):
+image:Config_in_ODL.png[Config subsystem in
+ODL,title="fig:Config subsystem in ODL"]
+
+[[who-should-use-it]]
+=== WHO SHOULD USE IT?
+
+* Developers, operations, end-user?
+
+[[which-projects-dodont-use-it]]
+==== WHICH PROJECTS DO/DON'T USE IT?
+
+*Config subsystem users:* +
+* MD-SAL
+
+* RESTCONF
+* BGPCEP
+* OPENFLOW
+* TOASTER
+* NETCONF CONNECTOR
+
+*Config subsystem "resistants"*
+
+* AD-SAL
+
+[[education]]
+== EDUCATION
+
+This chapter contains links to:
+
+1.  specifications and details for technologies in use,
+2.  user guides and tutorials on how to develop with config subsystem
+and how to use it
+
+[[learning-resources]]
+=== LEARNING RESOURCES
+
+*Core technologies and config subsystem:* +
+* https://docs.oracle.com/javase/tutorial/jmx/overview/[JMX tutorial]
+
+* http://tools.ietf.org/html/rfc6020#section-5.1.2[YANG RFC]
+* OpenDaylight_Controller:Config:Component_Map[Config subsystem
+component map]
+* OpenDaylight_Controller:Config:Design[Config subsystem design
+overview]
+* OpenDaylight_Controller:Config:Configuration[How does the
+configuration process work inside ODL's config-manager]
+
+*Resources for developers:* +
+
+* OpenDaylight_Controller:Config:Configuration:Initial[How does the
+initial configuration (config-persister) work]
+
+*Interfaces to config subsystem:* +
+* http://tools.ietf.org/html/rfc6241[NETCONF RFC]
+
+* http://tools.ietf.org/html/draft-ietf-netconf-restconf-03[RESTCONF
+RFC]
+* OpenDaylight_Controller:MD-SAL:Restconf[How to use RESTCONF in ODL]
+* OpenDaylight_Controller:Netconf:Component_Map[Netconf subsystem
+component map]
+* OpenDaylight_Controller:Netconf:Design[Netconf subsystem design
+overview]
+
+[[alternatives-investigated-or-possible]]
+=== ALTERNATIVES (INVESTIGATED OR POSSIBLE)
+
+* OSGi service registry
+* http://gravity.sourceforge.net/servicebinder/[Gravity Service Binder]
+* http://wiki.osgi.org/wiki/Declarative_Services[Declarative Services]
+* Blueprint
+*
+http://felix.apache.org/documentation/subprojects/apache-felix-ipojo.html[iPOJO]
+*
+http://felix.apache.org/site/apache-felix-dependency-manager.html[Felix
+DM]
+
+ +
+*Sources:* +
+These resources discuss listed alternatives to config subsystem in
+detail:
+
+*
+http://blog.credera.com/technology-insights/java/dependency-injection-part-2-osgi/
+* http://felix.apache.org/site/ipojo-faq.html
+
+[[examplestutorials]]
+== EXAMPLES/TUTORIALS
+
+* OpenDaylight_Controller:Config:Examples:Sample_Project[Tutorial on how
+to build "config subsystem aware" applications in ODL]
+*
+OpenDaylight_Controller:Config:Examples:Threadpool#Configuration_example_of_thread_pools_using_telnet[How
+to use NETCONF in ODL to configure application(Modules)]
+*
+OpenDaylight_Controller:Config:Examples:Netconf#Spawning_Additional_Netconf_Connectors_While_the_Controller_is_Running[How
+to use RESTCONF in ODL to spawn and configure new instance of a
+Module(netconf connector)]
+*
+OpenDaylight_Controller:Config:Examples:Netconf#Reconfiguring_Netconf_Connector_While_the_Controller_is_Running[How
+to use RESTCONF in ODL to reconfigure a Module instance(netconf
+connector)]
+
+[[meetingsaction-itemsprogress]]
+== Meetings/Action Items/Progress

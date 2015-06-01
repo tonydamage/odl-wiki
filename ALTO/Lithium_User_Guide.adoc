@@ -1,0 +1,344 @@
+[[alto-user-guide]]
+= ALTO User Guide
+
+[[overview]]
+== Overview
+
+The ALTO project provides support for _Application Layer Traffic
+Optimization_ services defined in
+https://tools.ietf.org/html/rfc7285[RFC 7285].
+
+At the version that comes with the Lithium release, ALTO uses the YANG
+model described in
+https://tools.ietf.org/html/draft-shi-alto-yang-model-03[this draft].
+
+[[alto-architecture]]
+== ALTO Architecture
+
+There are three kinds of ALTO packages in Open Daylight.
+
+* *Core*
+
+The *core* packages are those that define the abstraction of ALTO
+services. Currently there are *_alto-model_* and
+*_service-api-rfc7285_*, which define ALTO service in MD-SAL and AD-SAL
+respectively. Also there is *_alto-northbound_* which provides the ALTO
+service following the formats defined in RFC 7285.
+
+* *Basic*
+
+A majority of *basic* packages are those that provide basic
+implementations of ALTO services. *_alto-provider_* (for MD-SAL) and
+*_simple-impl_* (for AD-SAL) belong in this category. There are also
+some utilities that may come in handy, such as *_alto-manager_*, which
+provides a karaf command line tool to manipulate network maps and cost
+maps.
+
+* *Service*
+
+The packages in the *services* category are those that aims at providing
+useful ALTO instances in real network. There is now
+*_alto-hosttracker_*, which relies on l2switch and can generate a
+network map, a corresponding cost map and the endpoint cost service as
+well.
+
+[[md-sal-v.s.-ad-sal]]
+=== MD-SAL v.s. AD-SAL
+
+Even though MD-SAL is quite useful in Open Daylight and there are
+possibilities that AD-SAL might be removed,
+https://tools.ietf.org/html/draft-shi-alto-yang-model-03[this document]
+has pointed out that the format defined in RFC 7285 could not be
+modelled with YANG. Thus we have provided a middleware to transform the
+output data structure into RFC7285-compatiable format. The middleware,
+*_simple-impl_* being the name, is now provided in an AD-SAL way and we
+will consider implementing it using MD-SAL in the future.
+
+[[configuring-alto]]
+== Configuring ALTO
+
+Currently there are not too much extra configurations about ALTO in Open
+Daylight. There are three packages that require their own configuration
+files, including *_alto-provider_*, *_alto-hosttracker_* and
+*_simple-impl_*. However, the only configurable option is the type of
+the data broker in all three configuration files.
+
+[[administering-or-managing-alto]]
+== Administering or Managing ALTO
+
+To enable ALTO, the features must be installed first.
+
+`   karaf > feature:install odl-alto-provider` +
+`   karaf > feature:install odl-alto-manager` +
+`   feature:install odl-alto-northbound` +
+`   feature:install odl-alto-hosttracker`
+
+[[managing-data-with-restconf]]
+=== Managing Data with RESTCONF
+
+After install *_odl-alto-provider_* feature in karaf, it is possible to
+manage network-maps and cost-maps using RESTCONF. Since Open Daylight
+comes with link:http://localhost:8181/apidoc/explorer/index.html[an API
+web service], you can view all the operations provided by ALTO.
+
+With the example input below you can insert a network map into the data
+store, either by filling the form in the API doc page, or using tools
+such as *_curl_*.
+
+`   HOST_IP=localhost # IP address of the controller` +
+`   CREDENTIAL=admin:admin # username and password for authentication` +
+`   BASE_URL=$HOST_IP:8181/restconf/config` +
+`   SERVICE_PATH=alto-service:resources/alto-service:network-maps/alto-service:network-map` +
+`   RESOURCE_ID=test_odl # Should match the one in the input file` +
+`   curl -X PUT -H "content-type:application/yang.data+json" \` +
+`           -d @example-input.json -u $CREDENTIAL \` +
+`           `http://$BASE_URL/$SERVICE_PATH/$RESOURCE_ID[`http://$BASE_URL/$SERVICE_PATH/$RESOURCE_ID`]
+
+`   {` +
+`       "alto-service:network-map": [` +
+`           {` +
+`               "alto-service:map": [` +
+`                   {` +
+`                       "alto-service:endpoint-address-group": [` +
+`                           {` +
+`                               "alto-service:address-type": "ipv4",` +
+`                               "alto-service:endpoint-prefix": [` +
+`                                   "192.0.2.0/24",` +
+`                                   "198.51.100.0/25"` +
+`                               ]` +
+`                           }` +
+`                       ],` +
+`                       "alto-service:pid": "PID1"` +
+`                   },` +
+`                   {` +
+`                       "alto-service:endpoint-address-group": [` +
+`                           {` +
+`                               "alto-service:address-type": "ipv4",` +
+`                               "alto-service:endpoint-prefix": [` +
+`                                   "198.51.100.128/25"` +
+`                               ]` +
+`                           }` +
+`                       ],` +
+`                       "alto-service:pid": "PID2"` +
+`                   },` +
+`                   {` +
+`                       "alto-service:endpoint-address-group": [` +
+`                           {` +
+`                               "alto-service:address-type": "ipv4",` +
+`                               "alto-service:endpoint-prefix": [` +
+`                                   "0.0.0.0/0"` +
+`                               ]` +
+`                           },` +
+`                           {` +
+`                               "alto-service:address-type": "ipv6",` +
+`                               "alto-service:endpoint-prefix": [` +
+`                                   "::/0"` +
+`                               ]` +
+`                           }` +
+`                       ],` +
+`                       "alto-service:pid": "PID3"` +
+`                   }` +
+`               ],` +
+`               "alto-service:resource-id": "test_odl",` +
+`               "alto-service:tag": "da65eca2eb7a10ce8b059740b0b2e3f8eb1d4785"` +
+`           }` +
+`       ]` +
+`    }`
+
+Then you can use the following command to see the results:
+
+`   HOST_IP=localhost # IP address of the controller` +
+`   CREDENTIAL=admin:admin # username and password for authentication` +
+`   BASE_URL=$HOST_IP:8181/restconf/config` +
+`   SERVICE_PATH=alto-service:resources/alto-service:network-maps/alto-service:network-map` +
+`   RESOURCE_ID=test_odl` +
+`   curl -X GET -u $CREDENTIAL `http://$BASE_URL/$SERVICE_PATH/$RESOURCE_ID[`http://$BASE_URL/$SERVICE_PATH/$RESOURCE_ID`]
+
+Then you can use *_DELETE_* method to remove the data from the data
+store.
+
+`   HOST_IP=localhost # IP address of the controller` +
+`   CREDENTIAL=admin:admin # username and password for authentication` +
+`   BASE_URL=$HOST_IP:8181/restconf/config` +
+`   SERVICE_PATH=alto-service:resources/alto-service:network-maps/alto-service:network-map` +
+`   RESOURCE_ID=test_odl` +
+`   curl -X DELETE -u $CREDENTIAL `http://$BASE_URL/$SERVICE_PATH/$RESOURCE_ID[`http://$BASE_URL/$SERVICE_PATH/$RESOURCE_ID`]
+
+[[using-alto-manager]]
+=== Using *_alto-manager_*
+
+The *_alto-manager_* package provides an karaf command line tool which
+wraps up the functions described in the last section. Restconf is used
+in underlying implementation.
+
+[[prerequisite]]
+==== Prerequisite
+
+------------------------------------
+1. login karaf shell interface
+2. feature:install odl-restconf
+3. feature:install odl-alto-provider
+4. feature:install odl-alto-manager
+------------------------------------
+
+You are ready to go!
+
+Alto-Manager supports three different commands.
+
+[[altocreate]]
+==== alto:create
+
+This command is to load maps from file and put them into odl datastore
+
+*Command*:
+
+----------------------------------
+alto:create <map-type> <file-path>
+----------------------------------
+
+alto:create command supports three different map types, *network-map,
+cost-map* and *endpoint-property-map*.
+
+*File Format*:
+
+* network-map: JSON Array of RFC formatted network maps.
+* cost-map: JSON Array of RFC formatted cost maps.
+* endpoint-property-map: Single RFC formatted endpoint property map
+
+File examples can be found at ./alto-manager/examples/.
+
+*Example*:
+
+---------------------------------------------------------
+alto:create network-map ./examples/network-map-rfc
+alto:create cost-map ./examples/cost-map-rfc
+alto:create endpoint-property-map ./examples/cost-map-rfc
+---------------------------------------------------------
+
+[[altodelete]]
+==== alto:delete
+
+This command is to delete map from odl datastore.
+
+*Command*:
+
+--------------------------------------------
+alto:delete <map-type> <resource-id or null>
+--------------------------------------------
+
+alto:delete command supports three different map types, *network-map,
+cost-map* and *endpoint-property-map*. If you are going to delete a
+network map or cost map, the second option should be set to resource id
+of the map. If you are going to delete endpoint-property-map, the second
+option should not be set.
+
+*Watch Out*:
+
+Exceptions will be thrown if you try to:
+
+* Delete a map which does not exist
+* Delete the default network map
+* Delete a cost map or network map without specifying the resource id
+* Delete the endpoint propery map with a resource id
+
+*Example*:
+
+----------------------------------------------------------
+alto:delete network-map my-default-network-map
+alto:create cost-map new-network-map-routingcost-numerical
+alto:create endpoint-property-map
+----------------------------------------------------------
+
+[[altoset]]
+==== alto:set
+
+This command is to set specific field for odl datastore. *Currently only
+"default-network-map" field for IRD resource is supported.*
+
+*Command*:
+
+----------------------------------------
+alto:set <propety-name> <property-value>
+----------------------------------------
+
+*Watch Out*:
+
+Exceptions will be thrown if:
+
+* Network map specified by resource id does not exist
+
+*Example*:
+
+------------------------------------------------
+alto:set default-network-map default-network-map
+------------------------------------------------
+
+Here is an example of how to use *_alto-manager_* to put a network map
+into the data store.
+
+`   karaf > alto-create network-map example-rfc7285-networkmap.json`
+
+`   {` +
+`       "meta" : {` +
+`           "resource-id": "test_odl",` +
+`           "tag": "da65eca2eb7a10ce8b059740b0b2e3f8eb1d4785"` +
+`       },` +
+`       "network-map" : {` +
+`           "PID1" : {` +
+`               "ipv4": [` +
+`                   "192.0.2.0/24",` +
+`                   "192.51.100.0/25"` +
+`               ]` +
+`           },` +
+`           "PID2": {` +
+`               "ipv4": [` +
+`                   "192.51.100.128/25"` +
+`               ]` +
+`           },` +
+`           "PID3": {` +
+`               "ipv4": [` +
+`                   "0.0.0.0/0"` +
+`               ],` +
+`               "ipv6": [` +
+`                   "::/0"` +
+`               ]` +
+`           }` +
+`       }` +
+`   }`
+
+[[using-alto-hosttracker]]
+=== Using *_alto-hosttracker_*
+
+*_alto-hosttracker_* will read data from *_l2switch_* and generates a
+network map with resource id *_hosttracker-network-map_* and a cost map
+with resource id *_hostracker-cost-map_*. It can only work with
+Openflow-enabled network.
+
+After installing the *_odl-alto-hosttracker_* feature, the users should
+be able to see the corresponding network map and cost map inserted into
+the data store.
+
+[[access-alto-northbound-using-an-alto-client]]
+== Access ALTO Northbound using an ALTO Client
+
+Accessing ALTO services using a standard ALTO client is easy: follow RFC
+7285.
+
+Assume that your OpenDayLight server is the locahost. You can use the
+following curl command to get ALTO info:
+
+curl -u karaf:karaf -X GET -D -
+http://localhost:8181/controller/nb/v2/alto/
+
+[[mailing-lists]]
+== Mailing Lists
+
+If you have any questions, feel free to write to one of our mailing
+lists:
+
+* https://lists.opendaylight.org/mailman/listinfo/alto-dev[alto-dev], a
+general developers list
+*
+https://lists.opendaylight.org/mailman/listinfo/alto-users[alto-users],
+the general user support list
+

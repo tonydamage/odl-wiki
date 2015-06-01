@@ -1,0 +1,161 @@
+[[integration-of-group-based-policy-and-service-function-chaining-phase-1]]
+== Integration of Group Based Policy and Service Function Chaining Phase
+1
+
+ +
+ This page contains the proposed integration between Group Based Policy
+and Service Function Chaining. +
+=== Use-case === +
+ EPG-1 ---- Network ----- EPG-2 +
+ Packets going from EPG-1 to EPG-2 need to traverse DPI, FW and NAPT44.
+
+GBP will use the APIs below and request a service path that traverses
+these service functions in the given order. If successful GBP will
+receive the NSH header information plus the locator (IP:port) of the
+first service-hop in the path.
+
+We assume GBP is responsible to configure the classifier that will match
+packets belonging to EPG-1. The action would be to direct packet to the
+constructed service path. This means setting the destination IP:port to
+the first hop in the path and slapping the NSH header provided by SFC
+into the packet.
+
+This integration allows GBP to be free of SFC internals. SFC will handle
+the construction of the Rendered Service Path transparently. EPG-1
+packets will traverse the path, will be decapsulated at the last
+service-hop and arrive at EPG-2.
+
+[[classifier-and-service-function-forwarder-location]]
+=== Classifier and Service Function Forwarder Location
+
+If the classifier and first SFF are separate, classifier is responsible
+for encapsulating the packet in NSH and putting on the VXLAN tunnel
+
+If classifier and first SFF are on the same OVS datapath, classifier
+still performs the same tasks but packet is sent to SFF internal to OVS.
+
+[[packet-layout-in-the-case-of-vxlan]]
+=== Packet Layout in the case of VXLAN
+
+ +
+
+1.  IP (tunnel) => Classifier will set IP to first service hop
+2.  UDP (tunnel) => Classifier will set port to VXLAN port
+3.  VXLAN
+4.  NSH
+5.  Original Packet.
+
+[[apis]]
+=== APIs
+
+ +
+ The API below assumes the caller knows that a RSP that meets its needs
+already exists. The code is under following gerrit changes:
+
+SFC side : https://git.opendaylight.org/gerrit/#/c/15785/ +
+GBP side : https://git.opendaylight.org/gerrit/#/c/15255/ GBP side:
+https://git.opendaylight.org/gerrit/#/c/15521/
+
+In the future we will provide APIs that actually construct the RSP from
+the Service Function Chain name. In this case it is important to notice
+that in the case of symmetric paths, caller will receive two Rendered
+Service Paths: forward and reverse directions. If the caller is
+responsible for programming the classifier (as opposed to SFC), then it
+needs to add a classifier for the EPG-2 to EPG-1 traffic.
+
+------------------------------------------------------------------------------------------------
+
+    /**
+     * This method provides all necessary information for a system to construct
+     * a NSH header and associated overlay packet to target the first
+     * service hop of a Rendered Service Path
+     * <p>
+     * @param rspName RSP name
+     * @return Nothing.
+     */
+    public static RenderedServicePathFirstHop readRenderedServicePathFirstHop (String rspName) {
+
+        return renderedServicePathFirstHop;
+    }
+------------------------------------------------------------------------------------------------
+
+where RenderedServicePathFirstHop is the following Yang construct:
+
+--------------------------------------------------------------------
+
+  container rendered-service-path-first-hop {
+    description
+      "Provides all necessary information for a system to construct
+      a NSH header and associated overlay packet to target the first
+      service hop of a Rendered Service Path";
+    leaf starting-index {
+      type uint8;
+      description
+          "Starting service index";
+    }
+    leaf symmetric-path-id {
+      type uint32 {
+        range "0..16777216";
+      }
+      description
+        "Identifies the associated symmetric path, if any.";
+    }
+    leaf path-id {
+      type uint32 {
+        range "0..16777216";
+      }
+      description
+        "Identifies a service path.
+         Participating nodes MUST use this identifier for path
+         selection.  An administrator can use the service path
+         value for reporting and troubleshooting packets along
+         a specific path.";
+    }
+
+    leaf transport-type {
+      type sfc-sl:sl-transport-type-def;
+    }
+
+    uses sfc-sl:ip-port-locator;
+    uses sfc-sl:mpls-locator;
+  }
+--------------------------------------------------------------------
+
+ +
+
+[[programming-of-southbound-devices]]
+=== Programming of Southbound Devices
+
+ +
+ SFC can program southbound the following southbound devices:
+
+* Python NSH switch
+* Open vSwitch (through REST)
+
+With new OVSDB plug-in in the works SFC should be able to program Open
+vSwitches natively soon. Some functions of the current SFC agent would
+become part of ODL and/or part of OVS switches.
+
+[[multi-transport-support]]
+=== Multi-Transport support
+
+During the exercise to integrate SFC+GBP we noticed that we needed a
+more robust multi-transport support in SFC. The changes committed to the
+repo reflect this decision. SFP model now allows a user to specific the
+transport type (VXLAN-GPE, MPLS, etc). When a consumer such as GBP
+requests a RSP, SFC will return the first service-hop with the actual
+encapsulation used to construct the path. This knowledge until recently
+was assumed to be VXLAN+NSH and only fully known to the data plane.
+
+[[integration-of-group-based-policy-and-service-function-chaining-phase-2]]
+== Integration of Group Based Policy and Service Function Chaining Phase
+2
+
+In order to take the integration to the next level the following changes
+are planned:
+
+* change the current static method to a RPC in order to support
+clustering
+* Introduce an API that allows a consumer to ask for a RSP as list of
+services. This would decouple consumers from any intrinsic SFC knowledge
+

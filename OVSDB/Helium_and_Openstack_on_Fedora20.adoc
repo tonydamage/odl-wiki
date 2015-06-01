@@ -1,0 +1,1217 @@
+[[introduction]]
+== Introduction
+
+This page describes how to setup a two node OpenStack setup using ml2 to
+integrate with Helium and Helium-SR1. The OpenStack and DevStack
+releases will be Icehouse.
+
+The topology: +
+* Everything is hosted on a Fedora host.
+
+* KVM is the hypervisor.
+* OpenDaylight runs directly on the host.
+* Two VMs are created for the OpenStack devstack nodes: one
+control+network+compute node and one compute node.
+
+These steps are just a template for setting up the topology listed
+above. You could easily adapt the steps for your needs. For instance if
+you already have a working DevStack setup you could then just follow the
+local.conf changes for OpenDaylight and then the karaf feature install.
+The pieces are not fully independent though. The network setup feeds
+into the local.conf configuration which feeds into the OpenDaylight
+configuration. The karaf features are important and determine what
+functionality will be supported by OpenDaylight.
+
+[[opendaylight-distribution]]
+== OpenDaylight Distribution
+
+Download the
+http://www.opendaylight.org/software/downloads/helium-sr1[OpenDaylight
+Helium-SR1] distribution.
+
+For the latest build off of Lithium branch, you can use
+https://nexus.opendaylight.org/content/repositories/opendaylight.snapshot/org/opendaylight/integration/distribution-karaf/0.3.0-SNAPSHOT/[this
+link.]
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+wget http://nexus.opendaylight.org/content/repositories/opendaylight.release/org/opendaylight/integration/distribution-karaf/0.2.1-Helium-SR1/distribution-karaf-0.2.1-Helium-SR1.tar.gz
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Extract the archive and cd into it.
+
+-------------------------------------------------
+tar xf distribution-karaf-0.2.1-Helium-SR1.tar.gz
+cd distribution-karaf-0.2.1-Helium-SR1
+-------------------------------------------------
+
+Use the `bin/karaf` executable to drop into the Karaf shell.
+
+-------------------------------------------------------------------------------------------
+[~/distribution-karaf-0.2.1-Helium-SR1]$ ./bin/karaf
+                                                                                           
+    ________                       ________                .__  .__       .__     __       
+    \_____  \ ______   ____   ____ \______ \ _____  ___.__.|  | |__| ____ |  |___/  |_     
+     /   |   \\____ \_/ __ \ /    \ |    |  \\__  \<   |  ||  | |  |/ ___\|  |  \   __\    
+    /    |    \  |_> >  ___/|   |  \|    `   \/ __ \\___  ||  |_|  / /_/  >   Y  \  |      
+    \_______  /   __/ \___  >___|  /_______  (____  / ____||____/__\___  /|___|  /__|      
+            \/|__|        \/     \/        \/     \/\/            /_____/      \/          
+                                                                                           
+
+Hit '<tab>' for a list of available commands
+and '[cmd] --help' for help on a specific command.
+Hit '<ctrl-d>' or type 'system:shutdown' or 'logout' to shutdown OpenDaylight.
+
+opendaylight-user@root>
+-------------------------------------------------------------------------------------------
+
+Install the required features.
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+opendaylight-user@root>feature:install odl-base-all odl-aaa-authn odl-restconf odl-nsf-all odl-adsal-northbound odl-mdsal-apidocs odl-ovsdb-openstack odl-ovsdb-northbound odl-dlux-core
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+[[devstack-vms]]
+== Devstack VMs
+
+Two VMs will be created on a Fedora 19 host using KVM. The host is
+configured with three networks:
+
+1.  default for external traffic. By default KVM installs a default
+network of 192.168.122.0/24 that uses NAT and is routable. It will be
+eth0 in the VMs. This network is what would eventually be assigned to
+the floating IP's for OpenStack to allow external traffic. Note the
+steps below do not configure the floating IPs but will be added in the
+future.
+2.  isolated for vm data traffic. This is an internal network that is
+only visible on the host. It will be used for the data traffic between
+the vms. In my setup it is 192.168.254.0/24, no NAT, host only routing.
+It with be eth1 in the VMs.
+3.  default120 for management and control. Similar to the default
+network except it is 192.168.120.0/24. It will be the eth2 in the VMs.
+
+The three interfaces above are created with certain attributes like
+host-only or NAT. It doesn't really matter what you choose but the
+choices above map more directly to a realistic setup. The three
+interfaces allow you to isolate the different types of traffic -
+external, data and management.
+
+1.  eth0 is the external gateway so it is configured with NAT. A bridged
+or directly connected interface on the host would work as well - it
+would just require a fixed IP from the external network.
+2.  eth1 is used for the vm data traffic and such is marked host-only -
+which means the traffic is only forwarded on this host. This works fine
+because the setup is all contained on a single host. If your setup
+involved multiple hosts then the interface would need to be changed to
+allow traffic off the host.
+3.  eth2 is a routable network so that the management interfaces can be
+reached via the local host or external hosts.
+
+[[vms]]
+=== VMs
+
+[cols=",,",options="header",]
+|=====================================================
+|Hostname |IP Address |Purpose
+|fedora31 |192.168.120.31 |Control + Network + Compute
+|fedora32 |192.168.120.32 |Compute
+|=====================================================
+
+[[control-network-compute-node]]
+==== Control + Network + Compute Node
+
+1.  Download the Fedora 20 64-bit net-install iso. I prefer to start off
+with a minimal installation so that I know exactly what is in the final
+install.
+2.  Create the networks using Virtual Machine Manager. Recall that the
+default is already created when kvm is installed. Modify the DHCP
+allocation range to only allocate addresses from 192.168.122.128-254.
+The lower addresses will be used to assign static addresses to the VMs.
+Do the same for the other two networks and use the description listed
+above.
+3.  Create the storage volume for the VM with the qcow2 format. This
+format does not require the volume to be allocated initially and allows
+it to grow as the actual data in the VM is used. Make sure to deselect
+"Allocate all now". Use a max size of 8GB.
+4.  Create a new VM using Virtual Machine Manager->New VM.
+
+* Name: f20.31
+* Local install media: Fedora-20-x86_64-netinst.iso
+* Memory: 2048
+* Custom config: Processor->Configuration-> Copy host CPU configuration
+* Advanced: Add the two additional network interfaces. default should
+already be added.
+
+Start the install.
+
+* Installation Destination: select the 8GB drive, leave the automatic
+partitioning, Done.
+* Software Selection: select minimal install - make sure Gnome is
+deselected.
+* Set root password to be odl. Create odl user with password odl and add
+as administrator
+* Finish install and reboot.
+
+Log into the VM as root. Use `ip addr` to get the IP address of the VM
+so that you can ssh into the VM. The console in virt-manager is limited
+and doesn't allow cut and paste so it is easier to ssh into the VM. Then
+`ssh root@192.168.122.xxx`.
+
+Use the following commands to finish the VM setup.
+
+`` +
+`# Add the odl user to sudoers so you don't have to keep entering a password.` +
+`# All the ovs commmands require sudo.` +
+`echo "odl        ALL=(ALL)       NOPASSWD: ALL" >> /etc/sudoers` +
+`` +
+`# Disable selinux to avoid any problems` +
+`setenforce 0` +
+`sed -i -e 's/SELINUX=enforcing/SELINUX=permissive/g' /etc/selinux/config` +
+`` +
+`# Use iptables instead of firewalld since that is what OpenStack uses.` +
+`systemctl stop firewalld.service` +
+`systemctl disable firewalld.service` +
+`yum install -y iptables-services` +
+`touch /etc/sysconfig/iptables` +
+`systemctl enable iptables.service` +
+`systemctl start iptables.service` +
+`` +
+`# Use network service instead of NetworkManager so` +
+`# that we can uniquely define everything.` +
+`systemctl stop NetworkManager.service` +
+`systemctl disable NetworkManager.service` +
+`systemctl enable network` +
+`systemctl start network` +
+`` +
+`# Configure the network interfaces:` +
+`# eth0: public` +
+`# eth1: data` +
+`# eth2: management and control` +
+`cd /etc/sysconfig/network-scripts` +
+`sed -i -e 's/^BOOTPROTO.*$/BOOTPROTO=none/' ifcfg-eth0` +
+`sed -i -e 's/^BOOTPROTO.*$/BOOTPROTO=none/' ifcfg-eth1` +
+`sed -i -e 's/^BOOTPROTO.*$/BOOTPROTO=none/' ifcfg-eth2` +
+`sed -i -e 's/^ONBOOT.*$/ONBOOT=yes/' ifcfg-eth1` +
+`sed -i -e 's/^ONBOOT.*$/ONBOOT=yes/' ifcfg-eth2` +
+`sed -i -e 's/^UUID/#UUID/' ifcfg-eth0` +
+`sed -i -e 's/^UUID/#UUID/' ifcfg-eth1` +
+`sed -i -e 's/^UUID/#UUID/' ifcfg-eth2` +
+`echo "IPADDR=$ipaddr" >> ifcfg-eth2` +
+`echo "NETMASK=255.255.255.0" >> ifcfg-eth2` +
+`echo "GATEWAY=192.168.120.1" >> ifcfg-eth2` +
+`echo "DNS1=192.168.1.1" >> ifcfg-eth2` +
+`` +
+`# Add nodes in the setup to the hosts files.` +
+`hostnamectl set-hostname fedora31` +
+`echo "192.168.120.31 fedora31" >> /etc/hosts` +
+`echo "192.168.120.32 fedora32" >> /etc/hosts` +
+`` +
+`# Install other applications.` +
+`yum install -y git wget unzip net-tools bridge-utils` +
+`` +
+`# Setup samba to make is easier to transfer files back and forth.` +
+`yum install samba` +
+`chmod 777 /opt` +
+`yum install -y samba` +
+`yum install -y samba-client` +
+`cat <<EOT>> /etc/samba/smb.conf` +
+`[opt]` +
+`        path = /opt` +
+`        public = yes` +
+`        writable = yes` +
+`EOT` +
+`echo -e "odl\nodl\n" | smbpasswd -a root` +
+`echo -e "odl\nodl\n" | smbpasswd -a odl` +
+`systemctl enable smb.service` +
+`systemctl start smb.service` +
+`smbcontrol smbd reload-config` +
+`` +
+`# Setup iptables to allow remote access to samba service` +
+`iptables -I INPUT 2 -p udp -m udp --dport 137 -j ACCEPT` +
+`iptables -I INPUT 2 -p udp -m udp --dport 138 -j ACCEPT` +
+`iptables -I INPUT 2 -m state --state NEW -m tcp -p tcp --dport 139 -j ACCEPT` +
+`iptables -I INPUT 2 -m state --state NEW -m tcp -p tcp --dport 445 -j ACCEPT` +
+`iptables-save > /etc/sysconfig/iptables` +
+`` +
+`# Install the all important openvswitch.` +
+`yum install -y openvswitch` +
+`systemctl enable openvswitch` +
+`systemctl start openvswitch` +
+`lsmod | grep openv` +
+`` +
+`# Install mininet if you want it.` +
+`#cd /opt` +
+`#git clone git://github.com/mininet/mininet` +
+`#git checkout -b 2.1.0p1 2.1.0p1` +
+`#mininet/util/install.sh -n` +
+`` +
+`# Set up password-less ssh.` +
+`# Later you will scp over the keys from the host.` +
+`su - odl` +
+`mkdir ~/.ssh` +
+`chmod 700 .ssh` +
+`` +
+`# scp over id_pub.rsa. Do the next four commands from the host.` +
+`export HOSTIP=192.168.120.31` +
+`ssh odl@${HOSTIP} 'mkdir -p /home/odl/.ssh'` +
+`scp /home/shague/.ssh/id_rsa.pub odl@${HOSTIP}:/home/odl/.ssh/authorized_keys` +
+`ssh odl@${HOSTIP} 'chmod  700 /home/odl/.ssh'` +
+`ssh odl@${HOSTIP} 'chmod  600 /home/odl/.ssh/*'` +
+`# Do the same for root.` +
+`sudo cp -rf ~odl/.ssh ~root` +
+`` +
+`# I like to add history search to recover previous commands.` +
+`cat <<EOT>> ~/.bashrc` +
+`# Bind Page UP/Page DOWN to the history search` +
+`bind '"\e[A":history-search-backward'` +
+`bind '"\e[B":history-search-forward'` +
+`EOT` +
+`` +
+`mkdir -p /opt/tools` +
+`git clone https://github.com/shague/odl_tools.git /opt/tools` +
+`` +
+`# Install devstack.` +
+`git clone git://github.com/openstack-dev/devstack.git /opt/devstack` +
+`# Switch to the Icehouse release` +
+`cd /opt/devstack` +
+`git checkout -b stable/icehouse origin/stable/icehouse` +
+`` +
+`# Check for any patches to OpenStack or devstack.` +
+`# https://review.openstack.org/#/c/91844/` +
+`` +
+`# Log out and ssh back in as odl user.`
+
+On your host you can use the following to transfer files back and forth
+to the guest VMs:
+
+`` +
+`sudo mkdir /mnt/fedora31` +
+`sudo mount -t cifs -o rw,username=odl,password=odl //192.168.120.31/opt /mnt/fedora31`
+
+Reboot the VM and ssh back in.
+
+Copy the tools and patches into the /opt/tools directory. Mount the opt
+dir as above and copy the tools into the dir.
+
+Use the following local.conf:
+
+`` +
+`[[local|localrc]]` +
+`LOGFILE=/opt/logs/stack/stack.sh.log` +
+`# Logging Section` +
+`SCREEN_LOGDIR=/opt/logs/stack` +
+`LOG_COLOR=False` +
+`# Prevent refreshing of dependencies and DevStack recloning` +
+`OFFLINE=True` +
+`RECLONE=no` +
+`VERBOSE=True` +
+`` +
+`disable_all_services` +
+`` +
+`# Core compute (glance+keystone+nova+vnc)` +
+`enable_service g-api g-reg key n-api n-crt n-obj n-cpu n-cond n-sch n-novnc n-xvnc n-cauth` +
+`# dashboard` +
+`enable_service horizon` +
+`# network` +
+`# openvswitch, ml2` +
+`#enable_service neutron q-agt q-dhcp q-l3 q-meta q-svc` +
+`# opendaylight` +
+`enable_service neutron q-dhcp q-l3 q-meta q-svc odl-compute` +
+`# additional services` +
+`enable_service mysql qpid tempest` +
+`# load-balancer` +
+`#enable_service q-lbaas` +
+`` +
+`#PUBLIC_INTERFACE=eth2` +
+` ` +
+`# Only needed on compute node` +
+`HOST_IP=192.168.120.31` +
+`HOST_NAME=fedora31` +
+`SERVICE_HOST_NAME=fedora31` +
+`SERVICE_HOST=192.168.120.31` +
+`Q_HOST=$SERVICE_HOST` +
+`` +
+`#Q_PLUGIN=openvswitch` +
+`#ENABLE_TENANT_VLANS=True` +
+`#TENANT_VLAN_RANGE=2000:2999` +
+`#PHYSICAL_NETWORK=physnet1` +
+`## If using OVS_BRIDGE_MAPPINGS, you need to manually add the bridges.` +
+`##OVS_BRIDGE_MAPPINGS=physnet1:br-eth1,physnet3:br-eth3` +
+`##OVS_BRIDGE_MAPPINGS=physnet1:br-eth1` +
+`#OVS_PHYSICAL_BRIDGE=br-eth1` +
+`` +
+`#FLAT_INTERFACE=eth1` +
+`#FLAT_NETWORK_BRIDGE=br-eth1` +
+`#PHYSICAL_NETWORK=physnet1` +
+`#OVS_PHYSICAL_BRIDGE=br-eth1` +
+`##Q_ML2_TENANT_NETWORK_TYPE=vlan` +
+`#ENABLE_TENANT_TUNNELS=False` +
+`#Q_AGENT_EXTRA_OVS_OPTS=(tenant_network_type=local)` +
+`` +
+`# openvswitch ml2` +
+`#Q_PLUGIN=ml2` +
+`#Q_ML2_PLUGIN_MECHANISM_DRIVERS=openvswitch,linuxbridge` +
+`#Q_ML2_PLUGIN_TYPE_DRIVERS=flat,vlan` +
+`##ML2_VLAN_RANGES=physnet1:2000:2999,physnet3:3000:3999` +
+`#ML2_VLAN_RANGES=physnet1:2000:2999` +
+`#ENABLE_TENANT_VLANS=True` +
+`#PHYSICAL_NETWORK=physnet1` +
+`#OVS_PHYSICAL_BRIDGE=br-eth1` +
+`## If using OVS_BRIDGE_MAPPINGS, you need to manually add the bridges.` +
+`##OVS_BRIDGE_MAPPINGS=physnet1:br-eth1,physnet3:br-eth3` +
+`##OVS_BRIDGE_MAPPINGS=physnet1:br-eth1` +
+`` +
+`## openvswitch ml2 vlan+tunnels` +
+`#Q_PLUGIN=ml2` +
+`## all mechanism and type drivers are enabled by default` +
+`##Q_ML2_PLUGIN_MECHANISM_DRIVERS=openvswitch,linuxbridge` +
+`##Q_ML2_PLUGIN_TYPE_DRIVERS=flat,vlan,gre,vxlan` +
+`##ML2_VLAN_RANGES=physnet1:2000:2999,physnet3:3000:3999` +
+`#ML2_VLAN_RANGES=physnet1:2000:2999` +
+`#ENABLE_TENANT_VLANS=True` +
+`##ENABLE_TENANT_TUNNELS=True` +
+`#PHYSICAL_NETWORK=physnet1` +
+`#OVS_PHYSICAL_BRIDGE=br-eth1` +
+`## If using OVS_BRIDGE_MAPPINGS, you need to manually add the bridges.` +
+`##OVS_BRIDGE_MAPPINGS=physnet1:br-eth1,physnet3:br-eth3` +
+`##OVS_BRIDGE_MAPPINGS=physnet1:br-eth1` +
+`` +
+`# opendaylight ml2 vlan and gre tunnels` +
+`ODL_MGR_IP=192.168.120.1` +
+`Q_PLUGIN=ml2` +
+`Q_ML2_PLUGIN_MECHANISM_DRIVERS=openvswitch,linuxbridge,opendaylight` +
+`Q_ML2_PLUGIN_TYPE_DRIVERS=vlan,gre,vxlan` +
+`ML2_VLAN_RANGES=physnet1:2000:2999` +
+`ENABLE_TENANT_VLANS=True` +
+`##ENABLE_TENANT_TUNNELS=True` +
+`##Q_ML2_TENANT_NETWORK_TYPE=gre` +
+`##PHYSICAL_NETWORK=physnet1` +
+`##OVS_PHYSICAL_BRIDGE=br-eth1` +
+`##OVS_BRIDGE_MAPPINGS=physnet1:eth1,physnet3:eth3` +
+`##OVS_BRIDGE_MAPPINGS=physnet1:br-eth1` +
+`##ODL_PROVIDER_MAPPINGS=physnet1:eth1` +
+`##NEUTRON_REPO=https://github.com/CiscoSystems/neutron.git` +
+`##NEUTRON_BRANCH=odl_ml2` +
+`` +
+`VNCSERVER_PROXYCLIENT_ADDRESS=192.168.120.31` +
+`VNCSERVER_LISTEN=0.0.0.0` +
+`` +
+`#FLOATING_RANGE=192.168.122.8/29` +
+`#PUBLIC_NETWORK_GATEWAY=192.168.122.1` +
+`#Q_FLOATING_ALLOCATION_POOL=start=192.168.122.10,end=192.168.122.14` +
+`MYSQL_HOST=$SERVICE_HOST` +
+`RABBIT_HOST=$SERVICE_HOST` +
+`GLANCE_HOSTPORT=$SERVICE_HOST:9292` +
+`KEYSTONE_AUTH_HOST=$SERVICE_HOST` +
+`KEYSTONE_SERVICE_HOST=$SERVICE_HOST` +
+` ` +
+`MYSQL_PASSWORD=mysql` +
+`RABBIT_PASSWORD=rabbit` +
+`QPID_PASSWORD=rabbit` +
+`SERVICE_TOKEN=service` +
+`SERVICE_PASSWORD=admin` +
+`ADMIN_PASSWORD=admin` +
+`` +
+`GLANCE_BRANCH=stable/icehouse` +
+`HORIZON_BRANCH=stable/icehouse` +
+`KEYSTONE_BRANCH=stable/icehouse` +
+`NOVA_BRANCH=stable/icehouse` +
+`NEUTRON_BRANCH=stable/icehouse` +
+`SWIFT_BRANCH=stable/icehouse` +
+`#CLIFF_BRANCH=stable/icehouse` +
+`#TEMPEST_BRANCH=stable/icehouse` +
+`CINDER_BRANCH=stable/icehouse` +
+`HEAT_BRANCH=stable/icehouse` +
+`TROVE_BRANCH=stable/icehouse` +
+`CEILOMETER_BRANCH=stable/icehouse` +
+`` +
+`[[post-config|/etc/neutron/plugins/ml2/ml2_conf.ini]]` +
+`[ml2_odl]` +
+`url=http://192.168.120.1:8080/controller/nb/v2/neutron` +
+`username=admin` +
+`password=admin` +
+`` +
+`[agent]` +
+`minimize_polling=True`
+
+Set OFFLINE to False and RECLONE to yes for the first run. This will
+ensure that all the openstack components are downloaded and installed.
+After a successful run, reset the values back to True and no. This will
+lock your devstack.
+
+Some things to note in the local.conf:
+
+* disable_all_services: start off clean and add everything you want
+* enable_service odl-compute: This is how openstack and opendaylight
+integrate
+* ODL_PROVIDER_MAPPINGS=physnet1:eth1: This value should be set by
+default with devstack so you don't need to change this value. This value
+is similar to OVS_BRIDGE_MAPPINGS where the openstack physical network
+is mapped to a bridge, but here it is mapped to the physical network
+interface. You will notice later in the neutron cli that the physnet1 is
+specified. This instructs OpenDaylight to use the eth1 interface for the
+vlan traffic between the guests. You could add additional interfaces to
+support more networks by using:
+ODL_PROVIDER_MAPPINGS=physnet1:eth1,physnet3:eth3 and indicating the
+physnetN in the neutron cli.
+* url=http://192.168.120.1:8080/controller/nb/v2/neutron: This is the
+address of the OpenDaylight controller which in our setup is running on
+the host at 192.168.120.1.
+
+Start up stack.sh for the first run and see if it comes up. Add the
+patches below and runs stack.sh again. When it looks good (which means
+your tests worked) set OFFLINE to True and RECLONE to no to lock the
+source down. DevStack uses these two config variables to determine when
+yo download new source. If left to True and yes then each new stack.sh
+will connect to the network and download any new source. This puts you
+on the bleeding edge. It isn't so bad with our setup here, though, since
+the branches are set with "GLANCE_BRANCH=stable/icehouse". I would still
+suggest disabling the updates to remove any confusion. If you do want to
+grab the latest you will need to use True and yes. If you want to us a
+release after Icehouse then also modify or remove the BRANCH config.
+
+I had issues with the mysql root password and resolved by resetting the
+root password. You will see an error when you stack that says something
+about passwords as shown below. This fix is only needed on the control
+node since it only uses mysql. Somehow the mysql database has a
+different root password that what is configured in the local.conf so we
+need to set it to match the local.conf.
+
+`` +
+`2014-05-30 15:11:05.614 | + mysql -uroot -pmysql -h192.168.120.31 -e 'DROP DATABASE IF EXISTS keystone;'` +
+`2014-05-30 15:11:05.616 | ERROR 1045 (28000): Access denied for user 'root'@'fedora31' (using password: YES)` +
+`http://dev.mysql.com/doc/refman/5.5/en/default-privileges.html` +
+`root password was "" so` +
+`*** Also make sure PASSWORD matches what is in local.conf` +
+`mysql --user=root --password="" mysql` +
+`#shell> mysql -u root` +
+`mysql> UPDATE mysql.user SET Password = PASSWORD('mysql')` +
+`    -> WHERE User = 'root';` +
+`mysql> FLUSH PRIVILEGES;` +
+`mysql> exit`
+
+Apply any patches. First checkout a branch to add your modifications: cd
+/opt/devstack; git checkout -b tweaks.
+
+\1. Icehouse does not have the vlan support. Post-Icehouse release
+should have the patch already. https://review.openstack.org/#/c/91844/
+
+`cd /opt/stack/neutron` +
+`patch --verbose -p1 -i /opt/tools/os_vlan_patch.txt`
+
+\2. Disable all the sql logging so it doesn't use up all the filesystem
+space. This is only an issue if you use the setup a lot. By default
+devstack sets up mysql to log all the sql commands. Our setup here only
+has an 8Gb drive so this uses valuable space.
+
+`cd /opt/devstack` +
+`patch --verbose -p1 -i /opt/tools/sql_patch.txt`
+
+- This patch was rejected for some reason so manually edit the file
+since it is just a single edit of a conf file.
+
+\3. Public bridge race conditions: +
+https://review.openstack.org/#/c/99414/
+
+`patch --verbose -p1 -i /opt/tools/maywait_patch.txt`
+
+\4. Don't create any projects or networks during stack. By default stack
+creates a demo and admin project with networks. OpenDaylight wants to
+control the setup so I prefer to start off clean and avoid any
+misunderstandings.
+
+`patch --verbose -p1 -i /opt/tools/initial_network_patch.txt`
+
+Rerun stack.sh. In between runs I use the /opt/tools/osreset.sh script.
+This does a deeper clean of all the openstack files along with the
+openvswitch logging. It calls unstack.sh as part of the process. Again,
+this is all about getting a clean setup. It is amazing how remnants left
+over from a previous stack can pollute the current stack.
+
+Run some tests to see if the OpenDaylight and OpenStack integration
+works.
+
+`` +
+`source openrc admin admin` +
+`neutron net-create vlan-net --provider:network_type vlan --provider:segmentation_id 2001 --provider:physical_network physnet1` +
+`neutron subnet-create vlan-net 10.100.1.0/24 --name vlan-subnet` +
+`neutron router-create vlan-rtr` +
+`sleep 2` +
+`neutron router-interface-add vlan-rtr vlan-subnet` +
+`source openrc admin admin` +
+`nova boot --flavor m1.nano --image $(nova image-list | grep 'uec\s' | awk '{print $2}' | tail -1) --nic net-id=$(neutron net-list | grep -w vlan-net | awk '{print $2}') vm1 --availability_zone=nova:fedora31` +
+`sleep 1` +
+`nova get-vnc-console vm1 novnc` +
+`` +
+`ip netns` +
+`sudo ip netns exec <namespace> ping 10.100.1.1` +
+`sudo ip netns exec <namespace> ping 10.100.1.2` +
+`sudo ip netns exec <namespace> ping 10.100.1.3`
+
+The pings are to ensure the networking is correct. You could also ssh
+into the vm1 or open the vcn console. You can also run the
+/opt/tools/osdbg.sh script and see how all the interfaces, bridges,
+ports and flows look.
+
+Do another osreset.sh to clean the image and then shutdown,
+`sudo shutdown now`. Next we will clone the image for the compute node.
+
+[[compute-node]]
+==== Compute Node
+
+1.  Clone the f20.31 VM.
+2.  Make note of the mac's for the three interfaces. The last three
+octets for each interface will be different. We will need to change
+those values in the cloned VM's ifcfg-ethx scripts.
+3.  Start VM, login as root and make the following changes:
+
+* ** hostnamectl set-hostname fedora32
+** edit /etc/hosts localhost line to be fedora32
+** cd /etc/network-scripts
+** vi ifcfg-eth0, 1, 2
+*** change mac for all three interfaces to the new value. You can look
+back in virt-manager in the VM details or use `ip link` to see the macs.
+*** eth2: also change ip to 192.168.120.32
+** systemctl restart network
+
+Use the following local.conf.
+
+`` +
+`[[local|localrc]]` +
+`LOGFILE=/opt/logs/stack/stack.sh.log` +
+`SCREEN_LOGDIR=/opt/logs/stack` +
+`LOG_COLOR=False` +
+`# Prevent refreshing of dependencies and DevStack recloning` +
+`OFFLINE=True` +
+`RECLONE=no` +
+`VERBOSE=True` +
+`` +
+`disable_all_services` +
+`# openvswitch` +
+`#enable_service neutron q-agt n-cpu qpid n-novnc` +
+`` +
+`#opendaylight` +
+`enable_service neutron q- n-cpu qpid n-novnc odl-compute` +
+`` +
+`HOST_IP=192.168.120.32` +
+`HOST_NAME=fedora32` +
+`SERVICE_HOST_NAME=fedora31` +
+`SERVICE_HOST=192.168.120.31` +
+`Q_HOST=$SERVICE_HOST` +
+`` +
+`#Q_PLUGIN=openvswitch` +
+`#ENABLE_TENANT_VLANS=True` +
+`#TENANT_VLAN_RANGE=2000:2999` +
+`#PHYSICAL_NETWORK=physnet1` +
+`#OVS_PHYSICAL_BRIDGE=br-eth1` +
+`## If using OVS_BRIDGE_MAPPINGS, you need to create the bridges manually.` +
+`##OVS_BRIDGE_MAPPINGS=physnet1:br-eth1` +
+`` +
+`# openvswitch ml2` +
+`#Q_PLUGIN=ml2` +
+`#Q_ML2_PLUGIN_MECHANISM_DRIVERS=openvswitch,linuxbridge` +
+`#Q_ML2_PLUGIN_TYPE_DRIVERS=vlan,flat` +
+`###ML2_VLAN_RANGES=physnet1:2000:2999,physnet3:3000:3999` +
+`#ML2_VLAN_RANGES=physnet1:2000:2999` +
+`#ENABLE_TENANT_VLANS=True` +
+`#PHYSICAL_NETWORK=physnet1` +
+`#OVS_PHYSICAL_BRIDGE=br-eth1` +
+`## If using OVS_BRIDGE_MAPPINGS, you need to create the bridges manually.` +
+`##OVS_BRIDGE_MAPPINGS=physnet1:br-eth1,physnet3:br-eth3` +
+`##OVS_BRIDGE_MAPPINGS=physnet1:br-eth1` +
+`` +
+`# openvswitch ml2 vlan+tunnels` +
+`#Q_PLUGIN=ml2` +
+`# all mechanism and type drivers are enabled by default` +
+`##Q_ML2_PLUGIN_MECHANISM_DRIVERS=openvswitch,linuxbridge` +
+`##Q_ML2_PLUGIN_TYPE_DRIVERS=flat,vlan,gre,vxlan` +
+`##ML2_VLAN_RANGES=physnet1:2000:2999,physnet3:3000:3999` +
+`#ML2_VLAN_RANGES=physnet1:2000:2999` +
+`#ENABLE_TENANT_VLANS=True` +
+`#ENABLE_TENANT_TUNNELS=True` +
+`#PHYSICAL_NETWORK=physnet1` +
+`#OVS_PHYSICAL_BRIDGE=br-eth1` +
+`## If using OVS_BRIDGE_MAPPINGS, you need to manually add the bridges.` +
+`##OVS_BRIDGE_MAPPINGS=physnet1:br-eth1,physnet3:br-eth3` +
+`##OVS_BRIDGE_MAPPINGS=physnet1:br-eth1` +
+`` +
+`# opendaylight ml2` +
+`ODL_MGR_IP=192.168.120.1` +
+`Q_PLUGIN=ml2` +
+`#Q_ML2_PLUGIN_MECHANISM_DRIVERS=opendaylight` +
+`##Q_ML2_PLUGIN_TYPE_DRIVERS=flat,vlan,gre,vxlan` +
+`##ML2_VLAN_RANGES=physnet1:2000:2999,physnet3:3000-3999` +
+`ENABLE_TENANT_VLANS=True` +
+`ENABLE_TENANT_TUNNELS=True` +
+`##Q_ML2_TENANT_NETWORK_TYPE=gre` +
+`####PHYSICAL_NETWORK=physnet1` +
+`####PHYSICAL_NETWORK=default` +
+`####OVS_PHYSICAL_BRIDGE=br-eth1` +
+`### If using OVS_BRIDGE_MAPPINGS, you need to create the bridges manually.` +
+`###OVS_BRIDGE_MAPPINGS=physnet1:eth1:physnet3:eth3` +
+`ODL_PROVIDER_MAPPINGS=physnet1:eth1` +
+`##NEUTRON_REPO=https://github.com/CiscoSystems/neutron.git` +
+`##NEUTRON_BRANCH=odl_ml2` +
+`` +
+`VNCSERVER_PROXYCLIENT_ADDRESS=192.168.120.32` +
+`VNCSERVER_LISTEN=0.0.0.0` +
+`` +
+`#FLOATING_RANGE=192.168.122.0/28` +
+`#PUBLIC_NETWORK_GATEWAY=192.168.122.1` +
+`#Q_FLOATING_ALLOCATION_POOL=start=192.168.122.10,end=192.168.122.15` +
+`` +
+`MYSQL_HOST=$SERVICE_HOST` +
+`RABBIT_HOST=$SERVICE_HOST` +
+`GLANCE_HOSTPORT=$SERVICE_HOST:9292` +
+`KEYSTONE_AUTH_HOST=$SERVICE_HOST` +
+`KEYSTONE_SERVICE_HOST=$SERVICE_HOST` +
+`` +
+`MYSQL_PASSWORD=mysql` +
+`RABBIT_PASSWORD=rabbit` +
+`QPID_PASSWORD=rabbit` +
+`SERVICE_TOKEN=service` +
+`SERVICE_PASSWORD=admin` +
+`ADMIN_PASSWORD=admin` +
+`` +
+`[[post-config|/etc/neutron/plugins/ml2/ml2_conf.ini]]` +
+`[ml2_odl]` +
+`url=http://192.168.120.1:8080/controller/nb/v2/neutron` +
+`username=admin` +
+`password=admin` +
+`` +
+`[agent]` +
+`minimize_polling=True`
+
+Now the big test. Repeat the previous test for fedora31. Make sure ODL
+is running with the required features. stack.sh fedora31, create the
+vlan network, subnet and router. Spin up vm1. Verify it looks good. Then
+do the following to spin up a vm on fedora32. Run these commands on
+fedora31 since that is the OpenStack control and network node.
+
+`` +
+`nova boot --flavor m1.nano --image $(nova image-list | grep 'uec\s' | awk '{print $2}' | tail -1) --nic net-id=$(neutron net-list | grep -w vlan-net | awk '{print $2}') vm2 --availability_zone=nova:fedora32` +
+`sleep 1` +
+`nova get-vnc-console vm2 novnc` +
+`` +
+`sudo ip netns exec <namespace> ping 10.100.1.4`
+
+Run the /opt/tools/osdbg.sh script on both nodes. You should see
+something similar to what is shown in the VLAN networking
+troubleshooting section below.
+
+The ports should be mapped as follows:
+
+1.  qr-xxx: router port, 10.100.1.1
+2.  eth1: vlan traffic
+3.  tap-xxx: vm port, 10.100.1.2
+4.  tap-xxx: dhcp port, 10.100.1.3
+
+The relevant flows for vlan networking:
+
+1.  Tagged traffic coming from the network is passed to the next table.
+2.  Any traffic not matched by later flows from the local ports on the
+bridge are dropped.
+3.  Traffic coming from the vms is tagged and passed to the next table.
+4.  Tagged broadcast traffic is flooded.
+5.  Tagged traffic not matched by other flows is forwarded out the eth1
+port to the network.
+6.  Tagged traffic destined for on of the local ports is stripped of the
+tagged and forwarded to the local port.
+
+[[tunnels]]
+== Tunnels
+
+`` +
+`source openrc admin admin` +
+`neutron net-create vx-net --provider:network_type vxlan --provider:segmentation_id 1400` +
+`neutron subnet-create vx-net 10.100.5.0/24 --name vx-subnet` +
+`neutron router-create vx-rtr` +
+`neutron router-interface-add vx-rtr vx-subnet` +
+`nova boot --flavor m1.nano --image $(nova image-list | grep 'uec\s' | awk '{print $2}' | tail -1) --nic net-id=$(neutron net-list | grep -w vx-net | awk '{print $2}') vmvx1 --availability_zone=nova:fedora31` +
+`nova boot --flavor m1.nano --image $(nova image-list | grep 'uec\s' | awk '{print $2}' | tail -1) --nic net-id=$(neutron net-list | grep -w vx-net | awk '{print $2}') vmvx2 --availability_zone=nova:fedora32` +
+`nova get-vnc-console vmvx1 novnc` +
+`nova get-vnc-console vmvx2 novnc`
+
+Use the `osdbg.sh` script to dump the flows. They should look like what
+is shown in the Tunnel Networking Troubleshooting section.
+
+[[mininet]]
+== Mininet
+
+The current git repo of mininet supports OpenFlow 1.3 so there is no
+need to patch the source. You can safely ignore any instructions
+indicating needing to patch the source.
+
+When using mininet with ovsdb you should not install the
+odl-ovsdl-openstack feature. That feature is important when using
+OpenStack and will take full control over the ovsdb and ovs instances
+which is likely not what you want with mininet.
+
+Also be aware that mininet seems to upset the openvswitch service. This
+is only an issue if you want to stop and restart openvswitch via
+`sudo systemctl restart openvswitch.service`. The service will fail to
+restart if mininet has been run on the system during this boot cycle. A
+reboot of the guest VM fixes the issue. Realize that running mininet
+again will cause the issue again.
+
+Disable auto configuration of bridges when connected to OpenDaylight
+with ovsdb. By default the ODL ovsdb wants full controll over the
+bridges. ovsdb will attempt to force the bridges to OpenFlow 1.3 and set
+its controller to OpenDaylight. This causes duplicate datapath's within
+the openflowplpugin and the connection will flap. The below modification
+must be made before starting OpenDaylight.
+
+`vi distribution-karaf-0.2.1-Helium-SR1/etc/custom.properties` +
+`ovsdb.autoconfigurecontroller=false`
+
+Install the required features. Also install odl-ovsdb-northbound if you
+want to use the ovsdb northbound REST APIs.
+
+`` +
+`feature:install odl-base-all odl-aaa-authn odl-restconf odl-adsal-northbound odl-mdsal-apidocs odl-l2switch-switch` +
+`feature:install odl-ovsdb-northbound`
+
+Configure the ovsdb instance to connect to OpenDaylight:
+
+`sudo ovs-vsctl set-manager tcp:192.168.120.1:6640`
+
+Start mininet. The below will start mininet using OpenFlow 1.3 and
+create a three-switch tree.
+
+`` +
+`sudo mn --mac --switch=ovsk,protocols=OpenFlow13 --controller=remote,ip=192.168.120.1,port=6653 --topo=tree,3`
+
+The following are some example northbound REST APIs. Recognize that the
+older ad-sal APIS use port 8080 and are identified with "nb/v2". The
+ovsdb APIs are using "ovsdb/nb/v2". The newer md-sal APIs use port 8181
+and restconf in the URI's. Also notice the use of config or operational
+in the URI - to set a value you would use the config form and to see
+current values use operational.
+
+Use the following definitions for the variables:
+
+* controllerHost: 192.168.120.1
+* controllerPort: 8080, this is for ad-sal
+* controllerPortMDSAL: 8181, this is for md-sal
+
+`` +
+`http://{{controllerHost}}:{{controllerPort}}/controller/nb/v2/connectionmanager/nodes/` +
+`http://{{controllerHost}}:{{controllerPort}}/controller/nb/v2/connectionmanager/node/OVS/192.168.120.31:34987` +
+`http://{{controllerHost}}:{{controllerPort}}/ovsdb/nb/v2/node/OVS/HOST1/tables/controller/rows` +
+`` +
+`http://{{controllerHost}}:{{controllerPortMDSAL}}/restconf/operational/opendaylight-inventory:nodes/` +
+`http://{{controllerHost}}:{{controllerPortMDSAL}}/restconf/operational/network-topology:network-topology/` +
+`http://localhost:8181/apidoc/explorer` +
+`` +
+`http://{{controllerHost}}:{{controllerPort}}/ovsdb/nb/v3/node` +
+`http://{{controllerHost}}:{{controllerPort}}/ovsdb/nb/v3/node/OVS|192.168.120.31:48161` +
+`http://{{controllerHost}}:{{controllerPort}}/ovsdb/nb/v3/node/OVS|192.168.120.31:48161/database/Open_vSwitch/table/Open_vSwitch`
+
+The following pages detail the APIs:
+
+https://wiki.opendaylight.org/view/OpenDaylight_Controller:REST_Reference_and_Authentication[ad-sal
+REST APIs]
+
+https://wiki.opendaylight.org/view/OpenDaylight_Controller:RESTCONF_Northbound_APIs[md-sal
+REST APIs]
+
+OVSDB:Northbound
+
+[[troubleshooting]]
+== Troubleshooting
+
+[[odl-ovsdb-logging]]
+=== ODL OVSDB Logging
+
+By default the karaf distribution will log ovsdb at the INFO level. More
+verbose logging can be enabled from the karaf shell with:
+
+`log:set TRACE org.opendaylight.ovsdb` +
+`log:set INFO org.opendaylight.ovsdb.lib` +
+`log:set DEBUG org.opendaylight.ovsdb.openstack.netvirt.impl.TenantNetworkManagerImpl` +
+`log:set INFO org.opendaylight.ovsdb.plugin.md.OvsdbInventoryManager` +
+`log:set TRACE org.opendaylight.controller.networkconfig.neutron`
+
+To see the logs you can use one of the two variants below:
+
+`log:display` +
+`log:tail ` +
+`***hit ctrl-c to break from the log:tail`
+
+You can also find the logs in: `data/log/karaf.log`
+
+If you would like the logging enabled when starting the karaf shell add
+similar lines to the cfg files:
+
+`edit org.ops4j.pax.logging.cfg` +
+`log4j.logger.org.opendaylight.ovsdb = TRACE` +
+`log4j.logger.org.opendaylight.ovsdb.lib = INFO` +
+`log4j.logger.org.opendaylight.ovsdb.openstack.netvirt.impl.TenantNetworkManagerImpl = DEBUG` +
+`log4j.logger.org.opendaylight.ovsdb.plugin.md.OvsdbInventoryManager = INFO` +
+`log4j.logger.org.opendaylight..controller.networkconfig.neutron = TRACE`
+
+[[openstack-and-ovsdb]]
+=== OpenStack and OVSDB
+
+[[initial-connection-from-ovsdb-nodes-to-odl-ovsdb]]
+==== Initial connection from ovsdb nodes to odl ovsdb
+
+The following commands can be used to verify that the connection between
+the node and odl is good. The example output below should be seen as
+soon as the node connects to odl.
+
+The simplest check to to see if the node has connected to odl. ODL will
+be the Manager for the node and the connection status is seen via
+is_connected. The value should be true if it is connected.
+
+The br-int and br-ex bridges (or switches) will have the Controller set
+to ODL also. The value for is_connected should be true if it is
+connected. Your setup may not have br-ex since ODL will not create that
+bridge and it is created via devstack. br-ex is also only created for
+openstack network nodes and not simple compute nodes.
+
+` sudo ovs-vsctl show` +
+`e2e10ede-24c3-40af-9658-cef155b6d756` +
+`    Manager "tcp:192.168.120.1:6640"` +
+`        is_connected: true` +
+`    Bridge br-int` +
+`        Controller "tcp:192.168.120.1:6633"` +
+`            is_connected: true` +
+`        fail_mode: secure` +
+`        Port br-int` +
+`            Interface br-int` +
+`    Bridge br-ex` +
+`        Controller "tcp:192.168.120.1:6633"` +
+`            is_connected: true` +
+`        Port br-ex` +
+`            Interface br-ex` +
+`                type: internal` +
+`    ovs_version: "2.3.0"`
+
+Next check that the ODL OVSDB has successfully programmed the br-int
+with the openflow pipeline.
+
+`sudo ovs-ofctl --protocol=OpenFlow13 dump-flows br-int` +
+`OFPST_FLOW reply (OF1.3) (xid=0x2):` +
+` cookie=0x0, duration=10.130s, table=0, n_packets=0, n_bytes=0, priority=0 actions=goto_table:20` +
+` cookie=0x0, duration=10.980s, table=0, n_packets=0, n_bytes=0, dl_type=0x88cc actions=CONTROLLER:65535` +
+` cookie=0x0, duration=9.628s, table=20, n_packets=0, n_bytes=0, priority=0 actions=goto_table:30` +
+` cookie=0x0, duration=9.124s, table=30, n_packets=0, n_bytes=0, priority=0 actions=goto_table:40` +
+` cookie=0x0, duration=8.620s, table=40, n_packets=0, n_bytes=0, priority=0 actions=goto_table:50` +
+` cookie=0x0, duration=8.114s, table=50, n_packets=0, n_bytes=0, priority=0 actions=goto_table:60` +
+` cookie=0x0, duration=7.611s, table=60, n_packets=0, n_bytes=0, priority=0 actions=goto_table:70` +
+` cookie=0x0, duration=7.108s, table=70, n_packets=0, n_bytes=0, priority=0 actions=goto_table:80` +
+` cookie=0x0, duration=6.600s, table=80, n_packets=0, n_bytes=0, priority=0 actions=goto_table:90` +
+` cookie=0x0, duration=6.097s, table=90, n_packets=0, n_bytes=0, priority=0 actions=goto_table:100` +
+` cookie=0x0, duration=5.594s, table=100, n_packets=0, n_bytes=0, priority=0 actions=goto_table:110` +
+` cookie=0x0, duration=5.082s, table=110, n_packets=0, n_bytes=0, priority=0 actions=drop`
+
+From the karaf shell use `log:display` or `log:tail` to show the logs.
+Look for `Add node to ovsdb inventory service OVS|192.168.120.31:44383`.
+From there you can look at the ovsdb db with
+`printCache "OVS|192.168.120.31:44383"`.
+
+[[vlan-networking]]
+==== VLAN networking
+
+Assuming the above connections are good you can then create networks. In
+this example vlan network is used. vlan networks were created. Notice
+the extra flows installed to allow traffic from the router namespace mac
+address and to map the traffic to the internal vlan and external vlan.
+
+`sudo ovs-ofctl --protocol=OpenFlow13 dump-flows br-int` +
+`OFPST_FLOW reply (OF1.3) (xid=0x2):` +
+` cookie=0x0, duration=309.773s, table=0, n_packets=0, n_bytes=0, in_port=2,dl_vlan=2001 actions=goto_table:20` +
+` cookie=0x0, duration=3669.887s, table=0, n_packets=158, n_bytes=8258, priority=0 actions=goto_table:20` +
+` cookie=0x0, duration=311.307s, table=0, n_packets=0, n_bytes=0, priority=8192,in_port=1 actions=drop` +
+` cookie=0x0, duration=311.800s, table=0, n_packets=8, n_bytes=648, in_port=1,vlan_tci=0x0000/0x1fff,dl_src=fa:16:3e:33:5e:8f actions=push_vlan:0x8100,set_field:6097->vlan_vid,goto_table:20` +
+` cookie=0x0, duration=3670.737s, table=0, n_packets=0, n_bytes=0, dl_type=0x88cc actions=CONTROLLER:65535` +
+` cookie=0x0, duration=3669.385s, table=20, n_packets=166, n_bytes=8906, priority=0 actions=goto_table:30` +
+` cookie=0x0, duration=3668.881s, table=30, n_packets=166, n_bytes=8906, priority=0 actions=goto_table:40` +
+` cookie=0x0, duration=3668.377s, table=40, n_packets=166, n_bytes=8906, priority=0 actions=goto_table:50` +
+` cookie=0x0, duration=3667.871s, table=50, n_packets=166, n_bytes=8906, priority=0 actions=goto_table:60` +
+` cookie=0x0, duration=3667.368s, table=60, n_packets=166, n_bytes=8906, priority=0 actions=goto_table:70` +
+` cookie=0x0, duration=3666.865s, table=70, n_packets=166, n_bytes=8906, priority=0 actions=goto_table:80` +
+` cookie=0x0, duration=3666.357s, table=80, n_packets=166, n_bytes=8906, priority=0 actions=goto_table:90` +
+` cookie=0x0, duration=3665.854s, table=90, n_packets=166, n_bytes=8906, priority=0 actions=goto_table:100` +
+` cookie=0x0, duration=3665.351s, table=100, n_packets=166, n_bytes=8906, priority=0 actions=goto_table:110` +
+` cookie=0x0, duration=3664.839s, table=110, n_packets=161, n_bytes=8516, priority=0 actions=drop` +
+` cookie=0x0, duration=309.267s, table=110, n_packets=2, n_bytes=140, priority=16384,dl_vlan=2001,dl_dst=01:00:00:00:00:00/01:00:00:00:00:00 actions=output:2,pop_vlan,output:1` +
+` cookie=0x0, duration=310.277s, table=110, n_packets=3, n_bytes=250, priority=8192,dl_vlan=2001 actions=output:2` +
+` cookie=0x0, duration=310.778s, table=110, n_packets=0, n_bytes=0, dl_vlan=2001,dl_dst=fa:16:3e:33:5e:8f actions=pop_vlan,output:1`
+
+If you then spin up two vms you will get the following output. Notice
+that there are two more mac address. One is for the dhcp namespace and
+the other is for the vm. On the other compute node you would only see
+the one mac address for the vm mac since that node does not have the
+router and dhcp namespaces.
+
+`sudo ovs-ofctl --protocol=OpenFlow13 dump-flows br-int` +
+`OFPST_FLOW reply (OF1.3) (xid=0x2):` +
+` cookie=0x0, duration=943.978s, table=0, n_packets=0, n_bytes=0, in_port=2,dl_vlan=2001 actions=goto_table:20` +
+` cookie=0x0, duration=4304.092s, table=0, n_packets=478, n_bytes=24961, priority=0 actions=goto_table:20` +
+` cookie=0x0, duration=112.521s, table=0, n_packets=0, n_bytes=0, priority=8192,in_port=3 actions=drop` +
+` cookie=0x0, duration=945.512s, table=0, n_packets=0, n_bytes=0, priority=8192,in_port=1 actions=drop` +
+` cookie=0x0, duration=109.507s, table=0, n_packets=0, n_bytes=0, priority=8192,in_port=4 actions=drop` +
+` cookie=0x0, duration=946.005s, table=0, n_packets=23, n_bytes=1334, in_port=1,vlan_tci=0x0000/0x1fff,dl_src=fa:16:3e:33:5e:8f actions=push_vlan:0x8100,set_field:6097->vlan_vid,goto_table:20` +
+` cookie=0x0, duration=113.019s, table=0, n_packets=17, n_bytes=1934, in_port=3,vlan_tci=0x0000/0x1fff,dl_src=fa:16:3e:24:bf:21 actions=push_vlan:0x8100,set_field:6097->vlan_vid,goto_table:20` +
+` cookie=0x0, duration=110.008s, table=0, n_packets=18, n_bytes=1860, in_port=4,vlan_tci=0x0000/0x1fff,dl_src=fa:16:3e:a1:24:c4 actions=push_vlan:0x8100,set_field:6097->vlan_vid,goto_table:20` +
+` cookie=0x0, duration=4304.942s, table=0, n_packets=0, n_bytes=0, dl_type=0x88cc actions=CONTROLLER:65535` +
+` cookie=0x0, duration=4303.590s, table=20, n_packets=536, n_bytes=30089, priority=0 actions=goto_table:30` +
+` cookie=0x0, duration=4303.086s, table=30, n_packets=536, n_bytes=30089, priority=0 actions=goto_table:40` +
+` cookie=0x0, duration=4302.582s, table=40, n_packets=536, n_bytes=30089, priority=0 actions=goto_table:50` +
+` cookie=0x0, duration=4302.076s, table=50, n_packets=536, n_bytes=30089, priority=0 actions=goto_table:60` +
+` cookie=0x0, duration=4301.573s, table=60, n_packets=536, n_bytes=30089, priority=0 actions=goto_table:70` +
+` cookie=0x0, duration=4301.070s, table=70, n_packets=536, n_bytes=30089, priority=0 actions=goto_table:80` +
+` cookie=0x0, duration=4300.562s, table=80, n_packets=536, n_bytes=30089, priority=0 actions=goto_table:90` +
+` cookie=0x0, duration=4300.059s, table=90, n_packets=536, n_bytes=30089, priority=0 actions=goto_table:100` +
+` cookie=0x0, duration=4299.556s, table=100, n_packets=536, n_bytes=30089, priority=0 actions=goto_table:110` +
+` cookie=0x0, duration=4299.044s, table=110, n_packets=481, n_bytes=25219, priority=0 actions=drop` +
+` cookie=0x0, duration=943.472s, table=110, n_packets=32, n_bytes=2502, priority=16384,dl_vlan=2001,dl_dst=01:00:00:00:00:00/01:00:00:00:00:00 actions=output:2,pop_vlan,output:1,output:3,output:4` +
+` cookie=0x0, duration=944.482s, table=110, n_packets=3, n_bytes=250, priority=8192,dl_vlan=2001 actions=output:2` +
+` cookie=0x0, duration=944.983s, table=110, n_packets=2, n_bytes=140, dl_vlan=2001,dl_dst=fa:16:3e:33:5e:8f actions=pop_vlan,output:1` +
+` cookie=0x0, duration=109.005s, table=110, n_packets=12, n_bytes=1468, dl_vlan=2001,dl_dst=fa:16:3e:a1:24:c4 actions=pop_vlan,output:4` +
+` cookie=0x0, duration=112.019s, table=110, n_packets=6, n_bytes=510, dl_vlan=2001,dl_dst=fa:16:3e:24:bf:21 actions=pop_vlan,output:3`
+
+[[tunnel-networking]]
+==== Tunnel networking
+
+You should see the following flows when you have created the vlan
+networking and router but before instantiating any vms:
+
+`sudo ovs-ofctl --protocol=OpenFlow13 dump-flows br-int` +
+`OFPST_FLOW reply (OF1.3) (xid=0x2):` +
+` cookie=0x0, duration=3.728s, table=0, n_packets=6, n_bytes=508, in_port=1,dl_src=fa:16:3e:87:0f:c7 actions=set_field:0x578->tun_id,load:0x1->NXM_NX_REG0[],goto_table:20` +
+` cookie=0x0, duration=395.952s, table=0, n_packets=0, n_bytes=0, priority=0 actions=goto_table:20` +
+` cookie=0x0, duration=3.236s, table=0, n_packets=0, n_bytes=0, priority=8192,in_port=1 actions=drop` +
+` cookie=0x0, duration=0.145s, table=0, n_packets=0, n_bytes=0, tun_id=0x578,in_port=2 actions=load:0x2->NXM_NX_REG0[],goto_table:20` +
+` cookie=0x0, duration=397.838s, table=0, n_packets=2, n_bytes=178, dl_type=0x88cc actions=CONTROLLER:65535` +
+` cookie=0x0, duration=395.450s, table=20, n_packets=6, n_bytes=508, priority=0 actions=goto_table:30` +
+` cookie=0x0, duration=394.947s, table=30, n_packets=6, n_bytes=508, priority=0 actions=goto_table:40` +
+` cookie=0x0, duration=394.444s, table=40, n_packets=6, n_bytes=508, priority=0 actions=goto_table:50` +
+` cookie=0x0, duration=393.934s, table=50, n_packets=6, n_bytes=508, priority=0 actions=goto_table:60` +
+` cookie=0x0, duration=393.433s, table=60, n_packets=6, n_bytes=508, priority=0 actions=goto_table:70` +
+` cookie=0x0, duration=392.924s, table=70, n_packets=6, n_bytes=508, priority=0 actions=goto_table:80` +
+` cookie=0x0, duration=392.420s, table=80, n_packets=6, n_bytes=508, priority=0 actions=goto_table:90` +
+` cookie=0x0, duration=391.913s, table=90, n_packets=6, n_bytes=508, priority=0 actions=goto_table:100` +
+` cookie=0x0, duration=391.409s, table=100, n_packets=6, n_bytes=508, priority=0 actions=goto_table:110` +
+` cookie=0x0, duration=0.647s, table=110, n_packets=0, n_bytes=0, priority=8192,tun_id=0x578 actions=drop` +
+` cookie=0x0, duration=390.891s, table=110, n_packets=4, n_bytes=328, priority=0 actions=drop` +
+` cookie=0x0, duration=1.653s, table=110, n_packets=2, n_bytes=180, priority=16384,reg0=0x1,tun_id=0x578,dl_dst=01:00:00:00:00:00/01:00:00:00:00:00 actions=output:1` +
+` cookie=0x0, duration=2.150s, table=110, n_packets=0, n_bytes=0, priority=16384,reg0=0x2,tun_id=0x578,dl_dst=01:00:00:00:00:00/01:00:00:00:00:00 actions=output:1` +
+` cookie=0x0, duration=2.733s, table=110, n_packets=0, n_bytes=0, tun_id=0x578,dl_dst=fa:16:3e:87:0f:c7 actions=output:1`
+
+After creating two vms on different nodes you would see the following.
+Notice the additional flows for the mac addresses of the vms.
+
+`sudo ovs-ofctl --protocol=OpenFlow13 dump-flows br-int` +
+`OFPST_FLOW reply (OF1.3) (xid=0x2):` +
+` cookie=0x0, duration=81.695s, table=0, n_packets=20, n_bytes=2000, in_port=4,dl_src=fa:16:3e:41:c8:83 actions=set_field:0x578->tun_id,load:0x1->NXM_NX_REG0[],goto_table:20` +
+` cookie=0x0, duration=86.717s, table=0, n_packets=29, n_bytes=3402, in_port=3,dl_src=fa:16:3e:cf:7e:f7 actions=set_field:0x578->tun_id,load:0x1->NXM_NX_REG0[],goto_table:20` +
+` cookie=0x0, duration=225.959s, table=0, n_packets=22, n_bytes=1572, in_port=1,dl_src=fa:16:3e:87:0f:c7 actions=set_field:0x578->tun_id,load:0x1->NXM_NX_REG0[],goto_table:20` +
+` cookie=0x0, duration=618.183s, table=0, n_packets=0, n_bytes=0, priority=0 actions=goto_table:20` +
+` cookie=0x0, duration=86.216s, table=0, n_packets=0, n_bytes=0, priority=8192,in_port=3 actions=drop` +
+` cookie=0x0, duration=225.467s, table=0, n_packets=0, n_bytes=0, priority=8192,in_port=1 actions=drop` +
+` cookie=0x0, duration=81.193s, table=0, n_packets=0, n_bytes=0, priority=8192,in_port=4 actions=drop` +
+` cookie=0x0, duration=222.376s, table=0, n_packets=21, n_bytes=2098, tun_id=0x578,in_port=2 actions=load:0x2->NXM_NX_REG0[],goto_table:20` +
+` cookie=0x0, duration=620.069s, table=0, n_packets=46, n_bytes=4094, dl_type=0x88cc actions=CONTROLLER:65535` +
+` cookie=0x0, duration=617.681s, table=20, n_packets=92, n_bytes=9072, priority=0 actions=goto_table:30` +
+` cookie=0x0, duration=617.178s, table=30, n_packets=92, n_bytes=9072, priority=0 actions=goto_table:40` +
+` cookie=0x0, duration=616.675s, table=40, n_packets=92, n_bytes=9072, priority=0 actions=goto_table:50` +
+` cookie=0x0, duration=616.165s, table=50, n_packets=92, n_bytes=9072, priority=0 actions=goto_table:60` +
+` cookie=0x0, duration=615.664s, table=60, n_packets=92, n_bytes=9072, priority=0 actions=goto_table:70` +
+` cookie=0x0, duration=615.155s, table=70, n_packets=92, n_bytes=9072, priority=0 actions=goto_table:80` +
+` cookie=0x0, duration=614.651s, table=80, n_packets=92, n_bytes=9072, priority=0 actions=goto_table:90` +
+` cookie=0x0, duration=614.144s, table=90, n_packets=92, n_bytes=9072, priority=0 actions=goto_table:100` +
+` cookie=0x0, duration=613.640s, table=100, n_packets=92, n_bytes=9072, priority=0 actions=goto_table:110` +
+` cookie=0x0, duration=222.878s, table=110, n_packets=0, n_bytes=0, priority=8192,tun_id=0x578 actions=drop` +
+` cookie=0x0, duration=613.122s, table=110, n_packets=4, n_bytes=328, priority=0 actions=drop` +
+` cookie=0x0, duration=223.884s, table=110, n_packets=23, n_bytes=2220, priority=16384,reg0=0x1,tun_id=0x578,dl_dst=01:00:00:00:00:00/01:00:00:00:00:00 actions=output:1,output:2,output:3,output:4` +
+` cookie=0x0, duration=224.381s, table=110, n_packets=10, n_bytes=1210, priority=16384,reg0=0x2,tun_id=0x578,dl_dst=01:00:00:00:00:00/01:00:00:00:00:00 actions=output:1,output:3,output:4` +
+` cookie=0x0, duration=80.691s, table=110, n_packets=14, n_bytes=1608, tun_id=0x578,dl_dst=fa:16:3e:41:c8:83 actions=output:4` +
+` cookie=0x0, duration=224.964s, table=110, n_packets=12, n_bytes=840, tun_id=0x578,dl_dst=fa:16:3e:87:0f:c7 actions=output:1` +
+` cookie=0x0, duration=85.714s, table=110, n_packets=14, n_bytes=1160, tun_id=0x578,dl_dst=fa:16:3e:cf:7e:f7 actions=output:3` +
+` cookie=0x0, duration=50.702s, table=110, n_packets=15, n_bytes=1706, tun_id=0x578,dl_dst=fa:16:3e:1a:d9:4c actions=output:2`
+
+[[wireshark]]
+=== Wireshark
+
+You can pipe tcpdump to your host or load Wireshark itself on the
+devstack VMs:
+
+[[pipe]]
+==== Pipe
+
+Using pipes mean you do not have to load all the required wireshark
+software in the guest vm so you can save on space. You just need to have
+tcpdump in the guest vm. The below command will ssh into the vm, start
+tcpdump and pipe the output to your local host and into the wireshark on
+the host. You can add the password-less ssh for root to the guest vm so
+you don't have to enter the password.
+
+`ssh root@192.168.120.31 "tcpdump -i any -U -w - 'not tcp port 22 and not stp'" | sudo /usr/local/bin/wireshark -k -i -q`
+port 22 is to filter the ssh traffic since you will likely be using ssh
+into the devstack VMs.
+
+[[wireshark-on-vm]]
+==== Wireshark on VM
+
+`` +
+`yum install -y wireshark xorg-x11-xauth xorg-x11-fonts-* xorg-x11-utils wireshark-gnome` +
+`sed -i 's/#X11Forwarding\ no/X11Forwarding\ yes/'  /etc/ssh/sshd_config` +
+`systemctl restart sshd.service</code>` +
+`From host machine, <code>ssh -X odl@192.168.120.31 wireshark&`
+
+[[karaf-features]]
+=== Karaf Features
+
+[[dependencies]]
+==== Dependencies
+
+Dependencies and conflicts among the many different features lead to
+random problems that are difficult to troubleshoot. And more often that
+naught, it has nothing to do with ovsdb, which makes it even more
+difficult to troubleshoot.
+
+`feature:list -i` can be used to list the installed features.
+
+Be sure to clean the features between different karaf runs. When karaf
+is restarted there is a cache of the previously loaded features so they
+will reload on restart or new start. It is best to always clean the
+cache between runs until you are comfortable with the features. Stop
+karaf and then `rm -rf data/*`. When you start karaf again you will see
+that no features are loaded. This is useful when testing with and
+without odl-ovsdb-openstack with something like Mininet since you don't
+need odl-ovsdb-openstack.
+
+* Remember that the older ad-sal and md-sal REST apis use different
+URI's, for example:
+`http://192.168.120.1:8080/controller/nb/v2/connectionmanager/nodes/` is
+ad-sal and
+`http://192.168.120.1:8181/restconf/operational/opendaylight-inventory:nodes/`
+is for md-sal.
+* Some ad-sal APIs may no longer be supported since they may have been
+ported to md-sal or simply deprecated
+* The right features may not have been installed. Some ad-sal APIs
+require the odl-adsal-compatibility feature.
+* Install order matters sometimes. For instance, the odl-aaa-authn
+feature has to be installed before the odl-restconf feature. This could
+change in the future but it is needed right now.
+
+[[jvm-memory-in-karaf]]
+==== JVM memory in Karaf
+
+Sometimes there are memory resource issues reported in the karaf log
+related to JVM heap memory. Use the table below to modify the values
+used by karaf. In `bin/karaf` you can find the JVM memory setting
+definitions.
+
+I have found random results depending on what is already running on the
+test system and what features are installed:
+
+* Using Chrome, Eclipse, Intellij or other JAVA-hungry applications seem
+to affect the amount of memory available to the Karaf JVM.
+* Features with openflowplugin and starting multiple vms that push flows
+spike the memory and lead to resource problems.
+
+The "New Value" values are values I have used before. Try different
+values to tune your specific setup.
+
+[cols=",,,",options="header",]
+|=====================================================================
+|JAVA Option |Karaf Option |Default Karaf Value |New Value
+|-Xms |JAVA_MIN_MEM |-Xms128M |export JAVA_MIN_MEM=256M
+|-Xmx |JAVA_MAX_MEM |-Xmx512M |export JAVA_MAX_MEM=2048M
+|-XX:PermSize |JAVA_PERM_MEM |??? |export JAVA_PERM_MEM=???
+|-XX:MaxPermSize |JAVA_MAX_PERM_MEM |??? |export JAVA_MAX_PERM_MEM=???
+|=====================================================================
+
+You can monitor jvm memory usage with the use of JConsole. On Fedora 19
+with openjdk JConsole is the application to use. Oracle JAVA may have a
+different application. The application will list all the jvm processes
+running on the system. Connect to that process and you will see
+different information about the process: Memory, Classes, Threads, CPU
+Usage, etc. Watch the information as you use karaf to tune the memory
+values.
+
+[[helium-and-juno]]
+== Helium and Juno
+
+Juno works with Helium also. The steps below detail how to clone the
+working Icehouse VM's and adapt them for Juno.
+
+1.  Clone the fedora31 vm, start it and log in.
+2.  Modify the ethernet interfaces if you want to keep this VM along
+with the fedora31 VM. In this example we modify the address to use
+192.168.120.51 instead of 192.168.120.31. We also need to modify the
+network-scripts/ethN-cfg since those cfg files contain the mac addresses
+from the fedora31 VM. This is the same process followed when cloning
+fedora31 to create the compute node fedora32.
+1.  cd /etc/sysconfig/network-scripts
+2.  /opt/tools/fixeth2.sh fedora51 192.168.120.51
+3.  Modify the hosts file
+1.  vi /etc/hosts
+2.  Change the fedora31 to fedora51.
+3.  Change addresses from .31 to .51. Do the same for .32 to .52.
+3.  Update devstack
+1.  cd /opt/devstack
+2.  Recall that we previously created a tweaks branch and modified
+devstack so now use git to update to the latest devstack:
+1.  git add .; git commit -m wip
+2.  git checkout master; git pull
+4.  Update openStack
+1.  Modify local.conf
+1.  vi local.conf
+2.  Change RECLONE=no to yes and OFFLINE=True to False. This will force
+devstack to update the OpenStack components
+3.  Comment out all the xxx_BRANCH config, i.e.
+NOVA_BRANCH=stable/icehouse. You could set the value to stable/juno if
+you wanted but this example uses the latest.
+4.  Modify the addresses to use 192.168.120.51 instead of
+192.168.120.31. Don't forget the
+VNCSERVER_PROXYCLIENT_ADDRESS=192.168.120.31.
+2.  ./stack.sh. The update failed with mariadb errors around
+mariadb-galdera-server. Do the following to clean it up:
+1.  sudo yum erase mariadb*
+2.  Rerun ./stack.sh and hit a mysql error
+3.  sudo yum install MySQL-python
+4.  Rerun ./stack.sh and the world was good.
+5.  Rerun the tests from above for the control+compute node to verify
+the devstack setup is good.
+6.  Clean the VM: /opt/tools/osreset.sh and shutdown the VM.
+7.  Repeat the above steps 1-4 to create fedora52 and run the tests to
+verify it works.
+
+[[workarounds]]
+== Workarounds
+
+[[internal-error-response-for-neutron-cli]]
+=== 500 internal error response for neutron cli
+
+If you see a 500 internal server error from neutron it might be because
+of the recent change in odl to use jetty. This comes from
+https://git.opendaylight.org/gerrit/#/c/13546/[jetty patch]. The patch
+disables the use of returning a jsessionid cookie from odl that can be
+used in subsequent requests from neutron to authenticate the request.
+You can verify the issue if using Wireshark and capture 401 Unauthorized
+responses from odl. Looks for the 401 and not 500 since the 401 comes
+from odl but then neutron maps it to a 500.
+
+The jetty patch went in around 2/4/15 so any build after that will fail
+completely when any neutron calls are made.
+
+The patch below can be used to enable basic auth on all requests as a
+workaround.
+
+`diff --git a/neutron/plugins/ml2/drivers/mechanism_odl.py b/neutron/plugins/ml2/drivers/mechanism_odl.py` +
+`index a2a9487..f1d778e 100644` +
+`--- a/neutron/plugins/ml2/drivers/mechanism_odl.py` +
+`+++ b/neutron/plugins/ml2/drivers/mechanism_odl.py` +
+`@@ -141,7 +141,8 @@ class OpenDaylightMechanismDriver(api.MechanismDriver):` +
+`         for opt in required_opts:` +
+`             if not getattr(self, opt):` +
+`                 raise cfg.RequiredOptError(opt, 'ml2_odl')` +
+`-        self.auth = JsessionId(self.url, self.username, self.password)` +
+`+        #self.auth = JsessionId(self.url, self.username, self.password)` +
+`+        self.auth = (self.username, self.password)` +
+`         self.vif_type = portbindings.VIF_TYPE_OVS` +
+`         self.vif_details = {portbindings.CAP_PORT_FILTER: True}`

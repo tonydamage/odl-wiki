@@ -1,0 +1,162 @@
+This page groups together tutorials for components that exists in BGPCEP
+project for purely testing purposes.
+
+[[bgp]]
+== BGP
+
+[[bgp-parser-mock]]
+=== bgp-parser-mock
+
+Parser mock mimicks the behaviour of the actual BGP parser. The initial
+parameter consists of a mapping of byte array to BGP message. Mock
+simply looks up given byte array and returns corresponding BGP message.
+
+[[bgp-rib-mock]]
+=== bgp-rib-mock
+
+RIB mock is a simple component, that allows a user to register as a
+regular BGP listener while bypassing all RIB operations. The mock does
+not connect to the network, instead, it takes a list of byte arrays and
+considers them as network BGP stream. That means, byte arrays are parsed
+to BGP messages and listener is notified via 'onMessage()' method.
+
+[[bgp-testtool]]
+=== bgp-testtool
+
+* mock BGP Peer
+
+* create and connect BGP Peer to BGP Speaker identified by IP address
+
+* to start test-tool, run executable jar
+bgp-testtool-0.3.1-SNAPSHOT-executable.jar or
+org.opendaylight.protocol.bgp.testtool.Main from IDE with input
+arguments:
+
+*`-a`*`, `*`--address`
+*` (mandatory) - IP address with port number, address of BGP Speaker where BGP Peer connects` +
+*`-h`*`, `*`--holdtimer`
+*` (optional, deafult 90) - HoldTimer value in seconds, advertised in Open message` +
+*`-as` *` (mandatory) - Speaker's AS Number`
+
+[[pcep]]
+== PCEP
+
+[[pcep-pcc-mock]]
+=== pcep-pcc-mock
+
+* mock Java PCC for testing purposes
+
+* establishes connection with PCE (ietf-pce-stateful-pce-07,
+ietf-pce-pce-initiated-lsp-00)
+
+* reports and sync fake tunnels
+
+* dummy responder to PCUpd and PCInitiate messagses:
+** Create, update, remove tunnel
+** replies PCRpt message based on request
+** replies PCErr with random Error-type/value
+
+To run pcc-mock, use executable jar pcep-pcc-mock-*-executable.jar or
+org.opendaylight.protocol.pcep.pcc.mock.Main from IDE with input
+arguments:
+
+`   `*`--local-address`
+*` (optional, default 127.0.0.1) – first PCC IP address. If more PCCs are required, the IP address will be incremented. Port number can be optionally specified. ` +
+`   `*`--remote-address`
+*` (optional, default 127.0.0.1:4189) - the list of Ip address for the PCE servers. Port number can be optionally specified, otherwise default port number 4189 is used.` +
+`   `*`--pcc` *` (optional, default 1) – number of Mock PCC instances` +
+`   `*`--lsp`
+*` (optional, default 1) – number of tunnels (LSPs) reported per PCC, might be zero.` +
+`   `*`--pcerr`*` (optional flag) – if the flag is present, response with PCErr, otherwise PCUpd` +
+`   `*`--log-level`
+*` (optional, default INFO) - set logging level for pcc-mock` +
+`   `*`-d,` `--deadtimer`
+`<0..255>`*` (optional, default 120) - DeadTimer value in seconds` +
+`   `*`-ka,` `--keepalive`
+`<0.255>`*` (optional, deafult 30) - KeepAlive timer value in seconds` +
+`   `*`--password`
+*` (optional) - if password is present, it is used in TCP MD5 signature, otherwise plain TCP is used.` +
+`   `*`--reconnect`
+*` (optional) - if the argument is present, the value in seconds, is used as a delay before each new reconnect (initial connect or connection re-establishment) attempt. The number of reconnect attempts is unlimited. If the argument is omitted, pcc-mock is not trying to reconnect.`
+
+[[pcep-testtool]]
+=== pcep-testtool
+
+* mocks Path Computation Element (PCE)
+
+* creates server with specified parameters
+
+* accepts connections from PCCs
+
+* to start server, run executable jar
+_pcep-testtool-*-SNAPSHOT-executable.jar_ or
+org.opendaylight.protocol.pcep.testtool.Main from IDE with parameters:
+
+*`-a`*`, `*`--address`
+*` (mandatory) - IP address with port number, to which the server is bounded. (i.e. 1.2.3.4:1234)` +
+*`-d`*`, `*`--deadtimer`
+*` (optional, default 0) - DeadTimer value in seconds` +
+*`-ka`*`, `*`--keepalive`
+*` (optional, deafult 30) - KeepAlive timer value in seconds` +
+*`--stateful`*` (optional flag) - If presents, advertise pasive stateful (ietf-stateful07) capability` +
+*`--active`*` (optional flag) - If presents, advertise active stateful (ietf-stateful07) capability` +
+*`--instant`*` (optional flag) - If presents, advertise instantiation (ietf-initiated00) capability`
+
+[[data-change-counter]]
+== data-change-counter
+
+* subscribes _Data Change Listener_ to specified topology's subtree
+
+* increments counter on each data change event
+
+* count is stored in _Operational Data Strore_
+
+* data change count is reachable via _RESTCONF_:
+
+_GET_
+http://localhost:8181/restconf/operational/data-change-counter:data-change-counter
+
+code,xml----------------------- code,xml
+ <data-change-counter>
+    <count>1</count>
+ </data-change-counter>
+-----------------------
+
+* sample configuration xml included
+https://jenkins.opendaylight.org/bgpcep/job/bgpcep-nightly/ws/data-change-counter/src/main/resources/initial/50-topology-data-change-counter.xml[_50-topology-data-change-counter.xml_]:
+
+code,xml,numberLines---------------------------------------------------------------------------------------------------------------------------------------------------------------------
+code,xml,numberLines
+<snapshot>
+    <required-capabilities>
+        <capability>urn:opendaylight:params:xml:ns:yang:controller:md:sal:binding?module=opendaylight-md-sal-binding&amp;revision=2013-10-28</capability>
+        <capability>urn:opendaylight:params:xml:ns:yang:controller:bgpcep:data:change:counter?module=odl-data-change-counter-cfg&amp;revision=2014-08-15</capability>
+    </required-capabilities>
+    <configuration>
+        <data xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+            <modules xmlns="urn:opendaylight:params:xml:ns:yang:controller:config">
+                <module>
+                    <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:bgpcep:data:change:counter">prefix:data-change-counter-impl</type>
+                    <name>data-change-counter-singleton</name>
+                    <data-provider>
+                        <type xmlns:binding="urn:opendaylight:params:xml:ns:yang:controller:md:sal:binding">binding:binding-async-data-broker</type>
+                        <name>binding-data-broker</name>
+                    </data-provider>
+                    <topology-name>example-linkstate-topology</topology-name>
+                </module>
+            </modules>
+            <services xmlns="urn:opendaylight:params:xml:ns:yang:controller:config">
+            </services>
+        </data>
+    </configuration>
+</snapshot>
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+* 11: only instance with name _data-change-counter-singleton_ can be
+created
+* 14: global _binding-data-broker_ is injected
+* 16: _topology-name_ parameter - topology's id, where _Data Change
+Listener_ is registered
+
+[[integration-tests]]
+== integration-tests

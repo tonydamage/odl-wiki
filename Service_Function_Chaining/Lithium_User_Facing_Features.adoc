@@ -1,0 +1,1280 @@
+[[load-balancing]]
+= Load Balancing
+
+[[code-name]]
+== Code Name
+
+sfc-provider, sfc-sb-rest, sfc-ui
+
+[[description]]
+== Description
+
+SFC currently handles configuration where there is a one-to-one mapping
+between SFF and SF. This feature implements load balancing for SF's. For
+more details please see:
+https://wiki.opendaylight.org/view/SFF_Load_Balance_Feature_Proposal
+
+[[bundles]]
+== Bundles
+
+odl-sfc-model, odl-sfc-provider, odl-sfc-sb-rest, odl-sfc-ui
+
+[[upstream-dependencies]]
+== Upstream Dependencies
+
+odl-yangtools-binding, odl-yangtools-models, dl-mdsal-broker,
+odl-mdsal-apidocs
+
+[[downstream-dependents]]
+== Downstream Dependents
+
+odl-sfcofl2, odl-sfc-all
+
+[[incompatibilities]]
+== Incompatibilities
+
+N\A
+
+[[network-intrusiveness]]
+== Network Intrusiveness
+
+N\A
+
+[[recommended-karaf-features]]
+== Recommended Karaf features
+
+odl-sfc-all, odl-openflowplugin-all, odl-sfc-provider, odl-sfc-sb-rest,
+odl-restconf, http, odl-mdsal-broker, odl-mdsal-apidocs, odl-sfc-model,
+odl-yangtools-binding, odl-yangtools-models
+
+[[how-to-test]]
+== How to test
+
+For setup, as well as general SFC scenarios, please see the SFC wiki
+page:
+https://wiki.opendaylight.org/view/Service_Function_Chaining:Main#SFC_101
+
+Test cases:
+
+* Create simple SFC configuration, with an SFG instead of SF. The SFG
+will include only one SF, in order to test compatibility for the olds
+scenario, with no SF grouping.
+* Create a chain with an SFG that contains multiple SF’s, and a simple
+SGF-Algorithm. Test that the Load-Balancing between the SF’s is done
+properly.
+* Repeat 1&2 with a chain that contain a mix of SF and SFG in the path
+definition.
+* Test different REST configuration calls: read\write\remove SFG from
+DB, add\remove SF from SFG, read\write\remove SFG-Algorithm from DB.
+
+[[performancescalability-concerns]]
+== Performance/Scalability Concerns
+
+N\A
+
+[[service-function-selection-algorithm]]
+= Service Function Selection Algorithm
+
+[[code-name-1]]
+== Code Name
+
+In this section, state Karaf or not Karaf "in code" name of the feature
+(e.g. odl-mdsal-cluster)
+
+If the same functionality comes with different interfaces (REST, GUI),
+you can mention all here (e.g. odl-l2switch-switch,
+odl-l2switch-switch-ui)
+
+sfc-model, sfc-provider, sfc-sb-rest, sfc-ui
+
+*Depends on Karaf features*
+
+* odl-sfc-core
+* odl-netconf (*)
+
+[[description-1]]
+== Description
+
+In this section, please provide a detailed description of your project
+feature including:
+
+* Overview
+
+When creating the Rendered Service Path, the origin SFC controller
+chooses the first available service function from a list of service
+function names. This may result in lots of issues such as overloaded
+service functions and longest service path as SFC has no means to
+understand the status of service functions and network topology. The
+service function selection framework supports at least four algorithms
+(e.g. Random, Round Robin, Load Balancing, Shortest Path) to choose the
+most appropriate service function when instantiating the RSP. In
+addition, it is an extensible framework that allows 3rd party algorithm
+implementations to be plugged in.
+
+* Design Architecture
+
+The following figure illustrates the service function selection
+framework and algorithms.
+
+image:SF selector arch.png[SF selector arch.png,title="SF selector arch.png"]
+
+User could use three different ways to select a service function
+selection algorithm:
+
+* ** Integrated RESTConf Calls. Openstack® or other administration
+system could provide plugins to call the APIs to select a selection
+algorithm.
+** Command line tools. Command line tools such as curl could select
+schedule algorithm by posting messages to RESTConf calls.
+** SFC-UI. Now the SFC-UI provides an option for choosing a selection
+algorithm when creating a Rendered Service Path.
+
+RESTConf Northbound SFC API provides GUI/REST interactions for choosing
+the service function selection algorithm. MD-SAL Datastore provides all
+supported service function selection algorithms, and provides APIs to
+enable one of the provided service function selection algorithm. Once a
+service function selection algorithm is selected, the service function
+selection algorithm will work when creating a rendered service path.
+
+* Configuration
+
+The random and round robin service function selection algorithm just use
+the default REST configuration of the ODL SFC. These configuration could
+be found at the folder:
+
+*$\{SFC Repo}/sfc-jsonconfig/src/main/resources/bootstrap*
+
+Notice: the configurations for Shortest Path and Load Balance algorithm
+are to be updated soon.
+
+(you can point to your project wiki if this information already exists
+there)
+
+[[bundles-1]]
+== Bundles
+
+In this section, enumerate software bundles (OSGi and not OSGi) that are
+part of the feature
+
+(You can just provide a link to the feature.xml file)
+
+There is no bundle needed. But may be updated in the future.
+
+[[upstream-dependencies-1]]
+== Upstream Dependencies
+
+In this section, state any dependency on features in the same or other
+projects within Opendaylight
+
+The service function selection algorithm depends on the following:
+
+* ODL netconf plugin
+* sfc-model
+* sfc-provider
+* sfc-sb-rest
+* sfc-ui
+
+[[downstream-dependents-1]]
+== Downstream Dependents
+
+In this section, state any feature or project that you know depends on
+this feature
+
+Currently there are no downstream dependencies
+
+[[incompatibilities-1]]
+== Incompatibilities
+
+In this section, state any incompatibility you know on the same or other
+projects features and the effect on your feature.
+
+Please also note, if known, why the incompatibility exists as well as
+any plans and discussions you have had about possibly resolving this
+incompatiblity either during this release or in a future release.
+Projects are encouraged to do this to improve the consumability of
+OpenDaylight. Doing so, especially if it resolves incompatibilities will
+be seen favorably as part of project maturity when advancing through the
+http://www.opendaylight.org/project-lifecycle-releases[project
+lifecycle].
+
+Currently, there is no incompatibility.
+
+[[network-intrusiveness-1]]
+== Network Intrusiveness
+
+Does your feature program devices, send flows, packets out, etc...
+without any special setting or configuration?
+
+The Service function selection algorithm doesn’t program any device, it
+just generate rendered service path. Use the default JSON configuration
+to store the service functions into datastore is the basic
+configuration.
+
+[[recommended-karaf-features-1]]
+== Recommended Karaf features
+
+In this section, state which features would you recommended to enable in
+Karaf distribution to use and test your feature
+
+* odl-netconf-all
+* odl-sfc-core
+* odl-sfc-ui
+
+[[how-to-test-1]]
+== How to test
+
+To test the service function selection algorithm works as expected or
+not, the default JSON configuration must be loaded, the JSON files are
+listed in the folder:
+
+*$\{SFC Repo}/sfc-jsonconfig/src/main/resources/bootstrap.*
+
+Notice: if the sfc-ui module is not used for the tests, please refer to
+the
+https://wiki.opendaylight.org/view/Service_Function_Chaining:Lithium_User_Facing_Features#SFCOFL2[SFCOFL2]
+part to check how to use command line tools to load the JSON
+configurations and to create the rendered service path.
+
+Notice: The following two ways to choose the service function selection
+algorithm are often used:
+
+* Command line tools(including postman/restclient). In this case, the
+following JSON content is needed:
+
+Service_function_schudule_type.json
+
+\{
+
+` "service-function-scheduler-types": {` +
+`   "service-function-scheduler-type": [` +
+`     {` +
+`       "name": "random",` +
+`       "type": "service-function-scheduler-type:random",` +
+`       "enabled": false` +
+`     },` +
+`     {` +
+`       "name": "roundrobin",` +
+`       "type": "service-function-scheduler-type:round-robin",` +
+`       "enabled": true` +
+`     },` +
+`           {` +
+`       "name": "loadbalance",` +
+`       "type": "service-function-scheduler-type:load-balance",` +
+`       "enabled": false` +
+`     },` +
+`   ]` +
+` }`
+
+}
+
+Then execute the following command:
+
+curl -i -H "Content-Type: application/json" -H "Cache-Control: no-cache"
+--data Service_function_schudule_type.json -X PUT --user admin:admin
+http://localhost:8181/restconf/config/service-function-scheduler-type:service-function-scheduler-types/
+
+* SFC-UI. SFC-UI provides a drop box for service function schedule
+algorithm.
+
+Here is a snapshot for the user interaction from SFC-UI when creating a
+rendered service path.
+
+image:Karaf SFC deploy select a type.png[Karaf SFC deploy select a type.png,title="Karaf SFC deploy select a type.png"]
+
+Notice: Some service function selection algorithms in the drop list are
+not implemented yet. Only the first three algorithms are committed at
+the moment.
+
+Notice: the configuration for Shortest Path and Load Balance will be
+updated later on.
+
+[[test-case-random-service-function-selection-algorithm]]
+==== Test Case: Random service function selection algorithm
+
+* Purpose of the test
+** This test verifies that the Random service function selection
+algorithm works as expected.
+* Pre-conditions or Pre-requisites
+** The configuration mentioned above must have been loaded on an empty
+system.
+* Detailed Test Steps
+** Run the Karaf with/without debug option
+** Create a rendered service path by clicking the “deploy this chain”
+button
+** Choose the Random selection algorithm with command line tool or
+SFC-UI
+
+image:Sfc SF selector related ui.png[Sfc SF selector related ui.png,title="Sfc SF selector related ui.png"]
+
+Repeat the step 2 five times to create more rendered service paths for
+the service function chain
+
+* Expected Results
+** No error occurs when creating rendered service path
+** Many RSPs should have been created as expected
+*** Each hop’s type matches the service function’s definition
+*** Each RSP contains same or different service function with other
+RSPs.
+
+Here is an example for the RSPs generated by random algorithm.
+
+image:SFC SF Selector Random.png[SFC SF Selector Random.png,title="SFC SF Selector Random.png"]
+
+[[test-case-round-robin-service-function-selection-algorithm]]
+==== Test Case: Round Robin service function selection algorithm
+
+* Purpose of the test
+** This test verifies that the Round Robin service function algorithm
+works as expected.
+* Pre-conditions or Pre-requisites
+** The configuration mentioned above must have been loaded on an empty
+system.
+* Detailed Test Steps
+** Run the Karaf with/without debug option
+** Create a rendered service path by clicking the “deploy this chain”
+button
+** Choose the Round Robin selection algorithm with command line tool or
+SFC-UI
+
+Repeat the step 2 five times to create more rendered service paths for
+the service function chain
+
+* Expected Results
+** No error occurs when creating rendered service path
+** Many RSPs should have been created as expected
+*** Each hop’s type matches the service function’s definition
+*** The service function list are the same in paired RSPs, e.g. Service
+functions in the RSP with ID 1 are the same in the RSP with ID 4.
+
+image:SFC SF Selector Round Robin.png[SFC SF Selector Round Robin.png,title="SFC SF Selector Round Robin.png"]
+
+[[test-case-load-balance-service-function-selection-algorithm]]
+==== Test Case: Load Balance service function selection algorithm
+
+To be updated soon.
+
+[[test-case-shortest-path-service-function-selection-algorithm]]
+==== Test Case: Shortest Path service function selection algorithm
+
+To be updated soon.
+
+If your tests are already implemented in Robot, please provide the pybot
+commands and robot scripts or repo
+
+(you can point to your project wiki if this information already exists
+there)
+
+[[performancescalability-concerns-1]]
+== Performance/Scalability Concerns
+
+In this section, provide any concerns related to performance and
+scalability
+
+No performance/scalability concerns at the moment.
+
+[[classifier-control-and-data-plane-implementation]]
+= Classifier Control and Data Plane Implementation
+
+[[code-name-2]]
+== Code Name
+
+* Python code located in project directory sfc-py/
+* odl-sfc-ui
+
+[[description-2]]
+== Description
+
+Description of classifier can be found in:
+https://datatracker.ietf.org/doc/draft-ietf-sfc-architecture/
+
+[[upstream-dependencies-2]]
+== Upstream Dependencies
+
+* odl-sfc-core
+* odl-sfc-sb-rest
+
+[[downstream-dependents-2]]
+== Downstream Dependents
+
+N/A
+
+[[incompatibilities-2]]
+== Incompatibilities
+
+Classifier works only on *Linux* as it's setting *iptables* rules and
+using *NetfilterQueue* for packet filtering.
+
+[[network-intrusiveness-2]]
+== Network Intrusiveness
+
+Feature acts as network device, capable of filtering and forwarding
+traffic passing through it.
+
+[[recommended-karaf-features-2]]
+== Recommended Karaf features
+
+* odl-sfc-core
+* odl-sfc-sb-rest
+* odl-sfc-ui
+
+[[how-to-test-2]]
+== How to test
+
+*Automated testing*
+
+Classifier test suite is located in
+_sfc-py/test/classifier/test_classifier.py_ and it performs following
+tests:
+
+1.  IP version determining
+1.  Test if classifier is able to determine IP version
+2.  Test if classifier raises ValueError for invalid IP address while
+trying to determine IP version
+2.  Data-store RSP retrieval
+1.  Test if classifier is able to retrieve RSP by its name from its
+local data-store
+3.  ODL RSP retrieval
+1.  Test if classifier raises ConnectionError if ODL is not running
+(skipped if ODL is running)
+2.  Test if classifier raises RuntimeError for RSP non-existing in ODL
+(skipped if ODL is not running)
+3.  Test if classifier is able to retrieve RSP first hop data from ODL
+(skipped if ODL is not running)
+4.  Packet mark handling
+1.  Test if classifier is able to compose packet mark
+2.  Test if classifier is able to decompose packet mark
+5.  ACE parsing
+1.  Test IPv4 related ACE parsing
+2.  Test IPv6 related ACE parsing
+3.  Test MAC related ACE parsing
+4.  Test PORT related ACE parsing
+6.  ACL parsing and iptables rules management
+1.  Test if correct iptables rule is created and cleared afterwards
+(skipped if ODL is not running)
+7.  Packet sending
+1.  Test if 5 sent packets really traverses through NFQ (skipped if ODL
+is not running)
+
+To run this suite execute: _sudo py.test
+sfc-py/test/classifier/test_classifier.py_
+
+To get more info about pytest (e.g. supported flags) execute: _py.test
+-h_
+
+image:Tests example.png[Tests example.png,title="Tests example.png"]
+
+*Manual testing*
+
+1.  Build SFC project, run sfc-karaf distribution
+2.  Execute: _sudo python3.4 sfc-py/sfc_agent.py --rest --odl-ip-port
+localhost:8181 --auto-sff-name --nfq-class_
+3.  Execute: _python3.4 sfc-test/sfc_classifier_regression.py --acl-type
+IPV4_
+4.  Execute: _nc -4u -p 16000 127.0.0.1 5000_ (to send a packet to the
+classifier)
+
+Result:
+
+1.  SFF1 and SF1 spawned and configured. RSP rendered.
+2.  After sending udp packet with nc (netcat), in sfc_agent log messages
+you should see how the packet is traversing from SFF1 to SF1
+
+[[performancescalability-concerns-2]]
+== Performance/Scalability Concerns
+
+N/A
+
+[[southbound-rest-plugin]]
+= Southbound REST Plugin
+
+[[code-name-3]]
+== Code Name
+
+* odl-sfc-sb-rest
+* odl-sfc-ui
+
+[[description-3]]
+== Description
+
+The Southbound REST Plugin is used to send configuration from DataStore
+down to network devices supporting a REST API (i.e. they have a
+configured REST URI). It supports POST/PUT/DELETE operations, which are
+triggered accordingly to changes in DataStore.
+
+In its current state it listens to changes in these DataStores:
+
+* Access List (ACL)
+* Service Classifier (SCF)
+* Service Function (SF)
+* Service Function Group (SFG)
+* Service Function Schedule Type (SFST)
+* Service Function Forwader (SFF)
+* Rendered Service Path (RSP)
+
+[[bundles-2]]
+== Bundles
+
+* org.opendaylight.sfc/sfc-sb-rest
+
+(You can just provide a link to the feature.xml file)
+
+[[upstream-dependencies-3]]
+== Upstream Dependencies
+
+* odl-sfc-core
+* odl-mdsal-broker
+
+[[downstream-dependents-3]]
+== Downstream Dependents
+
+* Classifier control and data plane
+
+[[incompatibilities-3]]
+== Incompatibilities
+
+May conflict with other SFC SouthBound plugins. There needs to be some
+code deciding when to use which SFC SouthBound plugin.
+
+[[network-intrusiveness-3]]
+== Network Intrusiveness
+
+Feature does not program any network devices, until some configuration
+targeting network devices is stored in Mdsal Datastore.
+
+[[recommended-karaf-features-3]]
+== Recommended Karaf features
+
+* odl-sfc-core
+* odl-sfc-ui
+
+[[how-to-test-3]]
+== How to test
+
+1.  Build SFC project, run sfc-karaf distribution
+2.  Execute: python3.4 sfc-py/sfc_agent.py --rest --odl-ip-port
+localhost:8181 --auto-sff-name
+3.  Execute: python3.4 sfc-test/sfc-classifier-regression.py --acl-type
+IPV4
+
+Result: You should see that sfc_agent has received new configuration via
+REST. Also you can check Karaf log messages and see that configuration
+was sent.
+
+[[performancescalability-concerns-3]]
+== Performance/Scalability Concerns
+
+N/A
+
+[[sfc-ovs]]
+= SFC OVS
+
+[[code-name-4]]
+== Code Name
+
+* odl-sfc-ovs
+* odl-sfc-ui
+
+[[description-4]]
+== Description
+
+SFC-OVS provides integration of SFC with OpenVSwitch (OVS) devices.
+Integration is realized through mapping of SFC objects (like SF, SFF,
+Classifier, etc.) to OVS objects (like Bridge,
+TerminationPoint=Port/Interface). The mapping takes care of automatic
+instantiation (setup) of corresponding objects whenever it's opossite is
+created. E.g. new SFF --create-- > OVS Bridge, new OVS Bridge --create--
+> SFF, etc.
+
+SFC-OVS uses OVSDB MDSAL Southbound API for getting/writing information
+from/to OVS devices. The core functionality consists of two types of
+mapping:
+
+\a. mapping from OVS to SFC
+
+* OVS Bridge is mapped to SFF
+* OVS TerminationPoints are mapped to SFF DataPlane locators
+
+\b. mapping from SFC to OVS
+
+* SFF is mapped to OVS Bridge
+* SFF DataPlane locators are mapped to OVS TerminationPoints
+
+image:Sff ovs architecture.png[SFF OVS Architecture & basic use
+cases,title="SFF OVS Architecture & basic use cases"]
+
+[[bundles-3]]
+== Bundles
+
+* org.opendaylight.sfc/sfc-ovs
+
+(You can just provide a link to the feature.xml file)
+
+[[upstream-dependencies-4]]
+== Upstream Dependencies
+
+* odl-sfc-core
+* odl-mdsal-broker
+* odl-ovsdb-southbound-api
+* odl-ovsdb-southbound-impl
+
+[[downstream-dependents-4]]
+== Downstream Dependents
+
+N/A
+
+[[incompatibilities-4]]
+== Incompatibilities
+
+May conflict with other SFC SouthBound plugins. There needs to be some
+code deciding when to use which SFC SouthBound plugin.
+
+[[network-intrusiveness-4]]
+== Network Intrusiveness
+
+Feature does not program any network devices, until some configuration
+targeting OVS network devices is stored in Mdsal Datastore.
+
+[[recommended-karaf-features-4]]
+== Recommended Karaf features
+
+* odl-sfc-core
+* odl-sfc-ui
+* odl-mdsal-broker
+* odl-ovsdb-southbound-api
+* odl-ovsdb-southbound-impl
+
+[[how-to-test-4]]
+== How to test
+
+Use case - automatic SFF configuration according to received OVS Bridge
+data:
+
+1.  Build SFC project, run sfc-karaf distribution
+2.  Install OVS on a machine which can reach (has network connectivity
+to) running sfc-karaf ODL distribution
+3.  On OVS capable machine execute: ovs-vsctl set-manager tcp::6640
+4.  On OVS capable machine execute: ovs-vsctl show (you should see line
+like: Manager "tcp::6640")
+5.  On OVS capable machine execute: ovs-vsctl add-br br-s
+
+Result:
+
+* E.g. via Postman perform: GET
+http://localhost:8181/restconf/operational/network-topology:network-topology/
+(you should see filled configuration containing at least 2 nodes)
+* Check SFC-UI SFF tab: http://localhost:8181/sfc/#/sfc/serviceforwarder
+(you should see new SFF, with name "br-s (uuid)")
+** You can also check through: GET
+http://localhost:8181/restconf/config/service-function-forwarder:service-function-forwarders
+
+[[performancescalability-concerns-4]]
+== Performance/Scalability Concerns
+
+N/A
+
+[[sfc-ui]]
+= SFC UI
+
+[[code-name-5]]
+== Code Name
+
+* odl-sfc-ui
+
+[[description-5]]
+== Description
+
+SFC-UI is based on Dlux project. It provides an easy way to CRUD
+configuration stored in Datastore. Moreover, it shows the status of all
+SFC features (e.g installed, uninstalled) and Karaf log messages as
+well.
+
+SFC-UI operates purely through RESTconf.
+
+[[bundles-4]]
+== Bundles
+
+* org.opendaylight.sfc/sfc-ui
+
+(You can just provide a link to the feature.xml file)
+
+[[upstream-dependencies-5]]
+== Upstream Dependencies
+
+* odl-sfc-core
+* odl-restconf
+* http
+* webconsole
+* mvn bundle: org.opendaylight.dlux/dlux-web
+
+[[downstream-dependents-5]]
+== Downstream Dependents
+
+N/A
+
+[[incompatibilities-5]]
+== Incompatibilities
+
+N/A
+
+[[network-intrusiveness-5]]
+== Network Intrusiveness
+
+Any.
+
+[[how-to-test-5]]
+== How to test
+
+1.  Build SFC project, run sfc-karaf distribution
+2.  Via web browser visit: http://localhost:8181/sfc/
+
+Result: You should see UI with bootstrap data. You can check
+http://localhost:8181/sfc/#/sfc/system to see system status.
+
+[[performancescalability-concerns-5]]
+== Performance/Scalability Concerns
+
+N/A
+
+[[sfcofl2]]
+= SFCOFL2
+
+[[code-name-6]]
+== Code Name
+
+Karaf feature: odl-sfcofl2
+
+Depends on Karaf features:
+
+* odl-sfc-core
+* odl-openflowplugin-all
+
+[[description-6]]
+== Description
+
+[[overview]]
+=== Overview
+
+The SFCOFL2 plugin is an OpenFlow renderer that implements Service
+Chaining for Open Flow Switches which are connected via layer 2
+connectivity with the Service Functions. Currently only vlan and mpls
+encapsulations are supported.
+
+[[design-architecture]]
+=== Design Architecture
+
+Following is an overview of the SFCOFL2 architecture:
+
+image:SFCOFL2 architecture.jpg[SFCOFL2 architecture.jpg,title="SFCOFL2 architecture.jpg"]
+
+The Flow table configuration is as follows:
+
+* Table 0: Transport Ingress
+* Table 1: Ingress
+* Table 2: ACL
+* Table 3: Next Hop
+* Table 4: Transport Egress
+
+[[configuration]]
+=== Configuration
+
+[[network-topology]]
+==== Network Topology
+
+The Network topology used for SFCOFL2 requires OpenFlow switches
+"chained" together as shown in the following diagram
+
+image:SFCOFL2_architecture_nwtopo.jpg[SFCOFL2_architecture_nwtopo.jpg,title="SFCOFL2_architecture_nwtopo.jpg"]
+
+[[sfcofl2-rest-configuration]]
+==== SFCOFL2 REST Configuration
+
+The following sections list the SFCOFL2 REST JSON configuration needed
+to create the topology referenced in the previous section in a mininet
+environment. This configuration will use a simple VLAN encapsulation. +
+Notice: the initial and closing curly bracket should be included in the
+JSON message. I cant figure out how to include it in the code section in
+Wiki.
+
+[[restconf-sfs-httpput.json]]
+===== RestConf-SFs-HttpPut.json
+
+\{
+
+` "service-functions": {` +
+`   "service-function": [` +
+`     {` +
+`       "name": "sf1",` +
+`       "type": "service-function-type:http-header-enrichment",` +
+`       "nsh-aware": false,` +
+`       "ip-mgmt-address": "10.0.0.2",` +
+`       "sf-data-plane-locator": [` +
+`         {` +
+`           "name": "sff1",` +
+`           "mac": "00:00:08:01:02:01",` +
+`           "vlan-id": 1000,` +
+`           "transport": "service-locator:mac",` +
+`           "service-function-forwarder": "openflow:2"` +
+`         }` +
+`       ]` +
+`     },` +
+`     {` +
+`       "name": "sf2",` +
+`       "type": "service-function-type:firewall",` +
+`       "nsh-aware": false,` +
+`       "ip-mgmt-address": "10.0.0.3",` +
+`       "sf-data-plane-locator": [` +
+`         {` +
+`           "name": "sff2",` +
+`           "mac": "00:00:08:01:03:01",` +
+`           "vlan-id": 2000,` +
+`           "transport": "service-locator:mac",` +
+`           "service-function-forwarder": "openflow:3"` +
+`         }` +
+`       ]` +
+`     }` +
+`   ]` +
+` }`
+
+}
+
+ +
+
+[[restconf-sffs-httpput.json]]
+===== RestConf-SFFs-HttpPut.json
+
+\{
+
+` "service-function-forwarders": {` +
+`   "service-function-forwarder": [` +
+`     {` +
+`       "name": "openflow:2",` +
+`       "service-node": "OVSDB2",` +
+`       "sff-data-plane-locator": [` +
+`         {` +
+`           "name": "ulSff1Ingress",` +
+`           "data-plane-locator":` +
+`           {` +
+`               "mac": "11:11:11:11:11:11",` +
+`               "vlan-id": 100,` +
+`               "transport": "service-locator:mac"` +
+`           }` +
+`         },` +
+`         {` +
+`           "name": "ulSff1ToSff2",` +
+`           "data-plane-locator":` +
+`           {` +
+`               "mac": "33:33:33:33:33:33",` +
+`               "vlan-id": 200,` +
+`               "transport": "service-locator:mac"` +
+`           }` +
+`         }` +
+`       ],` +
+`       "service-function-dictionary": [` +
+`         {` +
+`           "name": "sf1",` +
+`           "type": "service-function-type:http-header-enrichment",` +
+`           "sff-sf-data-plane-locator":` +
+`           {` +
+`               "mac": "22:22:22:22:22:22",` +
+`               "vlan-id": 1000,` +
+`               "transport": "service-locator:mac"` +
+`           }` +
+`         }` +
+`       ]` +
+`     },` +
+`     {` +
+`       "name": "openflow:3",` +
+`       "service-node": "OVSDB3",` +
+`       "sff-data-plane-locator": [` +
+`         {` +
+`           "name": "ulSff2Ingress",` +
+`           "data-plane-locator":` +
+`           {` +
+`               "mac": "44:44:44:44:44:44",` +
+`               "vlan-id": 200,` +
+`               "transport": "service-locator:mac"` +
+`           }` +
+`         },` +
+`         {` +
+`           "name": "ulSff2Egress",` +
+`           "data-plane-locator":` +
+`           {` +
+`               "mac": "66:66:66:66:66:66",` +
+`               "vlan-id": 300,` +
+`               "transport": "service-locator:mac"` +
+`           }` +
+`         }` +
+`       ],` +
+`       "service-function-dictionary": [` +
+`         {` +
+`           "name": "sf2",` +
+`           "type": "service-function-type:firewall",` +
+`           "sff-sf-data-plane-locator":` +
+`           {` +
+`               "mac": "55:55:55:55:55:55",` +
+`               "vlan-id": 2000,` +
+`               "transport": "service-locator:mac"` +
+`           }` +
+`         }` +
+`       ]` +
+`     }` +
+`   ]` +
+` }`
+
+}
+
+[[restconf-sfcs-httpput.json]]
+===== RestConf-SFCs-HttpPut.json
+
+\{
+
+` "service-function-chains": {` +
+`   "service-function-chain": [` +
+`     {` +
+`       "name": "sfc-chain1",` +
+`       "symmetric": true,` +
+`       "sfc-service-function": [` +
+`         {` +
+`           "name": "hdr-enrich-abstract1",` +
+`           "type": "service-function-type:http-header-enrichment"` +
+`         },` +
+`         {` +
+`           "name": "firewall-abstract1",` +
+`           "type": "service-function-type:firewall"` +
+`         }` +
+`       ]` +
+`     }`
+
+`   ]` +
+` }`
+
+}
+
+[[restconf-sfps-httpput.json]]
+===== RestConf-SFPs-HttpPut.json
+
+\{
+
+`  "service-function-paths": {` +
+`    "service-function-path": [` +
+`      {` +
+`        "name": "sfc-path1",` +
+`        "service-chain-name": "sfc-chain1",` +
+`        "transport-type": "service-locator:mac",` +
+`        "symmetric": true` +
+`      }` +
+`    ]` +
+`  }`
+
+}
+
+[[restconf-rsp-httppost.json]]
+===== RestConf-RSP-HttpPost.json
+
+\{
+
+` "input": {` +
+`     "name": "sfc-path1",` +
+`     "parent-service-function-path": "sfc-path1",` +
+`     "symmetric": true` +
+` }`
+
+}
+
+[[expected-rendered-service-path-creation]]
+===== Expected Rendered Service Path creation
+
+This is the expected JSON when the RSP is created using the above
+configuration:
+
+\{
+
+`   "rendered-service-paths": {` +
+`       "rendered-service-path": [` +
+`           {` +
+`               "name": "sfc-path1",` +
+`               "starting-index": 255,` +
+`               "service-chain-name": "sfc-chain1",` +
+`               "rendered-service-path-hop": [` +
+`                   {` +
+`                       "service-function-forwarder-locator": "ulSff1Ingress",` +
+`                       "service-function-forwarder": "openflow:2",` +
+`                       "service-function-name": "sf1",` +
+`                       "hop-number": 0,` +
+`                       "service-index": 255` +
+`                   },` +
+`                   {` +
+`                       "service-function-forwarder-locator": "ulSff2Ingress",` +
+`                       "service-function-forwarder": "openflow:3",` +
+`                       "service-function-name": "sf2",` +
+`                       "hop-number": 1,` +
+`                       "service-index": 254` +
+`                   }` +
+`               ],` +
+`               "parent-service-function-path": "sfc-path1",` +
+`               "path-id": 1,` +
+`               "transport-type": "service-locator:mac"` +
+`           },` +
+`           {` +
+`               "name": "sfc-path1-Reverse",` +
+`               "starting-index": 255,` +
+`               "service-chain-name": "sfc-chain1",` +
+`               "rendered-service-path-hop": [` +
+`                   {` +
+`                       "service-function-forwarder-locator": "ulSff2Egress",` +
+`                       "service-function-forwarder": "openflow:3",` +
+`                       "service-function-name": "sf2",` +
+`                       "hop-number": 0,` +
+`                       "service-index": 255` +
+`                   },` +
+`                   {` +
+`                       "service-function-forwarder-locator": "ulSff1ToSff2",` +
+`                       "service-function-forwarder": "openflow:2",` +
+`                       "service-function-name": "sf1",` +
+`                       "hop-number": 1,` +
+`                       "service-index": 254` +
+`                   }` +
+`               ],` +
+`               "parent-service-function-path": "sfc-path1",` +
+`               "path-id": 2,` +
+`               "transport-type": "service-locator:mac"` +
+`           }` +
+`       ]` +
+`   }`
+
+}
+
+[[bundles-5]]
+== Bundles
+
+In this section, enumerate software bundles (OSGi and not OSGi) that are
+part of the feature
+
+(You can just provide a link to the feature.xml file)
+
+$\{SFC Repo}/features-sfcofl2/src/main/resources/features.xml
+
+[[upstream-dependencies-6]]
+== Upstream Dependencies
+
+The SFCOFL2 renderer depends on the following:
+
+* OpenFlowPlugin
+* sfc-model
+* sfc-provider
+
+[[downstream-dependents-6]]
+== Downstream Dependents
+
+Currently there are no downstream dependencies
+
+[[incompatibilities-6]]
+== Incompatibilities
+
+In this section, state any incompatibility you know on the same or other
+projects features and the effect on your feature.
+
+Please also note, if known, why the incompatibility exists as well as
+any plans and discussions you have had about possibly resolving this
+incompatiblity either during this release or in a future release.
+Projects are encouraged to do this to improve the consumability of
+OpenDaylight. Doing so, especially if it resolves incompatibilities will
+be seen favorably as part of project maturity when advancing through the
+http://www.opendaylight.org/project-lifecycle-releases[project
+lifecycle].
+
+Currently the only incompatibility that I cant think of in SFCOFL2, is
+that it only works with version 1.3 of OpenFlow.
+
+[[network-intrusiveness-6]]
+== Network Intrusiveness
+
+Does your feature program devices, send flows, packets out, etc...
+without any special setting or configuration?
+
+The SFCOFL2 renderer does indeed send flows to OpenFlow Switches (OFS).
+The OFS must be version 1.3, and can be started in mininet as follows:
+
+* sudo mn --topo linear,4 --mac --switch ovsk,protocols=OpenFlow13
+--controller remote,ip=192.168.1.103
+
+[[recommended-karaf-features-5]]
+== Recommended Karaf features
+
+In this section, state which features would you recommended to enable in
+Karaf distribution to use and test your feature
+
+To use the SFCOFL2 feature in Karaf, the following features must be
+enabled:
+
+* odl-openflowplugin-all
+* odl-sfc-core
+* odl-sfcofl2
+
+[[how-to-test-6]]
+== How to test
+
+[[how-to-setup-your-feature-test]]
+=== How to setup your feature test
+
+[[create-sfc-configuration]]
+==== Create SFC Configuration
+
+To test the SFCOFL2 feature, the configuration must be loaded as
+follows. +
+*Notice* the JSON messages are listed in the above configuration
+section. +
+*Notice* the order these messages are sent in is important.
+
+* curl -i -H "Content-Type: application/json" -H "Cache-Control:
+no-cache" --data '$\{SF.json}' -X PUT --user admin:admin
+http://localhost:8181/restconf/config/service-function:service-functions/
+* curl -i -H "Content-Type: application/json" -H "Cache-Control:
+no-cache" --data '$\{SFF.json}' -X PUT --user admin:admin
+http://localhost:8181/restconf/config/service-function-forwarder:service-function-forwarders/
+* curl -i -H "Content-Type: application/json" -H "Cache-Control:
+no-cache" --data '$\{SFC.json}' -X PUT --user admin:admin
+http://localhost:8181/restconf/config/service-function-chain:service-function-chains/
+* curl -i -H "Content-Type: application/json" -H "Cache-Control:
+no-cache" --data '$\{SFP.json}' -X PUT --user admin:admin
+http://localhost:8181/restconf/config/service-function-path:service-function-paths/
+
+[[create-rsp]]
+==== Create RSP
+
+Once the configuration has been successfully created, the
+RenderedServicePath (RSP) must be created via an RPC message, as
+follows:
+
+* curl -i -H "Content-Type: application/json" -H "Cache-Control:
+no-cache" --data '$\{RSP.json}' -X POST --user admin:admin
+http://localhost:8181/restconf/operations/rendered-service-path:create-rendered-path/
+
+[[query-rsp]]
+==== Query RSP
+
+This command can be used to query the created RenderedServicePath (RSP)
+
+* curl -H "Content-Type: application/json" -H "Cache-Control: no-cache"
+-X GET --user admin:admin
+http://localhost:8181/restconf/operational/rendered-service-path:rendered-service-paths/
+
+[[delete-rsp]]
+==== Delete RSP
+
+This command can be used to delete the RenderedServicePath (RSP)
+
+* curl -i -H "Content-Type: application/json" -H "Cache-Control:
+no-cache" --data '\{"input": \{"name": "sfc-path1" } }' -X POST --user
+admin:admin
+http://localhost:8181/restconf/operations/rendered-service-path:delete-rendered-path/
+
+[[how-to-execute-basic-test-cases-to-validate-the-features-functionality]]
+=== How to execute basic test cases to validate the feature’s
+functionality
+
+Provide details of at least 3-7 system test cases which would allow your
+feature to be tested at a minimum
+
+[[test-case-rsp-correctly-created-normal-and-symmetric]]
+==== Test Case: RSP correctly created (normal and symmetric)
+
+* Purpose of the test
+** This test verifies that the RenderedServicePath (RSP) is correctly
+created.
+
+* Pre-conditions or Pre-requisites
+** The afore-mentioned configuration must have been loaded on an empty
+system.
+** Once the configuration has been loaded, the RSP must have been
+created via RESTconf RPC, as detailed in the above configuration
+section.
+
+* Detailed Test Steps
+** Once the RSP has been created, query the RSP, using the following
+above curl command, or your preferred REST application.
+
+* Expected Results
+** Two RSPs should have been created
+*** RSP: sfc-path1 - this is the uplink traffic RSP
+*** RSP: sfc-path1-Reverse - this is the downlink, symmetric RSP
+** The RSPs should be created with the JSON as can be found above in:
+"Expected Rendered Service Path creation"
+
+[[test-case-flow-tables-correctly-populated]]
+==== Test Case: Flow Tables correctly populated
+
+* Purpose of the test
+** Verify that the SFCOFL2 renderer correctly programmed the flow
+switches.
+
+* Pre-conditions or Pre-requisites
+** The above test case "RSP correctly created" has been executed.
+
+* Detailed Test Steps
+** Query the flows in the OpenFlow switches SFF1 (openflow:2) and SFF2
+(openflow:3)
+
+* Expected Results
+** The flow tables contain the following: (TODO finish this)
+*** sudo ovs-ofctl -O OpenFlow13 dump-flows s2
+*** sudo ovs-ofctl -O OpenFlow13 dump-flows s3
+
+[[test-case-simple-http-packet-traverses-the-service-chain]]
+==== Test Case: Simple HTTP packet traverses the Service Chain
+
+* Purpose of the test
+** Verify that the SFCOFL2 renderer correctly programmed the flow
+switches to allow a packet to traverse the Service Chain
+
+* Pre-conditions or Pre-requisites
+** The above test case "RSP correctly created" has been executed.
+
+* Detailed Test Steps
+** Ping the server from the client: h1 ping h4
+** Start an HTTP server: h4 python -m SimpleHTTPServer 80 &
+** Inject an HTTP message: h1 wget -O - h4
+
+* Expected Results
+** The client (h1) can successfully ping the server (h4)
+** The Http client (h1) can successfully query the Web Server (h4) and
+receives an HTTP response.
+
+[[test-case-flow-tables-deleted-upon-rsp-deletion]]
+==== Test Case: Flow Tables deleted upon RSP deletion
+
+* Purpose of the test
+** This test verifies that the flows in the Openflow switches are
+deleted when the RSP is deleted.
+
+* Pre-conditions or Pre-requisites
+** The above test case "RSP correctly created" has been executed.
+
+* Detailed Test Steps
+** Once the RSP has been created, delete the RSP, using the following
+above curl command, or your preferred REST application
+
+* Expected Results
+** All flow tables in SFF1 (openflow:2) and SFF2 (openflow:3) have been
+deleted.
+
+If your tests are already implemented in Robot, please provide the pybot
+commands and robot scripts or repo. SFCOFL2 tests are not implemented in
+Robot.
+
+(you can point to your project wiki if this information already exists
+there)
+
+[[performancescalability-concerns-6]]
+== Performance/Scalability Concerns
+
+In this section, provide any concerns related to performance and
+scalability
+
+[[examples]]
+= Examples
+
+OpenDaylight_Controller:Lithium:Netconf:Integration_Test[ Netconf
+Features ]
+
+Category:Integration Group[Category:Integration Group]

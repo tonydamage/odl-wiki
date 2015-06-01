@@ -1,0 +1,352 @@
+[[persistence-jpa-implementation]]
+= Persistence JPA Implementation
+
+[[code-name]]
+== Code Name
+
+odl-persistence-jpa
+
+[[description]]
+== Description
+
+Persistence:Documentation#JPA_Implementation[Persistence JPA
+Implementation]
+
+[[bundles]]
+== Bundles
+
+https://github.com/opendaylight/persistence/blob/master/features/jpa/src/main/resources/features.xml[JPA
+Feature]
+
+[[upstream-dependencies]]
+== Upstream Dependencies
+
+Yangtools
+
+[[downstream-dependents]]
+== Downstream Dependents
+
+aaa
+
+[[incompatibilities]]
+== Incompatibilities
+
+None
+
+[[network-intrusiveness]]
+== Network Intrusiveness
+
+None
+
+[[recommended-karaf-features]]
+== Recommended Karaf features
+
+odl-persistence-api
+
+odl-persistence-jpa
+
+odl-persistence-test-app
+
+[[how-to-test]]
+== How to test
+
+The persistence framework is meant to be an internal service and thus
+primary consumers include applications and services. There are is no
+RESTful Web Services nor User interface available for the end user.
+Thus, in order to enable system testing a
+https://github.com/opendaylight/persistence/tree/master/test-app[test
+application] was created which consumes the persistence services and
+exposes operations via RESTful web services. This allows system test
+frameworks (like Robot) to exercise the persistence services and assert
+the result.
+
+[[feature-test-setup]]
+=== Feature Test Setup
+
+TODO: Provide details of any scripts, tools, etc required for the test
+
+[[test-suite-execution]]
+=== Test Suite Execution
+
+TODO: How to execute basic test cases to validate the feature’s
+functionality TODO: If your tests are already implemented in Robot,
+please provide the pybot commands and robot scripts or repo
+
+[[test-cases]]
+=== Test Cases
+
+[cols=",,,,",options="header",]
+|=======================================================================
+|Purpose |Pre-conditions or Pre-requisites |Datastore Type |Test Steps
+|Expected Results
+|Test feature installation a|
+* Fresh installation of the controller
+
+ |Any a|
+1.  Install Test Application
+
+ a|
+* The test application is successfully installed (Features defined in
+Persistence:Lithium:Jpa Integration System Test#Recommended_Karaf_features[Recommended
+Karaf features] should be automatically installed when the application
+is installed)
+
+|Test addition and retrieval (get) a|
+* Test application installed
+* Tables used by the test application empty
+
+ |Any a|
+1.  Create object to store `T`
+2.  Store (via addition) object `T`
+3.  Read the size of the table where `T` is stored
+4.  Read object as `T'`
+
+ a|
+* The size of the table is 1
+* `T'` has a valid id
+* `T` and `T'` have the same data
+
+|Test retrieval (get) non exist a|
+* Test application installed
+* Tables used by the test application empty
+
+ |Any a|
+1.  Create object to store `T`
+2.  Store (via addition) object `T`
+3.  Read the size of the table where `T` is stored
+4.  Read object as `T'`
+5.  Read the size of the table where non existing `X` is stored
+6.  Read object as `X'`
+
+ a|
+* The size of the table is 1
+* `T'` has a valid id
+* `X'` does not have a valid id
+* `X'` and `T'` should not have the same data
+
+|Test primary key integrity constraint violation a|
+* Test application installed
+* Tables used by the test application empty
+* Object to store uses natural key
+
+ |Relational a|
+1.  Create object to store `T`
+2.  Store (via addition) object `T`
+3.  Create object to store `E` with the same id than `T`
+4.  Store (via addition) object `E`
+
+ a|
+* An IntegrityConstraintViolationException while storing `E`
+
+|Test update a|
+* Test application installed
+* Tables used by the test application empty
+
+ |Any a|
+1.  Create object to store `T`
+2.  Store (via addition) object `T`
+3.  Modify `T`
+4.  Store (via update) object `T`
+5.  Read the size of the table where `T` is stored
+6.  Read stored object as `T'`
+
+ a|
+* The size of the table is 1
+* `T` and `T'` have the same data
+
+|Test update nonexistent object a|
+* Test application installed
+* Tables used by the test application empty
+* Object to store uses natural key
+
+ |Relational a|
+1.  Create object to store `T`
+2.  Store (via update) object `T`
+
+ a|
+* A PersistenceException while storing `T`
+
+|Test delete object a|
+* Test application installed
+* Tables used by the test application empty
+
+ |Any a|
+1.  Create object to store `T`
+2.  Store (via addition) object `T`
+3.  Delete object `T'` using its Id
+4.  Read the size of the table where `T` is stored
+
+ a|
+* The size of the table is 0
+
+|Test delete non existing object a|
+* Test application installed
+* Tables used by the test application empty
+
+ |Any a|
+1.  Create object to store `T`
+2.  Store (via addition) object `T`
+3.  Delete object `X` using a nonexistent id
+4.  Read the size of the table where `T` is stored
+
+ a|
+* The size of the table should not be 1
+
+|Test exists a|
+* Test application installed
+* Tables used by the test application empty
+
+ |Any a|
+1.  Create object to store `T`
+2.  Store (via addition) object `T`
+3.  Verifies whether the object exists using its Id
+
+ a|
+* The object exists
+
+|Test get all a|
+* Test application installed
+* Tables used by the test application empty
+
+ |Any a|
+1.  Create a collection `C` of objects to store
+2.  Store all objects in `C` (via addition)
+3.  Read all objects as `C'`
+
+ a|
+* The size of `C'` is the same than the size of `C`
+* All objects in `C` also belong to `C'`
+
+|Test size a|
+* Test application installed
+* Tables used by the test application empty
+
+ |Any a|
+1.  Create a collection `C` of objects to store
+2.  Store all objects in `C` (via addition)
+3.  Read the size of the table where the objects were stored
+
+ a|
+* The size of the table is the same than the size of `C`
+
+|Test clear a|
+* Test application installed
+* Tables used by the test application empty
+
+ |Any a|
+1.  Create a collection `C` of objects to store
+2.  Store all objects in `C` (via addition)
+3.  Clear the data
+4.  Read the size of the table where the objects were stored
+
+ a|
+* The size of the table is 0
+
+|Test find a|
+* Test application installed
+* Tables used by the test application empty
+
+ |Any a|
+1.  Create a collection `C` of objects to store
+2.  Define a filter `F` and a sort specification `S`
+3.  Define a list `R` with the expected objects that match `F` in the
+order defined by `S`
+4.  Store all objects in `C` (via addition)
+5.  Find objects using `F` and `S` as `R'`
+
+ a|
+* `R'` is equals to `R`
+
+|Test count a|
+* Test application installed
+* Tables used by the test application empty
+
+ |Any a|
+1.  Create a collection `C` of objects to store
+2.  Define a filter `F`
+3.  Define a collection `R` with the expected objects that match `F`
+4.  Store all objects in `C` (via addition)
+5.  Count objects using `F` as `n`
+
+ a|
+* `n` is equals to the size of `R`
+
+|Test delete objects a|
+* Test application installed
+* Tables used by the test application empty
+
+ |Any a|
+1.  Create a collection `C` of objects to store
+2.  Define a filter `F`
+3.  Define a collection `R` with the expected objects that match `F`
+4.  Store all objects in `C` (via addition)
+5.  Delete objects using `F`
+6.  Read all objects as `R'`
+
+ a|
+* The union of `R'` and `R` is equals to `C`
+
+|Test offset paged find a|
+* Test application installed
+* Tables used by the test application empty
+* The object used for testing supports offset paging
+
+ |Relational a|
+1.  Create a collection `C` of objects to store
+2.  Define a filter `F` and a sort specification `S`
+3.  Define a list `R` with the expected objects that match `F` in the
+order defined by `S`
+4.  Store all objects in `C` (via addition)
+5.  Find a page of objects using `F` and `S` as `P`
+
+ a|
+* `P` is a subset of `R` considering order
+
+|Test mark paged find a|
+* Test application installed
+* Tables used by the test application empty
+* The object used for testing supports mark paging
+
+ |Non-Relational a|
+1.  Create a collection `C` of objects to store
+2.  Define a filter `F` and a sort specification `S`
+3.  Define a list `R` with the expected objects that match `F` in the
+order defined by `S`
+4.  Store all objects in `C` (via addition)
+5.  Find a page of objects using `F` and `S` as `P`
+
+ a|
+* `P` is a subset of `R` considering order
+
+|Test data loss a|
+* Test application installed
+* Tables used by the test application empty
+* The object used for testing supports mark paging
+
+ |Any a|
+1.  Create a collection `C` of objects to store
+2.  Store all objects in `C` (via addition)
+3.  Read the size of the table where the objects were stored as `S`
+4.  Restart the controller
+5.  Read stored object in `C'`
+6.  Read the size of the table where the objects were stored as `S'`
+
+ a|
+* `S` should equal `S'` and `C` should equal `C'`
+
+| a|
+*
+*
+
+ | a|
+1. 
+2. 
+
+ a|
+*
+*
+
+|=======================================================================
+
+[[performancescalability-concerns]]
+== Performance/Scalability Concerns

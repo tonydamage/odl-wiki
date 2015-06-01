@@ -1,33 +1,79 @@
-[[configuration-subsystem]]
-= Configuration subsystem
+[[overview]]
+= Overview
+
+The _config subsystem_ of the OpenDaylight Controller provides two key
+features:
+
+1.  A uniform way to express configuration that can be read in from a
+file updated at run time
+2.  A uniform way to express requirements on other services
+
+[[motivation]]
+== Motivation
+
+Almost all applications have to read some configuration information,
+which is usually done by means of config files, for example, xml or
+properties files. For simple applications, just reading in a single file
+without any formally-defined schema is easy. As applications grow in
+complexity, it is useful to include more features: formally defining the
+configuration options, allowing for runtime configuration and atomic
+updates.
+
+Similarly, most applications of any complexity have dependencies, which
+they would like to avoid directly embedding. This is especially true for
+applications designed to run on a platform/runtime, for example,
+OpenDaylight. Existing tooling, like the dependency management of OSGi
+solve some of these issues, but also have known issues. For instance, it
+is difficult to figure out when a dependency has fully loaded and
+non-deterministic load orders can create heisenbugs.
+
+[[dependency-resolution]]
+== Dependency Resolution
+
+Expressing what other applications/services an application depends on,
+and whether those dependencies are required or optional is a critical
+part of assembling component-based systems like OpenDaylight. The config
+subsystem provides a relatively simple way to express such dependencies,
+and have the implementation made available to them locally.
+
+[[configuration]]
+== Configuration
+
+All configuration (and dependencies) are defined in a yang schema which
+is specified as part of an application that is enabled to work with the
+config subsystem. This schema does not provide the actual values or
+dependencies, but provides the range of acceptable values and defines
+the dependencies. The initial values for these are provided by an xml
+file which corresponds to the schema defined in the YANG file.
+
+In addition to the initial configuration specified in the xml file,
+newer configurations can be provided, either in total or just changing
+some parts, by using NETCONF to update the configuration. Applications
+are notified of the change and can either process the change
+appropriately or reject it.
+
+[[comparison-to-osgi-config-admin]]
+=== Comparison to OSGi Config Admin
+
+The OSGi framework provides configuration service
+(http://www.osgi.org/javadoc/r4v42/org/osgi/service/cm/package-summary.html[Config
+Admin]), and allows runtime module configuration. However, it still
+lacks a validation process: a new module configuration can negatively
+affect other modules. It also does not solve the problems relating to
+the atomicity of the change.
 
 [[terminology]]
 = Terminology
 
-*Module* is a compact part of a system, whose configuration is managed
-by the configuration subsystem. +
-*Module factory* is important for creating module instances. Module
-factories are uniquely identified by name. +
-*Service* represents public API, which is used to access module
-instances (similar to interface in Java). Any module can implement or
-provide multiple services. +
-*Configuration* application state represented by modules definition,
-properties and relations among them.
-
-[[motivation]]
-= Motivation
-
-Common way for application configuration is usage of configuration files
-(i.e. xml or properties files). However they are easy to use for small
-scale applications, they offer only limited possibilities in case of
-fast growing and multi-module applications. Static config files become
-vast, non-transparent and inconsistent. For highly dynamic and long
-living environments is proper configuration essential requirement. The
-OSGi framework, provides configuration service
-(http://www.osgi.org/javadoc/r4v42/org/osgi/service/cm/package-summary.html[Config
-Admin]), allows runtime module configuration, but still lack of
-validation process - new module configuration can negatively affect
-other modules, also does not solve problems of change's atomicity.
+*Module*: A compact part of a system, whose configuration is managed by
+the configuration subsystem. +
+*Module factory*: Important for creating module instances. Module
+factories are uniquely identified by names. +
+*Service*: Public API, which is used to access module instances (similar
+to interface in Java). Any module can implement or provide multiple
+services. +
+*Configuration*: Application state represented by the definition of
+modules, properties, and the relations among them.
 
 [[configuration-process]]
 = Configuration process
@@ -45,17 +91,31 @@ configuration for controller modules]
 
 OpenDaylight Controller:Config:Java Code Generator[Java code generator]
 
+[[configuration-subsystem]]
+= Configuration subsystem
+
 [[component-maps]]
 = Component maps
 
 List of components present in config and netconf subsystem with
 additional useful information (description, names of experts for each
-component, documentation etc.)
+component, documentation and others)
 
 * OpenDaylight Controller:Config:Component_Map[ Config subsystem
 component map]
 * OpenDaylight Controller:Netconf:Component_Map[ Netconf subsystem
 component map]
+
+[[configuration-outside-of-config-subsystem-domain]]
+= Configuration outside of config-subsystem domain
+
+* OpenDaylight Controller:Config:Logback.xml[Logback.xml]
+* OpenDaylight Controller:Config:config.ini[Config.ini]
+
+[[user-guide]]
+= User guide
+
+OpenDaylight Controller:Config:Examples:User guide[User guide]
 
 [[examples]]
 = Examples
@@ -69,26 +129,15 @@ configuration]
 * OpenDaylight Controller:Config:Examples:Sample Project[Example "config
 subsystem aware" maven project built from ground]
 
-[[faq]]
-= FAQ
-
-OpenDaylight Controller:Config:FAQ[Frequently asked questions]
-
-[[user-guide]]
-= User guide
-
-OpenDaylight Controller:Config:Examples:User guide[User guide]
-
-[[configuration-outside-of-config-subsystem-domain]]
-= Configuration outside of config-subsystem domain
-
-* OpenDaylight Controller:Config:Logback.xml[Logback.xml]
-* OpenDaylight Controller:Config:config.ini[Config.ini]
-
 [[netconf-client]]
 = Netconf Client
 
 https://wiki.opendaylight.org/view/OpenDaylight_Controller:Config:Examples:Netconf
+
+[[faq]]
+= FAQ
+
+OpenDaylight Controller:Config:FAQ[Frequently asked questions]
 
 [[all-subpages]]
 = All subpages

@@ -1,0 +1,144 @@
+[[installation-in-opendaylight-release]]
+== Installation in OpenDaylight Release
+
+* SNMP4SDN's feature is already packaged in the Zip package (please
+download and unzip the Zip package (link)), and no further installation
+steps are required.
+
+[[troubleshooting]]
+== Troubleshooting
+
+[[installation-from-source]]
+== Installation from source
+
+Steps overview: (details as below)
+
+\1. SNMP4SDN:Installation_Guide#Pull_code_via_git_CLI[ Pull code via git
+CLI]
+
+\2. If one'd like to proceed automatic
+SNMP4SDN:Installation_Guide#Unit_test[ unit test],
+SNMP4SDN:Installation_Guide#Manual_modifications_to_the_code[ manual
+modifications to the code] is required
+
+\3. SNMP4SDN:Installation_Guide#Build_the_code[ Build the code]
+
+\4. Install the bundle
+
+[[pull-code-via-git-cli]]
+=== Pull code via git CLI
+
+------------------------------------------------------------------
+git clone ssh://<username>@git.opendaylight.org:29418/snmp4sdn.git
+------------------------------------------------------------------
+
+or
+
+------------------------------------------------------------
+git clone https://git.opendaylight.org/gerrit/p/snmp4sdn.git
+------------------------------------------------------------
+
+[[build-the-code]]
+=== Build the code
+
+One may either build the code in console or using Eclipse, as follows.
+
+[[build-the-code-in-console]]
+==== Build the code in console
+
+-----------------
+cd snmp4sdn/
+mvn clean install
+-----------------
+
+[[import-and-build-the-code-in-eclipse]]
+==== Import and build the code in Eclipse
+
+[[import-the-code]]
+===== Import the code
+
+Eclipse --> File --> Import --> Existing Maven Projects +
+--> Root Directory: Browse to select the SNMP4SDN's directory +
+--> Selects all the Project POMs found --> ... Done
+
+[[build-the-code-1]]
+===== Build the code
+
+On the project "snmp4sdn" --> Debug As --> Maven build
+
+[[install-the-feature]]
+=== Install the feature
+
+* Prerequisite
+
+Karaf contains only artifacts of version Helium by default, as a result
+if one'd like to build SNMP4SDN manually, the 'controller' has to be
+built first so as to generate the needed dependencies of SNMP4SDN. +
+To download and build 'controller':
+
+--------------------------------------------------------------------
+git clone ssh://<username>@git.opendaylight.org:29418/controller.git
+(or git clone https://git.opendaylight.org/gerrit/controller)
+cd controller
+mvn clean install
+--------------------------------------------------------------------
+
+* Launch Karaf
+
+--------------------------------------------------------------------------------------
+cd <Helium_distribution's_directory>   (~/distribution-karaf-0.2.0-Helium, by default)
+cd bin
+./karaf
+--------------------------------------------------------------------------------------
+
+* Install
+
+In Karaf console, replace the feature repo from Helium to your new one.
+And then install the feature.
+
+---------------------------------------------------------------------------
+feature:repo-remove mvn:org.opendaylight.snmp4sdn/0.1.3-Helium/xml/features
+feature:repo-add mvn:org.opendaylight.snmp4sdn/0.1.3-SNAPSHOT/xml/features
+feature:install odl-snmp4sdn-all
+---------------------------------------------------------------------------
+
+[[unnstall-the-feature]]
+=== Unnstall the feature
+
+To completely uninstall SNMP4SDN plugin, uninstall the bundle as well as
+the feature. 1. Firstly, list the install bundles of SNMP4SDN
+
+-----------------------
+bundle:list | grep snmp
+-----------------------
+
+There should list something like this:
+
+------------------------------------
+326       ACTIVATED   snmp4sdn
+328       ACTIVATED   snmp4sdn-mdsal
+------------------------------------
+
+\2. Uninstall the bundles
+
+-------------------------------------------------------------------------------------------
+bundle:uninstall <snmp4sdn_bundle_id> <snmp4sdn_mdsal_bundle_id> <snmp4sdn_shell_bundle_id>
+-------------------------------------------------------------------------------------------
+
+For example: bundle uninstall 326 327 328
+
+\3. Remove the feature and feature-repo
+
+---------------------------------------------------------------------------
+feature:uninstall odl-snmp4sdn-snmp4sdn
+feature:uninstall odl-snmp4sdn-all
+feature:repo-remove mvn:org.opendaylight.snmp4sdn/0.1.3-Helium/xml/features
+---------------------------------------------------------------------------
+
+\4. Check over One may use "bundle:list" and "feature:list" commands to
+examine whether the bundles and features are completely removed.
+
+----------------------------
+bundle:list | grep snmp4sdn
+feature:list | grep snmp4sdn
+----------------------------

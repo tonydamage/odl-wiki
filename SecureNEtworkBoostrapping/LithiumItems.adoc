@@ -1,0 +1,118 @@
+\a. Featurettes Forwarding Element.
+
+`                       - M-Socket to send/receive packets - done` +
+`                       - Process handling.. pthread - done` +
+`                                   * Socket listener..` +
+`                       - Timers.. signals - done ` +
+`                                   * need to check if we can avoid spawning a thread to handle the threads and use the process spawned by pthread to handle these.` +
+`                       - Memory management.. malloc - done` +
+`                       - AVL implementation.. - done` +
+`                                   * refined opensource implementation` +
+`                       - The current base assumes that we have a single thread non pre-emptive scheduler.` +
+`                                   * This is the not the case with Linux, especially the timers. The timers are implemented using Linux signals -- interrupts as a separate thread and hence are pre-emptive.` +
+`                                   * No protection of critical sections.` +
+`                                   * Further more the APIs are not thread safe.` +
+`                                   * Either we fix all these which seems like another project, or try to emulate a single thread non pre-emptive environment. I have no clue how to do this need to explore.` +
+`                       - Neighbour Discovery. ` +
+`                                   * Currently I dont see any blockers, will check with Sandeep to understand better.` +
+`                                   * Packet sending part.` +
+`                       - Boot strapping of devices.` +
+`                                   * Integration with OpenSSL (Ravi was saying something need to check), generate CSR and certificate APIs.` +
+`                       - Integration with data path.`
+
+\b. YANG API layer.
+
+`                       - Working with Liming & Peyman Owladi to explore the required tooling.` +
+`                                   * The initial feeling is these are not the required set of tools.` +
+`                                   * May we could use some of the tool set but we might have see.` +
+`                                   * Peyman has given use the required information, we have to verify and conclude on this quickly.` +
+`                       - Also we need to workout how this will fit into the controller space.` +
+`                                   * Peyman confirmed they have no support for JAVA API generation from YANG models.` +
+`                       - Transport need to be decided - AIPC current Peyman implementation.` +
+`                                   * Check if we can use NetConf as a transport instead of AIPC.` +
+`                       - For now we will continue the development work with manually crafted APIs based on the YANG models we define.` +
+`                                   * Once we have the automatically generated APIs it should actually not change.` +
+`                                   * Look at Peyman demo and try it out. ` +
+`                       `
+
+\c. Linux Data Path
+
+`                       - High level design of the data path.` +
+`                                   * Do we have one deamon handling everything or one deamon for each feature.` +
+`                                   * If we have seperate deamons, do we require East-West interfaces ?` +
+`                                   * Need to check if there are any service chaining implmentations that could be used --- just explore if the model helps.` +
+`                       - IPSEC  -- We have explored Strong Swan and it does seem to work.` +
+`                       - GRE tunnel -- Yet to explore.` +
+`                       - Routing infrastructure.` +
+`                                   * Quickly have to close on the which routing protocol to use.` +
+`                                   * If RPL, there seems to be an opensource version, need to close on which version of RPL to use.` +
+`                                               `http://tinyos.stanford.edu/tinyos-wiki/index.php/TinyRPL[`http://tinyos.stanford.edu/tinyos-wiki/index.php/TinyRPL`] +
+`                                   * Should the routing protocol should be within the container or outside the container.` +
+`                                               * Having this within the container would mandate that we define the YANG models for the Forwarding information population.` +
+`                                   - Define the required YANG models.` +
+`                       - Interface creation and assignment of IP. -- Yet to explore.` +
+`                                   * Yang models exists already need to check if this would suffice.` +
+`                                   `
+
+\d. Docker
+
+`                       - Resolution of current Docker issues (pending kernel bug – to finally allow us to use passwd in the container).` +
+`                                   * CPA script should do the trick.` +
+`                                   * Without the SSH we dont have a valid environmental variable, currently we use NSENTER (CPA login) to log into the docker instances. ` +
+`                                   * The workaround currently is to explicitly set the environmental variable, for eg: The Container Name.` +
+`                                   * We could use the YANG APIs to get the other required information from the host machine. For eg: the UDI.` +
+`                                   ` +
+`                       - Selection of software components which the network container should have pre-installed (down-size Ubuntu 14.04 default distro). ` +
+`                                   * We have already GDB and the GCC/Makefile.` +
+`                                   * Daemon tools if required, to restart the processes if required.` +
+`                                   ` +
+`                                   ` +
+`                       - Optimize resource usage of container (local file-system size). -- This is desirable. ` +
+`                                   * Try removing some of the packages and the library from the base image to reduce the memory foot print.` +
+`                                               * The current image is based on base-ubuntu image.` +
+`                                               * We could remove some of the utility libraries, like awk/pearl libraries.` +
+`                                               * Need to explore and spend time to slim down the required set of libraries.` +
+`                                   ` +
+`                       - Restconf/YANG client available within container.` +
+`                                   * RESTConf -- We already have a reference implementation committed to the container.` +
+`                                   * RESTConf server on the host side is already implemented and committed.` +
+`                                   * We dont have a defined YANG model for UDI, ` +
+`                       ` +
+`                       - Native C APIs (automatically derived from YANG models) for Restconf/YANG client` +
+`                       `
+
+\e. Controller.
+
+`                       - External/Internal CA support.` +
+`                       ` +
+`                       - Continue to support only one registrar per controller.` +
+`                           * Multiple domains cannot be configured.` +
+`                                   ` +
+`                       - GUI for accepting domain name and UDI information.` +
+`                                   * display the domain certificate offered to each device ?` +
+`                                   * Display the device-ID and the IP address assigned to each device.` +
+`                                   * DLUX -- Similar to the API docs. ` +
+`                                               * Provide the input thru the YANGs defined.` +
+`                                               * reuse ODL UI.` +
+`                                               ` +
+`                       - Topology Discovery.` +
+`                                   * Implement the topology discovery protocol.` +
+`                                   * Topology Data Modules.` +
+`                                   * Display topology information in the UI.` +
+`                                   ` +
+`                       - Certificate revocation.` +
+`                           * There will be work on the controller and the Forwarding elements to validate the certificates.` +
+`                                   * Display revoked certificates.` +
+`                                   ` +
+`                       - Support Device revocation ?` +
+`                                   * Display revoked devices.` +
+`                                   * Check if we support this already (Currently not supported).` +
+`                                               * Device A:B:C -- whitelist` +
+`                                                                       * A:B:C -- No longer whitelist.` +
+`                                   ` +
+`                       - MD-SAL dynamic updates.` +
+`                                   * Certificate revocation has to be supported if we have to support this.` +
+`                       - MD-SAL Northbound JAVA APIs?` +
+`                                   * Its automatically generated.` +
+`                                               ` +
+`               - Integration with Data plane.`

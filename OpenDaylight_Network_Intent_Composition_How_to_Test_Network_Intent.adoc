@@ -1,0 +1,82 @@
+[[overview]]
+= Overview
+
+The NIC Model provides an abstract model for expressing the desired
+state and operation of the network.
+
+[[testing-using-mininet]]
+== Testing using mininet
+
+* The NIC Karaf must be UP
+* To install the feature
+
+::
+------------------------------------
+feature:install odl-nic-renderer-vtn
+------------------------------------
+
+* To ping between h1 say,10.0.0.01 and h2 say,10.0.0.0.2
+
+[cols="",]
+|=======================================================================
+|curl -v --user "admin":"admin" -H "Accept: application/json" -H
+"Content-type: application/json" -X PUT
+http://localhost:8181/restconf/config/intent:intents/intent/b9a13232-525e-4d8c-be21-cd65e3436034
+-d '\{ "intent:intent" : \{ "intent:id":
+"b9a13232-525e-4d8c-be21-cd65e3436034", "intent:actions" : [ \{ "order"
+: 2, "allow" : \{} } ],"intent:constraints" : [ \{ "order":1 ,
+"include-node" : \{"include-selector":"node1"} }, \{ "order":2 ,
+"exclude-node" : \{"exclude-selector":"node2"}} ], "intent:subjects" : [
+\{ "order":1 , "end-point-group" : \{name:"10.0.0.1"} }, \{ "order":2 ,
+"end-point-group" : \{name:"10.0.0.2"}} ] } }'
+|=======================================================================
+
+From the above curl command, we are pinging h1 to h2 and the action is
+allow.
+
+*Note:* "b9a13232-525e-4d8c-be21-cd65e3436034" is the intend ID
+
+* Ping between two subjects with same intend ID.
+
+[cols="",]
+|=======================================================================
+|curl -v --user "admin":"admin" -H "Accept: application/json" -H
+"Content-type: application/json" -X PUT
+http://localhost:8181/restconf/config/intent:intents/intent/b9a13232-525e-4d8c-be21-cd65e3436034
+-d '\{ "intent:intent" : \{ "intent:id":
+"b9a13232-525e-4d8c-be21-cd65e3436034", "intent:actions" : [ \{ "order"
+: 2, "allow" : \{} } ],"intent:constraints" : [ \{ "order":1 ,
+"include-node" : \{"include-selector":"node1"} }, \{ "order":2 ,
+"exclude-node" : \{"exclude-selector":"node2"}} ], "intent:subjects" : [
+\{ "order":1 , "end-point-group" : \{name:"10.0.0.3"} }, \{ "order":2 ,
+"end-point-group" : \{name:"10.0.0.4"}} ] } }'
+|=======================================================================
+
+The old action and subjects will be discarded and the new action and
+subjects will be performed.
+
+* For delete,
+
+[cols="",]
+|=======================================================================
+|curl -v --user "admin":"admin" -H "Accept: application/json" -H
+"Content-type: application/json" -X DELETE
+http://localhost:8181/restconf/config/intent:intents/intent/b9a13232-525e-4d8c-be21-cd65e3436034
+|=======================================================================
+
+*Note* Instead of IP addresses, we can also use MAC addresses.
+
+[cols="",]
+|=======================================================================
+|curl -v --user "admin":"admin" -H "Accept: application/json" -H
+"Content-type: application/json" -X PUT
+http://localhost:8181/restconf/config/intent:intents/intent/b9a13232-525e-4d8c-be21-cd65e3436035
+-d '\{ "intent:intent" : \{ "intent:id":
+"b9a13232-525e-4d8c-be21-cd65e3436035", "intent:actions" : [ \{ "order"
+: 2, "allow" : \{} } ],"intent:constraints" : [ \{ "order":1 ,
+"include-node" : \{"include-selector":"node1"} }, \{ "order":2 ,
+"exclude-node" : \{"exclude-selector":"node2"}} ], "intent:subjects" : [
+\{ "order":1 , "end-point-group" : \{name:"6e:4f:f7:27:15:c9"} }, \{
+"order":2 , "end-point-group" : \{name:"aa:7d:1f:4a:70:81"}} ] } }'
+|=======================================================================
+

@@ -1,0 +1,33 @@
+This is draft / living document for MD-SAL Helium SR1 release notes
+
+[[md-sal-clustering]]
+== MD-SAL Clustering
+
+* When a transaction is created, the clustered data store implementation
+captures the stable snapshot of the current data tree in a logical store
+(i.e. configuration or operational) when the store is first accessed via
+a read/put/merge/delete operation. This differs from the DataBroker API
+contract which states that the stable snapshot is captured when the
+transaction is created. This is further complicated by the fact that
+each logical store sub-divides its tree into any number of isolated
+shards, thus a single client transaction may entail multiple shard
+sub-transactions. The clustered data store is implemented in this manner
+for performance reasons - in order to honor the current API contract, a
+sub-transaction would have to be pre-allocated for every shard.
+
+This means that, for example, the following client scenario may not
+yield the behavior as documented in the DataBroker API contract: `
+  a = newReadWriteTransaction();  
+  b = newReadWriteTranasction(); 
+  
+  // Returns null, PATH did not existed at time of allocation '''a''' and '''b'''. 
+  a.read(CONFIGURATION, PATH);
+   
+  // Write foo, submit it and assume the commit completes and the change is published.
+  a.put(CONFIGURATION,PATH,foo); 
+  a.submit();
+  
+  // Should return null due to transaction isolation but will return foo since the shard sub-transaction was 
+  // lazily allocated after '''a''' was committed. 
+  b.read(CONFIGURATION,PATH)
+`

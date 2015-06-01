@@ -1,0 +1,266 @@
+image:Lbaas-per-subnet.png[Lbaas-per-subnet.png,title="Lbaas-per-subnet.png"]
+
+[[description]]
+= Description
+
+This feature creates an Open vSwitch powered L3-L4 stateless
+Load-balancer in a virtualized network environment so that individual
+TCP connections destined to a designated virtual IP (VIP) are sent to
+appropriate servers (i.e., serving app VMs). The load-balancer works in
+a session-preserving, proactive manner without involving the controller
+during flow setup.
+
+A Neutron northbound interface is provided to create a VIP which will
+map to a pool of servers (i.e., members) within a subnet. The pools
+consist of members identified by an IP address. The goal is to closely
+match the API to the OpenStack LBaaS v2 API:
+http://docs.openstack.org/api/openstack-network/2.0/content/lbaas_ext.html.
+
+[[openstack-workflow]]
+== OpenStack workflow
+
+1.  Create subnet.
+2.  Create a floating VIP 'A' that maps to a private VIP 'B'.
+3.  Create a Loadbalancer pool 'X'.
+
+`neutron lb-pool-create --name http-pool --lb-method ROUND_ROBIN --protocol HTTP --subnet-id XYZ`
+
+::
+  4. Create a Loadbalancer pool member 'Y' and associate with pool 'X'.
+
+`neutron lb-member-create --address 10.0.0.10 --protocol-port 80 http-pool` +
+`neutron lb-member-create --address 10.0.0.11 --protocol-port 80 http-pool` +
+`neutron lb-member-create --address 10.0.0.12 --protocol-port 80 http-pool` +
+`neutron lb-member-create --address 10.0.0.13 --protocol-port 80 http-pool`
+
+::
+  5. Create a Loadbalancer instance 'Z', and associate pool 'X' and VIP
+  'B' with it.
+
+`neutron lb-vip-create --name http-vip --protocol-port 80 --protocol HTTP --subnet-id XYZ http-pool`
+
+[[implementation]]
+= Implementation
+
+The current implementation of the proactive stateless load-balancer was
+made using "multipath" action in Open vSwitch. The "multipath" action
+takes a max_link parameter value (which is same as the number of pool
+members) as input, and performs a hash of the fields to get a value
+between (0, max_link). The value of the hash is used as an index to
+select a pool member to handle that session.
+
+[[open-vswitch-pipeline-rules]]
+== Open vSwitch Pipeline rules
+
+Assuming we have a pipeline setup so that LBaaS table (Table 50) handles
+all traffic destined to a specific destination VIP address, here are the
+rules that get programmed in the LBaaS service table=50. The programmed
+rules makes the translation from the VIP to a different pool member for
+every session. We split the rules into forward and reverse direction
+rules:
+
+* Programmed forward rules:
+
+`cookie=0x0, duration=9.401s, table=50, n_packets=0, n_bytes=0, send_flow_rem priority=32769,ip,reg0=0x1,reg1=0x2,tun_id=0x3eb,nw_dst=10.0.0.5 ` +
+`     actions=set_field:00:01:02:03:04:06->eth_dst,set_field:10.0.00` +
+`cookie=0x0, duration=22.953s, table=50, n_packets=0, n_bytes=0, send_flow_rem priority=32769,ip,reg0=0x1,reg1=0x1,tun_id=0x3eb,nw_dst=10.0.0.5 ` +
+`     actions=set_field:00:01:02:03:04:02->eth_dst,set_field:10.0.0` +
+`cookie=0x0, duration=39.527s, table=50, n_packets=0, n_bytes=0, send_flow_rem priority=32769,ip,reg0=0x1,reg1=0,tun_id=0x3eb,nw_dst=10.0.0.5 ` +
+`     actions=set_field:00:01:02:03:04:02->eth_dst,set_field:10.0.0.0` +
+`cookie=0x0, duration=39.525s, table=50, n_packets=0, n_bytes=0, send_flow_rem ip,reg0=0,tun_id=0x3eb,nw_dst=10.0.0.5 ` +
+`     actions=load:0x1->NXM_NX_REG0[],multipath(symmetric_l4,0,modulo_n,3,0,NXM_NX_REG1[]),resubmit(,50)` +
+`cookie=0x0, duration=53.952s, table=50, n_packets=0, n_bytes=0, send_flow_rem priority=0 ` +
+`     actions=goto_table:60`
+
+* Programmed reverse rules:
+
+`cookie=0x0, duration=39.514s, table=50, n_packets=0, n_bytes=0, send_flow_rem tcp,tun_id=0x3eb,nw_src=10.0.0.7,tp_src=80` +
+`     actions=set_field:10.0.0.5->ip_src,goto_table:60` +
+`cookie=0x0, duration=9.398s, table=50, n_packets=0, n_bytes=0, send_flow_rem tcp,tun_id=0x3eb,nw_src=10.0.0.9,tp_src=80` +
+`     actions=set_field:10.0.0.5->ip_src,goto_table:60` +
+`cookie=0x0, duration=22.951s, table=50, n_packets=0, n_bytes=0, send_flow_rem tcp,tun_id=0x3eb,nw_src=10.0.0.8,tp_src=80` +
+`     actions=set_field:10.0.0.5->ip_src,goto_table:60`
+
+* Programmed remaining pipeline
+
+`cookie=0x0, duration=5392.912s, table=0, n_packets=0, n_bytes=0, send_flow_rem dl_type=0x88cc actions=CONTROLLER:65535` +
+`cookie=0x0, duration=5392.67s, table=0, n_packets=0, n_bytes=0, send_flow_rem priority=0 actions=goto_table:20` +
+`cookie=0x0, duration=5392.482s, table=20, n_packets=0, n_bytes=0, send_flow_rem priority=0 actions=goto_table:30` +
+`cookie=0x0, duration=5391.984s, table=30, n_packets=0, n_bytes=0, send_flow_rem priority=0 actions=goto_table:40` +
+`cookie=0x0, duration=5391.480s, table=40, n_packets=0, n_bytes=0, send_flow_rem priority=0 actions=goto_table:50` +
+`cookie=0x0, duration=5390.976s, table=50, n_packets=0, n_bytes=0, send_flow_rem priority=0 actions=goto_table:60` +
+`cookie=0x0, duration=5390.472s, table=60, n_packets=0, n_bytes=0, send_flow_rem priority=0 actions=goto_table:80` +
+`cookie=0x0, duration=5389.969s, table=80, n_packets=0, n_bytes=0, send_flow_rem priority=0 actions=goto_table:90` +
+`cookie=0x0, duration=5389.465s, table=90, n_packets=0, n_bytes=0, send_flow_rem priority=0 actions=goto_table:100` +
+`cookie=0x0, duration=5388.962s, table=100, n_packets=0, n_bytes=0, send_flow_rem priority=0 actions=goto_table:110` +
+`cookie=0x0, duration=5388.443s, table=110, n_packets=0, n_bytes=0, send_flow_rem priority=0 actions=drop`
+
+[[intra-subnet-access]]
+== Intra-subnet access
+
+In case you wish to use the LB instance within a subnet without
+assigning a floating IP, then you need to add a dummy neutron port to
+the subnet and use the IP assigned to that as the VIP. Here is an
+example where I created a dummy neutron port that was assigned
+IP=10.0.0.5 and MAC=fa:16:3e:d1:70:1f and pool members \{10.0.0.2,
+10.0.0.3}. Note that the reverse rules set src MAC address to that of
+the dummy neutron port.
+
+* Proactive forward rules
+
+`cookie=0x0, duration=28.847s, table=50, n_packets=0, n_bytes=0, send_flow_rem priority=32769,ip,reg1=0x1,reg2=0x1,tun_id=0x3eb,nw_dst=10.0.0.5 ` +
+`   actions=set_field:fa:16:3e:b8:b9:26->eth_dst,set_field:10.0.0.3->ip_dst,goto_table:60` +
+`cookie=0x0, duration=29.349s, table=50, n_packets=0, n_bytes=0, send_flow_rem priority=32769,ip,reg1=0x1,reg2=0,tun_id=0x3eb,nw_dst=10.0.0.5` +
+`   actions=set_field:fa:16:3e:9a:e6:4e->eth_dst,set_field:10.0.0.2->ip_dst,goto_table:60` +
+`cookie=0x0, duration=29.852s, table=50, n_packets=0, n_bytes=0, send_flow_rem ip,reg1=0,tun_id=0x3eb,nw_dst=10.0.0.5 ` +
+`   actions=load:0x1->NXM_NX_REG1[],multipath(symmetric_l4,0,modulo_n,2,0,NXM_NX_REG2[]),resubmit(,50)` +
+`cookie=0x0, duration=593.841s, table=50, n_packets=115, n_bytes=10838, send_flow_rem priority=0 ` +
+`   actions=goto_table:60`
+
+* Proactive reverse rules
+
+`cookie=0x0, duration=28.344s, table=50, n_packets=0, n_bytes=0, send_flow_rem tcp,tun_id=0x3eb,nw_src=10.0.0.2,tp_src=80 ` +
+`   actions=set_field:10.0.0.5->ip_src,set_field:fa:16:3e:d1:70:1f->eth_dst,goto_table:60` +
+`cookie=0x0, duration=27.843s, table=50, n_packets=0, n_bytes=0, send_flow_rem tcp,tun_id=0x3eb,nw_src=10.0.0.3,tp_src=80 ` +
+`   actions=set_field:10.0.0.5->ip_src,set_field:fa:16:3e:d1:70:1f->eth_dst,goto_table:60`
+
+For this feature to work, you need to have the ARP Responder enabled.
+Otherwise, the clients cannot find the MAC address to use for the VIP.
+
+[[ovsdb-project-code]]
+== OVSDB project code
+
+The current implementation handles all neutron calls in the
+net-virt/LBaaSHandler.java code, and makes calls to the
+net-virt-providers/LoadBalancerService to program appropriate flowmods.
+The rules are updated whenever there is a change in Neutron LBaaS
+settings. There is no cache of state kept in the net-virt or providers.
+
+[[limitations]]
+== Limitations
+
+The OpenStack workflow has these limitations
+
+* It is necessary to have a valid neutron port for the members (This is
+how the code extracts MAC address of the member)
+* It is necessary to either have a floating IP configured for the VIP or
+a dummy neutron port (This is how the code assigns MAC address to the
+VIP)
+* TCP, HTTP or HTTPS are supported protocols for the pool. (Caution: You
+can lose access to the members if you assign \{Proto:TCP, Port:22} to
+LB)
+* There is only a single LB instance (i.e., VIP) per subnet because
+pool-id is not reported in the create load-balancer call.
+* Two pools cannot share the same VIP, but a pool can have two VIPs
+* The VIP must be accessed on the same TCP port as the port number of
+the members in the pool
+
+Owing to the inflexibility of the multipath action, the current
+implementation comes with these additional limitations:
+
+* Member weights are ignored.
+** The update of an LB member (e.g., changing weights) is not supported
+(because weights are ignored.)
+* The update of an LB instance (e.g., changing LB scheme) is done as a
+delete + add, and not an actual delta.
+* Deletion of an LB member leads to reprogramming the LB on all nodes
+(because of the way multipath does link hash.)
+
+[[testing]]
+= Testing
+
+[[postman-collection]]
+== Postman collection
+
+Download the
+https://wiki.opendaylight.org/images/4/49/Neutron-v2.0-LBaaS-API-Examples.json.postman_collection.txt[postman
+collection]
+
+Note that you need to add valid neutron ports with IP/MAC for the LB
+members before creating the LB instance.
+
+[[openstack-workflow-1]]
+== OpenStack workflow
+
+Assuming there exists VMs with IP address 10.0.0.7 and 10.0.0.8
+(Necessary for querying the list of Neutron ports to get the MAC
+address), we can do the following cURL commands to setup the LB.
+
+* Create a LB pool
+
+`curl -X POST -d '{` +
+` "pool": {` +
+`   "id": "332abe93-f488-41ba-870b-2ac66be7f853",` +
+`   "tenant_id": "19eaa775-cf5d-49bc-902e-2f85f668d995",` +
+`   "name": "Example pool",` +
+`   "description": "",` +
+`   "protocol": "http",` +
+`   "lb_algorithm": "ROUND_ROBIN",` +
+`   "session_persistence": {},` +
+`   "healthmonitor_id": null,` +
+`   "members": [{` +
+`      "id": "a183a8b3-bddb-dc04-ae73-3beb11af4d04",` +
+`      "tenant_id": "c778d7b543914fc68df8b44f57035f0b",` +
+`      "address": "10.0.0.7",` +
+`      "protocol_port":80,` +
+`      "subnet_id": "5966ebd4-b456-4e11-a3a3-def0d3f432d4",` +
+`      "admin_state_up": true` +
+`    }],` +
+`   "admin_state_up": true,` +
+`   "status": "ACTIVE"` +
+` }` +
+`}' `http://controller-ip:8080/controller/nb/v2/neutron/pools/[`http://controller-ip:8080/controller/nb/v2/neutron/pools/`]
+
+* Add additional LB pool members
+
+`curl -X PUT -d '{` +
+` "member": {` +
+`     "id": "a183a8b3-bddb-dc04-ae73-3beb11af4d05",` +
+`     "tenant_id": "c778d7b543914fc68df8b44f57035f0b",` +
+`     "address": "10.0.0.8",` +
+`     "protocol_port":80,` +
+`     "subnet_id": "5966ebd4-b456-4e11-a3a3-def0d3f432d4",` +
+`     "admin_state_up": true,` +
+`     "weight": 1,` +
+`     "status": "UP"` +
+`   }` +
+`}' `http://controller-ip:8080/controller/nb/v2/neutron/pools/332abe93-f488-41ba-870b-2ac66be7f853/members/[`http://controller-ip:8080/controller/nb/v2/neutron/pools/332abe93-f488-41ba-870b-2ac66be7f853/members/`]
+
+* Create LB instance and the VIP
+
+`curl -X POST -d '{` +
+` "loadbalancer": {` +
+`   "id": "8992a43f-83af-4b49-9afd-c2bfbd82d7d7",` +
+`   "name": "Example LB",` +
+`   "description": "A very simple example load balancer.",` +
+`   "vip_address": "10.0.0.5",` +
+`   "vip_subnet_id": "5966ebd4-b456-4e11-a3a3-def0d3f432d4",` +
+`   "tenant_id": "c778d7b543914fc68df8b44f57035f0b",` +
+`   "status": "PENDING_CREATE"` +
+` }` +
+`}' `http://controller-ip:8080/controller/nb/v2/neutron/loadbalancers/[`http://controller-ip:8080/controller/nb/v2/neutron/loadbalancers/`]
+
+* Delete of a pool, member or LB instance, you just need to perform
+
+`curl -X DELETE ``/{id} `
+
+[[open-vswitch-dataplane]]
+== Open vSwitch dataplane
+
+To test multipath action behavior in OVS, you can run the following
+commands. Assuming table=10 contains all the rules to forward traffic
+destined to a destination MAC address, here are the rules we need to
+program in the OVS. The programmed rules makes the translation from the
+VIP to a different pool member for every session.
+
+* Proactive forward rules:
+
+`sudo ovs-ofctl -O OpenFlow13 add-flow s1 "reg0=0,ip,nw_dst=10.0.0.5,actions=load:0x1->NXM_NX_REG0`link:[]`,multipath(symmetric_l4, 1024, modulo_n, 4, 0, NXM_NX_REG1[0..12]),resubmit(,0)"` +
+`sudo ovs-ofctl -O OpenFlow13 add-flow s1 reg0=1,nw_dst=10.0.0.5,ip,reg1=0,actions=mod_dl_dst:00:00:00:00:00:10,mod_nw_dst:10.0.0.10,goto_table:10` +
+`sudo ovs-ofctl -O OpenFlow13 add-flow s1 reg0=1,nw_dst=10.0.0.5,ip,reg1=1,actions=mod_dl_dst:00:00:00:00:00:11,mod_nw_dst:10.0.0.11,goto_table:10` +
+`sudo ovs-ofctl -O OpenFlow13 add-flow s1 reg0=1,nw_dst=10.0.0.5,ip,reg1=2,actions=mod_dl_dst:00:00:00:00:00:12,mod_nw_dst:10.0.0.12,goto_table:10` +
+`sudo ovs-ofctl -O OpenFlow13 add-flow s1 reg0=1,nw_dst=10.0.0.5,ip,reg1=3,actions=mod_dl_dst:00:00:00:00:00:13,mod_nw_dst:10.0.0.13,goto_table:10`
+
+* Proactive reverse rules:
+
+`sudo ovs-ofctl -O OpenFlow13 add-flow s1 ip,tcp,tp_src=80,actions=mod_dl_src:00:00:00:00:00:05,mod_nw_src:10.0.0.5,goto_table:10`

@@ -1,0 +1,195 @@
+After a release of OpenDaylight (e.g., Hydrogen, Helium, Lithium) it is
+necessary for all project create a stable/ branch to support bug fixes
+in both the master branch and any stable branch. This page walks the
+reader through how to do this, using the gerrit and jenkins web
+interfaces and the OpenDOVE project as a sample. _Note: this document
+was based on OpenDaylight Controller:Setting Up Stability Branches[this
+page] orignially developed for the Hydrogen release._
+
+[[step-1-bump-the-versions-on-your-master-branch]]
+=== Step 1: Bump the versions on your master branch
+
+* The goal of this step is to change all versions of the form
+"x.y.z-SNAPSHOT" or "x.y-SNAPSHOT" to "x.(y+1).0-SNAPSHOT"
+* To do this, make sure you're on the master branch:
+
+-----------------------------------------------
+ckd$ git checkout master
+Switched to branch 'master'
+Your branch is up-to-date with 'origin/master'.
+-----------------------------------------------
+
+* This can be easily accomplished by downloading and running this
+script:
+https://git.opendaylight.org/gerrit/gitweb?p=releng/autorelease.git;a=blob;f=scripts/version.sh;h=9a707aae31ed96588949cd68c3a8ac1ba1321e21;hb=HEAD[version.sh]
+** For example:
+
+---------------------------------------------------------------------------
+spectre-3:ttp ckd$ chmod u+x ~/Downloads/version.sh 
+
+spectre-3:ttp ckd$ ~/Downloads/version.sh bump Lithium
+Bumping versions...
+
+spectre-3:ttp ckd$ git status
+On branch master
+Your branch is ahead of 'origin/master' by 1 commit.
+  (use "git push" to publish your local commits)
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git checkout -- <file>..." to discard changes in working directory)
+
+    modified:   distribution-karaf/pom.xml
+    modified:   features/pom.xml
+    modified:   features/src/main/resources/features.xml
+    modified:   parser/pom.xml
+    modified:   pom.xml
+    modified:   ttp-model/pom.xml
+
+no changes added to commit (use "git add" and/or "git commit -a")
+---------------------------------------------------------------------------
+
+* Verify that the changes look correct using `git diff`
+* Commit and then push to the master branch in gerrit, e.g.,
+
+--------------------------------------------------------------------------------------
+git commit -asm "Incrementing versions by 0.1.0 for post-<release-name> master branch"
+git review
+--------------------------------------------------------------------------------------
+
+* Review and merge the patch in gerrit
+
+[[step-2-create-branch-in-gerrit]]
+=== Step 2: Create branch in Gerrit
+
+In https://git.opendaylight.org[Gerrit]:
+
+1.  click Projects
+2.  Then click List
+3.  Then click your project from the list
+4.  Then Branches at the top +
+image:Stability Screenshot1.png[Stability Screenshot1.png,title="fig:Stability Screenshot1.png"]
+5.  At the bottom, enter "stable/" and the revision (branch or hash) to
+branch from
+* The should be lower case of the relese, e.g., hydrogen, helium,
+lithium, so the new branch name would be stable/lithium or the like
+* The revision should either be the hash of the last patch _before_ your
+version bump patch on master.
+** You should be able to find that by browsing to the gerrit URL for the
+master version bump patch and looking for the hash of its parent.
+** For example, the
+https://git.opendaylight.org/gerrit/#/c/20448/[version bump patch for
+TTP is here] and you can see that it's parent is
+cb9e6054a7832c0228e5f29cd1a5f19cf6663d02 +
+image:Parent_Screenshot.png[Parent_Screenshot.png,title="fig:Parent_Screenshot.png"]
+** and so creating the stable/helium branch will look like this: +
+image:Stability Screenshot2.png[Stability Screenshot2.png,title="fig:Stability Screenshot2.png"]
+
+[[step-3-create-new-jenkins-jobs-for-the-stability-branch]]
+=== Step 3: Create new Jenkins Jobs for the Stability Branch
+
+Confirm with Gerrit that there is not already a patch to releng/builder
+for your project:
+
+`   `https://git.opendaylight.org/gerrit/#/q/project:releng/builder+status:open[`https://git.opendaylight.org/gerrit/#/q/project:releng/builder+status:open`]
+
+If not then follow these steps:
+
+1.  Clone releng/builder
+* git clone https://git.opendaylight.org/gerrit/releng/builder
+2.  Modify /jjb//.cfg and add the new stability branch to BRANCHES
+* See:
+https://wiki.opendaylight.org/view/RelEng/Builder/Jenkins#Tuning_templates
+3.  Submit patch to releng/builder for review
+
+`   git add jjb/``/``.cfg` +
+`   git commit -sm "Add stable/`` jobs for ``"` +
+`   git review`
+
+For example: https://git.opendaylight.org/gerrit/19054/
+
+Jenkins will create an automatic patch for the new jobs, be ready to +1
+the changes.
+
+[[step-4-update-your-.gitreview-file]]
+=== Step 4: Update your .gitreview file
+
+* Update your .gitreview fie so that git review will point to the
+stable/, e.g., stable/lithium, branch
+** NOTE: make sure you are on the stable/, e.g., stable/lithium, branch
+before doing this
+* Do this by adding a line saying `defaultbranch=stable/<release-name>`
+** For example, the TTP .gitreview file for lithium looks like:
+
+----------------------------
+[gerrit]
+host=git.opendaylight.org
+port=29418
+project=ttp.git
+defaultbranch=stable/lithium
+----------------------------
+
+* Commit this change and submit it to gerrit like so:
+
+-----------------------------------------------------------------------------
+git commit -asm "Changing .gitreview to use the stable/<release-name> branch"
+git review
+-----------------------------------------------------------------------------
+
+* Make sure that this patch went to the stable/lithium branch in
+gerrit: +
+image:Showing-gitreview-working.png[Showing-gitreview-working.png,title="fig:Showing-gitreview-working.png"]
+* Merge the patch in gerrit
+
+[[step-5-how-to-cherry-pick-patches-from-master-to-a-stability-branch-via-gerrit]]
+== Step 5: How to Cherry Pick Patches from Master to a Stability Branch
+via Gerrit
+
+1.  Select the patch that you want to cherry pick from Master to Stable
+Branch
+2.  Locate the Cherry Pick To button +
+image:Stability_Screenshot9.png[Stability_Screenshot9.png,title="fig:Stability_Screenshot9.png"]
+3.  Start to type in "re" in the branch text box to get suggestions to
+appear, then select "refs/heads/stable/" +
+image:Stability_ScreenShot10.png[Stability_ScreenShot10.png,title="fig:Stability_ScreenShot10.png"]
+4.  Click Cherry Pick Change +
+image:Stability_ScreenShot11.png[Stability_ScreenShot11.png,title="fig:Stability_ScreenShot11.png"]
+
+[[step-xxx-resolving-cyclic-dependencies]]
+== Step XXX: Resolving Cyclic Dependencies
+
+For some projects, there are dependencies in both directions. Current
+examples include:
+
+* Between controller and aaa (dependency in a feature test)
+* Between l2switch and dlux (dependency in a distribution)
+* Between openfowplugin and dlux (dependency in a distribution)
+
+The current approach here is described in
+https://lists.opendaylight.org/pipermail/controller-dev/2014-October/006787.html[this
+e-mail] and repeated here:
+
+1.  We only allow run-time dependencies, e.g., via features or
+distributions
+2.  When you need to resolve the cycle, i.e., the two reasons above, you
+temporarily either stop building the relevant distribution(s) or stop
+running the relevant feature tests.
+3.  After you've passed through the cycle you immediately re-enable
+them.
+
+As an example, here is how we are resolving it in 3 patches between
+controller and AAA:
+
+*
+https://git.opendaylight.org/gerrit/#/c/11731/[https://git.opendaylight.org/gerrit/#/c/11731/]
+** controller patch that bumps all version but aaa.version and disables
+feature tests that include aaa
+*
+https://git.opendaylight.org/gerrit/#/c/11750/[https://git.opendaylight.org/gerrit/#/c/11750/]
+** normal patch that bumps all versions in the aaa project
+*
+https://git.opendaylight.org/gerrit/#/c/11732/[https://git.opendaylight.org/gerrit/#/c/11732/]
+** controller patch that bumps aaa.version and re-enables the feature
+tests that include aaa
+
+An analogous thing will have to be done for the dlux, l2switch, and
+openflow plugin cluster.

@@ -1,0 +1,1179 @@
+[[restconf]]
+== RESTCONF
+
+A guide how to view BGP and PCEP data through RESTCONF can be found
+here: BGP LS PCEP:Restconf[Restconf].
+
+[[lsp-manipulation]]
+== LSP manipulation
+
+Manipulating LSPs (tunnels) from PCEP is described here:
+BGP LS PCEP:Programmer Guide[Programmer Guide]
+
+[[writing-protocol-extensions]]
+== Writing protocol extensions
+
+An extension to a protocol means basically adding parsers and
+serializers for new elements, such as messages, objects, tlvs or
+subobjects. This is usually necessary when you are extending the
+protocol with another RFC or draft. Both BGP and PCEP parsers are
+pluggable and you can specify which extensions to load alongside to the
+base parser in the configuration file.
+
+[[writing-an-extension-to-pce-protocol]]
+=== Writing an extension to PCE protocol
+
+[[current-standards-support]]
+===== Current standards support
+
+Current pcep base-parser implementation supports following RFCs:
+
+*http://tools.ietf.org/html/rfc5440[RFC5440]* - Path Computation Element
+(PCE) Communication Protocol (PCEP) +
+*http://tools.ietf.org/html/rfc5541[RFC5541]* - Encoding of Objective
+Functions in the Path Computation Element Communication Protocol
+(PCEP) +
+*http://tools.ietf.org/html/rfc5455[RFC5455]* - Diffserv-Aware
+Class-Type Object for the Path Computation Element Communication
+Protocol +
+*http://tools.ietf.org/html/rfc5521[RFC5521]* - Extensions to the Path
+Computation Element Communication Protocol (PCEP) for Route Exclusions +
+*http://tools.ietf.org/html/rfc5557[RFC5557]* - Path Computation Element
+Communication Protocol (PCEP) Requirements and Protocol Extensions in
+Support of Global Concurrent Optimization +
+*http://tools.ietf.org/html/rfc5886[RFC5886]* - A Set of Monitoring
+Tools for Path Computation Element (PCE)-Based Architecture +
+ There are already three extensions for PCEP: +
+*http://tools.ietf.org/html/draft-ietf-pce-stateful-pce[draft-ietf-pce-stateful-pce]*
+- in version 07 +
+*http://tools.ietf.org/html/draft-ietf-pce-pce-initiated-lsp[draft-ietf-pce-pce-initiated-lsp]*
+- version ietf-initiated-00 +
+*http://tools.ietf.org/html/[draft-ietf-pce-segment-routing
+draft-ietf-pce-segment-routing]* - version ietf-pce-segment-routing-01 +
+
+[[how-to-implement-an-extension-to-pcep]]
+===== How to implement an extension to PCEP
+
+* Create a separate artefact (eclipse project) for your extension. Make
+sure it depends on pcep-api and pcep-spi.
+
+* Write yang model for new elements or augment existing ones. Perform
+'mvn install' to generate files from the model.
+
+* Write parsers and serializers. All parsers need to implement *Parser
+and *Serializer interfaces from pcep-spi (e.g. if you are writing a new
+TLV, your parser should implement TlvParser and TlvSerializer). Add
+Activator, that extends AbstractPCEPExtensionProviderActivator, where
+you register your parsers and serializers.
+
+[[update-configuration]]
+====== Update configuration
+
+* Update _32-pcep.xml_. Register your parser as a module in pcep-impl:
+
+code,xml----------------------------------------------------------------------------------------------------------------------
+code,xml
+ <module>
+    <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:pcep:impl">prefix:pcep-parser-new-parser</type>
+    <name>pcep-parser-new-parser</name>
+ </module>
+----------------------------------------------------------------------------------------------------------------------
+
+* Add it as an extension to pcep-parser-base:
+
+code,xml----------------------------------------------------------------------------------------------------------
+code,xml
+ <extension>
+    <type xmlns:pcepspi="urn:opendaylight:params:xml:ns:yang:controller:pcep:spi">pcepspi:extension</type>
+    <name>pcep-parser-new-parser</name>
+ </extension>
+----------------------------------------------------------------------------------------------------------
+
+* Add it's instance to services:
+
+code,xml----------------------------------------------------------------------------------------------------------------------
+code,xml
+ <instance>
+    <name>pcep-parser-new-parser</name>
+    <provider>/config/modules/module[name='pcep-parser-new-parser']/instance[name='pcep-parser-new-parser']</provider>
+ </instance>
+----------------------------------------------------------------------------------------------------------------------
+
+* Update odl-pcep-impl-cfg.yang so that it generates Module and
+ModuleFactory classes for your new parser.
+
+------------------------------------------------------------------------------------
+ identity pcep-parser-new-parser {
+    base config:module-type;
+    config:provided-service spi:extension;
+    config:java-name-prefix NewParserPCEPParser;
+ }
+
+ augment "/config:modules/config:module/config:configuration" {
+    case pcep-parser-new-parser {
+        when "/config:modules/config:module/config:type = 'pcep-parser-new-parser'";
+    }
+ }
+------------------------------------------------------------------------------------
+
+Run mvn install on pcep-impl-config to generate Module and ModuleFactory
+files.
+
+* Update Module to start your NewParserPCEPParserModule.java whent it's
+created.
+
+code,java-------------------------------------------------- code,java
+ @Override
+ public java.lang.AutoCloseable createInstance() {
+    return new InitiatedActivator();
+ }
+--------------------------------------------------
+
+[[vendor-specific-constraints-in-pcep]]
+==== Vendor Specific Constraints in PCEP
+
+http://tools.ietf.org/html/draft-ietf-pce-rfc7150bis-00[_draft-ietf-pce-rfc7150bis-00_]
+- Conveying Vendor-Specific Constraints in the Path Computation Element
+communication Protocol.
+
+Draft defines new PCEP object - Vendor Information object, that can be
+used to carry arbitrary, proprietary information such as vendor-specific
+constraints. Draft also defines new PCEP TLV - Vendor Information TLV
+that can be used to carry arbitrary information within any PCEP object
+that supports TLVs.
+
+The ODL's PCEP supports _draft-ietf-pce-rfc7150bis-00_ and provides
+abstraction for developers to create vendor-specific TLVs/objects
+extensions. The yang model of _vendor-information-tlv/object_ is defined
+in _pcep-types.yang_ and used in pcep objects/messages as defined in the
+draft.
+
+This tutorial shows how to develop PCEP extension of vendor-information
+object and TLV for fictional company named _My Vendor_, whose enterprise
+number is 0. A result will be OSGi bundle and initial configuration xml
+file, that supports MY-VENDOR-TLV and MY-VENDOR-OBJECT in ODL.
+
+* First, create simple maven module named _pcep-my-vendor_. For
+simplification assume the module's parent is _pcep_ maven project. For
+bundle packaging add plugin _maven-bundle-plugin_ into pom.xml and also
+_yang-maven-plugin_ for compile-time java code generating.
+
+code,xml-------------------------------------------------------------------------------
+code,xml
+  <artifactId>pcep-my-vendor</artifactId>
+  <description>PCEP MY VENDOR EXTENSION</description>
+  <packaging>bundle</packaging>
+  <name>${project.artifactId}</name>
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.felix</groupId>
+        <artifactId>maven-bundle-plugin</artifactId>
+        <extensions>true</extensions>
+        <configuration>
+          <instructions>
+            <Bundle-Name>${project.groupId}.${project.artifactId}</Bundle-Name>
+          </instructions>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.opendaylight.yangtools</groupId>
+        <artifactId>yang-maven-plugin</artifactId>
+      </plugin>
+    </plugins>
+  </build>
+-------------------------------------------------------------------------------
+
+* Add required dependencies into _pom.xml_
+
+code,xml---------------------------------------------------- code,xml
+  <dependencies>
+    <dependency>
+      <groupId>org.opendaylight.controller</groupId>
+      <artifactId>config-api</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>pcep-api</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>pcep-spi</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>pcep-impl</artifactId>
+    </dependency>
+  </dependencies>
+----------------------------------------------------
+
+[[vendor-information-tlv]]
+===== Vendor Information TLV
+
+The Vendor Information TLV can be used to carry vendor-specific
+information that applies to a specific PCEP object by including the TLV
+in the object. For the tutorial purposes, define MY-VENDOR-TLV, which
+can be loaded wih just simple unsigned 32-bit integer (4 bytes) as it's
+value and the TLV is carried in Open object.
+
+* *Yang model*
+** Initial step is to extend _pcep-types_ and _pcep-message_ yang
+models, augmentation target is _enterprise-specific-information_
+(choice) located in Open messages's Open object. Create yang file (i.e.
+_pcep-my-vendor.yang_), in project's _src/main/yang_ folder, with
+definition of the vendor information and required augmentations.
+** Now build project with maven, after that generated Java API's appears
+in _target/generated-sources/sal_.
+
+-----------------------------------------------------------------------------------------------------------------------
+grouping my-vendor-information {
+    leaf payload {
+        type uint32;
+    }
+}
+
+augment "/msg:open/msg:open-message/msg:open/msg:tlvs/msg:vendor-information-tlv/msg:enterprise-specific-information" {
+    case my-vendor {
+        when "enterprise-number = 0";
+        uses my-vendor-information;
+    }
+}
+-----------------------------------------------------------------------------------------------------------------------
+
+* *Vendor Information TLV parser/serializer*
+** Next step is an implemantation of the
+_enterprise-sepecific-information_ (TLV's value) parser/serializer. It
+is simple serialization/deserialization of unsigned integer (long type
+in Java representation), other functionality is already presented in
+_org.opendaylight.protocol.pcep.impl.tlv.AbstractVendorInformationTlvParser_
+abstract class. Create class extending
+_AbstractVendorInformationTlvParser_ and implement missing methods.
+
+code,java-----------------------------------------------------------------------------------------------------------------------
+code,java
+public class MyVendorInformationTlvParser extends AbstractVendorInformationTlvParser {
+
+    private static final EnterpriseNumber EN = new EnterpriseNumber(0L);
+
+    @Override
+    public EnterpriseNumber getEnterpriseNumber() {
+        return EN;
+    }
+
+    @Override
+    public EnterpriseSpecificInformation parseEnterpriseSpecificInformation(final ByteBuf buffer)
+            throws PCEPDeserializerException {
+        return new MyVendorBuilder().setPayload(buffer.readUnsignedInt()).build();
+    }
+
+    @Override
+    public void serializeEnterpriseSpecificInformation(final EnterpriseSpecificInformation esi, final ByteBuf buffer) {
+        final MyVendor myVendorInfo = (MyVendor) esi;
+        buffer.writeInt(myVendorInfo.getPayload().intValue());
+    }
+
+}
+-----------------------------------------------------------------------------------------------------------------------
+
+* *Vendor Information TLV activator*
+** Now, parser/serializer needs to be registered to
+_VendorInformationTlvRegistry_. Create class extending
+_AbstractPCEPExtensionProviderActivator_ and implement _startImpl_
+method - register parser idenfied by enterprise number and register
+serializer identified by the class extending
+_EnterpriseSpecificInformation_.
+
+code,java---------------------------------------------------------------------------------------------------
+code,java
+public class Activator extends AbstractPCEPExtensionProviderActivator {
+
+    @Override
+    protected List<AutoCloseable> startImpl(PCEPExtensionProviderContext context) {
+        final List<AutoCloseable> regs = new ArrayList<>();
+        final MyVendorInformationTlvParser parser = new MyVendorInformationTlvParser();
+        regs.add(context.registerVendorInformationTlvParser(parser.getEnterpriseNumber(), parser));
+        regs.add(context.registerVendorInformationTlvSerializer(MyVendor.class, parser));
+        return regs;
+    }
+
+}
+---------------------------------------------------------------------------------------------------
+
+* *Configuration module*
+** Next, create configuration yang module with name i.e.
+_pcep-my-vendor-cfg.yang_. Define My Vendor parser _extension_ service
+provider config module.
+** Build project with maven to generate cofiguration module and module
+factory. They are located in _src/main/java_.
+** Implement _MyVendorPCEPParserModule#createInstance()_ - return
+instance of _Activator_ created above.
+
+-----------------------------------------------------------------------------------
+identity pcep-parser-my-vendor {
+    base config:module-type;
+    config:provided-service spi:extension;
+    config:java-name-prefix MyVendorPCEPParser;
+}
+
+augment "/config:modules/config:module/config:configuration" {
+    case pcep-parser-my-vendor {
+        when "/config:modules/config:module/config:type = 'pcep-parser-my-vendor'";
+    }
+}
+-----------------------------------------------------------------------------------
+
+code,java----------------------------------------------------- code,java
+    @Override
+    public java.lang.AutoCloseable createInstance() {
+        return new Activator();
+    }
+-----------------------------------------------------
+
+* *Initial configuration*
+** Finally, create initial configuration xml file, where module
+_pcep-parser-my-vendor_ is instantiated and injected into the
+_global-pcep-extensions_.
+
+code,xml---------------------------------------------------------------------------------------------------------------------------------------------------
+code,xml
+<snapshot>
+    <required-capabilities>
+        <capability>urn:opendaylight:params:xml:ns:yang:controller:pcep:spi?module=odl-pcep-spi-cfg&amp;revision=2013-11-15</capability>
+       <capability>urn:opendaylight:params:xml:ns:yang:controller:pcep:my:vendor:cfg?module=pcep-my-vendor-cfg&amp;revision=2014-09-20</capability>
+    </required-capabilities>
+    <configuration>
+        <data xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+            <modules xmlns="urn:opendaylight:params:xml:ns:yang:controller:config">
+                <module>
+                    <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:pcep:spi">prefix:pcep-extensions-impl</type>
+                    <name>global-pcep-extensions</name>
+                    <extension>
+                        <type xmlns:pcepspi="urn:opendaylight:params:xml:ns:yang:controller:pcep:spi">pcepspi:extension</type>
+                        <name>pcep-parser-my-vendor</name>
+                    </extension>
+                </module>
+                <module>
+                    <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:pcep:my:vendor:cfg">prefix:pcep-parser-my-vendor</type>
+                    <name>pcep-parser-my-vendor</name>
+                </module>
+            </modules>
+            <services xmlns="urn:opendaylight:params:xml:ns:yang:controller:config">
+                <service>
+                    <type xmlns:pcepspi="urn:opendaylight:params:xml:ns:yang:controller:pcep:spi">pcepspi:extension</type>
+                    <instance>
+                        <name>pcep-parser-my-vendor</name>
+                        <provider>/config/modules/module[name='pcep-parser-my-vendor']/instance[name='pcep-parser-my-vendor']</provider>
+                    </instance>
+                </service>
+           </services>
+        </data>
+    </configuration>
+</snapshot>
+---------------------------------------------------------------------------------------------------------------------------------------------------
+
+[[vendor-information-object]]
+===== Vendor Information object
+
+For the tutorial purposes, define MY-VENDOR-OBJECT, which can be loaded
+with Ipv4 address (4 bytes) as it's value and the object is carried in
+PCRep message's response.
+
+* *Yang model*
+** Initial step is to extend _pcep-types_ and _pcep-message_ yang
+models, augmentation target is _enterprise-specific-information_
+(choice) located in PCRep messages. Create yang file (i.e.
+_pcep-my-vendor.yang_), in project's _src/main/yang_ folder, with
+definition of the vendor information and required augmentations.
+** Now build project with maven, after that generated Java API's appears
+in _target/generated-sources/sal_.
+
+----------------------------------------------------------------------------------------------------------------------
+grouping my-vendor-information {
+    leaf payload {
+        type inet:ipv4-address;
+    }
+}
+
+augment "/msg:pcrep/msg:pcrep-message/msg:replies/msg:vendor-information-object/msg:enterprise-specific-information" {
+    case my-vendor {
+        when "enterprise-number = 0";
+        uses my-vendor-information;
+    }
+}
+----------------------------------------------------------------------------------------------------------------------
+
+* *Vendor Information object parser/serializer*
+** Next step is an implemantation of the
+_enterprise-sepecific-information_ (Object's value) parser/serializer.
+It is simple serialization/deserialization of Ipv4 Address, other
+functionality is already presented in
+_org.opendaylight.protocol.pcep.impl.object.AbstractVendorInformationObjectParser_
+abstract class. Create class extending
+_AbstractVendorInformationObjectParser_ and implement missing methods.
+
+code,java-----------------------------------------------------------------------------------------------------------------------
+code,java
+public class MyVendorInformationObjectParser extends AbstractVendorInformationObjectParser {
+
+    private static final EnterpriseNumber EN = new EnterpriseNumber(0L);
+
+    @Override
+    public EnterpriseNumber getEnterpriseNumber() {
+        return EN;
+    }
+
+    @Override
+    public EnterpriseSpecificInformation parseEnterpriseSpecificInformation(final ByteBuf buffer)
+            throws PCEPDeserializerException {
+        return new MyVendorBuilder().setPayload(Ipv4Util.addressForByteBuf(buffer)).build();
+    }
+
+    @Override
+    public void serializeEnterpriseSpecificInformation(final EnterpriseSpecificInformation esi, final ByteBuf buffer) {
+        final MyVendor myVendor = (MyVendor) esi;
+        buffer.writeBytes(Ipv4Util.bytesForAddress(myVendor.getPayload()));
+    }
+
+}
+-----------------------------------------------------------------------------------------------------------------------
+
+* *Vendor Information object activator*
+** Now, parser/serializer needs to be registered to
+_VendorInformationObjectRegistry_. Create class extending
+_AbstractPCEPExtensionProviderActivator_ and implement _startImpl_
+method - register parser idenfied by enterprise number and register
+serializer identified by the class extending
+_EnterpriseSpecificInformation_.
+
+code,java------------------------------------------------------------------------------------------------------
+code,java
+public class Activator extends AbstractPCEPExtensionProviderActivator {
+
+    @Override
+    protected List<AutoCloseable> startImpl(PCEPExtensionProviderContext context) {
+        final List<AutoCloseable> regs = new ArrayList<>();
+        final MyVendorInformationObjectParser parser = new MyVendorInformationObjectParser();
+        regs.add(context.registerVendorInformationObjectParser(parser.getEnterpriseNumber(), parser));
+        regs.add(context.registerVendorInformationObjectSerializer(MyVendor.class, parser));
+        return regs;
+    }
+
+}
+------------------------------------------------------------------------------------------------------
+
+* *Configuration module*
+** Next, create configuration yang module with name i.e.
+_pcep-my-vendor-cfg.yang_. Define My Vendor parser _extension_ service
+provider config module.
+** Build project with maven to generate cofiguration module and module
+factory. They are located in _src/main/java_.
+** Implement _MyVendorPCEPParserModule#createInstance()_ - return
+instance of _Activator_ created above.
+
+-----------------------------------------------------------------------------------
+identity pcep-parser-my-vendor {
+    base config:module-type;
+    config:provided-service spi:extension;
+    config:java-name-prefix MyVendorPCEPParser;
+}
+
+augment "/config:modules/config:module/config:configuration" {
+    case pcep-parser-my-vendor {
+        when "/config:modules/config:module/config:type = 'pcep-parser-my-vendor'";
+    }
+}
+-----------------------------------------------------------------------------------
+
+code,java----------------------------------------------------- code,java
+    @Override
+    public java.lang.AutoCloseable createInstance() {
+        return new Activator();
+    }
+-----------------------------------------------------
+
+* *Initial configuration*
+** Finally, create initial configuration xml file, where module
+_pcep-parser-my-vendor_ is instantiated and injected into the
+_global-pcep-extensions_.
+
+code,xml---------------------------------------------------------------------------------------------------------------------------------------------------
+code,xml
+<snapshot>
+    <required-capabilities>
+        <capability>urn:opendaylight:params:xml:ns:yang:controller:pcep:spi?module=odl-pcep-spi-cfg&amp;revision=2013-11-15</capability>
+       <capability>urn:opendaylight:params:xml:ns:yang:controller:pcep:my:vendor:cfg?module=pcep-my-vendor-cfg&amp;revision=2014-09-20</capability>
+    </required-capabilities>
+    <configuration>
+        <data xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+            <modules xmlns="urn:opendaylight:params:xml:ns:yang:controller:config">
+                <module>
+                    <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:pcep:spi">prefix:pcep-extensions-impl</type>
+                    <name>global-pcep-extensions</name>
+                    <extension>
+                        <type xmlns:pcepspi="urn:opendaylight:params:xml:ns:yang:controller:pcep:spi">pcepspi:extension</type>
+                        <name>pcep-parser-my-vendor</name>
+                    </extension>
+                </module>
+                <module>
+                    <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:pcep:my:vendor:cfg">prefix:pcep-parser-my-vendor</type>
+                    <name>pcep-parser-my-vendor</name>
+                </module>
+            </modules>
+            <services xmlns="urn:opendaylight:params:xml:ns:yang:controller:config">
+                <service>
+                    <type xmlns:pcepspi="urn:opendaylight:params:xml:ns:yang:controller:pcep:spi">pcepspi:extension</type>
+                    <instance>
+                        <name>pcep-parser-my-vendor</name>
+                        <provider>/config/modules/module[name='pcep-parser-my-vendor']/instance[name='pcep-parser-my-vendor']</provider>
+                    </instance>
+                </service>
+           </services>
+        </data>
+    </configuration>
+</snapshot>
+---------------------------------------------------------------------------------------------------------------------------------------------------
+
+[[writing-an-extension-to-bgp]]
+=== Writing an extension to BGP
+
+[[current-standards-support-1]]
+===== Current standards support
+
+Current bgp base-parser implementation supports following RFCs:
+
+*http://tools.ietf.org/html/rfc4271[RFC4271]* - A Border Gateway
+Protocol 4 (BGP-4) +
+*http://tools.ietf.org/html/rfc4724[RFC4724]* - Graceful Restart
+Mechanism for BGP +
+*http://tools.ietf.org/html/rfc4760[RFC4760]* - Multiprotocol Extensions
+for BGP-4 +
+*http://tools.ietf.org/html/rfc1997[RFC1997]* - BGP Communities
+Attribute +
+*http://tools.ietf.org/html/rfc4360[RFC4360]* - BGP Extended Communities
+Attribute +
+*http://tools.ietf.org/html/rfc6793[RFC6793]* - BGP Support for
+Four-Octet Autonomous System (AS) Number Space (NEW speaker only) +
+*http://tools.ietf.org/html/rfc4486[RFC4486]* - Subcodes for BGP Cease
+Notification Message +
+*http://tools.ietf.org/html/rfc5492[RFC5492]* - Capabilities
+Advertisement with BGP-4 +
+*http://tools.ietf.org/html/rfc6286[RFC6286]* - Autonomous-System-Wide
+Unique BGP Identifier for BGP-4 +
+*http://tools.ietf.org/html/rfc5575[RFC5575]* - Dissemination of Flow
+Specification Rules +
+*http://tools.ietf.org/html/rfc7311[RFC7311]* - The Accumulated IGP
+Metric Attribute for BGP +
+ There is already one extension for: +
+*http://tools.ietf.org/html/draft-ietf-idr-ls-distribution[draft-ietf-idr-ls-distribution]*
+- in version 04 +
+
+[[how-to-implement-an-extension-to-bgp]]
+===== How to implement an extension to BGP
+
+* Create a separate artefact (eclipse project) for your extension. Make
+sure it depends on bgp-parser-api and bgp-parser-spi.
+
+* Write yang model for new elements or augment existing ones. Perform
+'mvn install' to generate files from the model.
+
+* Write parsers and serializers. All parsers need to implement *Parser
+and *Serializer interfaces from bgp-parser-spi (e.g. if you are writing
+a new Capability, your parser should implement CapabilityParser and
+CapabilitySerializer).
+
+* Add Activator, that extends AbstractBGPExtensionProviderActivator,
+where you register your parsers and serializers. If your extension adds
+another AFI/SAFI you also habe to add another Activator that extends
+AbstractRIBExtensionProviderActivator and registrate new address family
+and subsequent address family.
+
+[[update-configuration-1]]
+====== Update configuration
+
+* Update _31-bgp.xml_. Register your parser as a module in bgp-impl:
+
+code,xml-------------------------------------------------------------------------------------------------------------------
+code,xml
+ <module>
+    <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:bgp:new-parser">prefix:bgp-new-parser</type>
+    <name>bgp-new-parser</name>
+ </module>
+-------------------------------------------------------------------------------------------------------------------
+
+* Add it as an extension to bgp-parser-base:
+
+code,xml--------------------------------------------------------------------------------------------------------------
+code,xml
+ <extension>
+    <type xmlns:bgpspi="urn:opendaylight:params:xml:ns:yang:controller:bgp:parser:spi">bgpspi:extension</type>
+    <name>bgp-new-parser</name>
+ </extension>
+--------------------------------------------------------------------------------------------------------------
+
+* Add it's instance to services:
+
+code,xml--------------------------------------------------------------------------------------
+code,xml
+ <instance>
+    <name>bgp-new-parser</name>
+    <provider>/modules/module[type='bgp-new-parser'][name='bgp-new-parser']</provider>
+ </instance>
+--------------------------------------------------------------------------------------
+
+Also, if you are introducing new AFI/SAFI, don't forget to registrate
+your extension also to RIB.
+
+* Create your own configuration file so that it generates Module and
+ModuleFactory classes for your new parser.
+
+----------------------------------------------------------------------------
+identity bgp-new-parser {
+    base config:module-type;
+    config:provided-service bgpspi:extension;
+    config:provided-service ribspi:extension; // for new AFI/SAFI
+    config:java-name-prefix NewParser;
+}
+
+augment "/config:modules/config:module/config:configuration" {
+    case bgp-new-parser {
+        when "/config:modules/config:module/config:type = 'bgp-new-parser'";
+    }
+}
+----------------------------------------------------------------------------
+
+Run mvn install on your extension artefact to generate Module and
+ModuleFactory files.
+
+* Update Module to start your NewParserModule.java whent it's created.
+
+code,java-------------------------------------------------- code,java
+ @Override
+ public java.lang.AutoCloseable createInstance() {
+    return new NewParserActivator();
+ }
+--------------------------------------------------
+
+[[statistics]]
+== Statistics
+
+[[bgp]]
+=== BGP
+
+The BGP statistics capture state of BGP Peers (clients) connected to BGP
+Server. The statistics are exposed to JMX (as Runtime Bean) via
+config-subsystem, they are related to instance of bgp-peer config
+module. The Runtime Bean is registered for ech configured and connected
+BGP Peer, when session is established.
+
+* BGP Peer's session statistics
+** peer and speaker preferences
+*** proposed holdtimr value
+*** BGP-ID
+*** AS Number
+*** Ip address
+*** port number
+*** four-octet AS number capability
+*** advertized routing-tables (AFI/SAFI) capability
+** actual session's holdtimer and keep-alive value
+** session duration
+** session state
+** number of times the session was established
+** received/sent BGP messages statistics (last timestamp, count)
+*** all messages
+*** Keep-Alive messages
+*** Update messages
+*** Notification messages (includes code/subcode)
+** routes count per routing table (Ipv4/Ipv6 prefix table)
+
+Complete list of stats can be found here [TODO add link]
+
+Two reset opearations are provided:
+
+* reset-session - restart client session - the client should reconnect
+by it's configured reconnectiong strategy
+* reset-stats - resets the peer statistics - set message conters and
+timestamp values to zero
+
+The BGP statistics are reachable via JMX (JConsole, VisualVM Jolokia) -
+as runtime beans and NETCONF, Restconf as operational data of _bgp-peer_
+config module instance.
+
+[[jmx]]
+==== JMX
+
+Config module instances are exposed to Java Management Extension. The
+BGP statistics are interconnected with _bgp-peer_ config module, as it's
+_state_, each bgp-peer instance is registered as Runtime Bean. There are
+several ways how to look at JMX and ODL's config modules.
+
+[[jconsolevisualvm]]
+===== JConsole/VisualVM
+
+Both are graphical user interface monitoring tools that compiles to Java
+Management Extensions.
+
+* Prerequisites
+** installed VisualVM or JConsole with support for MBeans
+** running ODL, for ODL running at remote machine use _-jmx_ flag
+** running VisualVM or JConsole, connected to running ODL instance
+
+* Statistics
+** For each BGP Peer session, Runtime Bean instance is created - named
+by _bgp-peer_ config module instance.
+
+image:Bgp-stats-visualvm1.png[Bgp-stats-visualvm1.png,title="Bgp-stats-visualvm1.png"]
+
+* RPC operations
+** In _Operations_ tab, two remote procedures can be called. Just click
+to invoke them.
+
+image:Bgp-stats-visulavm2.png[Bgp-stats-visulavm2.png,title="Bgp-stats-visulavm2.png"]
+
+[[jolokia]]
+===== Jolokia
+
+Jolokia is remote JMX with JSON over HTTP.
+
+* Prerequisites
+** running ODL with Jolokia.
+
+To ensure Jolokia is running hit:
+
+----------------------------------------------
+http://localhost:8080/controller/nb/v2/jolokia
+----------------------------------------------
+
+or if using Karaf distribution install Jolokia manually:
+
+----------------------------------------------------
+bundle:install -s mvn:org.jolokia/jolokia-osgi/1.1.5
+----------------------------------------------------
+
+Try to GET
+
+-----------------------------
+http://localhost:8181/jolokia
+-----------------------------
+
+Response should be something like:
+
+-------------------------------------------------------------------------------------------------------------------
+{"timestamp":1413546730,"status":200,"request":{"type":"version"},"value":{"protocol":"7.0","agent":"1.1.4","info":
+{"product":"equinox","vendor":"Eclipse","version":"3.8.1.v20120830-144521"}}}
+-------------------------------------------------------------------------------------------------------------------
+
+* Statistics
+
+To show statistics for BGP Peer named *example-bgp-peer*, requests URL
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------
+http://localhost:8080/controller/nb/v2/jolokia/read/org.opendaylight.controller:instanceName=example-bgp-peer,type=RuntimeBean,moduleFactoryName=bgp-peer
+http://localhost:8181/jolokia/read/org.opendaylight.controller:instanceName=example-bgp-peer,type=RuntimeBean,moduleFactoryName=bgp-peer
+---------------------------------------------------------------------------------------------------------------------------------------------------------
+
+* RPC opearations
+
+To invoke operation for the peer
+
+Reset statistics:
+
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------
+http://localhost:8080/controller/nb/v2/jolokia/read/org.opendaylight.controller:instanceName=example-bgp-peer,type=RuntimeBean,moduleFactoryName=bgp-peer/resetStats
+http://localhost:8181/jolokia/read/org.opendaylight.controller:instanceName=example-bgp-peer,type=RuntimeBean,moduleFactoryName=bgp-peer/resetStats
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Reset session:
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+http://localhost:8080/controller/nb/v2/jolokia/read/org.opendaylight.controller:instanceName=example-bgp-peer,type=RuntimeBean,moduleFactoryName=bgp-peer/resetSession
+http://localhost:8181/jolokia/read/org.opendaylight.controller:instanceName=example-bgp-peer,type=RuntimeBean,moduleFactoryName=bgp-peer/resetSession
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+[[netconf]]
+==== NETCONF
+
+* Prerequisites
+** running ODL with NETCONF (over SSH)
+** connect to NETCONF:
+
+--------------------------------------
+ssh admin@localhost -p 1830 -s netconf
+passwod: admin
+--------------------------------------
+
+To establish session, send hello message to server
+
+code,xml-----------------------------------------------------------------
+code,xml
+<hello xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+    <capabilities>
+        <capability>urn:ietf:params:netconf:base:1.0</capability>
+    </capabilities>
+</hello>
+]]>]]>
+-----------------------------------------------------------------
+
+To close session use RPC
+
+code,xml--------------------------------------------------------------------
+code,xml
+<rpc message-id="2" xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+    <close-session xmlns="urn:ietf:params:xml:ns:netconf:base:1.0"/>
+</rpc>
+]]>]]>
+--------------------------------------------------------------------
+
+* Statistics
+
+To show statistics for the peer, send RPC
+
+code,xml-----------------------------------------------------------------------------------------------
+code,xml
+<rpc message-id="2" xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <get>
+    <source>
+      <running/>
+    </source>
+    <filter type="subtree">
+      <modules xmlns="urn:opendaylight:params:xml:ns:yang:controller:config">
+        <module>
+      <name>example-bgp-peer</name>
+      <bgp-session-state xmlns="urn:opendaylight:params:xml:ns:yang:controller:bgp:rib:impl"/>
+          <bgp-peer-state xmlns="urn:opendaylight:params:xml:ns:yang:controller:bgp:rib:impl"/>
+        </module>
+      </modules>
+    </filter>
+  </get>
+</rpc>
+]]>]]>
+-----------------------------------------------------------------------------------------------
+
+* RPC opearations
+
+To reset the BGP peer's statistics, send RPC - expected rpc-reply is __
+
+code,xml-----------------------------------------------------------------------------------
+code,xml
+<rpc message-id="a" a="64" xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <reset-stats xmlns="urn:opendaylight:params:xml:ns:yang:controller:bgp:rib:impl">
+    <context-instance>
+      /modules/module[name='example-bgp-peer'][type='bgp-peer']
+    </context-instance>
+  </reset-stats>
+</rpc>
+]]>]]>
+-----------------------------------------------------------------------------------
+
+To reset BGP peer's session, send RPC - expected rpc-reply is __
+
+code,xml-------------------------------------------------------------------------------------
+code,xml
+<rpc message-id="a" a="64" xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <reset-session xmlns="urn:opendaylight:params:xml:ns:yang:controller:bgp:rib:impl">
+    <context-instance>
+      /modules/module[name='example-bgp-peer'][type='bgp-peer']
+    </context-instance>
+  </reset-session>
+</rpc>
+]]>]]>
+-------------------------------------------------------------------------------------
+
+[[restconf-1]]
+==== RESTCONF
+
+* Prerequisites
+** Running ODL with RESTCONF and configured _netconf-connector_
+
+* Statistics
+
+To show statistics for BGP peer, GET
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------------
+http://localhost:8080/restconf/operational/opendaylight-inventory:nodes/node/controller-config/yang-ext:mount/config:modules/config:module/example-bgp-peer
+http://localhost:8181/restconf/operational/opendaylight-inventory:nodes/node/controller-config/yang-ext:mount/config:modules/config:module/example-bgp-peer
+-----------------------------------------------------------------------------------------------------------------------------------------------------------
+
+* RPC opearations
+
+//TODO
+
+[[pcep]]
+=== PCEP
+
+The PCEP statistics provides information about *PCE <-> PCC* session and
+it's stateful listener (_topology-provider_). The statistics are exposed
+to JMX (as Runtime Bean) via _config-subsystem_, they are related to
+instance of _pcep-topology-provider_ config module. Each PCEP statistics
+bean is identified by PCC's Ip address and registered as soon as the
+session is up.
+
+* PCEP session statistics
+** total number of received/sent messages
+** total number received/sent error messages
+** timestamp of the last received message
+** last received/sent error message's error-type/value
+** total number of received unknown messages
+** local (PCE) and remote (PCC) peer preferences, each contains
+*** proposed keep-alive value
+*** proposed deadtimer value
+*** Ip address
+*** session identifier
+* PCEP session listener statistics
+** remote peer (PCC) stateful capabilities
+** session duration
+** number of delegated LSPs
+** synchronization status
+** timestamp of last received report message
+** number of received report messages
+** number of sent initiate/update messages
+** request reply time measurements
+
+Complete list of state information can be found
+https://jenkins.opendaylight.org/bgpcep/job/bgpcep-nightly/ws/pcep/topology-provider/target/site/odl-pcep-topology-provider-cfg.html#/config:modules/config:module/config:state/%28case%29pcep-topology-provider[here]
+
+Moreover, two reset operations are accessible:
+
+* *resetStats* - resets statistics - sets counters/timestamps values to
+zero.
+
+* *tearDownSession* - closes the session, PCC should re-connect
+immediately, as PCE server is listener.
+
+The PCEP statistics are reachable via JMX (JConsole, VisualVM Jolokia) -
+as runtime beans and NETCONF, Restconf as operational data.
+
+[[jmx-1]]
+==== JMX
+
+Config module instances are exposed to Java Management Extension. The
+PCEP statistics are interconnected with _pcep-topology-provider_ config
+module, as it's _state_, they are hierarchically registered as Runtime
+Beans. There are several ways how to look at JMX and ODL's config
+modules.
+
+[[jconsolevisualvm-1]]
+===== JConsole/VisualVM
+
+Both are graphical user interface monitoring tools that compiles to Java
+Management Extensions.
+
+* Prerequisites
+** installed VisualVM or JConsole with support for MBeans
+** running ODL, for ODL running at remote machine use _-jmx_ flag
+** running VisualVM or JConsole, connected to ODL instance
+
+* Statistics
+** For each PCE <-> PCC session Runtime Bean instance is created - named
+by PCC Ip address.
+
+image:Pcep-stats-visualvm2.png[Pcep-stats-visualvm2.png,title="Pcep-stats-visualvm2.png"]
+
+* RPC operations
+** In _Operations_ tab, two remote procedures can be called. Just click
+to invoke them.
+
+image:Pcep-stats-visualvm3.png[Pcep-stats-visualvm3.png,title="Pcep-stats-visualvm3.png"]
+
+[[jolokia-1]]
+===== Jolokia
+
+Jolokia is remote JMX with JSON over HTTP.
+
+* Prerequisites
+** running ODL with Jolokia.
+
+To ensure Jolokia is running hit:
+
+----------------------------------------------
+http://localhost:8080/controller/nb/v2/jolokia
+----------------------------------------------
+
+or if using Karaf distribution install Jolokia manually:
+
+----------------------------------------------------
+bundle:install -s mvn:org.jolokia/jolokia-osgi/1.1.5
+----------------------------------------------------
+
+Try to GET
+
+-----------------------------
+http://localhost:8181/jolokia
+-----------------------------
+
+Response should be something like:
+
+-------------------------------------------------------------------------------------------------------------------
+{"timestamp":1413546730,"status":200,"request":{"type":"version"},"value":{"protocol":"7.0","agent":"1.1.4","info":
+{"product":"equinox","vendor":"Eclipse","version":"3.8.1.v20120830-144521"}}}
+-------------------------------------------------------------------------------------------------------------------
+
+* Statistics
+
+To show statistics for all PCEP sessions, requests URL
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+http://localhost:8080/controller/nb/v2/jolokia/read/org.opendaylight.controller:ListenerState=*,instanceName=pcep-topology,type=RuntimeBean,moduleFactoryName=pcep-topology-provider
+http://localhost:8181/jolokia/read/org.opendaylight.controller:ListenerState=*,instanceName=pcep-topology,type=RuntimeBean,moduleFactoryName=pcep-topology-provider
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+For specific (i.e. 43.43.43.43) PCEP session statistics, hit URL
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+http://localhost:8080/controller/nb/v2/jolokia/read/org.opendaylight.controller:ListenerState=43.43.43.43,instanceName=pcep-topology,type=RuntimeBean,moduleFactoryName=pcep-topology-provider
+http://localhost:8181/jolokia/read/org.opendaylight.controller:ListenerState=43.43.43.43,instanceName=pcep-topology,type=RuntimeBean,moduleFactoryName=pcep-topology-provider
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+* RPC opearations
+
+To invoke operation for given session
+
+Reset statistics:
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+http://localhost:8080/controller/nb/v2/jolokia/exec/org.opendaylight.controller:ListenerState=43.43.43.43,instanceName=pcep-topology,type=RuntimeBean,moduleFactoryName=pcep-topology-provider/resetStats
+http://localhost:8181/jolokia/exec/org.opendaylight.controller:ListenerState=43.43.43.43,instanceName=pcep-topology,type=RuntimeBean,moduleFactoryName=pcep-topology-provider/resetStats
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Reset session:
+
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+http://localhost:8080/controller/nb/v2/jolokia/exec/org.opendaylight.controller:ListenerState=43.43.43.43,instanceName=pcep-topology,type=RuntimeBean,moduleFactoryName=pcep-topology-provider/tearDownSession
+http://localhost:8181/jolokia/exec/org.opendaylight.controller:ListenerState=43.43.43.43,instanceName=pcep-topology,type=RuntimeBean,moduleFactoryName=pcep-topology-provider/tearDownSession
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+[[netconf-1]]
+==== NETCONF
+
+* Prerequisites
+** running ODL with NETCONF (over SSH)
+** connect to NETCONF:
+
+--------------------------------------
+ssh admin@localhost -p 1830 -s netconf
+passwod: admin
+--------------------------------------
+
+To establish session, send hello message to server
+
+code,xml-----------------------------------------------------------------
+code,xml
+<hello xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+    <capabilities>
+        <capability>urn:ietf:params:netconf:base:1.0</capability>
+    </capabilities>
+</hello>
+]]>]]>
+-----------------------------------------------------------------
+
+To close session use RPC
+
+code,xml--------------------------------------------------------------------
+code,xml
+<rpc message-id="2" xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+    <close-session xmlns="urn:ietf:params:xml:ns:netconf:base:1.0"/>
+</rpc>
+]]>]]>
+--------------------------------------------------------------------
+
+* Statistics
+
+To show statistics for all PCEP sessions, send RPC
+
+code,xml---------------------------------------------------------------------------------------------------------
+code,xml
+<rpc message-id="2" xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <get>
+    <source>
+      <running/>
+    </source>
+    <filter type="subtree">
+      <modules xmlns="urn:opendaylight:params:xml:ns:yang:controller:config">
+        <module>
+      <name>pcep-topology</name>
+          <listener-state xmlns="urn:opendaylight:params:xml:ns:yang:controller:pcep:topology:provider"/>
+        </module>
+      </modules>
+    </filter>
+  </get>
+</rpc>
+]]>]]>
+---------------------------------------------------------------------------------------------------------
+
+For specific (i.e. 43.43.43.43) PCEP session statistics, send RPC
+
+code,xml-----------------------------------------------------------------------------------------------------------------------
+code,xml
+<rpc message-id="2" xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <get>
+    <source>
+      <running/>
+    </source>
+    <filter type="subtree">
+      <modules xmlns="urn:opendaylight:params:xml:ns:yang:controller:config">
+        <module>
+      <name>pcep-topology</name>
+      <listener-state key="43.43.43.43" xmlns="urn:opendaylight:params:xml:ns:yang:controller:pcep:topology:provider"/>
+        </module>
+      </modules>
+    </filter>
+  </get>
+</rpc>
+]]>]]>
+-----------------------------------------------------------------------------------------------------------------------
+
+* RPC opearations
+
+To reset statistics for session (i.e. 43.43.43.43), send RPC - expected
+rpc-reply is __
+
+code,xml------------------------------------------------------------------------------------------------------------
+code,xml
+<rpc message-id="a" a="64" xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <reset-stats xmlns="urn:opendaylight:params:xml:ns:yang:controller:pcep:topology:provider">
+    <context-instance>
+      /modules/module[name='pcep-topology'][type='pcep-topology-provider']/listener-state[key='43.43.43.43']
+    </context-instance>
+  </reset-stats>
+</rpc>
+]]>]]>
+------------------------------------------------------------------------------------------------------------
+
+To reset session (i.e. 43.43.43.43), send RPC - expected rpc-reply is __
+
+code,xml------------------------------------------------------------------------------------------------------------
+code,xml
+<rpc message-id="a" a="64" xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+  <tear-down-session xmlns="urn:opendaylight:params:xml:ns:yang:controller:pcep:topology:provider">
+    <context-instance>
+      /modules/module[name='pcep-topology'][type='pcep-topology-provider']/listener-state[key='43.43.43.43']
+    </context-instance>
+  </tear-down-session>
+</rpc>
+]]>]]>
+------------------------------------------------------------------------------------------------------------
+
+[[restconf-2]]
+==== RESTCONF
+
+* Prerequisites
+** Running ODL with RESTCONF and configured *netconf-connector*
+
+* Statistics
+
+To show statistics for all sessions, GET
+
+--------------------------------------------------------------------------------------------------------------------------------------------------------
+http://localhost:8080/restconf/operational/opendaylight-inventory:nodes/node/controller-config/yang-ext:mount/config:modules/config:module/pcep-topology
+http://localhost:8181/restconf/operational/opendaylight-inventory:nodes/node/controller-config/yang-ext:mount/config:modules/config:module/pcep-topology
+--------------------------------------------------------------------------------------------------------------------------------------------------------
+
+For specific session, hit URL
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+http://localhost:8080/restconf/operational/opendaylight-inventory:nodes/node/controller-config/yang-ext:mount/config:modules/config:module/pcep-topology/listener-state/43.43.43.43
+http://localhost:8181/restconf/operational/opendaylight-inventory:nodes/node/controller-config/yang-ext:mount/config:modules/config:module/pcep-topology/listener-state/43.43.43.43
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+* RPC opearations
+
+//TODO

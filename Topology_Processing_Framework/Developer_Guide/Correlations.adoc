@@ -1,0 +1,83 @@
+[[topology-correlation.yang]]
+== topology-correlation.yang
+
+`   identity correlation-base {` +
+`       description "Base identity for correlation types";` +
+`   }`
+
+`   identity equality {` +
+`       description "All referenced leaves must be equal (of the same value)";` +
+`       base correlation-base;` +
+`   }`
+
+correlation-base is a base identity from which all correlation types are
+derived. +
+equality is one of the correlation-base types. +
+----
+
+`    augment "/topo:network-topology/topo:topology" {` +
+`       ext:augment-identifier "correlation-augment";` +
+`       container correlations {` +
+`           list correlation {` +
+`               key name;` +
+`               leaf name {` +
+`                   type identityref {` +
+`                       base correlation-base;` +
+`                   }` +
+`               }` +
+`               leaf correlation-item {` +
+`                   type correlation-item-enum;` +
+`               }` +
+`               choice correlation-type {` +
+`                   case equality-case {` +
+`                       container equality {` +
+`                           uses mapping-grouping;` +
+`                       }` +
+`                   }                    ` +
+`               }                ` +
+`           }` +
+`       }` +
+`   }`
+
+In the list correlation: +
+* Key name identifies the correlation and has to be of a type defined as
+a child of correlation-base +
+* Type correlation-item-enum represents enumeriation type consisting of
+["node", "link" and "termination-point"]. It specifies network element
+type, based on which the aggregation/filtering will happen.
+
+* One correlation type is currently supported: equality. Each
+correlation is defined in mapping-grouping. +
+
+'''''
+
+`   grouping mapping-grouping {` +
+`       list mapping {` +
+`           key "underlay-topology target-field";` +
+`           leaf underlay-topology {` +
+`               type string;` +
+`               description "Input topology which will be used for aggregation.";` +
+`           }` +
+`           leaf target-field {` +
+`               type leaf-path;` +
+`               description "Path to target field";` +
+`           }` +
+`       }` +
+`   }`
+
+Each mapping is defined by combination of underlay-topology and
+target-field.
+
+* In the leaf underlay-topology is specified input topology used for
+aggregation. +
+* target-field is used for denoting path to the element in the
+underlay-topology (e.g.
+network-topology/topology/node/flowcapablenode/ip-address) on which the
+aggregation will be performed.
+
+The path to end leaf
+network-topology/topology/node/flowcapablenode/ip-address will be
+defined as /flowcapablenode/ip-address in target-field whereas
+network-topology/topology/node/ will be defined in correlation-item as
+`node`. +
+

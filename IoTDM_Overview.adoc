@@ -1,0 +1,230 @@
+[[overview]]
+= Overview
+
+This wiki page is Work In Progress so keep checking back ...
+
+The Internet of Things Data Management (IoTDM) on OpenDaylight (ODL)
+project is about developing a data-centric middleware that will act as a
+oneM2M compliant IoT Data Broker and enable authorized applications to
+retrieve IoT data uploaded by any device. The ODL platform is used to
+implement the oneM2M data store which models a hierarchical containment
+tree, where each node in the tree represents an oneM2M resource.
+Typically, IOT devices and applications interact with the resource tree
+over standard protocols such as CoAP, MQTT, and HTTP.
+
+Initially, the oneM2M resource tree is used by applications to retrieve
+data. Possible applications are inventory/device management systems or
+big data analytic systems designed to make sense of the data collected.
+But, at some point, applications will need to configure the devices.
+Features and tools will have to be provided to enable configuration of
+the devices based on applications responding to user input, network
+conditions, or some set of programmable rules or policies possibly
+triggered by the receipt of data collected from the devices.
+
+The ODL platform(s), with their rich unique cross-section of SDN
+capabilities, NFV, and now IOT device and application management, can be
+bundled with a targeted set of features and deployed anywhere in the
+network to give the network/service provider ultimate control. Depending
+on the use case, the ODL IOT platform can be configured with only IOT
+data collection capabilities where it is deployed near the IOT devices
+and its footprint needs to be small, or it can be configured to run as a
+highly scaled up and out distributed cluster with IOT, SDN and NFV
+functions enabled and deployed in a high traffic data center.
+
+[[functional-architecture]]
+== Functional Architecture
+
+* Need a reference to TR0001 Use Cases
+* Need a pretty picture on the network and where ODL fits
+* oneM2M Resource Types and example of how they are used
+* Notifications / Subscriptions
+
+[[software-architecture]]
+== Software Architecture
+
+The ODL platform was chosen to implement the oneM2M data manager for its
+rich feature set:
+
+* MDSAL and transactional data store is a natural fit for the oneM2M
+resource containment tree
+* Flexible support for protocol plugin’s
+* Clustering support for scale and performance
+* Flexible distribution/deployment capabilities via OSGI and karaf
+* Potential to leverage AAA and Group Based Policy features
+* SDN and NFV feature interaction
+
+[[block-diagram]]
+=== Block Diagram
+
+image:Idm.jpg[Idm.jpg,title="Idm.jpg"]
+
+[[directory-structure]]
+=== Directory Structure
+
+The following is a possible outline for the IOTDM repository ...
+
+`./iotdm` +
+`├── onem2m` +
+`│   ├── onem2m-api` +
+`│   ├── onem2m-core` +
+`│   ├── onem2m-notifier` +
+`│   ├── onem2m-protocols` +
+`│   │   ├── coap` +
+`│   │   ├── http` +
+`│   │   ├── mqtt` +
+`│   │   └── 3rd-party` +
+`│   ├── onem2m-karaf` +
+`│   ├── onem2m-features` +
+`│   ├── onem2m-artifacts`
+
+[[component-descriptions]]
+=== Component Descriptions
+
+* onem2m-karaf: this is the folder which contains a local distribution
+of karaf which contains the onem2m karaf features defined in the
+features.xml file in the iotdm-features directory
+* onem2m-features: contains the features.xml file which define the
+onem2m feature set, repos, dependencies, and config files.
+* onem2m-api: the definition of the oneM2M resources are defined in the
+onem2m-api yang files. In addition, the RPCs to manage the resource tree
+are defined here.
+* onem2m-core: the provider of the oneM2M resource containment tree. The
+onem2m-core provides/implements the MDSAL RPCs defined in the onem2m-api
+yang files. These RPCs enable oneM2M resources to be created, read,
+updated, and deleted (CRUD), and also enables the management of
+subscriptions. When resources are CRUDed, the onem2m-notifier issues
+oneM2M notification events to interested subscribers. TS0001: oneM2M
+Functional Architecture and TS0004:oneM2M Service Layer Protocol are
+great reference documents to learn details of oneM2M resource types,
+message flow, formats, and CRUD/N semantics.
+* onem2m-notifier: the manager of the oneM2M notification subsystem. The
+onem2m-core implements the MDSAL RPCs defined to CRUD subscription
+resources. These are _special_ resources that enable subscribers to be
+notified if _normal_ oneM2M resources are CRUDed. This is the
+publish-subscriber mechanism defined by oneM2M.
+* link:IoTDM Protocols[ onem2m-protocols]: the root directory for the
+oneM2M wire protocols. oneM2M defines request/response/error message
+formats for each of the CRUD operations and resource types. It also
+specifies how each of the oneM2M attributes are mapped/adapted to run
+over a specific wire-protocol message fields. TS0004:oneM2M Service
+Layer Protocol describes generally oneM2M messaging. The message formats
+can be sent with a JSON payload, or an XML payload. OneM2M defines the
+oneM2M.json and .xsd formats for each resource. The software has to
+handle eventually both formats.
+** coap: The Constrained Application Protocol (CoAP), is documented in
+RFC7252; https://datatracker.ietf.org/doc/rfc7252. The way oneM2M
+defines how it should be used is described in TS0008: CoAP Protocol
+Binding. This wire-protocol uses the Eclipse Technology Project:
+Californium which implements the CoAP protocol. See
+http://eclipse.org/proposals/technology.californium for details on the
+implementation. onem2m-protocols/coap instantiates a Californium
+CoapServer, and implements each of the :handleGet(), handleDelete(),
+handleUpdate(), and handleCreate() methods. These methods adapt the coap
+formatted messages into internal oneM2M messages as defined in the
+iotdm-api yang files, then sends RPCs over MDSAL to the onem2m-core for
+further processing.
+** mqtt: This will be documented further once we start to look at it. It
+is not at present in the Lithium release. TS0010: MQTT Protocol Binding.
+** http: TS0009: HTTP Protocol Binding documents how to map oneM2M
+messages onto the HTTP protocol.
+** 3rd-party: There are two types of third party protocols, 1) oneM2M
+messages are encoded and sent over the 3rd party protocol, and 2) a
+non-oneM2M set of messages is defined by the endpoint and the third
+party protocol plugin is responsible for mapping the mesages onto oneM2M
+messages when they are received and invoking the internal onem2m-core
+RPCs. More details on how this is done needs to be documented. A
+reference to this will be placed HERE when completed.
+
+[[iotdm-core-details]]
+=== iotdm-core Details
+
+Do we want one of these sections for further details. We could add one
+for each of the components mentioned above. Maybe elaborate on some
+issues, message flow, maybe a snippet of code, and/or pseudocode
+
+[[design-considerations]]
+==== Design Considerations
+
+* concurrency
+* message ordering issues
+* lazy delete of "expired" resources discussion vs implementing a timer
+wheel for resource expiration
+* hierarchical vs non-hierarchical resourceId's
+* unique resource id generation for created resources
+* ???
+
+[[threading-model]]
+==== Threading Model
+
+[[typical-onem2m-message-crud-rpc-flow]]
+==== Typical OneM2M Message CRUD RPC Flow
+
+* Describe the set of step that is typically done when a oneM2M
+formatted RPC is received via MDSAL. It could be from RESTconf or one of
+the iotdm-protocols (Coap, ...).
+** Validate the message attributes
+** Sanity check the mandatory attributes
+** Write to the persistent datastore
+** Send an event to the iotdm-notifier
+** send back an RPC response
+
+[[testing]]
+== Testing
+
+We need to talk about our overall test strategy ...
+
+* Have a set of test scripts that drive oneM2M CRUD testing. Need a
+whole suite of tests that performs CRUD operations, and verify they
+worked.
+** Example 1: create a resource, get the resource, verify all attributes
+can be read, update the attributes, read and verify them back, delete
+the resource, verify it is gone.
+** Example 2: create 1000 resources, read resource 1, resource 1000, and
+a couple in the middle. Verify all are read back properly.
+** Example 3: IoTDM allows for a resource containment hierarchy ...,
+create a simple hierarchy, read and verify resources at each level in
+the tree. Then try again with a set of complex hierarchies. We are
+automating this so use the computer to generate many different
+combinations of hierarchies.
+* Unit Testing
+** Use unit tests to do CRUDs
+** Every RPC method, or java method we write can be unit tested. We can
+provided test steering parameters to drive the code through error cases
+too! Need to take a look at how ODL [J]Unit tests code and setup an
+environment so designers are encouraged and write unit tests.
+** Each protocol can be individually tested at key points in the
+implementation. Each of the protocols encodes the oneM2M attributes
+according to its respective TSXXXX spec, drive in some parametrs and
+ensure they are extracted as proper OneM2M messages. Test all response
+codes.
+* Feature Testing in iotdm-it
+** This hasn't been fleshed out yet but we can get the system do perform
+tests after every build and the ODL Jenkin's build system will run the
+tests and report on PASS/FAIL and on Code Coverage
+* External Testing
+** Perform testing on the ODL IOTDM instance in various deployments with
+various sets of karaf-features installed and with various cpu
+configurations.
+** Perform testing of all protocols, with single and multiple clients.
+Scale up to MANY clients ...
+*** Notification testing
+*** Performance testing
+**** Beat the crap out of it, find out how it behaves with various RAM
+and CPU configs.
+**** Use a testtool to send in concurrent connections so ODL thinks it
+is handling different clients.
+*** Scale testing
+**** Ok, now really beat the crap out of it.
+**** Load the system with MANY resources to see how it behaves over
+time. Does the performance degrade with a huge deep resource tree vs a
+broad shallow resource tree.
+*** Longevity testing
+**** Run it for a long time and observe its behaviour. Check for memory
+leaks or performance degradation.
+*** wire-protocol testing ... Coap, MQTT, HTTTP, and any 3rd Party
+prtocols should be tested
+**** Maybe we write a generic oneM2MClient package where we can vary the
+wire-protocol
+**** well formed messages
+**** mal-formed messages
+

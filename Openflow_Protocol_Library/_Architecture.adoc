@@ -17,6 +17,7 @@ The following YANG modules are defined:
 * openflow-extensible-match - defines Openflow OXM match
 * openflow-protocol - defines Openflow Protocol messages
 * system-notifications - defines system notification objects
+* openflow-configuration - defines structures used in ConfigSubsystem
 
 This modules also reuse types from following YANG modules:
 
@@ -26,8 +27,8 @@ This modules also reuse types from following YANG modules:
 The use of predefined types is to make APIs contracts more safe, better
 readable and documented (e.g using MacAddress instead of byte array...)
 
-[[channel-pipeline-openflow-protocol-impl]]
-== Channel pipeline (openflow-protocol-impl)
+[[tcp-channel-pipeline-openflow-protocol-impl]]
+== TCP Channel pipeline (openflow-protocol-impl)
 
 Creates channel processing pipeline based on configuration and support.
 
@@ -39,34 +40,42 @@ its functionality through this class. +
 Library can be configured, started and shutdowned here. There are also
 methods for custom (de)serializer registration.
 
+[[tcp-connection-initializer]]
+=== Tcp Connection Initializer
+
+In order to initialize TCP connection to a device (switch), OF Plugin
+calls method initiateConnection() in SwitchConnectionProvider. This
+method in turn initializes (Bootstrap) server side channel towards the
+device.
+
 [[tcp-handler]]
 === TCP Handler
 
 Represents single server that is handling incoming connections over TCP
-protocol. +
-TCP Handler creates a single instance of Publishing Channel Initializer
-that will initialize channels. After that it binds to configured
-InetAddress and port. When a new device connects, TCP Handler registers
-its channel and passes control to Publishing Channel Initializer.
+/ TLS protocol. +
+TCP Handler creates a single instance of TCP Channel Initializer that
+will initialize channels. After that it binds to configured InetAddress
+and port. When a new device connects, TCP Handler registers its channel
+and passes control to TCP Channel Initializer.
 
 image:ChannelPipeline.png[Channel pipeline,title="Channel pipeline"]
 
-[[publishing-channel-initializer]]
-=== Publishing Channel Initializer
+[[tcp-channel-initializer]]
+=== TCP Channel Initializer
 
 This class is used for channel initialization / rejection and passing
 arguments. +
 After a new channel has been registered it calls Switch Connection
 Handler’s (OF Plugin) accept method to decide if the library should keep
 the newly registered channel or if the channel should be closed. If the
-channel has been accepted, Publishing Channel Initializer creates
-ConnectionAdapter instance. Finally the Publishing Channel Initializer
-creates the whole pipeline with needed handlers and notifies Switch
-Connection Handler with onConnectionReady notification. OpenFlow Plugin
-can now start sending messages downstream.
+channel has been accepted, TCP Channel Initializer creates the whole
+pipeline with needed handlers and also with ConnectionAdapter instance.
+After the channel pipeline is ready, Switch Connection Handler is
+notified with onConnectionReady notification. OpenFlow Plugin can now
+start sending messages downstream.
 
-[[idle-state-handler]]
-=== Idle State Handler
+[[idle-handler]]
+=== Idle Handler
 
 If there are no messages received for more than time specified, this
 handler triggers idle state notification. +
@@ -76,27 +85,19 @@ there are messages received within the switch idle timeout. If there are
 no messages received for more than timeout specified, handler creates
 SwitchIdleEvent message and sends it upstream.
 
-[[tls-detector]]
-=== TLS Detector
-
-Detector is used for detecting message encryption. +
-The detection occurs only once for each connection – only on the first
-message received. In case messages are encrypted, TLS Detector engages
-TLS Handler into pipeline, otherwise not. +
-*NOTE:* +
-Engaging TLS Detector into pipeline is matter of ConnectionConfiguration
-(FEATURE_SUPPORT) set in SwitchConnectionProvider before server startup.
-
 [[tls-handler]]
 === TLS Handler
 
-It encrypts and decrypts messages with configured protocol. +
-TLS Handler is represented as a Netty’s SslHandler.
+It encrypts and decrypts messages over TLS protocol. +
+Engaging TLS Handler into pipeline is matter of configuration ( tag).
+TLS communication is either unsupported or required. TLS Handler is
+represented as a Netty’s SslHandler.
 
 [[of-frame-decoder]]
 === OF Frame Decoder
 
-Parses input stream into message frames for further processing. +
+Parses input stream into correct length message frames for further
+processing. +
 Framing is based on Openflow header length. If received message is
 shorter than minimal length of OpenFlow message (8 bytes), OF Frame
 Decoder waits for more data. After receiving at least 8 bytes the
@@ -117,20 +118,19 @@ message and sends this object upstream.
 === OF Decoder
 
 Chooses correct deserilization factory (based on message type) and
-deserializes messages into generated DTOs. +
+deserializes messages into generated DTOs (Data Transfer Object). +
 OF Decoder receives VersionMessageWrapper object and passes it to
 DeserializationFactory which will return translated DTO.
 DeserializationFactory creates MessageCodeKey object with version and
 type of received message and Class of object that will be the received
 message deserialized into. This object is used as key when searching for
 appropriate decoder in DecoderTable. DecoderTable is basically a map
-storing decoders. Found decoder translates received message into DTO
-(DataTransferObject). If there was no decoder found, null is returned.
-After returning translated DTO back to OF Decoder, the decoder checks if
-it is null or not. When the DTO is null, the decoder logs this state and
-throws an Exception. Else it passes the DTO further upstream. Finally,
-the OF Decoder releases ByteBuf containing received and decoded byte
-message.
+storing decoders. Found decoder translates received message into DTO. If
+there was no decoder found, null is returned. After returning translated
+DTO back to OF Decoder, the decoder checks if it is null or not. When
+the DTO is null, the decoder logs this state and throws an Exception.
+Else it passes the DTO further upstream. Finally, the OF Decoder
+releases ByteBuf containing received and decoded byte message.
 
 [[of-encoder]]
 === OF Encoder
@@ -151,6 +151,13 @@ It also reacts on channelInactive and channelUnregistered events. Upon
 one of these events is triggered, DelegatingInboundHandler creates
 DisconnectEvent message and sends it upstream, notifying upper layers
 about switch disconnection.
+
+[[channel-outbound-queue]]
+=== Channel Outbound Queue
+
+Message flushing handler. +
+Stores outgoing messages (DTOs) and flushes them. Flush is performed
+based on time expired and on the number of messages enqueued.
 
 [[connection-adapter]]
 === Connection Adapter
@@ -206,6 +213,82 @@ MultipartReply messages if this was implemented as rpc (only one
 Future). This is why MultipartReply is implemented as notification.
 OpenFlow Plugin takes care of correct message processing.
 
+[[udp-channel-pipeline-openflow-protocol-impl]]
+== UDP Channel pipeline (openflow-protocol-impl)
+
+Creates UDP channel processing pipeline based on configuration and
+support. Switch Connection Provider, Channel Outbound Queue and
+Connection Adapter fulfill the same role as in case of TCP connection /
+channel pipeline (please see above).
+
+[[udp-handler]]
+=== UDP Handler
+
+Represents single server that is handling incoming connections over UDP
+(DTLS) protocol. +
+UDP Handler creates a single instance of UDP Channel Initializer that
+will initialize channels. After that it binds to configured InetAddress
+and port. When a new device connects, UDP Handler registers its channel
+and passes control to UDP Channel Initializer.
+
+image:UdpChannelPipeline.png[Channel pipeline,title="Channel pipeline"]
+
+[[udp-channel-initializer]]
+=== UDP Channel Initializer
+
+This class is used for channel initialization and passing arguments. +
+After a new channel has been registered (for UDP there is always only
+one channel) UDP Channel Initializer creates whole pipeline with needed
+handlers.
+
+[[dtls-handler]]
+=== DTLS Handler
+
+Haven't been implemented yet. Will take care of secure DTLS connections.
+
+[[of-datagram-packet-handler]]
+=== OF Datagram Packet Handler
+
+Combines functionality of OF Frame Decoder and OF Version Detector.
+Extracts messages from received datagram packets and checks if message
+version is supported. If there is a message received from yet unknown
+sender, OF Datagram Packet Handler creates Connection Adapter for this
+sender and stores it under sender's address in UdpConnectionMap. This
+map is also used for sending the messages and for correct Connection
+Adapter lookup - to delegate messages from one channel to multiple
+sessions.
+
+[[of-datagram-packet-decoder]]
+=== OF Datagram Packet Decoder
+
+Chooses correct deserilization factory (based on message type) and
+deserializes messages into generated DTOs. +
+OF Decoder receives VersionMessageUdpWrapper object and passes it to
+DeserializationFactory which will return translated DTO.
+DeserializationFactory creates MessageCodeKey object with version and
+type of received message and Class of object that will be the received
+message deserialized into. This object is used as key when searching for
+appropriate decoder in DecoderTable. DecoderTable is basically a map
+storing decoders. Found decoder translates received message into DTO
+(DataTransferObject). If there was no decoder found, null is returned.
+After returning translated DTO back to OF Datagram Packet Decoder, the
+decoder checks if it is null or not. When the DTO is null, the decoder
+logs this state. Else it looks up appropriate Connection Adapter in
+UdpConnectionMap and passes the DTO to found Connection Adapter.
+Finally, the OF Decoder releases ByteBuf containing received and decoded
+byte message.
+
+[[of-datagram-packet-encoder]]
+=== OF Datagram Packet Encoder
+
+Chooses correct serialization factory (based on type of DTO) and
+serializes DTOs into byte messages. +
+OF Datagram Packet Encoder does the opposite than the OF Datagram Packet
+Decoder using the same principle. OF Encoder receives DTO, passes it for
+translation and if the result is not null, it sends translated DTO
+downstream as a datagram packet. Searching for appropriate encoder is
+done via MessageTypeKey, based on version and class of received DTO.
+
 [[spi-openflow-protocol-spi]]
 == SPI (openflow-protocol-spi)
 
@@ -221,6 +304,11 @@ Testing communication with simple client.
 == Simple client(simple-client)
 
 Lightweight switch simulator - programmable with desired scenarios.
+
+[[utility-util]]
+== Utility (util)
+
+Contains utility classes, mainly for work with ByteBuf.
 
 [[openflow-protocol-librarymain-page]]
 = Openflow Protocol Library:Main page

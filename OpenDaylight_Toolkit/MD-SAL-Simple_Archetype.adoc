@@ -1,3 +1,7 @@
+These instructions may be out of date. You might have better luck using
+the OpenDaylight_Controller:MD-SAL:Startup_Project_Archetype[MD-SAL
+startup project archetype instructions]
+
 __TOC__
 
 [[introduction]]
@@ -48,11 +52,9 @@ updated once the issue is resolved.
 
 1.  cd to the folder where you want to place your MD-SAL application.
 This archetype will generate a parent bundle and 4 child bundles.
-* _Note: If you run this archetype in an existing maven project, the
-archetype will automatically add your new maven project root as a child
-to existing maven project (i.e. in the "module" section). This means you
-will automatically inherit all of the settings in your parents pom
-file._
+* _Note: Running this archetype under the opendaylight controller
+project hive does not currently work. Use a "fresh" directory not nested
+under the main project._
 2.  Run the following mvn command:
 +
 ------------------------------------------------------------------------------------------------------------
@@ -83,6 +85,7 @@ the following folder structure:
 ** model
 ** provider
 ** web
+** features
 
 Before we discuss what each of these bundles provides, continue to the
 next section to finish the template generation.
@@ -118,6 +121,8 @@ https://wiki.opendaylight.org/view/GettingStarted:_Eclipse).
 
 The MD-SAL Archetype provides demo projects for the following services:
 
+* A Karaf features directory. This provides a list of sample features to
+enable provider, consumer and web.
 * A yang model. This project provides a sample yang file with some
 minimal sample yang contents, including an RPC call.
 ** The only manually modified code in this project is generally the yang
@@ -170,15 +175,15 @@ You can also specify the desired group ID and artifact ID on the command
 line instead of interacting with maven archetype generator. To do this,
 simply add these fields to the archetype command:
 
-------------------------------------------------------------------------------
-           -DgroupId=<< Any group Id such as org.opendaylight.controller.app>>
+--------------------------------------------------------------------------
+           -DgroupId=<< Any group Id such as org.opendaylight.controller>>
            -DartifactId=<<Any app name such as mdSalExample>>
-------------------------------------------------------------------------------
+--------------------------------------------------------------------------
 
 For example, the full command might be:
 
 `
-   mvn archetype:generate -DarchetypeGroupId=org.opendaylight.toolkit  -DarchetypeArtifactId=md-sal-app-simple -DappName=Toaster  -DgroupId=org.opendaylight.controller -DartifactId="Toaster-Sample"
+   mvn archetype:generate -DarchetypeGroupId=org.opendaylight.toolkit  -DarchetypeArtifactId=md-sal-app-simple -DappName=Toaster  -DgroupId=org.opendaylight.controller -DartifactId="mdSalExample"
 `
 
 [[quick-start-read-me]]
@@ -195,49 +200,58 @@ code.
 [[how-to-remove-unneeded-projects]]
 = How to Remove Unneeded Projects
 
-To remove unneeded projects, you simply delete the project (i.e. 'rm -rf
-web' or 'i.e. rm-rf consumer') and then modify the pom.xml file in the
-root folder (which is the same name as your artifact) and remove the
-unneeded projects from the "" section. Then run a 'mvn clean install' to
-verify that all projects still build.
+To remove unneeded projects, you delete the project (i.e. 'rm -rf web'
+or 'i.e. rm-rf consumer') and then modify the pom.xml file in the root
+folder (which is the same name as your artifact) and remove the unneeded
+projects from the "" section. Then open features.xml file present in
+features/src/main/resources directory. Remove the feature of project
+that you are removing. Like web or consumer feature. Then run a 'mvn
+clean install' to verify that all projects still build.
 
-_Note, the consume and provider projects require the model project to
+_Note, the model and provider projects require the model project to
 build correctly._
 
 If you only want to stop building your dependent projects, but _keep_
 the sample code for future use, just remove the project name from the
 module section in the root pom.xml file.
 
-[[how-to-deploy-your-bundles]]
-= How to Deploy your Bundles
+[[how-to-deploy-your-feature]]
+= How to Deploy your feature
 
-These steps outline how to manually deploy your new bundles into the
-controller. See below for how to set your bundles up to be automatically
-included in your distribution whenever it is built. Skip these steps if
-they point to a project that you already removed.
+These steps outline how to manually deploy your application feature into
+the controller.
 
-1.  Locate your ODL distribution. The distribution for the core
+1.  Go to your project directory. cd .
+2.  Run mvn clean install to build your application.
+3.  Locate your ODL distribution. The distribution for the core
 controller is found under the controller git repository (after running a
 mvn clean install from the controller root). The path is
-controller/opendaylight/distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/.
-2.  Copy model/target/-model-.jar to the 'plugins' directory in your
-distribution of the controller.
-3.  Copy
-provider/src/main/resources/configuration/initial/05-provider--sample.xml
-to the 'configuration/initial/' directory in your distribution of the
-controller.
-4.  Copy provider/target/-provider-.jar to the 'plugins' directory in
-your distribution of the controller.
-5.  Copy
-consumer/src/main/resources/configuration/initial/06-consumer--sample.xml
-to the 'configuration/initial/' directory in your distribution of the
-controller.
-6.  Copy consumer/target/-consumer-.jar to the 'plugins' directory in
-your distribution of the controller.
-7.  Copy web/target/-web-.jar to the 'plugins' directory in your
-distribution of the controller
-8.  Run the controller using the run.sh. You should see messages similar
-to the following being printed:
+controller/opendaylight/distribution/opendaylight-karaf/target/assembly/bin.
+4.  Start karaf via command ./karaf.
+5.  Add your feature repo in the karaf. This can be done in following
+way, where , and are what you supplied before -
+
+-------------------------------------------------------------------------------
+    feature:repo-add mvn:<groupId>/features-<artifactId>/<version>/xml/features
+-------------------------------------------------------------------------------
+
+An example of above command would be like below -
+
+----------------------------------------------------------------------------------------------------
+    feature:repo-add mvn:org.opendaylight.controller/features-mdSalExample/1.0-SNAPSHOT/xml/features
+----------------------------------------------------------------------------------------------------
+
+1.  Once feature repo is added, install the feature on karaf console via
+command such as
+
+--------------------------------
+    feature:install odl-task-web
+--------------------------------
+
+If you have picked a different appName, then feature name will be
+odl--web etc.
+
+1.  You should see messages similar to the following being printed:
 
 Note: Below our "app-name" is "Task" (yours by default is the same)- you
 can see that we use that name as the prefix for classes.
@@ -247,33 +261,8 @@ can see that we use that name as the prefix for classes.
 2014-07-02 05:16:08.305 EDT [config-pusher] INFO  o.o.c.c.y.c.t.i.TaskConsumerModule - TaskConsumerService (instance org.opendaylight.controller.config.yang.config.task_consumer.impl.TaskConsumerModule$1AutoCloseableService@56e83e5e) initialized.
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-If you see these info messages printed on the OSGi console then you have
+If you see these info messages printed on the Karaf log then you have
 successfully deployed your bundles!
-
-[[automatically-deploying-your-bundles]]
-= Automatically Deploying your Bundles
-
-To have your bundles and configuration files deployed automatically when
-the distribution is built follow these steps:
-
-1.  Modify the
-'controller/opendaylight/distribution/opendaylight/pom.xml" adding the
-bundles you want to deploy as dependencies. When the distribution
-project is built, your artifacts will be automatically copied into the
-distribution.
-2.  * Move*
-provider/src/main/resources/configuration/initial/05-provider--sample.xml
-to the
-'controller/opendaylight/distribution/opendaylight/src/main/resources/configuration/initial/'
-directory
-3.  * Move*
-consumer/src/main/resources/configuration/initial/06-consumer--sample.xml
-to the
-'controller/opendaylight/distribution/opendaylight/src/main/resources/configuration/initial/'
-directory.
-
-When the distribution project is built these configuration files are
-copied to the configuration/initial directory in the distribution.
 
 [[tips-for-editing-the-template-code]]
 = Tips for Editing the Template Code

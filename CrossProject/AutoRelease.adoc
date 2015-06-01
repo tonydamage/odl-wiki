@@ -1,0 +1,53 @@
+[[problem-statement]]
+= Problem Statement
+
+During the first release of OpenDayLight (Hydrogen) the process of
+cutting the release artifacts has been manual with committers
+representative of each project being online during a *_doom day_*
+sequencing manually the release of the it's project in order to achieve
+the final milestone or performing the release of all the projects
+partecipating to the *_Simultaneous Release_*. With project increase and
+with the need of creating weekly stable artifacts that can be used as
+stable points against developers can develop their code, keeping the
+release process manual and requiring so many people to achieve the goal
+is not a viable option. Started from this base point the concept of
+*_autorelease process_* emerged. In a nutshell the process is nothing
+else than an automation of the work done for the Hydrogen release by so
+many folks.
+
+[[details]]
+= Details
+
+Essentially the *_autorelease process_* is a loop over all the existing
+projects ordered in such a way that the first one is the one with no
+dependencies on others and the N process depends on *_ANY_* of the
+0..N-1 projects but on *_NONE_* of the projects after N.
+
+The code is hosted under:
+
+https://github.com/giovannimeo/autorelease
+
+At the heart, each project is released using the
+http://maven.apache.org/maven-release/maven-release-plugin/[maven-release-plugin
+workflow] however there are some notable modifications that has been
+taken in order to make sure the release of a project doesn't need to
+modify the state of the https://nexus.opendaylight.org/[OpenDayLight
+central maven repository] nor the state of the
+https://git.opendaylight.org/[OpenDayLight Git repository]. The reason
+for creating this exception is due to the fact that we wanted to make
+sure we can try to perform a release of all the projects all together
+before than publishing the results to those central repositories. In
+fact if we do go by the approach of releasing each project and
+publishing the releases artifacts to the central repository one-by-one
+then in the process a project may fail and that would lead to an
+half-backed release artifact cutting for the whole OpenDayLight set of
+projects.
+
+We now have a Jenkins CI silo dedicated to the process over at
+https://jenkins.opendaylight.org/odlautorelease/.
+
+[[helium-autorelease]]
+= Helium autorelease
+
+The Helium-cycle autorelease job runs here:
+https://jenkins.opendaylight.org/odlautorelease/view/Helium%20Autorelease/

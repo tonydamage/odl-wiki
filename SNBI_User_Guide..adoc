@@ -1,0 +1,169 @@
+[[introduction]]
+== Introduction
+
+The wiki contains information regarding using SNBI. The user guide could
+be broken up in two pieces,
+
+* Setting up SNBI in controller.
+* Setting up SNBI in the forwarding Element.
+
+A high level overview of the interaction between the two modules is as
+depicted below. Also it is to be noted, that bootstrapping of only
+directed connected devices on the same LAN is possible, we will further
+this functionality to support bootstrapping multiple hop devices in the
+next releases.
+
+image:SNBI.png[SNBI.png,title="SNBI.png"]
+
+A details architecture overview and protocol details is available
+https://wiki.opendaylight.org/view/SNBI_Architecture_and_Design[here.]
+
+[[prerequisite]]
+== Prerequisite
+
+* 64bit Ubunutu 14.04 LTS
+** Especially for Docker, its required that we deploy docker version
+greater than 1.0 on a 14.04 Ubuntu.
+* 4GB RAM
+* 4GB of Hard disk space, sufficient enough to store certificates.
+* Java Virtual Machine 1.7 or above
+* Apache Maven 3.04 or above
+
+[[setting-up-snbi-in-controller]]
+== Setting up SNBI in controller
+
+SNBI is included in all the release vehicles except for MINIMAL feature
+set. Refer
+https://wiki.opendaylight.org/view/Simultaneous_Release:Helium_Release_Plan#Proposed_Release_Vehicles[here]
+to the Helium proposed release vehicles and the features included in
+each release vehicle.
+
+[[karaf-based-distribution-installation]]
+=== Karaf Based Distribution Installation
+
+* Download the karaf based distribution of desire from the download page
+http://www.opendaylight.org/software/downloads[here].
+* Once downloaded unzip the package if required and get into the karaf
+binary folder (bin) and run the karaf executable.
+
+For Example:
+
+-------------------------------------------
+cd distribution-karaf-0.2.0-Helium-RC0/bin/
+./karaf
+-------------------------------------------
+
+[[installing-snbi-feature-and-relevant-modules.]]
+=== Installing SNBI feature and relevant modules.
+
+* Once karaf is run, install the snbi feature module.
+* It is also required that RESTConf module is installed to use RESTConf
+APIs.
+* It may be desired to install mdsal-apidocs module for easy access to
+documentation.
+* Once installed verify if the features are indeed installed, by listing
+the features installed.
+
+---------------------------------
+feature:install odl-restconf
+feature:install odl-mdsal-apidocs
+feature:install odl-snbi-all
+feature:list -i
+---------------------------------
+
+* Once the required features are installed, use REST APIs documented and
+accessible using the swagger interface to push the domain and white list
+information.
+** It might be of help to refer to
+https://wiki.opendaylight.org/view/OpenDaylight_Controller:MD-SAL:Restconf_API_Explorer[here],
+for more information on how to use swagger based interface to access
+RESTful APIs.
+* After the required Domain and white list information is pushed to the
+controller, start snbi for that domain. More useful Karaf commands can
+be found
+https://wiki.opendaylight.org/view/CrossProject:Integration_Group:karaf[here].
+
+------------------------
+snbi:start <domain-name>
+------------------------
+
+[[setting-up-snbi-on-forwarding-elements]]
+== Setting Up SNBI on Forwarding Elements
+
+In the SNBI topology, the Portable Foundations run on Ubuntu Linux
+servers, running Docker 1.0.0 or later version. We rely on 3 files from
+the SNBI repository to run a Portable Foundation Container: CPA
+(Container Provisioning Agent), UDI_DB.json (A UDI configuration
+database), host_pf_server.py (a RESTconf server implementation). Using
+the CPA script to start, monitor and login to a portable foundation is
+easier. But if you need to customize the way things are set up, you can
+do it the hard way, as described
+https://wiki.opendaylight.org/view/Page#Steps_to_Start_a_SNBI_Portable_Foundation_Container_the_Hard_Way[here].
+
+[[preparation-for-running-portable-foundations]]
+== Preparation for Running Portable Foundations
+
+* Install docker. Docker installation instruction is available at,
+
+`     `http://docs.docker.com/installation/ubuntulinux/[`http://docs.docker.com/installation/ubuntulinux/`]
+
+* We need docker v1.0.0 or above. At the time of this writing docker
+v1.1.2 is the latest release.
+
+To confirm the version of docker installed,
+
+`    % sudo docker -v` +
+`    Docker version 1.0.0, build 63fe64c`
+
+* Check out SNBI source code
+
+`  git clone `https://[`https://`]`@git.opendaylight.org/gerrit/p/snbi.git` +
+`  cd snbi/portablefoundation/infra/`
+
+* There are potentially 3 portable foundations in use. Their names are
+SNBI_PF0, SNBI_PF1, SNBI_CTRL. Their configuration parameters associated
+with the local host are stored in file UDI_DB.json. At the time of this
+writing (Sept 2014), only the Universal Device Identifier (UDI) is
+associated with a portable foundation. New portable foundations can be
+added to the host after their local configurations are added into the
+UDI_DB.json file.
+
+* Start the server on the host.
+
+`  % cpa rest_start`
+
+`  The server will be listening to requests on `http://localhost:8080[`http://localhost:8080`]`.`
+
+* Start SNBI_PF0
+
+`  % cpa pf_start SNBI_PF0 21000`
+
+* Start SNBI_PF1
+
+`  % cpa pf_start SNBI_PF1 21001`
+
+* Check all running portable foundations
+
+`  % cpa list`
+
+* Login to SNBI_PF0
+
+`  % cpa login SNBI_PF0`
+
+* Stop SNBI_PF0
+
+`  % cpa pf_stop SNBI_PF0`
+
+* Kill SNBI_PF0 and free all resources.
+
+`  % cpa pf_kill SNBI_PF0`
+
+[[device-bootstrap]]
+== Device Bootstrap
+
+Once the docker environment is up and running, the device should be able
+to discover each other and if the UDI of the device is a valid device
+for a give domain, the device should be bootstrapped with a domain
+certificate. Currently the certificate information is not accessible to
+the end user but this will be used to setup secure channel to other
+connected devices in subsequent releases.

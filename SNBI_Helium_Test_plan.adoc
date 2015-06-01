@@ -1,0 +1,64 @@
+[[manual-testing-plan-for-snbi-registrar]]
+== Manual Testing Plan for SNBI Registrar
+
+[[initial-configuration]]
+=== Initial Configuration
+
+Testing with the following configurations on karaf with RC2. +
+feature:install odl-snbi-all +
+feature:install odl-restconf +
+feature:install odl-mdsal-apidocs +
+=== YANG MD-SAL operations === Refer
+https://wiki.opendaylight.org/view/SNBI_Architecture_and_Design#Registrar_YANG_Definition[here]
+for the yang definition.
+
+* Addition of domain information. [Passed]
+* Enable/Disable a domain White list. [Passed]
+* Removal of Domain information. [passed]
+* Removal of a list in the domain. [passed]
+* Removal of a device from the list of a domain. [passed]
+* Add multiple lists to the same domain. [Passed]
+* Have multiple active lists to the same domain. [Passed]
+* Support for multiple domains in the controller, to be able to spawn
+per domain registrars. [Failed] [Lithium] [bug 2044]
+
+[[neighbor-discovery]]
+=== Neighbor Discovery
+
+* Discover a neighbor connected directly on the LAN. [passed]
+* Discover multiple neighbors connected directly to a given LAN.
+[passed]
+* Remove the neighbor information once the neighbor is lost. [passed]
+* Rediscover the neighbor once the neighbor lost is brought online.
+[passed]
+* Certificate exchange with a neighbor device, without bootstrapping the
+device. [passed]
+* Certificate exchange with a neighbor device after bootstrapping both
+the controller and the forwarding element. [passed]
+* Certificate exchange with invalid Certificate or CSR information.
+[failed] [bug 2050]
+
+[[bootstrap-of-devices]]
+=== BootStrap of devices
+
+* Bootstrap a device with no domain information from the MD-SAL.
+[passed]
+* Bootstrap multiple devices in multiple white list of the same domain.
+[passed]
+* Bootstrap a neighbor once the neighbor is lost and brought online.
+[failed] [bug 2053]
+* Bootstrap a device when the domain information is present but the
+device list is not yet active. [passed]
+* Activate the device list thru RESTConf and verify the bootstrap of the
+device. [passed]
+* Bootstrap of a device which is not in the white list. [passed]
+* Bootstrap a device with multiple active white list within the same
+domain. [passed]
+* Bootstrap a device and then remove the device from the white list,
+this should take the device out of the domain and revoke the
+certificate. [Failed] [Lithium] [Out of scope for Helium].We cannot
+support dynamic updates to the MD-SAL because that would require that
+certificates be revoked, if the list is updated.
+* Bootstrap request for an invalidated device should be ignored.
+[passed]
+

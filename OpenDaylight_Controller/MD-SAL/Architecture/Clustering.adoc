@@ -1,33 +1,44 @@
+[[contact-information]]
+== Contact information
+
+1.  IRC: #opendaylight-clustering
+2.  email: dev@lists.opendaylight.org with [clustering] in subject,
+please.
+
 [[requirements]]
 == Requirements
 
 [[helium]]
 === Helium
 
-1.  Move InMemoryDataStore implementation to it's own bundle
-2.  *Sharding :* Distribute data in the datastore into shards such that
-a subset of shards can be located in any cluster member. *Distributed
-transactions across shards WILL NOT be supported*. A transaction on a
-single shard MUST be supported. The Sharding strategy in helium will be
-fixed i.e all of a modules data will be in a single shard.
-3.  *Persistence :* A shard should be backed by a persistent store so
-that when a cluster member is restarted the shard can be reconstructed
-from the persisted data
-4.  *Replication :* A shard should be replicated to configurable number
-( 2 for Helium) of replicas
+1.  Move InMemoryDataStore implementation to its own bundle.
+2.  *Sharding :* Distribute the data in the datastore into shards so
+that a subset of shards can be located in any cluster member.
+Distributed transactions across shards *will not* be supported. A
+transaction on a single shard *must* be supported. The Sharding strategy
+in Helium will be fixed, that is to say, all the data of a module will
+be in a single shard.
+3.  *Persistence :* A shard must be backed by a persistent store so that
+when a cluster member is restarted, the shard can be reconstructed from
+the persisted data.
+4.  *Replication :* A shard must be replicated to a configurable number
+(2 for Helium) of replicas.
 5.  *Clustering Services:* An OSGi service which provides information
-about an akka cluster
-6.  *Monitoring :* There MUST be logging/monitoring of transactions and
-data change notifications that would help an app developer tune data
-access. For example we know that remote-reads could be expensive so we
-should log reads that took an extra-ordinary amount of time or which is
-trying to get too much data. Similarly for data change notifications we
-should log if a registration results in too many notifications or the
-data delivered by that notification is too much or if delivery is taking
-too much time.
-7.  *Remote Rpc :* A mechanism to invoke a method on a remote MD-SAL
+about an Akka cluster
+6.  *Monitoring :* There *must be* be logging or monitoring of
+transactions, and data change notifications that would help an app
+developer tune data access. For example, we know that remote-reads could
+be expensive. So, we must log reads that took a long time or those
+trying to get too much data. Similarly, for data change notifications,
+we should log:
+
+* If a registration results in too many notifications
+* The data delivered by that notification is too much
+* If the delivery takes much time
+
+1.  *Remote Rpc :* A mechanism to invoke a method on remote MD-SAL
 providers
-8.  *Remote Notifications :* A mechanism to notify remote listeners of a
+2.  *Remote Notifications :* A mechanism to notify remote listeners of a
 notification to remote MD-SAL consumers
 
 [[beyond-helium]]
@@ -44,50 +55,51 @@ into the shard
 === Questions on requirements
 
 1.  What should the data size be?
-2.  What kind of performance is expected? How many data updates/second?
+2.  What kind of performance is expected? How many data updates will
+there be per second?
 
 [[general-design-principles]]
 == General Design Principles
 
-1.  The Clustered/Sharded Data Store should be a drop in replacement for
+1.  The Clustered/Sharded Data Store must be a drop-in replacement for
 the InMemory Data Store
-2.  Reuse the InMemory Data Store to represent a shard because it
-already takes care of maintaining a tree which contains data for all
-modules and can therefore be scaled down to deal with data for a single
-module
-3.  Use Akka for doing operations on remote shards. Akka seems to fit
-very well with the existing design of md-sal as it is already based on
-the actor model.
-4.  The sharding strategy should be customizable. ODL should ship with a
-default sharding strategy (which will be static and pre-determined for a
-given cluster size, similar to the APIC design; applications will be
-responsible for determining the sharding of their data). The sharding
-strategy determines the location of a shard possibly based on the
-instance identifier of a data object and the collection of the cluster
-members
-5.  Application/Services reading/writing to the shard should be
-co-located with the shard to minimize remote transactions as much as
-possible. Only one application should be the logical owner of a shard.
-When other applications need that data, they should either utilize the
-APIs provided by the owner application or subscribe to data change
+2.  Reuse the InMemory Data Store to represent a shard. This must be so
+because it already takes care of maintaining a tree which contains data
+for all modules, and can therefore be scaled down to deal with data for
+a single module
+3.  Use Akka for operations on remote shards. Akka seems to suit the
+existing design of MD-SAL as it is already based on the actor model.
+4.  The sharding strategy must be open to customization. ODL must ship
+with a default sharding strategy (which will be static and predetermined
+for a given cluster size, similar to the APIC design. Applications will
+be responsible for determining the sharding of their data). The sharding
+strategy determines the location of a shard, possibly based on the
+instance identifier of a data object, and the collection of the cluster
+members.
+5.  Application/Services reading/writing to the shard must be co-located
+with the shard to minimize remote transactions as much as possible. Only
+one application should be the logical owner of a shard. When other
+applications need that data, they should either utilize the APIs
+provided by the owner application or subscribe to data change
 notifications.
-6.  In a cluster atleast 3 replicas must be configured for each shard
-(and they should be on different hosts). Only when a piece of data is
-replicated to atleast one replica is the "transaction" considered
+6.  In a cluster, at least three replicas must be configured for each
+shard (and they must be on different hosts). Only when a piece of data
+is replicated to at least one replica is the "transaction" considered
 successful.
 
-[[problems-with-sharding-strategy]]
-==== Problems with Sharding Strategy
+[[problems-with-the-sharding-strategy]]
+==== Problems with the Sharding Strategy
 
-1.  Migration of shards based on changes in sharding strategy?
-2.  For Helium - build a REST api to specify the cluster configuration
+1.  Must migration of shards be based on changes in the sharding
+strategy?
+2.  For Helium - build a REST API to specify the cluster configuration
 
 [[akka]]
 === Akka
 
-We are going to rely heavily on akka to provide us the building blocks
-for our clustering solution. The main components of akka that we will
-use are,
+We are going to rely heavily on Akka to provide us the building blocks
+for our clustering solution. The main components of Akka that we will
+use are:
 
 1.  http://doc.akka.io/docs/akka/snapshot/java/remoting.html[Akka
 Remoting]
@@ -108,153 +120,259 @@ Concepts|x600px,title="General Concepts|x600px"]
 [cols=",",options="header",]
 |=======================================================================
 |Component Name |Description
-|ClusteringConfiguration a|
-The ClusteringConfiguration represents information about the cluster.
-The information it provides would be roughly the following,
+a|
+[[clusteringconfiguration]]
+===== ClusteringConfiguration
 
-1.  What are the member in the cluster?
+ a|
+| The ClusteringConfiguration represents information about the cluster.
+The information it provides would roughly be the following:
+
+1.  What are the members in the cluster?
 2.  Which shards live on each node?
 3.  What data goes in each shard?
 
-|ClusteringService a|
-The ClusteringService would have the following responsibilities
+a|
+[[clusteringservice]]
+===== ClusteringService
+
+ a|
+| The ClusteringService would have the following responsibilities:
 
 1.  Read the cluster configuration. Where it reads the cluster
-configuration from should not matter. Initially we could even read the
-configuration from the file system. Overtime ofcourse we could have a
-"primary" node come up with a cluster configuration and distribute it to
-the other members in the cluster.
-2.  Resolve the node name to actual host name/ip
+configuration from should not matter. Initially, we could even read the
+configuration from the file system. Over time, we could have a "primary"
+node come up with a cluster configuration, and distribute it to the
+other members in the cluster.
+2.  Resolve the node name to the actual host name/ip.
 3.  Maintain a registration of components that are interested in being
-notified of member status changes
+notified of member status changes.
 
-|DistributedDataStore a|
-The DistributedDataStore would have the following responsibilities
+a|
+[[distributeddatastore]]
+===== DistributedDataStore
 
-1.  Implement the DOMDataStore so that we could replace the
-InMemoryDataStore with the DistributedDataStore
-2.  Create the local shard actors as per the cluster configuration
+ a|
+| The DistributedDataStore would have the following responsibilities:
+
+1.  Implement the DOMStore so that we could replace the
+InMemoryDataStore with the DistributedDataStore.
+2.  Create the local shard actors in accordance with the cluster
+configuration.
 3.  Create the listener wrapper actors when a consumer registers a
 listener.
 
-|Shard a|
-A Shard would be a *processor* which contains some of the data in the
-system. Since a Shard is an actor you would communicate with it using
-messages. The messages passed to a shard would for the most part be
-similar to the operations on the DOMDataStore interface.
+a|
+[[shard]]
+===== Shard
 
-Since the Shard is a *Processor* as per akka-persistence it is a special
-actor which when passed a *Persistent* message will log it to a journal.
-This journal along with snapshots would be used as a method to recover
-the state of the DataStore. The state of the Shard would be maintained
-in an InMemoryDataStore object.
+ a|
+| A Shard would be a *processor* which contains some of the data in the
+system. A Shard being an actor, communication with it would be by means
+of messages. The messages passed to a shard would be very similar to the
+operations on the DOMStore interface.
 
-The MD-SAL DataStore supports three phase commit. The Shard will
-therefore also provide the functions of the ThreePhaseCommitCohort.
+Since the Shard is a *Processor,* in accordance with akka-persistence,
+it is a special actor which when passed a *Persistent* message will log
+it to a journal. This journal along with snapshots would be used as a
+method to recover the state of the DataStore. The state of the Shard
+would be maintained in an InMemoryDataStore object.
 
-|ShardTransaction |A ShardTransaction would be an actor which wraps an
+The MD-SAL DataStore supports a three phase commit. The Shard,
+therefore, also provides the functions of the ThreePhaseCommitCohort.
+
+a|
+[[shardtransaction]]
+===== ShardTransaction
+
+ || A ShardTransaction would be an actor which wraps an
 InMemoryDataStoreTransaction. Any operation that needs to be done on a
-transaction - namely ""read"", ""write"", ""delete"" and ""ready"" would
-be fronted by the ShardTransaction. The ShardTransaction will also
+transaction, namely, ""read"", ""write"", ""delete"", and ""ready""
+would be fronted by the ShardTransaction. The ShardTransaction will also
 maintain the state of any writes/deletes that happen on a transaction.
-We will call this state the "transactionLog". The transactionLog would
-then be used during commits to persist a transaction to a journal which
-will be written onto the disk using akka's persistence module. The
-journal will then be used when a controller shards up to reconstruct the
-state of a shard.
+This state will be called the "transactionLog". The transactionLog would
+then be used during commits to persist a transaction to a journal. The
+journal will be written onto the disk using the persistence module of
+Akka. The journal will then be used when a controller shards up to
+reconstruct the state of a shard.
 
-|TransactionProxy |The TransactionProxy will hold a reference to a
-collection of remote ShardTransaction actor and when returned to the
-consumer of the DistributedDataStore could be used to invoke the
-transaction operations on any remote ShardTransaction object depending
-on the instance identifier of the object.
+a|
+[[transactionproxy]]
+===== TransactionProxy
 
-|ListenerWrapper |The ListenerWrapper is an actor that would represent a
-local data change listener. It would be created as a remote actor on the
-node where the Data Change registration is done.
+ || The TransactionProxy will hold a reference to a collection of remote
+ShardTransaction actors, and when returned to the consumer of the
+DistributedDataStore, could be used to invoke the transaction operations
+on any remote ShardTransaction object depending on the instance
+identifier of the object.
 
-|ListenerProxy |The ListenerProxy represents a remote data change
-listener. When the local Shard issues a data change notification it is
-the ListenerProxy's responsibility to send that data change notification
-over to the remote ListenerWrapper actor.
+a|
+[[listenerwrapper]]
+===== ListenerWrapper
 
-|ShardCommitCohort |A ShardCommitCohort would be an actor which wraps he
+ || The ListenerWrapper is an actor that would represent a local data
+change listener. It would be created as a remote actor on the node where
+the Data Change registration is done.
+
+a|
+[[listenerproxy]]
+===== ListenerProxy
+
+ || The ListenerProxy represents a remote data change listener. When the
+local Shard issues a data change notification, it is the responsibility
+of the ListenerProxy to send that data change notification over to the
+remote ListenerWrapper actor.
+
+a|
+[[shardcommitcohort]]
+===== ShardCommitCohort
+
+ || A ShardCommitCohort would be an actor which wraps the
 InMemoryDataStoreCommitCohort. Any operation that needs to be done on a
-three phase commit cohort namely , "canCommit", "preCommit", "commit"
-and "abort" would be fronted by the ShardCommitCohort
+three phase commit cohort, namely, "canCommit", "preCommit", "commit",
+and "abort" would be fronted by the ShardCommitCohort.
 
-|ThreePhaseCommitCohortProxy |The ThreePhaseCommitCohortProxy holds a
-reference to a collection of ShardCommitCohorts. It implements the
-DOMStoreThreePhaseCommitCohort interface and any operation done on the
-proxy is invoked on every ShardCommitCohort in the collection.
+a|
+[[threephasecommitcohortproxy]]
+===== ThreePhaseCommitCohortProxy
+
+ || The ThreePhaseCommitCohortProxy holds a reference to a collection of
+ShardCommitCohorts. It implements the DOMStoreThreePhaseCommitCohort
+interface and any operation done on the proxy is invoked on every
+ShardCommitCohort in the collection.
 |=======================================================================
 
 [[packaging]]
 === Packaging
 
-The following osgi bundles should be created,
+The following OSGi bundles must be created:
 
-1.  MD-SAL InMemoryDataStore Implementation (this needs to be moved out
-of sal-dom-broker)
+1.  MD-SAL InMemoryDataStore Implementation (This needs to be moved out
+of sal-dom-broker.)
 2.  MD-SAL Clustering Service API and implementation
-3.  MD-SAL Distributed DataStore, Remote Rpc Provider and Remote
+3.  MD-SAL Distributed DataStore, Remote Rpc Provider, and Remote
 Notifications
 
 [[configuration]]
 === Configuration
 
-Cluster configuration defines the members of the cluster and what lives
-within it. This configuration can be static or dynamic. To make things
-simple we could go with a static configuration for Helium. The
-configuration could be defined in a file or files which could be put in
-the ODL distribution. When the ODL controller is started up we would
-pass the configuration file to it.
+Cluster configuration defines the members (nodes) of the cluster and
+what lives within it. This configuration can be static or dynamic. To
+make things simple, we could go with a static configuration for Helium.
+The configuration could be defined in a file or files which could be put
+in the ODL distribution. When the ODL controller is started, the
+configuration file could be passed to it.
 
-When the MD-SAL Clustering Service bundle comes up it could look at
-which specific configuration needs to be loaded, reads it from disk and
+When the MD-SAL Clustering Service bundle comes up, it could look at
+which specific configuration needs to be loaded, reads it from disk, and
 initializes itself.
 
-Clustering configuration would be as follows,
+Clustering configuration would be as follows:
 
 [[modules.conf]]
 ==== modules.conf
 
-modules.conf defines all the modules in the system, the shards for those
-modules and the cluster members on which the replicas of those shards
-should exist. Which replica would be primary depends on the order of the
-replica list.
+modules.conf defines how modules will be placed in separate shards. The
+format of the configuration is as follows
 
--------------------------------------
+`{` +
+`  name = "``"` +
+`  namespace = "``"` +
+`  shard-strategy = "module"` +
+`}`
+
+In Helium the only shard-strategy we support is module which puts all
+the data of a single module in two shards (one for config and one for
+operational data). So in the example below the module "inventory" is
+placed on 2 shards, a config shard and an operational data shard.
+Likewise for the "topology" module
+
+-------------------------------------------------------------
 
 modules = [
+  {
+    name = "inventory"
+    namespace = "urn:opendaylight:inventory"
+    shard-strategy = "module"
+  },
+  {
+    name = "topology"
+    namespace = "urn:TBD:params:xml:ns:yang:network-topology"
+    shard-strategy = "module"
+  },
+  {
+    name = "toaster"
+    namespace = "http://netconfcentral.org/ns/toaster"
+    shard-strategy = "module"
+  }
+]
+-------------------------------------------------------------
+
+Example of
+https://github.com/opendaylight/controller/blob/master/opendaylight/md-sal/sal-clustering-config/src/main/resources/initial/modules.conf[modules.conf]
+
+[[module-shards.conf]]
+==== module-shards.conf
+
+This file describes which shards live on which members (nodes of a
+cluster) and the cluster members on which replicas of those shards
+exist. Which replica is primary depends on the order of the replica
+list.
+
+The format for
+https://github.com/opendaylight/controller/blob/master/opendaylight/md-sal/sal-clustering-config/src/main/resources/initial/module-shards.conf[module-shards.conf]
+is as follows,
+
+-----------------------------------------------------------
+ {
+    name = "<friendly_name_of_the_module>"
+    shards = [
+        {
+            name="<any_name_that_is_unique_for_the_module>"
+            replicas = [
+                "<name_of_member_on_which_to_run>"
+            ]
+     ]
+ }
+-----------------------------------------------------------
+
+Example of
+https://github.com/opendaylight/controller/blob/master/opendaylight/md-sal/sal-clustering-config/src/main/resources/initial/module-shards.conf[module-shards.conf]
+
+------------------------------------
+module-shards = [
     {
-        name = "inventory"
+        name = "default"
         shards = [
             {
-                name = "shard-1"
-                replicas = [
-                    "member-2"
-                    "member-1"
-                    "member-3"
-                ]
-            }
-
-            {
-                name = "shard-2"
+                name="default"
                 replicas = [
                     "member-1"
                     "member-2"
                     "member-3"
+                    
                 ]
             }
-
         ]
     },
     {
         name = "topology"
         shards = [
             {
-                name = "module-shard"
+                name="topology"
+                replicas = [
+                    "member-3"
+                    "member-2"
+                    "member-1"
+                ]
+            }
+        ]
+    },
+    {
+        name = "inventory"
+        shards = [
+            {
+                name="inventory"
                 replicas = [
                     "member-2"
                     "member-1"
@@ -262,19 +380,39 @@ modules = [
                 ]
             }
         ]
-    }
+    },
+         {
+             name = "toaster"
+             shards = [
+                 {
+                     name="toaster"
+                     replicas = [
+                         "member-1"
+                         "member-2"
+                         "member-3" 
+                     ]
+                 }
+             ]
+         }
 
 ]
--------------------------------------
+------------------------------------
+
+The replicas section is a collection of cluster member (node) names.
+This information is used to decide which on members (nodes), the
+replicas of a particular shard will be located. Since replication was
+integrated with the distributed data store this section can have
+multiple entries.
 
 [[module-sharding-strategies.conf]]
 ==== module-sharding-strategies.conf
 
-The module-sharding-strategies.conf file defines each module and the
-strategy that needs to be used for that module.
+During clustering POC (proof of concept) the
+module-sharding-strategies.conf file defined each module, and the
+strategy that needs to be used for that module. In Helium this file is
+no longer used.
 
 ---------------------------------
-
 module-sharding-strategies = [
     {
         module-name : "inventory"
@@ -288,46 +426,46 @@ module-sharding-strategies = [
 ]
 ---------------------------------
 
-Now since we are planning to use akka pay special attention to the
-""role-name"". The role-name that one uses should correspond to the
+As Akka is to be used, special attention must be paid to the
+""role-name"". The role-name that one uses must correspond to the
 role-name specified for this node in the akka-cluster configuration.
-Right now I can see this as a potential area where mistakes could be
-made as two separate configuration files need to be kept in sync (need
-to think of a clean solution for this).
+This is a potential area for mistakes as two separate configuration
+files need to be kept in sync (need to think of a clean solution for
+this).
 
 [[discovery]]
 === Discovery
 
 ClusteringService will be responsible for Discovery and all related
-functions. It will depend on
+functions. It depends on
 http://doc.akka.io/docs/akka/snapshot/java/cluster-usage.html[akka-clustering]
 to identify the members of the cluster.
 
-When the ClusteringService comes up it first checks for the state of the
-cluster. It looks up all the members in the cluster and verifies that
-all the roles defined in the cluster-configuration are fulfilled by the
-cluster membership. Once all the members with the required roles are up
-and running the Clustering Service notifies it's listeners that the
-controller is now open for business.
+When the ClusteringService comes up, it first checks for the state of
+the cluster. It looks up all the members in the cluster and verifies
+that all the roles defined in the cluster-configuration are fulfilled by
+the cluster membership. Once all the members with the required roles are
+up and running, the Clustering Service notifies its listeners that the
+controller is open for business.
 
 [[sharding-and-data-access]]
 === Sharding (and data access)
 
-The DistributedDataStore creates a ShardingManager. The ShardingManager
-looks at the configuration of the cluster and automatically creates all
-the local shards. The ShardingManager also provides a mechanism to
-locate the shard to which a message needs to be sent.
+The DistributedDataStore creates a ShardManager. The ShardManager looks
+at the configuration of the cluster, and automatically creates all the
+local shards. The ShardManager also provides a mechanism to locate the
+shard to which a message needs to be sent.
 
 Data is sharded at a sub-tree level. In other words, If a Tree Node
-belongs to a shard, All the sub-tree nodes will also belong to the same
+belongs to a shard, all the sub-tree nodes will also belong to the same
 shard. Sharding strategy will be pluggable at a module level. Default
 sharding strategy will be to allocate a shard per top level module. It
 is expected that few modules such as Inventory and Topology will be the
-heavy hitters on the data store and data may need to be further sharded
+heavy hitters on the data store, and data may need to be further sharded
 at a sub-module level. In those cases, Sharding strategy can specify the
 path prefix to shard on. When data needs to be read or written to a
-shard the ShardingManager will pass the module name of the data and the
-instance identifier of the data to a ShardingStrategy which will then
+shard, the ShardManager will pass the module name of the data and the
+instance identifier of the data to a ShardStrategy which will then
 locate the shard on which the data belongs.
 
 image:ShardManagement.png[ShardManagement.png,title="ShardManagement.png"]
@@ -337,25 +475,25 @@ image:ShardManagement.png[ShardManagement.png,title="ShardManagement.png"]
 
 image:Create a new transaction.png[Create a new transaction.png,title="Create a new transaction.png"]
 
-In the ""current option"" when a consumer tries to create a new
-transaction on the DistributedDataStore we have create a transaction on
-some remote Shard(s). Why do we need to create a transaction on multiple
-Shards? Because if the transaction is created using the current
-DOMDataStore API at the outset we are not told which "module" we want to
-do the transaction on.
+In the ""current option"", when a consumer tries to create a new
+transaction on the DistributedDataStore, we have to create a transaction
+on some remote Shard(s). Why do we need to create a transaction on
+multiple Shards? It is so because if the transaction is created using
+the current DOMStore API at the outset, we are not told which "module"
+we want to do the transaction on.
 
-There are a few ways in which we could fix this,
+There are a few ways in which we could fix this:
 
-1.  When creating the transaction pass the instance identifier of the
-object on which you want to do the transaction. I think this is a simple
-option because it introduces a more restrictive API that forces the
-consumer to decide the Shard on which she would like to operate.
+1.  When creating the transaction, pass the instance identifier of the
+object on which you want to do the transaction. This is a simple option
+because it introduces a more restrictive API that forces the consumers
+to decide the Shard on which they would like to operate.
 2.  We do not create remote transactions up-front. When a CRUD operation
-is done on the TransactionProxy then the TransactionProxy could first
-create a transaction on the remote Shard and then only do that
-operation. Once the transaction is created though we allow it to live
-till it is committed. This is also workable and the overall behavior may
-not be much worse than the current option.
+is done on the TransactionProxy, the TransactionProxy could first create
+a transaction on the remote Shard, and then only do that operation. Once
+the transaction is created, it is allowed to live till it is committed.
+This is also workable, and the overall behavior may not be worse than
+the current option.
 
 [[readwrite-on-a-transaction]]
 ==== Read/Write on a transaction
@@ -372,20 +510,21 @@ image:Readying a transaction for commit.png[Readying a transaction for commit.pn
 [[committing-a-transaction]]
 ==== Committing a transaction
 
-We plan to use 3-phase commit semantics for committing transactions. The
-3-phase commit protocol works as shown in the following diagram. This
-would imply that we do guarantee distributed transactions but in-reality
-we may not be able to. If 3-phase commit is not important or possible
-then we should probably not even have it on the DOMStore interfaces.
+The plan is to use 3-phase commit semantics for committing transactions.
+The 3-phase commit protocol works as shown in the following diagram.
+This would imply that we do guarantee distributed transactions but
+in-reality we may not be able to. If a 3-phase commit is not important
+or possible, it should probably not be included on the DOMStore
+interfaces.
 
-If 3-phase commit is not to be supported we can simply have a commit on
-the transaction.
+If a 3-phase commit is not to be supported, it is possible to simply
+have a commit on the transaction.
 
 image:Three-phase commit diagram.png[Three-phase commit diagram.png,title="Three-phase commit diagram.png"]
 
 The coordinator in our case would be the ThreePhaseCommitCohortProxy
 (shown as ThreePhaseCommitProxy in the following diagram) and the actual
-cohorts will be the ShardCommitCohort's.
+cohorts will be the ShardCommitCohorts.
 
 image:Committing a transaction.png[Committing a transaction.png,title="Committing a transaction.png"]
 
@@ -398,20 +537,20 @@ https://ramcloud.stanford.edu/wiki/download/attachments/11370504/raft.pdf
 [[aggregation]]
 ==== Aggregation
 
-If data from a single module is put into multiple shards it is possible
+If data from a single module is put into multiple shards, it is possible
 that a read may require data from multiple shards to be retrieved
 aggregated and returned to the consumer.
 
 [[querying]]
 ==== Querying
 
-With the current DOM-Store the only type read supported is to read a
-piece of data based on it's identifier. Querying for data based on
+With the current DOM-Store being the only type read supported, it reads
+a piece of data based on its identifier. Querying for data based on
 attributes of the data is not supported. This capability needs to be
 added to the DOM-Store interfaces and optimized (indexed) for fast
 access.
 
-Following types of queries will be supported.
+The following types of queries will be supported:
 
 * Query based on instance identifier
 * Query based on object class (Extend YANG with the notion of an Object
@@ -420,11 +559,11 @@ Class?)
 * Scoped query based on Object Class
 * Scoped query on attribute filters
 
-Data Store will implement B-Tree Indexes to support efficient queries
-based on attribute filters. YANG data modelers are in the best position
-to define the expected query patterns and therefore define the indexes
-which need to be created. YANG language extensions will be provided to
-simplify the definition of query indexes.
+The Data Store will implement B-Tree Indexes to support efficient
+queries based on attribute filters. YANG data modelers are in the best
+position to define the expected query patterns, and therefore define the
+indexes which need to be created. YANG language extensions will be
+provided to simplify the definition of query indexes.
 
 [[data-change-notifications]]
 ==== Data Change Notifications
@@ -434,11 +573,11 @@ simplify the definition of query indexes.
 
 Data change notifications can be thought of as continuous queries where
 the query is specified once and instead of returning the matching data
-immediately system sends notifications when matching data appear in the
-data tree. As such, data change subscriptions can be customized just
+immediately, the system sends notifications when matching data appear in
+the data tree. As such, data change subscriptions can be customized just
 like the data queries.
 
-Following types of subscriptions will be supported.
+The following types of subscriptions will be supported:
 
 * Query based on instance identifier
 * Query based on object class (Extend YANG with the notion of an Object
@@ -448,9 +587,9 @@ Class?)
 * Scoped query on attribute filters
 
 Question: Do we need to support the notion of a custom filter where a
-piece of java code can be supplied by the consumer which will be invoked
+piece of Java code can be supplied by the consumer which will be invoked
 for every matching node during notification and only those nodes which
-pass the filter will be returned
+pass the filter will be returned.
 
 image:Register a DataChangeListener.png[Register a DataChangeListener.png,title="Register a DataChangeListener.png"]
 
@@ -468,54 +607,55 @@ https://ramcloud.stanford.edu/wiki/download/attachments/11370504/raft.pdf
 [[data-validation]]
 ==== Data Validation
 
-As data is added into the data store there might be a need for
-application developers to write a validator to verify that the data
-being written is correct. While Validators and DataCommitHandlers are
-both invoked during commit there is a difference between the two. The
-DataCommitHandler is a broker concept whereas the Validator would be a
-DataStore concept. Validators would be associated with a single shard
-and remote registrations of Validators would not be allowed.
+As data is added into the data store, application developers may need to
+write a validator to verify whether the data being written is correct.
+While Validators and DataCommitHandlers are both invoked during a
+commit, there is a difference between the two. The DataCommitHandler is
+a broker concept whereas the Validator is a DataStore concept.
+Validators would be associated with a single shard, and remote
+registrations of Validators would not be allowed.
 
 [[recovery]]
 === Recovery
 
-To enable recovery we could use Akka's persistence module. One caveat to
-using Akka's persistence module is that it is experimental. Only a POC
-will determine if it is usable for our purposes. If it is not we may
-need to roll our own but in general the principles would be the same.
+To enable recovery, the persistence module of Akka could be used. One
+caveat to using the persistence module of Akka is that it is
+experimental. Only a POC will determine if it is usable for our
+purposes. If it is not usable, there may be a need to roll our own, but,
+in general, the principles would be the same.
 
-Here is what we need to do to enable proper recovery,
+The following are requirements to enable proper recovery:
 
 1.  Write a journal where each successful transaction on a given shard
-is logged
-2.  From time to time write the state of the datastore as a snapshot.
+is logged.
+2.  From time to time, write the state of the datastore as a snapshot.
 The idea of using a snapshot is to enable faster recovery.
-3.  When the controller is restarted first re-construct the state of the
-local shard from the saved snapshot. Then play the transactions in the
-transaction journal onto the datastore. When both are complete the Shard
-is ready for business.
+3.  When the controller is restarted first, re-construct the state of
+the local shard from the saved snapshot. Then, play the transactions in
+the transaction journal onto the datastore. When both are complete, the
+Shard is ready for business.
 
 The above can be provided by Akka.
 
-In addition we will also need to ensure that replica being recovered is
-in sync with the primary replica. One way to ensure this would be for
-the primary replica to send all "undelivered" messages from it's
-transaction log to the current replica.
+In addition, we will also need to ensure that the replica being
+recovered is in sync with the primary replica. One way to ensure this
+would be for the primary replica to send all "undelivered" messages from
+its transaction log to the current replica.
 
 [[availability]]
 === Availability
 
-High availability will be enabled by,
+High availability will be enabled by the following:
 
-1.  Replicating shard data to a configurable number of replicas
-2.  Detecting failure of nodes and switching the primary replica
+1.  Replicating shard data to a configurable number of replicas.
+2.  Detecting failure of nodes and switching the primary replica.
 3.  Shard priority order will be fixed for one of the secondary replicas
 to become leader.
 
 [[replication-1]]
 ===== Replication
 
-After a successful local commit on the primary replica a replication
+After a successful local commit on the primary replica, a replication
 message would be sent to all the secondary replicas. The secondary
 replicas would write this message into the journal and then commit the
 message as a transaction on the InMemoryDataStore. A Transaction is not
@@ -526,23 +666,23 @@ written to the replication journal on at least one replica.
 ===== Node Failure detection
 
 The ClusteringService would be monitoring the state of all the members
-of a cluster. When it detects node failure it will notifiy it's
-listeners of the failure of that node. One of it's listeners would be
-the DistributedDataStore which on receipt of the failure will then send
-a message to all it's TransactionProxy's informing it of the failure of
-that node and that failure would be then propagated forward by the
-TransactionProxy's to the ThreePhaseCommitCohortProxy. If the node
-failure affects the transaction - that is if the failure is on a node
-where one of the transactions shard resides then the transaction will be
-marked as failed and any further action on it will throw an exception.
-The same applies on the ThreePhaseCommitCohortProxy.
+of a cluster. When it detects node failure, it will notify its listeners
+of the failure of that node. One of its listeners would be the
+DistributedDataStore, which on receipt of the failure will send a
+message to all its TransactionProxys informing of the failure of that
+node. The failure would be then propagated forward by the
+TransactionProxys to the ThreePhaseCommitCohortProxy. If the node
+failure affects the transaction, that is to say, if the failure is on a
+node where one of the transactions shard resides, then the transaction
+will be marked as failed, and any further action on it will throw an
+exception. The same applies on the ThreePhaseCommitCohortProxy.
 
 [[monitoring]]
 === Monitoring
 
 An Akka cluster can be monitored using a variety of commercial
-monitoring software like AppDynamics or NewRelic. TypeSafe used to have
-a product called TypeSafe Console which has been discontinued.
+monitoring software such as AppDynamics or NewRelic. TypeSafe used to
+have a product called TypeSafe Console, which has been discontinued.
 
 Scenario
 
@@ -550,14 +690,14 @@ Scenario
 `    - Primary replica for all shards local` +
 `    - No secondary replicas`
 
-- Replication : off
+- Replication :off
 
 Scenario
 
 `    - Two node cluster` +
 `    - Both nodes running`
 
-- Replication : on
+- Replication :on
 
 Scenario
 
@@ -643,40 +783,40 @@ Scenario
 
 Scenario
 
-`   - Three Node cluster` +
-`   - Node 1 down -> running` +
-`   - Node 2 running` +
-`   - Node 3 running` +
+`    - Three Node cluster` +
+`    - Node 1 down -> running` +
+`    - Node 2 running` +
+`    - Node 3 running` +
 `   `
 
 - Node 3 : primary - Node 1 : discards any stored messages for Node 2
 
 Scenario
 
-`   - Three Node cluster` +
-`   - Node 1 running -> down` +
-`   - Node 2 running -> down` +
-`   - Node 3 running` +
+`    - Three Node cluster` +
+`    - Node 1 running -> down` +
+`    - Node 2 running -> down` +
+`    - Node 3 running` +
 `   `
 
 Node 3 : primary Cluster operations : suspended
 
 Scenario
 
-`   - Three Node cluster` +
-`   - Node 1 running -> down` +
-`   - Node 2 running -> down (with unreplicated messages)` +
-`   - Node 3 running -> down (with unreplicated messages)` +
-`   - Node 1 down -> running`
+`    - Three Node cluster` +
+`    - Node 1 running -> down` +
+`    - Node 2 running -> down (with unreplicated messages)` +
+`    - Node 3 running -> down (with unreplicated messages)` +
+`    - Node 1 down -> running`
 
 Node 1 : primary Cluster operations : suspended
 
 Scenario
 
-`   - Three Node Cluster` +
-`   - Node 1 running` +
-`   - Node 2 down -> running (is more uptodate)` +
-`   - Node 3 down` +
+`    - Three Node Cluster` +
+`    - Node 1 running` +
+`    - Node 2 down -> running (is more uptodate)` +
+`    - Node 3 down` +
 `   `
 
 Node 2 : primary
@@ -690,30 +830,29 @@ Node 2 : primary
 Akka has the concept of a
 http://doc.akka.io/docs/akka/snapshot/java/dispatchers.html[dispatcher]
 which is essentially a means for Akka to process messages for an actor.
-What this really boils down to is what kind of thread model we want to
-use with our actors. Akka offers a few configurable choices.
+What kind of thread model we want to use with our actors? Akka offers a
+few configurable choices.
 
 [[serialization]]
 ==== Serialization
 
-Serializing objects over the wire is going to likely be an expensive
-operation. We need to figure out which type of serialization works best
-for us.
+Serializing objects over the wire is an expensive operation. We need to
+figure out which type of serialization works best for us.
 
 [[remote-rpc]]
 == Remote RPC
 
 When there is a cluster of controllers, there can be cases where one
-member of the cluster is asked to execute RPC call on a device which is
-controlled by another member. Remote RPC broker would route such
+member of the cluster is asked to execute an RPC call on a device which
+is controlled by another member. The remote RPC broker would route such
 requests to another member which controls the device. In general, any
-RPC request for which provider is NOT found locally, is routed to
+RPC request for which a provider is *not* found locally, is routed to
 another member in the cluster who has a provider for it.
 
-There are 2 components:
+There are two components:
 
-1.  *Route Registry* : Maintains list of registered RPCs per member of
-the cluster
+1.  *Route Registry* : Maintains the list of registered RPCs per member
+of the cluster.
 2.  *Remote RPC Broker* : Routes RPC calls to the cluster member where
 RPC is registered and handles response. It also acts as a listener for
 incoming RPC requests from another cluster member.
@@ -721,7 +860,7 @@ incoming RPC requests from another cluster member.
  +
  +
 === Route Registry === This is a container for registered RPCs per
-cluster member (controller)
+cluster member (controller).
 
 `var registry: mutable.Map[Address, Bucket] = mutable.Map.empty[Address, Bucket]` +
 ` final case class Bucket(` +
@@ -729,29 +868,29 @@ cluster member (controller)
 `  rpcs: List[String]` +
 `)`
 
-*Address*: Cluster member address. Its really Akka address of remote
-actor system where Route Registry actor is managed +
-*Bucket*: Its a container for list of registered RPCs with a version.
-Version is a timestamp. +
+*Address*: Cluster member address. It is really the Akka address of the
+remote actor system where the Route Registry actor is managed. +
+*Bucket*: It is a container for the list of registered RPCs with a
+version. Version is a timestamp. +
  +
 The registry is replicated across all members of the cluster.
-Replication is done using *Gossip protocol* and follows *eventual
-consistency* model. +
+Replication is done using the *Gossip protocol* and follows the
+*eventual consistency* model. +
  +
-Registry is front-ended with an Actor that talks to corresponding Actor
-on another member. This Actor can handle 3 kinds of messages:
+Registry is front-ended with an Actor that talks to a corresponding
+Actor on another member. This Actor can handle three kinds of messages:
 
-1.  GossipTick - Sent by local scheduler that triggers the actor to send
-registry `Status` to a randomly selected remote member.
-2.  Status - This message contains member `Address`es and `version`s of
-their corresponding `Bucket`s that `sender` has.
+1.  GossipTick - Sent by the local scheduler that triggers the actor to
+send registry `Status` to a randomly selected remote member.
+2.  Status - This message contains the member `Address`es and `version`s
+of their corresponding `Bucket`s that `sender` has.
 3.  Delta - This message contains the delta between sender member and
-local member's registry. Local registry can be updated based on this
-delta.
+the registry of the local member. The local registry can be updated
+based on this delta.
 
  +
  +
-A member can update ONLY ITS OWN bucket as and when RPCs are
+A member can update *only its own* bucket as and when RPCs are
 registered/unregistered on it.
 
 [TODO] Add call flow
@@ -759,61 +898,62 @@ registered/unregistered on it.
 [[remote-rpc-broker]]
 === Remote RPC Broker
 
-The main functions of this component are to:
+The main functions of this component are:
 
-1.  Route rpc requests to "right" members and collect responses
-2.  Act as a listener for rpc requests coming in from remote members,
-deliver it to MD-SAL Broker and respond back with result.
+1.  Routing rpc requests to the "right" members and collect responses
+2.  Acting as a listener for RPC requests coming in from remote members,
+delivering it to MD-SAL Broker, and responding with the result
 
  +
  +
-The component can be broken down to 2
+The component can be broken down to two.
 
 [[open-questionsrandom-thoughts]]
 == Open Questions/Random Thoughts
 
-[[why-cant-we-use-an-existing-distributed-data-store-instead-of-rolling-our-own]]
-=== Why can't we use an existing Distributed Data Store instead of
+[[why-can-we-not-use-an-existing-distributed-data-store-instead-of-rolling-our-own]]
+=== Why can we not use an existing Distributed Data Store instead of
 rolling our own?
 
-1.  Most distributed DBs do not support transactions. Not even
+1.  Most distributed DBs do not support transactions - not even
 transactions on a single shard. We do intend to support transactions on
 a given shard.
-2.  Not sure if the current existing DB's could even perform well - they
+2.  Not sure if the current existing DBs could even perform well - they
 certainly cannot perform as well as our in-memory data store
 3.  External DBs generally do not do data change notifications
 4.  If we used an external DB that would make deployment a little more
-complicated - we would have to setup ODL and also the external DB - some
-people like the current deployment simplicity of ODL
+complicated. We would have to set up ODL and also the external DB. Some
+people like the current deployment simplicity of ODL.
 5.  One of the principles that we want to follow is to discourage data
-reads and promote data delivery (via change notifications) in this model
-the advantage of fast reads that a high performing external DB like say
-Mongo would become irrelevant
+reads and promote data delivery (via change notifications) in this
+model. The advantage of fast reads that a high performing external DB
+such as Mongo would become irrelevant.
 
 [[notes-regarding-sharding-design]]
 === Notes regarding Sharding design
 
-The design of sharding should be done carefully based on the queries
+The design of sharding should be done carefully, based on the queries
 applications make and noting down that *it will be painful(migration
-involved)* if we want to change the sharding logic later after release.
+involved)*, if we want to change the sharding logic later after release.
 
 [[clustering-scenarios]]
 == Clustering Scenarios
 
-The scenarios below determine what the clustering implementation will do
-give a certain cluster state. The following assumptions have been made,
+The scenarios below determine what the clustering implementation will
+do, given a certain cluster state. The following assumptions have been
+made:
 
 1.  All the local shard replicas of the first node to come up become
-primary replicas
+primary replicas.
 2.  A primary replica will stay the primary replica unless it is deemed
-as down by the cluster
+as down by the cluster.
 3.  A write is considered successful only if it is successfully written
 to the journal of the primary and the journal of any one secondary
-replica
-4.  Cluster operations are suspended if zero secondary replicas can be
-written to
+replica.
+4.  Cluster operations are suspended if the secondary replicas that can
+be written to is zero.
 5.  All replicas of a shard negotiate with each other as to which
-replica should be the primary
+replica should be the primary.
 
 [[scenario-1]]
 === Scenario 1
@@ -1037,7 +1177,7 @@ Data Store]
 [[completed]]
 === Completed
 
-* Move InMemoryDataStore into it's own bundle
+* Move InMemoryDataStore into its own bundle
 * Implemented a Distributed DataStore which wraps the in-memory data
 store using akka actors. Only a single Shard is used.
 
@@ -1062,19 +1202,60 @@ single shard (target Jul 8th)
 [[trying-out-the-distributed-data-store]]
 === Trying out the Distributed Data Store
 
-* Build an openflowplugin distribution
+* Build an Openflowplugin distribution
 * Pull changes up to this gerrit
 https://git.opendaylight.org/gerrit/#/c/8427/
 * Go to opendaylight/md-sal/sal-distributed-datastore _mvn clean
 install_
 * _cp target/sal-distributed-datastore*.jar_ to the openflow plugin
 distribution (should also work on most integration distributions)
-* In the distribution folder edit _config/initial/01-md-sal.xml_ and
+* In the distribution folder, edit _config/initial/01-md-sal.xml_ and
 follow instructions to use distributed datastore instead of in-memory
 datastore
 * run the distribution using the command _./run.sh -Dakka.loglevel=debug
 -Dshard.persistent=false -Xmx4G -Xms2G -XX:NewRatio=5 -XX:+UseG1GC
 -XX:MaxPermSize=256m_
 
+|08/04/2014 a|
+[[completed-1]]
+=== Completed
+
+* Multiple shard support
+* Distributing shards across cluster
+* Replication
+* Persistence of shard
+* Remote RPC
+
+[[trying-out-the-distributed-data-store-1]]
+=== Trying out the Distributed Data Store
+
+Please follow the instructions on this page:
+link:Running and testing an OpenDaylight Cluster[Running and testing an
+OpenDaylight Cluster]
+
+[[ongoing]]
+=== Ongoing
+
+* Documenting test cases
+* Stability testing
+* Performance tuning and testing
+* Test automation
+
 |=======================================================================
+
+[[clustering-hackers-meeting]]
+== Clustering Hackers' Meeting
+
+*Time and Location*
+
+* 08:00am Pacific, Tuesdays.
+* IRC: #opendaylight-clustering
+* Join and email mailto:dev@lists.opendaylight.org[Dev] with topic
+[clustering].
+*
+https://meetings.webex.com/collabs/#/meetings/detail?uuid=MALTOMIMY5WPSZORCBFJSNI22V-9VIB&rnd=533135.16576[WebEx
+link]
+*
+https://wiki.opendaylight.org/view/OpenDaylight_Controller:MD-SAL-Clustering[Past
+Meeting Notes]
 

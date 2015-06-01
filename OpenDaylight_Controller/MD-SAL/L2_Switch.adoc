@@ -231,6 +231,92 @@ http://localhost:8080/restconf/config/opendaylight-inventory:nodes/node/openflow
 http://localhost:8080/restconf/operational/opendaylight-inventory:nodes/node/openflow:1/table/0
 -----------------------------------------------------------------------------------------------
 
+[[l2switch-from-git-with-karaf]]
+== L2Switch from git with karaf
+
+* Cloning l2switch
+
+------------------------------------------------------
+git clone https://git.opendaylight.org/gerrit/l2switch
+------------------------------------------------------
+
+* Build the project
+
+-----------------
+cd l2switch
+mvn clean install
+-----------------
+
+* ** Alternatively, one can use parallel build (quicker), but it may
+fail because of dependencies; however it is possible to run it few times
+in a row
+
+--------------------------------------------------------------
+mvn -T 4  clean install -DskipTests  -Dmaven.compile.fork=true
+--------------------------------------------------------------
+
+* Karaf distribution should be at
+
+----------------------------------------------
+cd l2switch/distribution/karaf/target/assembly
+----------------------------------------------
+
+* Now can start
+** either with
+
+---------
+bin/karaf
+---------
+
+to get directly to the karaf console
+
+* ** or in background
+
+---------
+bin/start
+---------
+
+In this case, you need to wait a bit and then you can ssh in it:
+
+----------------------------------------------------------------------------------------
+ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no  karaf@localhost -p 8101
+----------------------------------------------------------------------------------------
+
+Password is: karaf
+
+* Once got to the karaf console, install ui feature:
+
+--------------------------------------
+feature:install odl-l2switch-switch-ui
+--------------------------------------
+
+* Wait a bit, you can see what bundles are loaded which are not, with
+
+-----------
+bundle:list
+-----------
+
+* ** Also possible to grep the output, e.g.
+
+------------------------------
+bundle:list | grep -i resolved
+------------------------------
+
+* ** or (to see if web interface bundle is ready):
+
+--------------------------
+bundle:list | grep -i dlux
+--------------------------
+
+Now your l2switch should be running. You can start mininet as described
+above for tests. Also, you should get a web interface running at
+
+-----------------------------------------------------
+http://<controller ip>:8181/dlux/index.html#/topology
+-----------------------------------------------------
+
+(default login/password are admin/admin)
+
 [[items-for-discussion]]
 = Items for discussion
 

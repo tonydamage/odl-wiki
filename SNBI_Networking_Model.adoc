@@ -1,0 +1,191 @@
+SNBI intends to provide a secure channel that can be used by other
+applications to securely connect to various devices.
+
+Following is the use case on a controller that can be envisioned with
+such a secure channel.
+
+* If SNBI is active and running in the controller, other apps can safely
+assume that there exists a secure IP reachability to various devices in
+the network.
+
+Based on the above desired use case following approaches are possible.
+
+[cols=",,,,",options="header",]
+|=======================================================================
+|Model |Overview |Access to Secure Channel |Requirements |Caviots
+|*App Layer Registrar Tunnel* a|
+| Create a UDP tunnel that is terminated in the registrar.
+
+* The message is first encapsulated with a transport layer header (UDP)
+with SNBI Src/Dst Ports.
+* The UDP encapsulated message is then encapsulated with an IP header
+with the desired Src/Dst IP.
+* The packet thus derived is then sent over a socket to the next hop
+neighbour.
+* The other end of the socket is then terminated into an Userland
+program which again routes the packet based on the IP header available.
+
+ a|
+|
+
+[cols="",]
+|=======================================================================
+a|
+*Access thru Message delivering APIs.*
+
+* No choice of a desire transport.
+* Cannot support multiple tunnels to different neighbours.
+* We can facilitate the adoption by exposing such a service thru
+existing message passing infrastructure (like Rabbit MQ) libraries.
+* This would also mean that both the producers and consumers use the
+Rabbit MQ infrastructure.
+
+a|
+*Creation of per APP secure connection*
+
+* SNBI could provide APIs to get the certificate generated for a
+particular device/IP.
+* Once the certificate is obtained together with the host device
+certificate, each APP could establish a secure connection of a transport
+of their choice to the devices.
+
+|=======================================================================
+
+ a|
+|
+
+[cols="",]
+|===============================================================
+a|
+*Access thru Message delivering APIs.*
+
+* Provide message delivering APIs.
+* Make required changes to Rabbit MQ libraries.
+
+a|
+*Creation of per APP secure connection.*
+
+* Provide APIs to obtain certificates for a given device ULA IP.
+
+|===============================================================
+
+ a|
+|
+
+[cols="",]
+|=======================================================================
+a|
+*Access thru Message delivering APIs.*
+
+* It would be difficult to convince every APP to adapt to a message
+delivery infrastructure.
+* The APPS cannot create a transport of their choice.
+
+a|
+*Creation of per APP secure connection*
+
+* per-hop secure tunnels are used only for SNBI traffic.
+
+|=======================================================================
+
+|*Proxy model* a|
+|
+
+[cols="",]
+|=======================================================================
+a|
+*Co Hosted Proxy Forwarding Element*
+
+* A forwarding Element is hosted in the controller host.
+* The forwarding Element and the Controller interact over a "socket" or
+use some kind of RPC mechanism (thrift , google protocol buffers).
+* The entire SNBI protocol stack is implemented in the Forwarding
+element, only the registrar feature is implemented in the controller.
+* Everything is the same, just that the registrar is no longer within
+the forwarding element but outside.
+* The forwarding element takes care of discovering neighbours, creating
+loopback interface, assigning IP address, and establishing IPSEC/GRE
+tunnel.
+* The routing protocol running in the forwarding element takes care of
+forwarding the packet to the appropriate destination over the tunnels.
+* SNBI topology management is yet another RPC call to the Forwarding
+Element. The topology protocol as such doesn't run in the controller.
+* Every SNBI feature that we develop could be extended to the controller
+through the RPC.
+
+a|
+*Remote Hosted Proxy Forwarding Element*
+
+* The forwarding element is remotely hosted in another host.
+* The interaction between the controller and the Forwarding element is
+still over RPC.
+* We might have to go thru a discovery phase, wherein the controller
+discovers the device and bootstraps it to proxy on its behalf.
+* Or we give explicitly the IP address of the host which would act as a
+proxy. This IP address need not necessarily be the ULA address which
+could be generated once the device is bootstrapped.
+* IP address of the controller host is manually assigned.
+* There is no security assumption between the controller host and the
+proxy host, its left to the administrator to make sure there is one.
+* The administrator configures the default route for all SNBI generated
+ULA address to be the proxy host.
+* A per hop secure tunnel is questionable.
+
+|=======================================================================
+
+ a|
+|
+
+[cols="",]
+|=======================================================================
+a|
+*Co Hosted Proxy Forwarding Element*
+
+* Other apps (within/outside the controller) assume that there is secure
+IP reachability.
+
+a|
+*Remote Hosted Proxy Forwarding Element*
+
+* The apps assume that there is IP reachability.
+* But apps don't make any assumption regarding the security of the
+network layer.
+
+|=======================================================================
+
+ a|
+|
+
+* Some kind of RPC infrastructure needs to be integrated with the
+existing code.
+* Administrator needs to provide the IP address of the proxy host, it
+could be localhost or some remote host.
+* If its remote host, its upto the administrator to make sure that there
+exists an IP reachability between the controller host and the proxy
+host.
+* Its upto the administrator to create a secure SSL connection to the
+proxy Forwarding element either remote or local.
+
+ a|
+|
+
+[cols="",]
+|=======================================================================
+a|
+*Co Hosted Proxy Forwarding Element*
+
+* Require Root/sudo permission to program the underlying network stack.
+
+a|
+*Remote Hosted Proxy Forwarding Element*
+
+* The Apps cannot leverage the IP security that SNBI offers, only the IP
+reachability that SNBI offers.
+* Require some degree of human intervention.
+* Assumes that there is some degree of IP reachability at least to the
+proxy host.
+
+|=======================================================================
+
+|=======================================================================
+

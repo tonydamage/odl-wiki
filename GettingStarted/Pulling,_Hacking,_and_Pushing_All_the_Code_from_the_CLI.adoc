@@ -1,9 +1,8 @@
 [[intro]]
 == Intro
 
-OpenDaylight has currently 12 projects, each with their own repo. This
-page tries to give you a quick start guide to pulling, hacking, and
-pushing the code from each of them.
+This page tries to give you a quick start guide to pulling, hacking, and
+pushing the code for an OpenDaylight project.
 
 For a quick reference on some commonly used git commands, check out the
 link:GIT Cheat Sheet[GIT Cheat Sheet].
@@ -12,9 +11,10 @@ link:GIT Cheat Sheet[GIT Cheat Sheet].
 == Make sure you have an account
 
 While you can pull code anonymously, if you want to push it (or edit the
-wiki) you will need to
-https://identity.opendaylight.org/carbon/user-registration/index.jsp?region=region1&item=user_registration_menu[get
-an account].
+wiki) you will need to have an
+https://identity.opendaylight.org[OpenDaylight Account]. To access the
+account creation form, currently you need to click the colorful icon
+https://identity.opendaylight.org/carbon/user-registration/index.jsp?region=region1&item=user_registration_menu[here].
 
 [[gerrit-setup]]
 == Gerrit Setup
@@ -28,6 +28,19 @@ HTTPS].
 Note: You will need to perform the
 OpenDaylight Controller:Gerrit Setup[Gerrit Setup] before you can access
 git via ssh as described below.
+
+[[install-dependancies]]
+== Install Dependancies
+
+There are a significant amount of dependencies for building. The
+following works for Fedora 20 to add the dependancies:
+
+-------------------------------------------------------------------------------
+sudo yum -y install maven git bzip2 \
+  make binutils gcc gcc-c++ boost-devel openssl-devel perl-ExtUtils-MakeMaker \
+  unixODBC-devel gtest-devel redhat-lsb-core json-c-devel libcurl-devel \
+  perl-Digest-SHA tomcat-native
+-------------------------------------------------------------------------------
 
 [[pull-code-via-git-cli]]
 == Pull code via git CLI
@@ -53,22 +66,36 @@ You have two choices for your method of engagement, you can use:
 [[pull-code-via-ssh]]
 === Pull code via ssh
 
-------------------------------------------------------------------------------------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 for PROJECT in aaa affinity bgpcep controller defense4all dlux docs groupbasedpolicy integration l2switch \
-lispflowmapping odlparent opendove openflowjava openflowplugin opflex ovsdb packetcable reservation sdninterfaceapp sfc snbi snmp4sdn toolkit ttp vtn yangtools; \
-do git clone ssh://${ODL_USERNAME}@git.opendaylight.org:29418/${PROJECT}.git; \
+lispflowmapping odlparent opendove openflowjava openflowplugin opflex ovsdb packetcable releng/autorelease releng/builder reservation sdninterfaceapp sfc snbi snmp4sdn tcpmd5 toolkit ttp vtn yangtools; \
+do git clone ssh://${ODL_USERNAME}@git.opendaylight.org:29418/${PROJECT}.git ${PROJECT}; \
 done
-------------------------------------------------------------------------------------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 [[pull-code-with-https]]
 === Pull code with https
 
-------------------------------------------------------------------------------------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 for PROJECT in aaa affinity bgpcep controller defense4all dlux docs groupbasedpolicy integration l2switch \
-lispflowmapping odlparent opendove openflowjava openflowplugin opflex ovsdb packetcable reservation sdninterfaceapp sfc snbi snmp4sdn toolkit ttp vtn yangtools; \
-do git clone https://git.opendaylight.org/gerrit/p/${PROJECT}.git; \
+lispflowmapping odlparent opendove openflowjava openflowplugin opflex ovsdb packetcable releng/autorelease releng/builder reservation sdninterfaceapp sfc snbi snmp4sdn tcpmd5 toolkit ttp vtn yangtools; \
+do git clone https://git.opendaylight.org/gerrit/${PROJECT}.git ${PROJECT}; \
 done
-------------------------------------------------------------------------------------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+[[checkout-stable-branch]]
+=== Checkout Stable branch
+
+----------------------------------
+git checkout stable/<release name>
+----------------------------------
+
+[[checkout-release-tag]]
+=== Checkout Release tag
+
+----------------------------------------
+git checkout tags/release/<release name>
+----------------------------------------
 
 [[hack-the-code]]
 == Hack the Code
@@ -91,38 +118,52 @@ export MAVEN_OPTS="-Xmx1024m -XX:MaxPermSize=256m"
 
 Below is the top level build line for each project:
 
--------------------------------------------
-(cd affinity;mvn clean install)
-(cd bgpcep;mvn clean install)
-(cd controller;mvn clean install)
-# Need a line for Defense4All
-(cd lispflowmapping;mvn clean install)
-# Need a line for OpenDove
-(cd openflowjava;mvn clean install)
-(cd openflowplugin;mvn clean install)
-(cd ovsdb/commons/parent;mvn clean install)
-(cd vtn;mvn clean install)
-(cd yangtools;mvn clean install)
--------------------------------------------
+------------------------------------------------------------------------------------------------------------------
+for i in affinity bgpcep controller lispflowmapping openflowjava openflowplugin ovsdb/commons/parent vtn yangtools
+do (cd "$i" && mvn clean install ); done
+------------------------------------------------------------------------------------------------------------------
 
-[[run-the-controller]]
-=== Run the controller
+Note 1: You'll need at least 15 GiB of free space for the build to
+complete.
 
--------------------------------------------------------------------------------------------------------------------------------------------------
-Note that the base below runs only the BASE controller project. It does not necessarily invoke other projects that might have been built as they 
-sometimes need special command line arguments to invoke. For example, the open flow 1.3 plugin requires a special command line argument 
-to invoke. Please refer to each project's wiki for information on this.
+Note 2: If you are missing a build dependancy, such as "make" the vtn
+build will fail, but likely report success.
 
-cd controller/opendaylight/distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/
-./run.sh
--------------------------------------------------------------------------------------------------------------------------------------------------
+[[test-the-code]]
+== Test the Code
 
-And point your browser at http://localhost:8080/
+[[build-and-run-karaf-distribution]]
+=== Build and Run Karaf distribution
 
-image:OpenDaylight - Login.jpg[OpenDaylight - Login.jpg,title="OpenDaylight - Login.jpg"]
+Without clearing .m2 cache (it contains built artifacts from last step),
+download integration code:
 
-There is much much more complete documentation on running the controller
-in the OpenDaylight Controller:Installation[Installation Guide].
+--------------------------------------------------------------------------
+git clone ssh://${ODL_USERNAME}@git.opendaylight.org:29418/integration.git
+--------------------------------------------------------------------------
+
+or
+
+---------------------------------------------------------------
+git clone https://git.opendaylight.org/gerrit/p/integration.git
+---------------------------------------------------------------
+
+Build the integration code skipping test:
+
+------------------------------
+cd integration
+mvn clean install -D skipTests
+------------------------------
+
+Run the just created Karaf distribution:
+
+--------------------------------------
+cd distributions/karaf/target/assembly
+bin/karaf
+--------------------------------------
+
+Install the features you want to test and perform any suitable test. You
+can find Karaf help on this CrossProject:Integration_Group:karaf[ link ]
 
 [[pushing-your-changes]]
 == Pushing your changes
@@ -331,4 +372,12 @@ git commit --amend
 git review
 ------------------
 
+If you don't want to use the interactive editor run by Git (e.g. you use
+`git commit --amend -F <some_text_file>` style of command to amend your
+commit), then make sure that you mention the change ID in the new commit
+message you supply to the `git commit --amend` command. You can get this
+ID by looking at the output of `git log`, it is on a `Change-Id` line.
+
 GettingStarted:PushAndFix[ Push + fix scenario]
+
+Category:Git and Gerrit[Category:Git and Gerrit]

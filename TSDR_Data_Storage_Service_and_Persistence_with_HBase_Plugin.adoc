@@ -1,0 +1,136 @@
+[[design-overview]]
+== Design Overview
+
+TSDR Data Storage Service contains Data Storage Service, TSDRPersistence
+Service and a bunch of TSDRPlugins as the implementation of
+TSDRPersistence layer. In Lithium, we will provide HBaseTSDRPlugin for
+HBase implementation.
+
+Based on the common TSDR data model, TSDRPersistence service will
+provide a set of generic APIs for storing, retrieving, deleting, and
+aggregation of TSDR time series data.
+
+[[component-interactions]]
+== Component Interactions
+
+The following diagram illustrates the interactions among various
+components for TSDR Data Storage with a generic TSDRPersistenceService
+and HBase plugin.
+image:Sequence.png.png[Sequence.png.png,title="fig:Sequence.png.png"]
+
+[[tsdr-data-model]]
+== TSDR Data Model
+
+The following diagram captures the TSDR common data model that is going
+to be shared among various TSDR services including Data Storage,
+Persistence, Data Query, Data Purging, and Data Aggregation.
+image:TSDRDataModel.PNG[TSDRDataModel.PNG,title="fig:TSDRDataModel.PNG"]
+
+[[data-storage-service]]
+== Data Storage Service
+
+Data Storage Service will be a MD-SAL service that contains RPC APIs for
+Data Collection Service to call.
+
+[[persistence-service]]
+== Persistence Service
+
+Persistence Service will be a Java service that is initialized when Data
+Storage Service is initialized. During initialization, Persistence
+Service will load the user configured plugin from XML files and
+initialize the persistence plugin. For example, if the user configures
+HBase, it will initialize an HBase plugin for TSDR data persistence. If
+the user configures MySQL, it will initialize a MySQL plugin for TSDR
+data persistence.
+
+In Lithium, we will only support HBase as TSDR data store. In the future
+releases, other data stores such as MySQL or Cassandra could be
+supported.
+
+[[tsdrpluginconfig-xml]]
+=== TSDRPluginConfig XML
+
+`   ` +
+`       ` +
+`          ` +
+`       ` +
+`   `
+
+[[tsdrpersistence-apis]]
+=== TSDRPersistence APIs
+
+The following captures the APIs exposed from TSDRPersistenceService.
+
+[cols=",,,,,,,,,,,,,,,",options="header",]
+|=======================================================================
+|Interface Name |Description |-align="left" valign="top" |save(List,
+tmodelList) |store one or a list of TSDRDataModel objects in persistence
+Data Store |-align="left" valign="top" |find() |Query based on a list of
+Keys and criteria. |-align="left" valign="top" |count() |Get the number
+of rows in a table. |-align="left" valign="top" |delete() |delete with
+one or a list of IDs. |-align="left" valign="top" |truncate() |truncate
+a table. |-align="left" valign="top" |exists() |Query based on one or
+list of IDs |-align="left" valign="top" |min(), max(), avg() |For Data
+Aggregation purpose
+|=======================================================================
+
+Only the save() API will be implemented in Lithium for realizing TSDR
+Data Storage features. If time allows, query APIs will also be
+implemented to support Data Query Service in TSDR.
+
+[[hbase-plugin]]
+== HBase Plugin
+
+When HBase Plugin is initialized, it will initialize the configuration
+and connection pool to HBase server based on the parameters passed by
+TSDRPersistenceService. The parameters are what included in
+TSDRPersistenceConfig.xml. This includes the HBase server name, port
+number and connection pool size. HBase Plugin will provide the actual
+implementation of the TSDRPersistence APIs in HBase. For example, the
+save(List tModelList) will convert the list of TSDRDataModel objects
+into HBaseEntities and persist into HBase server.
+
+The following shows the HBaseEntity class diagram.
+
+image:HBaseEntitty.PNG[HBaseEntitty.PNG,title="HBaseEntitty.PNG"]
+
+[[integration-with-odl-persistence-service]]
+== Integration with ODL persistence service
+
+With ODL persistence project moving forward, TSDR expects to leverage
+ODL common persistence service to provide the capability for the user to
+persist TSDR data into various data stores. Since ODL persistence
+project is a parallel new ODL project in Lithium, this integration will
+happen either within Lithium time frame or beyond Lithium time frame.
+
+For TSDR HBase implementation, HBasePlugin will implement the data
+persistence layer to satisfy TSDR requirement while keeping consistency
+with the goal of ODL common persistence service. At some point, if we
+see the possibility of merging HBase implementation in TSDR HBasePlugin
+into ODL common persistence service, we will contribute the
+implementation to ODL persistence service with necessary modifications.
+
+[[high-availability-and-clustering-consideration]]
+== High Availability and Clustering consideration
+
+In Lithium, since we only support HBase single node, the high
+availability and clustering is not going to be supported for TSDR.
+
+In the next release, TSDR high availability and clustering will be
+achieved through HBase clustering.
+
+[[packaging-and-installation]]
+== Packaging and Installation
+
+HBase tar files will be bundled together with ODL to form a single tar
+ball. When the user unzips the ODL installation file and untar the tar
+ball, HBase will be installed on the localhost together with ODL.
+
+TSDR features will contain HBaseClient and allow the user to install
+from Karaf. When the user installs the DataStorage service from Karaf,
+HBaseClient features will be installed as well. At the same time, the
+following execution will happen on HBase server side:
+
+1.  HBase server on localhost will be started automatically.
+2.  HBase tables for TSDR will be created.
+

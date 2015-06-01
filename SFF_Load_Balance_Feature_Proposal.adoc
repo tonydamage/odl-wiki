@@ -1,0 +1,174 @@
+[[description]]
+== Description
+
+SFC currently handles configuration where there is a one-to-one mapping
+between SFF and SF. This document describes how to implement load
+balancing for SF's.
+
+[[model]]
+== Model
+
+In the new Service-Path-Hop model SF groups will replace single SFs,
+they will be called service-function-groups (SFG).
+
+Service-Function-Group-Algorithms \{
+
+::
+  Service-Function-Group-Algorithm \{
+  +
+  ;;
+    String name
+    +
+    String type
+  +
+  }
+
+}
+
+Service-Function-Groups \{
+
+::
+  Service-Function-Group \{
+  +
+  ;;
+    String name
+    +
+    String serviceFunctionGroupAlgorithmName
+    +
+    String type
+    +
+    Service-Function-Group-Element \{
+    +
+    ::
+      String service-function-name
+      +
+      int index
+    +
+    }
+  +
+  }
+
+}
+
+Service-Path-Hop \{
+
+::
+  String service-function-group-name // instead of service-function-name
+  +
+  .
+  +
+  .
+
+}
+
+Changes to Yang model:
+
+* adding new elements - Service-Function-Group
+Service-Function-Group-Algorithm
+* ServiceFunctionHop - will have a reference to a name of SFG
+* ServiceFunctionType - will hold a list of SftServiceFunctionName of
+SFG's
+
+Provider changes:
+
+* SfcProviderServiceGroupAPI (New) - create SFG's
+* SfcProviderServiceGroupAlgorithmAPI (New) - create SFG algorithm's.
+* SfcProviderServicePathAPI - ServiceFunctionPath will be constructed
+using a list of SFG names
+
+[[load-balancing]]
+== Load-Balancing
+
+* Each of these SFG's will have its own algorithm definition for
+load-balancing and redundancy. (E.g. Load balancing based on the last
+bits of the ip/flow_id of the subscriber, or on any other rule that
+splits the traffic according to information in the packet in a way that
+will not break affinity).
+* Only SFs with the same type will be allowed to be added to a group.
+* The SFG configuration will be stored in the mapping service and may be
+used by other controllers to configure their SFF rather than
+non-distributed controllers.
+* Each SFF in the path will be configured according to the algorithm and
+the list of SFs attached to the SFG.
+* When there is a single SF in the group functionality will keep current
+behavior.
+
+[[use-cases]]
+== Use Cases
+
+* add new SF to a group
+* remove SF from group
+* any other change of a group will end up removing and re-adding the
+group.
+* connectivity change between SF and SFF - in case the switch supports
+liveness checking will be handled by the OF switch
+
+[[note-future]]
+== Note (Future)
+
+During the last discussion we decided to use OF groups for performing
+load balancing within the group for the first phase. The following
+section discusses how to implement a mapping table that will be used to
+configure a switch through a non OF protocol for getting better control
+of the the load balancing method.
+
+* Triggers to re-calculate the algorithm output (mapping tables).
+** Change in the content of the group.
+** Change in a state of SF.
+
+[[mapping-table.]]
+=== Mapping Table.
+
+The output of the algorithm will be stored in two mapping tables. These
+tables will be used by the component that configures the SFF (most
+likely by OpenFlow). These components can exists in a distributed
+controllers or in a single one.
+
+1.  group-id -> primary and secondary SF - group-id will be used as the
+identifier of the group-rules configuration in the SFF. In this solution
+we assume that the OF group type will be fast-failure, where the SFF
+detects the state of the SF's and invokes the relevant rule accordingly.
+If the SFF does not support the fast-failure group type the controller
+will configure only Primary SF and will re-configure the Secondary SF
+upon failure.
+2.  least bit -> group-id
+
+`Example: ` +
+`A single group will contain  A,B,C actual SF's.`
+
+Table 1
+
+[cols=",,",options="header",]
+|================================================
+|group-id |Actual SF Primary |Actual SF Secondary
+|0 |A |B
+|1 |B |C
+|2 |C |A
+|3 |A |C
+|4 |B |A
+|5 |C |B
+|================================================
+
+Table 2
+
+[cols=",",options="header",]
+|=================================================================
+|OF match-rule on least significant bit of ip/flow_id... |Group-id
+|0 |0
+|1 |1
+|2 |2
+|3 |3
+|4 |4
+|5 |5
+|.... |
+|14 |2
+|15 |3
+|=================================================================
+
+[[initial-committers]]
+== Initial Committers
+
+* Shlomi Alfasi (shlomi.alfasi@Contextream.com)
+* Gal Mainzer (GMainzer@Contextream.com)
+* David Goldberg (David.Goldberg@Contextream.com)
+

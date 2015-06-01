@@ -7,23 +7,12 @@ the examples configuration using ODL-BGPCEP.
 [[audience]]
 === Audience
 
-For the purpose of connecting more than two opendaylight controllers in
-a network and sharing the topology information among them.
+For the purpose of connecting multiple opendaylight federated
+controllers in a network and sharing the topology information among
+them.
 
-[[how-to-run]]
-=== How to Run
-
-Download/Gerrit the following from the repository:
-
-* Opendaylight controller Base or SP edition
-
---------------------------------------------------------------
-http://www.opendaylight.org/software/downloads 
-OR
-git clone https://git.opendaylight.org/gerrit/p/controller.git
---------------------------------------------------------------
-
-* ODL-SDNi App
+[[odl-sdni-app-source-code]]
+=== ODL-SDNi App Source code
 
 ---------------------------------------------------------------------
 git clone https://git.opendaylight.org/gerrit/sdninterfaceapp.git
@@ -31,15 +20,187 @@ OR
 git clone ssh://<username>@git.opendaylight.org:29418/sdninterfaceapp
 ---------------------------------------------------------------------
 
-Add ODL-SDNi App related jar files into the deployment folder of the
-Base/SP edition i.e under the directory location
-/root/controller/opendaylight/distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/plugins
+[[components]]
+=== Components
+
+SDNiAggregator(controller), SDNi REST API(controller) and
+SDNiWrapper(bgpcep) are the three components in ODL-SDNi App
+
+* SDNiAggregator: Connects with switch, topology, hosttracker managers
+of controller to get the topology and other related data.
+* SDNi Rest API: It is a part of controller northbound, which gives the
+required information by quering SDNiAggregator
+* SDNiWrapper: This component uses the SDNi RestAPI and gathers the
+information required to be shared among controllers.
+
+[[running-odl-sdni-application]]
+=== Running ODL-SDNi Application
+
+The ODL-SDNi App has two methods for running it:
+
+1.  ODL-SP edition
+2.  ODL-Karaf
+
+[[odl-sdni-app-with-sp-edition]]
+=== ODL-SDNi App with SP edition
+
+* Download the latest SP edition from the following Jenkins link:
+
+------------------------------------------------------------------------------------------------------------------------------
+https://jenkins.opendaylight.org/integration/view/Integration%20jobs/job/integration-helium-project-centralized-integration/
+lastSuccessfulBuild/artifact/distributions/serviceprovider/target/distributions-serviceprovider-0.2.1-SNAPSHOT-osgipackage.zip
+------------------------------------------------------------------------------------------------------------------------------
+
+* Unzip SP Edition and add ODL-SDNi App related jar files into the
+deployment folder of the SP edition, i.e /opendaylight/plugins
+
+Deploy the following jar files from
+https://jenkins.opendaylight.org/sdninterfaceapp/job/sdninterfaceapp-merge/ws/
+and place them in the right folders:
+
+----------------------------------
+sdni-0.6.0-SNAPSHOT.jar
+sdniaggregator-0.6.0-SNAPSHOT.jar
+bgp-linkstate-0.3.1-SNAPSHOT.jar
+bgp-parser-impl-0.3.1-SNAPSHOT.jar
+bgp-rib-impl-0.3.1-SNAPSHOT.jar
+bgp-sdniwrapper-0.3.1-SNAPSHOT.jar
+----------------------------------
+
+Note: Refer this link for BGP Peer configuration,
+https://wiki.opendaylight.org/view/BGP_LS_PCEP:User_Guide
 
 * Run the controller using the command ./run.sh
+* For more than one controller (with the same ODL-SDNi App setup), use
+the clustering command to run it. Refer the following link for more
+information about Clustering.
 
-* Run the mininet script to create the network topology in controller.
+https://wiki.opendaylight.org/view/OpenDaylight_Controller:Clustering:HowTo
 
-* ODL-SDNi Rest APIs URL with the result.
+-----------------------------------------
+./run.sh -Dsupernodes=10.0.0.1[:10.0.0.2]
+-----------------------------------------
+
+* Run the Mininet script to create the network topology in controller.
+
+* Check the logs in opendaylight/logs/opendaylight.log
+
+[[karaf-with-odl-sdni-app]]
+=== Karaf with ODL-SDNi App
+
+* Download the Helium Karaf
+
+----------------------------------------------
+http://www.opendaylight.org/software/downloads
+----------------------------------------------
+
+* Download SDNi-BGPCEP related jar files from the Opendaylight-Jenkins
+link
+
+----------------------------------------------------------------------------------------
+https://jenkins.opendaylight.org/sdninterfaceapp/job/sdninterfaceapp-merge/ws/HeliumJar/
+----------------------------------------------------------------------------------------
+
+* Deploy the downloaded jar files under the respective directories in
+"distribution-karaf-0.2.0-Helium/system/org/opendaylight/"
+
+--------------------------------------------------------------------------------------------------------------------------------------
+bgp-linkstate-0.3.1-Helium.jar - distribution-karaf-0.2.0-Helium/system/org/opendaylight/bgpcep/bgp-linkstate/0.3.1-Helium/
+bgp-parser-impl-0.3.1-Helium.jar - distribution-karaf-0.2.0-Helium/system/org/opendaylight/bgpcep/bgp-parser-impl/0.3.1-Helium/
+bgp-rib-impl-0.3.1-Helium.jar - distribution-karaf-0.2.0-Helium/system/org/opendaylight/bgpcep/bgp-rib-impl/0.3.1-Helium/
+sdni-0.5.2-Helium.jar - distribution-karaf-0.2.0-Helium/system/org/opendaylight/sdninterfaceapp/sdni/0.5.2-Helium/
+sdniaggregator-0.5.2-Helium.jar - distribution-karaf-0.2.0-Helium/system/org/opendaylight/sdninterfaceapp/sdniaggregator/0.5.2-Helium/
+--------------------------------------------------------------------------------------------------------------------------------------
+
+* Sdniwrapper is a new component added in bgpcep for SDNi Rest API
+communication. Create a new folder “bgp-sdniwrapper/0.3.1-Helium” under
+"distribution-karaf-0.2.0-Helium/system/org/opendaylight/bgpcep"
+directory and deploy the following jar file into it.
+
+--------------------------------
+bgp-sdniwrapper-0.3.1-Helium.jar
+--------------------------------
+
+* Change the following bgpcep related files to add bgp-sdniwrapper
+module:
+
+\1) In
+"distribution-karaf-0.2.0-Helium/system/org/opendaylight/bgpcep/features-bgp/0.3.1-Helium/features-bgp-0.3.1-Helium-features.xml"
+file add the following lines under “odl-bgpcep-dependencies” feature:
+
+--------------------------------------------------------------------------
+<bundle>mvn:org.opendaylight.bgpcep/bgp-sdniwrapper/0.3.1-Helium</bundle> 
+<bundle>mvn:com.fasterxml.jackson.core/jackson-annotations/2.3.2</bundle> 
+<bundle>mvn:com.fasterxml.jackson.core/jackson-core/2.3.2</bundle> 
+<bundle>mvn:com.fasterxml.jackson.core/jackson-databind/2.3.2</bundle> 
+<bundle>mvn:com.sun.jersey/jersey-core/1.17</bundle> 
+<bundle>mvn:com.sun.jersey/jersey-server/1.17</bundle> 
+<bundle>mvn:com.sun.jersey/jersey-servlet/1.17</bundle> 
+<bundle>mvn:com.sun.jersey/jersey-client/1.17</bundle>
+--------------------------------------------------------------------------
+
+And Under "odl-bgpcep-linkstate", "odl-bgpcep-parser" and
+"odl-bgpcep-rib" features tab add this line
+
+--------------------------------------------------------------------------
+<bundle>mvn:org.opendaylight.bgpcep/bgp-sdniwrapper/0.3.1-Helium</bundle> 
+--------------------------------------------------------------------------
+
+\2) In
+"distribution-karaf-0.2.0-Helium/system/org/opendaylight/bgpcep/bgp-parent/0.3.1-Helium/bgp-parent-0.3.1-Helium.pom"
+file add the lines:
+
+---------------------------------------------
+<module>sdniwrapper</module> 
+
+<dependency> 
+    <groupId>${project.groupId}</groupId> 
+    <artifactId>bgp-sdniwrapper</artifactId> 
+    <version>${project.version}</version> 
+</dependency> 
+---------------------------------------------
+
+* Refer this guide for BGP Configuration
+
+------------------------------------------------------------------------
+https://wiki.opendaylight.org/view/BGP_LS_PCEP:Helium_Installation_Guide
+------------------------------------------------------------------------
+
+* Run the karaf using the command ./karaf under bin directory.
+
+* Install the following features, for eg. command for installing
+restconf feature is "feature:install odl-restconf"
+
+---------------------------
+odl-restconf
+odl-l2switch-all
+odl-adsal-all
+odl-adsal-compatibility-all
+odl-adsal-compatibility
+odl-nsf-all
+odl-sdninterfaceapp-all
+odl-bgpcep-all
+---------------------------
+
+To get the host tracker information, install the arphandler bundle with
+the commands,
+
+------------------------------------------------------------------------
+> bundle:install mvn:org.opendaylight.controller/arphandler/0.5.2-Helium
+> bundle:start arphandler
+------------------------------------------------------------------------
+
+* Check Karaf log in distribution-karaf-0.2.0-Helium/data/log/karaf.log
+
+[[checking-odl-sdni-app-output]]
+=== Checking ODL-SDNi App Output
+
+* After running the controllers (either in SP Edition or in Karaf), run
+the mininet script to create the network topology in controller.
+Topology can be created in all the connected controllers. Ping can be
+used to test the connectivity of the controllers.
+
+* Check the ODL-SDNi Rest APIs URL with the following result.
 
 URL: http://localhost:8080/controller/nb/v2/sdni/default/topology
 
@@ -56,60 +217,9 @@ Result: {"link":["(OF|3@OF|00:00:00:00:00:00:00:01->OF|1@OF|00:00:00:00:00:00:00
 "controller":["10.132.35.14"],"node":["00:00:00:00:00:00:00:01","00:00:00:00:00:00:00:02","00:00:00:00:00:00:00:03"],"host":["1"]}
 ----------------------------------------------------------------------------------------------------------------------------------
 
-URL:
-http://localhost:8080/controller/nb/v2/sdni/default/property/bandwidth/5
-
----------------------------------------------------------------------------------------------------------------------------
-This call will update the link bandwidth in the topology with value 5Gbps.Note it is being used mostly for testing purpose.
----------------------------------------------------------------------------------------------------------------------------
-
-[[components]]
-=== Components
-
-SDNiAggregator(controller), SDNiWrapper(bgpcep) and SDNi REST
-API(controller) are the three components in ODL-SDNi App
-
-* SDNiAggregator: Connects with switch, topology, hosttracker managers
-of controller to get the topology and other related data.
-* SDNiWrapper: This component uses the SDNi RestAPI and gathers the
-information required to be shared among controllers.
-* SDNi Rest API: It is a part of controller northbound, which gives the
-required information by quering SDNiAggregator
-
-[[configuration]]
-=== Configuration
-
-* Initial Setup
-
-Refer this link for inital setup of opendaylight controller
-https://wiki.opendaylight.org/view/OpenDaylight_Controller:Pulling,Hacking,_and_Pushing_the_Code_from_the_CLI.
-
-* ODL-SDNi App Deployment
-
-`   Copy the following jar files from ODL-SDNi app into /root/controller/opendaylight/distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/plugins directory of opendaylight. `
-
----------------------------------------------------------------------
-org.opendaylight.controller.sdni.northbound-0.4.2-SNAPSHOT.jar
-org.opendaylight.controller.sdniaggregator-0.5.2-SNAPSHOT.jar
-org.opendaylight.bgpcep.bgp-linkstate-0.3.1-20140601.230629-192.jar
-org.opendaylight.bgpcep.bgp-sdniwrapper-0.3.1-20140601.230629-192.jar
----------------------------------------------------------------------
-
-* Controller setup
-
-`   For more than one controller (with the same ODL-SDNi App setup), use the clustering  command to run it.Refer the following link `
-
-https://wiki.opendaylight.org/view/OpenDaylight_Controller:Clustering:HowTo
-
------------------------------------------
-./run.sh -Dsupernodes=10.0.0.1[:10.0.0.2]
------------------------------------------
-
-Topology can be created in all the connected controllers using mininet.
-Ping can be used to test the connectivity of the controllers. BGP
-session will get established between the connected controllers and
-update message will be exchanged periodically along with the SDNi
-data.Work is going on to get the session established.
+* BGP session will get established between the connected controllers and
+update message will be exchanged periodically along with the SDNi data.
+Check the log files for more information.
 
 [[troubleshooting]]
 === TroubleShooting

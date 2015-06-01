@@ -1,3 +1,7 @@
+THIS GUIDE IS FOR HYDROGEN DISTRIBUTION. FOR KARAF BASED DISTRIBUTIONS
+(HELIUM AND UP) CLICK
+GettingStarted:Pulling, Hacking, and Pushing All the Code from the CLI[HERE].
+
 [cols="^",]
 |=======================================================================
 |*Guide Contents*
@@ -20,6 +24,13 @@ OpenDaylight Controller:Java API Reference[Java API Reference] +
 OpenDaylight Controller:Topologies[Topologies] +
 OpenDaylight Controller:Main[Top Level Contents]
 |=======================================================================
+
+[[pulling-stablehelium]]
+== Pulling Stable/Helium
+
+If you want to pull the stable/helium release, have a look at
+https://wiki.opendaylight.org/view/CrossProject:Integration_Group:Hack_Code[Stable
+Helium] and replace Integration with the project(s) of your choice.
 
 [[git-cheat-sheet]]
 == Git Cheat Sheet
@@ -79,7 +90,7 @@ chmod 755 .git/hooks/commit-msg
 
 The following are required for building the codebase.
 
-:* http://maven.apache.org/[Maven] 3.04 or greater.
+:* http://maven.apache.org/[Maven] 3.1.1 or greater.
 
 Install (assuming yum is your package manager, adjust accordingly):
 
@@ -116,7 +127,8 @@ OpenJDK Runtime Environment (fedora-2.4.7.0.fc20-x86_64 u55-b13)
 OpenJDK 64-Bit Server VM (build 24.51-b03, mixed mode)
 ----------------------------------------------------------------
 
-For more information about setting up a development environment, see
+For more information about setting up a development environment for
+example hardware requirements see
 GettingStarted:Development Environment Setup[GettingStarted:Development
 Environment Setup].
 
@@ -147,6 +159,15 @@ mvn clean install -DskipTests
 /* instead of "mvn clean install" */
 ------------------------------------
 
+* If you want maven to continue with building and running the next test
+after the current one fails (but still fail the build when any test
+failures occur), run the following:
+
+----------------------------------------------------------------
+mvn -Dmaven.test.failure.ignore=true --fail-at-end clean install
+/* instead of "mvn clean install" */
+----------------------------------------------------------------
+
 * If you have problems with maven needing a proxy, see
 http://www.mkyong.com/maven/how-to-enable-proxy-setting-in-maven/ for
 how to set proxy information
@@ -159,10 +180,19 @@ cd controller/opendaylight/distribution/opendaylight/target/distribution.openday
 ./run.sh
 ---------------------------------------------------------------------------------------------------------------
 
-Finally point your browser at http://localhost:8080/ and login with
-username: admin, password: admin
+The system takes up to 3 minutes to fully initialize. After 3 or more
+minutes have passed from entering the above commands, point your browser
+at http://localhost:8080/ and after a while the login screen should
+appear in the browser:
 
 image:OpenDaylight - Login.jpg[OpenDaylight - Login.jpg,title="OpenDaylight - Login.jpg"]
+
+Login with username: admin, password: admin
+
+If the browser shows a blank page instead or if it complains about
+refused connection, the most frequent problem is that you did not give
+the system enough time to fully initialize itself. Wait a couple of
+minutes, then try to enter the URL into your browser again.
 
 There is much much more complete documentation on running the controller
 in the OpenDaylight Controller:Installation[Installation Guide].
@@ -308,7 +338,30 @@ image:Gerrit Merged.jpg[Gerrit Merged.jpg,title="Gerrit Merged.jpg"]
 == What to do if your Firewall blocks port 29418
 
 There have been reports that many corporate firewalls block port 29418.
-If that's the case, please follow the
+If that's the case, there are two solutions: tsocks and HTTP.
+
+[[tsocks]]
+=== tsocks
+
+tsocks will socksify any command you run. tsocks is available on Linux
+and MacOS:
+
+* RedHat/CentOS/Fedora: yum install tsocks
+* Ubuntu: apt-get install tsocks
+* MacOS: https://whatbox.ca/wiki/tsocks[tsocks on MacOS]
+
+Once tsocks is installed, you will need to configure your corporate
+proxy server in the tsocks.conf file. To use tsocks, just add "tsocks"
+before your normal git command. For example:
+
+--------------------------------------------------------------------------------
+tsocks git clone ssh://<your_username>@git.opendaylight.org:29418/controller.git
+--------------------------------------------------------------------------------
+
+[[http]]
+=== HTTP
+
+To use HTTP, please follow the
 OpenDaylight Controller:Setting up HTTP in Gerrit[Setting up HTTP in
 Gerrit] instructions and use git URL:
 
@@ -386,7 +439,7 @@ http://edwarnicke.org/2013/06/03/debugging-opendaylight-controller-in-eclipse/[D
 OpenDaylight controller in Eclipse]
 
 *
-http://www.sdncentral.com/education/opendaylight-community-wants-make/2013/10/[OpenDaylight
+http://www.sdxcentral.com/education/opendaylight-community-wants-make/2013/10/[OpenDaylight
 Is Whatever the Community Can Make of It]
 
 *

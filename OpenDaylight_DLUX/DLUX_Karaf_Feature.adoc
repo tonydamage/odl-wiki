@@ -1,0 +1,84 @@
+*Note: This page is only for OpenDaylight Helium release*
+
+The DLUX Karaf feature is available in OpenDaylight Helium. This page
+describes the process of standing up ODL Helium with DLUX enabled.
+
+[[getting-helium]]
+== Getting Helium
+
+Download
+http://www.opendaylight.org/software/downloads/helium-sr1[OpenDaylight
+Helium SR1] from the
+http://www.opendaylight.org/software/downloads[Nexus server].
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------
+wget https://nexus.opendaylight.org/content/groups/public/org/opendaylight/integration/distribution-karaf/0.2.1-Helium-SR1/distribution-karaf-0.2.1-Helium-SR1.tar.gz
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+A
+https://nexus.opendaylight.org/content/groups/public/org/opendaylight/integration/distribution-karaf/0.2.1-Helium-SR1/distribution-karaf-0.2.1-Helium-SR1.zip[zip
+archive] is also available. For DLUX development, see
+https://wiki.opendaylight.org/view/OpenDaylight_dlux:Setup_and_Run[this
+page] for information about downloading DLUX's git repo, building DLUX
+from source and other dev-level configuration steps.
+
+Extract ODL from the archive.
+
+-------------------------------------------------
+tar xf distribution-karaf-0.2.1-Helium-SR1.tar.gz
+-------------------------------------------------
+
+[[installing-karaf-features]]
+== Installing Karaf Features
+
+OpenDaylight Helium doesn't ship with any features installed by default.
+You'll need to use the Karaf console to install the features required by
+DLUX.
+
+Start the Karaf console.
+
+-------------------------------------------------------------------------------------------
+[~/distribution-karaf-0.2.1-Helium-SR1]$ ./bin/karaf
+                                                                                           
+    ________                       ________                .__  .__       .__     __       
+    \_____  \ ______   ____   ____ \______ \ _____  ___.__.|  | |__| ____ |  |___/  |_     
+     /   |   \\____ \_/ __ \ /    \ |    |  \\__  \<   |  ||  | |  |/ ___\|  |  \   __\    
+    /    |    \  |_> >  ___/|   |  \|    `   \/ __ \\___  ||  |_|  / /_/  >   Y  \  |      
+    \_______  /   __/ \___  >___|  /_______  (____  / ____||____/__\___  /|___|  /__|      
+            \/|__|        \/     \/        \/     \/\/            /_____/      \/          
+                                                                                           
+
+Hit '<tab>' for a list of available commands
+and '[cmd] --help' for help on a specific command.
+Hit '<ctrl-d>' or type 'system:shutdown' or 'logout' to shutdown OpenDaylight.
+
+opendaylight-user@root>
+-------------------------------------------------------------------------------------------
+
+Use Karaf to install the following features.
+
+-------------------------------------------------------------------------------------------------------
+opendaylight-user@root>feature:install odl-restconf odl-l2switch-switch odl-mdsal-apidocs odl-dlux-core
+-------------------------------------------------------------------------------------------------------
+
+odl-l2switch-switch internally enables the MD-SAL data broker and
+OpenFlow plugin service. It also makes sure hosts and switches are
+visible in the Topology section of the DLUX UI. odl-mdsal-apidocs is
+required for the Yang section of the DLUX UI.
+
+*Note: The AD-SAL section of the DLUX UI will not be visible without
+also installing odl-adsal-all and odl-adsal-northbound. However, this
+currently seems to break DLUX (404s). The issue is apparently related to
+odl-l2switch-switch and odl-adsal-northbound both enabling their own
+host tracker bundles.*
+
+For an example of connecting odl with mininet, see
+OVSDB:dlux_mininet[this page].
+
+[[accessing-the-dlux-ui]]
+== Accessing the DLUX UI
+
+Navigate to http://localhost:8181/dlux/index.html to access the DLUX UI.
+The default username and password are both "admin".
+
+image:DLUX_UI_Login.png[DLUX_UI_Login.png,title="DLUX_UI_Login.png"]

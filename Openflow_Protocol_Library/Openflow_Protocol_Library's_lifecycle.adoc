@@ -3,22 +3,25 @@
 
 Steps (after the library's bundle is started):
 
-* [1] Plugin configures the Library (adress, ports, encryption, ...)
+* [1] Library is configured by ConfigSubsystem (adress, ports,
+encryption, ...)
 * [2] Plugin injects its SwitchConnectionHandler into the Library
 * [3] Plugin starts the Library
 * [4] Library creates configured protocol handler (e.g. TCP Handler)
-* [5] TCP Handler creates Publishing Channel Initializer on new /
-incoming switch connection
-* [6] Publishing Channel Initializer asks plugin whether to accept
-incoming connection
+* [5] Protocol Handler creates Channel Initializer
+* [6] Channel Initializer asks plugin whether to accept incoming
+connection on each new switch connection
 * [7] Plugin responds:
 ** true - continue building pipeline
 ** false - reject connection / disconnect channel
 * [8] Library notifies Plugin with onSwitchConnected(ConnectionAdapter)
-notification, announcing that pipeline handlers needed for communication
-have been created and Plugin can start communication
+notification, passing reference to ConnectionAdapter, that will handle
+the connection
 * [9] Plugin registers its system and message listeners
-* [10] Plugin shutdowns the Library when desired
+* [10] FireConnectionReadyNotification() is triggered, announcing that
+pipeline handlers needed for communication have been created and Plugin
+can start communication
+* [11] Plugin shutdowns the Library when desired
 
 image:Library lifecycle.png [ center | Library's
 lifecycle,title=" center | Library's lifecycle"]
@@ -31,13 +34,13 @@ lifecycle,title=" center | Library's lifecycle"]
 |*Plugin* a|
 *SwitchConnectorHandler*
 
-* onSwitchConnected(_ConnectionAdapter_) [4]
+* onSwitchConnected(_ConnectionAdapter_) [8]
 
 ::
   ;;
-    `connectionAdapter.setMessageListener(ofProtocolListener)` [5]
+    `connectionAdapter.setMessageListener(ofProtocolListener)` [9]
     +
-    `connectionAdapter.setSystemListener(systemListener)` [5]
+    `connectionAdapter.setSystemListener(systemListener)` [9]
 
 * accept(_InetAddress_)
 
@@ -61,15 +64,15 @@ lifecycle,title=" center | Library's lifecycle"]
 '''''
 
 call particular rpc method on particular instance of _ConnectionAdapter_
-to send message to particular switch [6][7]
+to send message to particular switch
 
 |*Library* a|
 *SwitchConnectionProvider*
 
 * config() [1]
-* startup() [2]
-* shutdown() [8]
-* setSwitchConnectionHandler(_SwitchConnectionHandler_) [1]
+* startup() [3]
+* shutdown() [11]
+* setSwitchConnectionHandler(_SwitchConnectionHandler_) [2]
 
 '''''
 
@@ -81,7 +84,7 @@ to send message to particular switch [6][7]
 * setOFProtocolListener(_OFProtocolListener_) -- place to send message
 notifications
 
-call _OFProtocolListener_ when a message arrives [6][7]
+call _OFProtocolListener_ when a message arrives
 
 |=======================================================================
 
@@ -93,9 +96,10 @@ call _OFProtocolListener_ when a message arrives [6][7]
 3.  new switch connects to netty layer
 4.  @Library: onSwitchConnected(new _ConnectionAdapter_...)
 5.  @Plugin: setMessageListener(); setSystemListener();
-6.  @both: send/receive Hello (handshake)
-7.  @both: do some switch exercise
-8.  @Plugin: shutdown
+6.  @Library: fireConnectionReadyNotification()
+7.  @both: send/receive Hello (handshake)
+8.  @both: do some switch exercise
+9.  @Plugin: shutdown
 
 [[openflow-protocol-librarymain-page]]
 == Openflow Protocol Library:Main page

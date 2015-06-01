@@ -1,0 +1,614 @@
+[[note-clustering-only-works-with-a-karaf-distribution.]]
+=== Note : Clustering only works with a Karaf distribution.
+
+[[single-instance-with-clustering]]
+== Single Instance with Clustering
+
+To run the controller with the clustering code enabled, do the
+following:
+
+\1. Download or build a base distribution of the controller. Though
+these instructions will work with any distribution, to test, you must
+use the new Openflowplugin. So, use a distribution where the new
+Openflowplugin is the default, or where it can be turned on. Usually, I
+test by building the OpenFlow plugin distribution.
+
+\2. Go to the bin directory of your Karaf distribution.
+
+\3. Run Karaf with the following command:
+
+`    ./karaf`
+
+\4. Instal restconf
+
+`    feature:install odl-restconf-all`
+
+\5. Install the clustering feature on Karaf using the following command
+(you only need to do this once):
+
+`   feature:install odl-mdsal-clustering`
+
+\6. If you are using the integration distribution of Karaf, you may also
+need to install the odl-openflowplugin-flow-services:
+
+`   feature:install odl-openflowplugin-flow-services`
+
+\7. Install Jolokia.
+
+`   feature:install http` +
+`   bundle:install -s `mvn:org.jolokia/jolokia-osgi/1.1.4[`mvn:org.jolokia/jolokia-osgi/1.1.4`]
+
+*Note*: You should be able to test the controller now as you would
+normally test a regular, single instance of the controller.
+
+By switching to the DistributedDataStore in a single instance, you get
+the following additional features:
+
+* Sharding - The big in-memory MD-SAL tree is broken up into a bunch of
+smaller sub-trees (inventory, topology and default).
+* Data Persistence - Everything that gets into a shard is stored on the
+disk. Restarting the controller will reconstitute the state of the
+shards from the persisted data.
+
+[[three-node-cluster]]
+== Three-node cluster
+
+[[deployment-considerations]]
+=== Deployment considerations
+
+If you have a three-node cluster, each member in this cluster needs to
+have an identifier. We are using the role as an identifier. So, if in
+https://github.com/opendaylight/controller/blob/master/opendaylight/md-sal/sal-clustering-config/src/main/resources/initial/akka.conf[akka.conf],
+the role for this member is member-1, that is its identity and must be
+unique.
+
+`    roles = [ "member-1" ] `
+
+Next, we have
+OpenDaylight_Controller:MD-SAL:Architecture:Clustering#Shard[shards].
+There could be 'n' number of shards defined. In Helium the only
+shard-strategy we support is module which puts all the data of a single
+OpenDaylight_Controller:MD-SAL:Architecture:Clustering#modules.conf[module]
+in two shards (one for config and one for operational data)
+
+Example of
+https://github.com/opendaylight/controller/blob/master/opendaylight/md-sal/sal-clustering-config/src/main/resources/initial/modules.conf[modules.conf]
+
+So data shard contains all the data in a module. For example, the
+inventory shard will contain all the inventory data, and the topology
+shard will contain all the topology data.
+
+If you do not specify a
+OpenDaylight_Controller:MD-SAL:Architecture:Clustering#modules.conf[module]
+in the
+https://github.com/opendaylight/controller/blob/master/opendaylight/md-sal/sal-clustering-config/src/main/resources/initial/modules.conf[modules.conf],
+and do not specify a
+OpenDaylight_Controller:MD-SAL:Architecture:Clustering#Shard[shard] in
+OpenDaylight_Controller:MD-SAL:Architecture:Clustering#module-sharding-strategies.conf[module-sharding-strategies.conf],
+then by default all the data goes into the default shard (which must be
+defined in module-shards).
+
+A OpenDaylight_Controller:MD-SAL:Architecture:Clustering#Shard[shard]
+has replicas. In module-shards, you can specify where each of the
+replicas live. For example, you can say inventory is on member-1, and
+topology is on member-2.
+
+For a three-node cluster, which supports HA, you must have a replica of
+a module running on all 3 members. This is because if there are replicas
+defined for only two members, and if one of the members were to go down,
+then the shard will not function. The reason for this is that the
+clustering implementation requires a majority of the defined replicas of
+a shard to be running in order to function.
+
+So, if you have 3 nodes in a cluster, and you have specified replicas
+for a shard on each of the 3 nodes, you can have two cluster nodes up
+and running, and the cluster (shards) will function. However, this is
+not recommended because any one of the two nodes going down will render
+your controller unusable.
+
+[[what-are-the-considerations-when-setting-the-seeds-for-each-member-why-is-it-there-are-plural-seeds-when-you-set-only-one-ip-can-you-set-multiple-seeds-for-ft]]
+==== What are the considerations when setting the “seeds” for each
+member? Why is it there are plural “seeds” when you set only one IP? Can
+you set multiple seeds for FT?
+
+The seeds can be more than one: I would recommend that. The idea behind
+the seed is that when you are starting a node, you want to tell it which
+cluster to join, and the seed is how you do it.
+
+[[what-happens-after-one-node-is-unreachable-do-updates-to-the-other-two-function-normally-when-the-third-later-reconnects-does-it-sync-up]]
+==== What happens after one node is unreachable … do updates to the
+other two function normally? When the third later reconnects, does it
+sync up?
+
+After a node becomes unreachable, it will be downed by the cluster after
+a configurable time - 10s by default. Once downed, that node will need
+to be restarted so that it can rejoin the cluster. Once a restarted node
+joins a cluster, it will sync up with the leader.
+
+[[why-can-we-not-run-a-two-node-cluster-for-ft-only-or-can-we]]
+==== Why can we not run a two node cluster for FT only, or can we?
+
+For functional testing, you can have a two node cluster. For HA testing,
+you will need all three.
+
+[[how-do-we-disable-persistence]]
+==== How do we disable persistence?
+
+Persistence is enabled by default for the config store with the current
+Clustered Data store implementation. It can, however, be independently
+turned off for both the config and the operational stores.
+
+To turn off persistence on the config store, open the 05-clustering.xml
+file that is located in ./etc/opendaylight/karaf/05-clustering.xml.
+
+Find the following section, and add the highlighted property:
+
+`   ` +
+`       ``prefix:distributed-config-datastore-provider` +
+`       ``distributed-config-store-module` +
+`       ` +
+`           ``dom:schema-service` +
+`           ``yang-schema-service` +
+`       ` +
+`       `** +
+`            `*`false`* +
+`       `** +
+`    `
+
+[[setting-up-the-cluster]]
+=== Setting up the cluster
+
+To run the controller in a three node cluster, do the following:
+
+* Find 3 machines on which to deploy the controller distribution.
+* Copy the controller distribution to each of those instances.
+* Edit the following two .conf files on each host:
+
+`    configuration/initial/akka.conf` +
+`    configuration/initial/module-shards.conf`
+
+[[set-hostname]]
+==== Set hostname
+
+* In
+https://github.com/opendaylight/controller/blob/master/opendaylight/md-sal/sal-clustering-config/src/main/resources/initial/akka.conf[akka.conf]
+Find the piece of configuration which looks like the following:
+
+`     netty.tcp {` +
+`       hostname = "127.0.0.1"`
+
+and set the value of 127.0.0.1 to the hostname or IP address of the
+machine on which the controller will be running. This will be different
+for each node in the cluster. Note that there will be 2 instances of
+this in the file (1 of them under odl-cluster-rpc), and all instances
+must be changed.
+
+[[define-seed-nodes]]
+==== Define seed nodes
+
+* Still in
+https://github.com/opendaylight/controller/blob/master/opendaylight/md-sal/sal-clustering-config/src/main/resources/initial/akka.conf[akka.conf]
+find the piece of configuration which looks like the following:
+
+`   cluster {` +
+`     seed-nodes = ["akka.tcp://opendaylight-cluster-data@127.0.0.1:2550"]`
+
+and set the value of 127.0.0.1 to the hostname or IP address of any one
+of the machines which will be part of the cluster. [Note that there will
+be one more place under odl-cluster-rpc where you need to make the
+change.]
+
+It is good to set the seed-nodes configuration to be a list of all the
+nodes in the cluster. For example, if your nodes are at the
+10.194.189.1, 10.194.189.2 and 10.194.189.3 IP addresses, your seed
+nodes setting should look as follows:
+
+`   cluster {` +
+`     seed-nodes = ["akka.tcp://opendaylight-cluster-data@10.194.189.1:2550","akka.tcp://opendaylight-cluster-data@10.194.189.2:2550", "akka.tcp://opendaylight-cluster-data@10.194.189.3:2550"]`
+
+This ensures that partitions are not created when a single node which
+was designated as the seed node is restarted.
+
+[[define-unique-name-for-each-node]]
+==== Define unique name for each node
+
+* Still in
+https://github.com/opendaylight/controller/blob/master/opendaylight/md-sal/sal-clustering-config/src/main/resources/initial/akka.conf[akka.conf]
+find the following section, and assign a unique value to the single item
+in the roles arraylist. So assuming you have 3 instances of the
+controller running on 3 nodes. You can name the first role member-1, the
+second role, member-2, and so on.
+
+On node 1 in
+
+`     roles = [` +
+`       "member-1"` +
+`     ]`
+
+On node 2 change "member-1" to "member-2"
+
+`     roles = [` +
+`        "member-2"` +
+`    ]`
+
+A complete akka.conf can be found at:
+https://gist.github.com/moizr/88f4bd4ac2b03cfa45f0.
+
+[[define-the-replication-type]]
+==== Define the replication type
+
+* Edit configuration/initial/module-shards.conf, and set each of the
+multiple "replica" names to match the "role" names in the hosts
+akka.conf file.
+
+`               replicas = [` +
+`                   "member-1"` +
+`               ]`
+
+An example of 3 node configuraion is at
+OpenDaylight_Controller:MD-SAL:Architecture:Clustering#module-shards.conf
+
+[[run-the-controller]]
+==== Run the controller
+
+* Run the 3 nodes in the cluster with the following commands (Note that
+you must install the odl-mdsal-clustering feature on each of your boxes
+in order to run clustering.).
+
+`   JAVA_MAX_MEM=4G JAVA_MAX_PERM_MEM=512m ./karaf ` +
+`   JAVA_MAX_MEM=4G JAVA_MAX_PERM_MEM=512m ./karaf ` +
+`   JAVA_MAX_MEM=4G JAVA_MAX_PERM_MEM=512m ./karaf `
+
+With this setup, you have a 3 node cluster. From any member in the
+cluster, you can access the data in the datastore.
+
+[[validate-set-up]]
+==== Validate set up
+
+* To look at information about a shard on the node, which is designated
+as member-1, query shard data using the following HTTP request
+(admin/admin are the username/password to access that resource).
+
+`   GET `http://[`http://`]`:8181/jolokia/read/org.opendaylight.controller:Category=Shards,name=member-1-shard-inventory-config,type=DistributedConfigDatastore`
+
+This request should return information as follows:
+
+`   {` +
+`       "timestamp": 1410524741,` +
+`       "status": 200,` +
+`       "request": {` +
+`       "mbean": "org.opendaylight.controller:Category=Shards,name=member-1-shard-inventory-config,type=DistributedConfigDatastore",` +
+`       "type": "read"` +
+`       },` +
+`       "value": {` +
+`       "ReadWriteTransactionCount": 0,` +
+`       "LastLogIndex": -1,` +
+`       "MaxNotificationMgrListenerQueueSize": 1000,` +
+`       "ReadOnlyTransactionCount": 0,` +
+`       "LastLogTerm": -1,` +
+`       "CommitIndex": -1,` +
+`       "CurrentTerm": 1,` +
+`       "FailedReadTransactionsCount": 0,` +
+`       "Leader": "member-1-shard-inventory-config",` +
+`       "ShardName": "member-1-shard-inventory-config",` +
+`       "DataStoreExecutorStats": {` +
+`       "activeThreadCount": 0,` +
+`       "largestQueueSize": 0,` +
+`       "currentThreadPoolSize": 1,` +
+`       "maxThreadPoolSize": 1,` +
+`       "totalTaskCount": 1,` +
+`       "largestThreadPoolSize": 1,` +
+`       "currentQueueSize": 0,` +
+`       "completedTaskCount": 1,` +
+`       "rejectedTaskCount": 0,` +
+`       "maxQueueSize": 5000` +
+`       },` +
+`       "FailedTransactionsCount": 0,` +
+`       "CommittedTransactionsCount": 0,` +
+`       "NotificationMgrExecutorStats": {` +
+`       "activeThreadCount": 0,` +
+`       "largestQueueSize": 0,` +
+`       "currentThreadPoolSize": 0,` +
+`       "maxThreadPoolSize": 20,` +
+`       "totalTaskCount": 0,` +
+`       "largestThreadPoolSize": 0,` +
+`       "currentQueueSize": 0,` +
+`       "completedTaskCount": 0,` +
+`       "rejectedTaskCount": 0,` +
+`       "maxQueueSize": 1000` +
+`       },` +
+`       "LastApplied": -1,` +
+`       "AbortTransactionsCount": 0,` +
+`       "WriteOnlyTransactionCount": 0,` +
+`       "LastCommittedTransactionTime": "1969-12-31 16:00:00.000",` +
+`       "RaftState": "Leader",` +
+`       "CurrentNotificationMgrListenerQueueStats": []` +
+`       }` +
+`   }`
+
+The key thing here is the name of the shard. The structure of the shard
+name is as follows:
+
+`   ``-shard-``-`
+
+Examples of shard names,
+
+`   member-1-shard-topology-config` +
+`   member-2-shard-default-operational`
+
+[[three-node-cluster-with-ha]]
+== Three node cluster with HA
+
+1.  To enable HA in a 3 node cluster, edit the
+configuration/initial/module-shards.conf file on each cluster node, and
+add member-2 and member-3 into the replica list for each shard. To
+ensure HA, you must have at least 3 replicas of any Shard. Get your
+configuration on each node to look like the following:
+
+`   module-shards = [` +
+`       {` +
+`           name = "default"` +
+`           shards = [` +
+`               {` +
+`                   name="default"` +
+`                   replicas = [` +
+`                       "member-1",` +
+`                       "member-2",` +
+`                       "member-3"` +
+`                   ]` +
+`               }` +
+`           ]` +
+`       },` +
+`       {` +
+`           name = "topology"` +
+`           shards = [` +
+`               {` +
+`                   name="topology"` +
+`                   replicas = [` +
+`                       "member-1",` +
+`                       "member-2",` +
+`                       "member-3"` +
+`                   ]` +
+`               }` +
+`           ]` +
+`       },` +
+`       {` +
+`           name = "inventory"` +
+`           shards = [` +
+`               {` +
+`                   name="inventory"` +
+`                   replicas = [` +
+`                       "member-1",` +
+`                       "member-2",` +
+`                       "member-3"` +
+`                   ]` +
+`               }` +
+`           ]` +
+`       },` +
+`       {` +
+`            name = "toaster"` +
+`            shards = [` +
+`                {` +
+`                    name="toaster"` +
+`                    replicas = [` +
+`                       "member-1",` +
+`                       "member-2",` +
+`                       "member-3"` +
+`                    ]` +
+`                }` +
+`            ]` +
+`       }` +
+`   ]`
+
+` 2. Restart all the nodes. The nodes should automatically sync up with member-1, and after some time the cluster should be ready for business.`
+
+In this mode, the shards will be replicating the data. If at any point
+of time the leader of a shard is brought down, the leadership on the
+shard will change, and the cluster will remain available.
+
+` 3. To discover the leader of any shard, make an HTTP request to get the information of the shard on any one node, and it will tell you which replica is the leader.`
+
+[[using-the-cluster-deployer-python-script]]
+== Using the cluster-deployer python script
+
+In the integration repo, we have a python script under the folder,
+*tools/cluster-deployer*. The script file is deploy.py. This file
+contains the prerequisites required to run the script.
+
+The script requires the following,
+
+* An opendaylight zip distribution. Note: You need the zip and not the
+tar file.
+* The hostnames or IP addresses of 3 machines or VMs which can
+communicate with each other.
+* The ssh username/password for the 3 hosts must be provided, and they
+must be the same for all the hosts.
+* sudo pip install pystache
+
+To get help on the script, run it like this:
+
+` python deploy.py -h`
+
+Output
+
+` usage: deploy.py [-h] --distribution DISTRIBUTION --rootdir ROOTDIR --hosts` +
+`                HOSTS [--clean] [--template TEMPLATE] [--rf RF] [--user USER]` +
+`                [--password PASSWORD]` +
+` Cluster Deployer` +
+` optional arguments:` +
+` -h, --help            show this help message and exit` +
+` --distribution DISTRIBUTION` +
+`                       the absolute path of the distribution on the local` +
+`                       host that needs to be deployed` +
+` --rootdir ROOTDIR     the root directory on the remote host where the` +
+`                       distribution is to be deployed` +
+` --hosts HOSTS         a comma separated list of host names or ip addresses` +
+` --clean               clean the deployment on the remote host` +
+` --template TEMPLATE   the name of the template to be used. This name should` +
+`                       match a folder in the templates directory.` +
+` --rf RF               replication factor. This is the number of replicas` +
+`                       that should be created for each shard.` +
+` --user USER           the SSH username for the remote host(s)` +
+` --password PASSWORD   the SSH password for the remote host(s)`
+
+Here is an example of how to run the script:
+
+` python deploy.py --distribution=distribution-karaf-0.2.0-Helium.zip --rootdir=/root --hosts=10.194.189.1,10.194.189.2,10.194.189.3 --user=foo --password=bar`
+
+You can also pass the --clean parameter if you need to ensure that all
+the old deployments are cleaned up when you deploy the new
+distributions.
+
+[[running-integration-tests]]
+== Running Integration Tests
+
+Before you start, make sure that you have the integration git repo
+cloned.
+
+To run the integration tests, first deploy the cluster using the
+following command:
+
+`    cd ${ROOT}/integration/test/tools/cluster-deployer` +
+`    python deploy.py --distribution=distribution-karaf-0.2.0-Helium.zip --rootdir=/root --hosts=10.194.126.49,10.194.126.50,10.194.126.51 --user=foo --password=bar --template=multi-node-test`
+
+The integration tests require the following features for the
+wait_for_controller_up method.
+
+`    feature:install odl-netconf-connector` +
+`    feature:install odl-netconf-connector-ssh `
+
+Run the integration tests like the following:
+
+`    cd ${ROOT}/integration/test/csit/suites/clustering` +
+`    pybot -v MEMBER1:10.194.126.49 -v MEMBER2:10.194.126.50 -v MEMBER3:10.194.126.51 -v PORT:8181 -v USERNAME:foo -v PASSWORD:bar -v KARAF_HOME:/root/deploy/current/odl ./datastore/` +
+`    pybot -v MEMBER1:10.194.126.49 -v MEMBER2:10.194.126.50 -v MEMBER3:10.194.126.51 -v PORT:8181 -v USERNAME:foo -v PASSWORD:bar -v KARAF_HOME:/root/deploy/current/odl ./routedrpc/`
+
+Note: You do need this gerrit
+(https://git.opendaylight.org/gerrit/#/c/12831/) in order to execute the
+test scripts as shown above.
+
+[[running-performance-tests]]
+== Running Performance Tests
+
+`   cd ${ROOT}/integration/test/tools/odl-mdsal-clustering-tests/clustering-performance-test` +
+`   ./flow_add_delete_test.py --host=localhost --port=8181 --flows=1000 --threads=5 --bulk-delete  --auth`
+
+Note that you must be connected to Mininet or an OpenFlow network for
+the above test to work; the test depends on the test script being able
+to collect flow statistics from the network. You also have to have
+python 2.7 installed on your system.
+
+To test just the performance of the data store, run the following test
+script:
+
+`   ./flow_config_blaster.py --host=localhost --port=8181 --flows=1000 --threads=5 --no-delete --auth`
+
+Make sure the controller is not connected to the network. The script
+will install 5,000 flows into the config data store using 5 concurrent
+threads.
+
+[[configuration-options]]
+== Configuration Options
+
+*Do not consider this the final documentation - you can play with these
+options if you like*.
+
+[cols=",,,",options="header",]
+|=======================================================================
+|Name |Type |Default |Description
+|max-shard-data-change-executor-queue-size |uint32 (1..max) |1000 |The
+maximum queue size for each shard's data store data change notification
+executor.
+
+|max-shard-data-change-executor-pool-size |uint32 (1..max) |20 |The
+maximum thread pool size for each shard's data store data change
+notification executor.
+
+|max-shard-data-change-listener-queue-size |uint32 (1..max) |1000 |The
+maximum queue size for each shard's data store data change listener.
+
+|max-shard-data-store-executor-queue-size |uint32 (1..max) |5000 |The
+maximum queue size for each shard's data store executor.
+
+|shard-transaction-idle-timeout-in-minutes |uint32 (1..max) |10 |The
+maximum amount of time a shard transaction can be idle without receiving
+any messages before it self-destructs.
+
+|shard-snapshot-batch-count |uint32 (1..max) |20000 |The minimum number
+of entries to be present in the in-memory journal log before a snapshot
+is to be taken.
+
+|shard-snapshot-data-threshold-percentage |uint8 (1..100) |12 |The
+percentage of Runtime.totalMemory() used by the in-memory journal log
+before a snapshot is to be taken
+
+|shard-hearbeat-interval-in-millis |uint16 (100..max) |500 |The interval
+at which a shard will send a heart beat message to its remote shard.
+
+|operation-timeout-in-seconds |uint16 (5..max) |5 |The maximum amount of
+time for akka operations (remote or local) to complete before failing.
+
+|shard-journal-recovery-log-batch-size |uint32 (1..max) |5000 |The
+maximum number of journal log entries to batch on recovery for a shard
+before committing to the data store.
+
+|shard-transaction-commit-timeout-in-seconds |uint32 (1..max) |30 |The
+maximum amount of time a shard transaction three-phase commit can be
+idle without receiving the next messages before it aborts the
+transaction
+
+|shard-transaction-commit-queue-capacity |uint32 (1..max) |20000 |The
+maximum allowed capacity for each shard's transaction commit queue.
+
+|shard-initialization-timeout-in-seconds |uint32 (1..max) |300 |The
+maximum amount of time to wait for a shard to initialize from
+persistence on startup before failing an operation (eg transaction
+create and change listener registration).
+
+|shard-leader-election-timeout-in-seconds |uint32 (1..max) |30 |The
+maximum amount of time to wait for a shard to elect a leader before
+failing an operation (eg transaction create).
+
+|enable-metric-capture |boolean |false |Enable or disable metric
+capture.
+
+|bounded-mailbox-capacity |uint32 (1..max) |1000 |Max queue size that an
+actor's mailbox can reach
+
+|persistent |boolean |true |Enable or disable data persistence
+
+|shard-isolated-leader-check-interval-in-millis |uint32 (1..max) |5000
+|he interval at which the leader of the shard will check if its majority
+followers are active and term itself as isolated
+|=======================================================================
+
+These configuration options are included in the 05-clustering.xml
+configuration file (found in etc/opendaylight/karaf) in sections that
+look like the example below. Note that these options can be separately
+specified for both the config and the operational datastores.
+
+`   ` +
+`       ``prefix:distributed-config-datastore-provider` +
+`       ``distributed-config-store-module` +
+`       ` +
+`           ``dom:schema-service` +
+`           ``yang-schema-service` +
+`       ` +
+`       `** +
+`            `*`false`* +
+`       `** +
+`    `
+
+`   ` +
+`       ``prefix:distributed-operational-datastore-provider` +
+`       ``distributed-operational-store-module` +
+`       ` +
+`           ``dom:schema-service` +
+`           ``yang-schema-service` +
+`       ` +
+`       `** +
+`            `*`false`* +
+`       `** +
+`   `
+
+link:MD-SAL Clustering Test Plan[MD-SAL Clustering Test Plan]

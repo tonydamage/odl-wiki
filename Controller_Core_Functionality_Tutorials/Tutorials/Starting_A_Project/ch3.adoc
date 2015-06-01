@@ -1,0 +1,353 @@
+[[introduction]]
+= Introduction
+
+[[generating-java-code-from-toaster.yang]]
+= Generating Java code from toaster.yang
+
+At this point we can compile the yang data model to generate the java
+source files. To do this, we need to configure the yang-maven-plugin
+(yang tools plugin) in _toaster-api/pom.xml_:
+
+`...` +
+ +
+`    ` +
+`        ...` +
+`        ` +
+`            ``org.opendaylight.yangtools` +
+`            ``yang-maven-plugin` +
+`            ``${yangtools.version}` +
+`            ` +
+`                ` +
+`                    ``org.opendaylight.yangtools` +
+`                    ``maven-sal-api-gen-plugin` +
+`                    ``${yangtools.version}` +
+`                    ``jar` +
+`                ` +
+`            ` +
+`            ` +
+`                ` +
+`                    ` +
+`                        ``generate-sources` +
+`                    ` +
+`                    ` +
+`                        '''``src/main/yang` +
+`                        ` +
+`                            ` +
+`                                '''``org.opendaylight.yangtools.maven.sal.api.gen.plugin.CodeGeneratorImpl` +
+`                                '''``${salGeneratorPath}` +
+`                            ` +
+`                        ` +
+`                        ``true` +
+`                    ` +
+`                ` +
+`            ` +
+`        ` +
+`    ` +
+ +
+`...`
+
+The yang-maven-plugin is used to generate java source from yang
+definition files. Much of the plugin's configuration is boilerplate.
+Tags of specific interest:
+
+* *yangFilesRootDir* - specifies the directory under the project to
+locate yang files to process. This defaults to src/main/yang.
+* *codeGeneratorClass* - specifies the code generator to use.
+CodeGeneratorImpl is used to generate classes that represent the yang
+data model components.
+* *outputBaseDir* - specifies the output directory for the generated
+classes. In the controller project we specify the $\{salGeneratorPath}
+property which is defined in the root pom as src/main/yang-gen-sal.
+
+Next, run:
+
+`mvn clean generate-sources`
+
+Now you will see java class files generated under _toaster-api/target_:
+
+`└── target` +
+`   ├── generated-sources` +
+`   │   ├── sal` +
+`   │   │   └── org` +
+`   │   │       └── opendaylight` +
+`   │   │           └── yang` +
+`   │   │               └── gen` +
+`   │   │                   └── v1` +
+`   │   │                       └── http` +
+`   │   │                           └── netconfcentral` +
+`   │   │                               └── org` +
+`   │   │                                   └── ns` +
+`   │   │                                       └── toaster` +
+`   │   │                                           └── rev091120` +
+`   │   │                                               ├── '''$YangModelBindingProvider.java` +
+`   │   │                                               ├── '''$YangModuleInfoImpl.java` +
+`   │   │                                               ├── '''DisplayString.java` +
+`   │   │                                               ├── '''FrozenBagel.java` +
+`   │   │                                               ├── '''FrozenWaffle.java` +
+`   │   │                                               ├── '''HashBrown.java` +
+`   │   │                                               ├── '''ToastType.java` +
+`   │   │                                               ├── '''Toaster.java` +
+`   │   │                                               ├── '''ToasterBuilder.java` +
+`   │   │                                               ├── '''ToasterData.java` +
+`   │   │                                               ├── '''WheatBread.java` +
+`   │   │                                               ├── '''WhiteBread.java` +
+`   │   │                                               └── '''WonderBread.java`
+
+Some interesting classes are as follows:
+
+* *Toaster* - an interface that represents the toaster container with
+methods to obtain the leaf node data.
+* *ToasterBuilder* - a helper class that builds immutable Data Transfer
+Objects (DTOs) of type Toaster
+* *ToasterData* - an interface that represents the top-level toaster
+module with one method getToaster() that returns the singleton toaster
+instance.
+* *WheatBread, WhiteBread*, etc' - abstract classes that represent the
+various toast types.
+* $YangModelBindingProvider, *$YangModuleInfoImpl* - these are used
+internally by MD-SAL to wire the toaster module for use.
+
+We will use these classes in Java code that we will write in the next
+chapter. Right now, these generated classes are not used. The model,
+when loaded in the toaster-api feature into the controller, will allow
+the MD-SAL data store to interpret our toaster configuration write and
+read requests.
+
+[[implementing-the-code-that-handles-config-data-changes]]
+= Implementing the Code that Handles Config Data Changes
+
+The code to implement the onDataChanged listener involves the following
+files ...
+
+`   toaster-impl/src/main/java/org/opendaylight/toaster/ToasterImpl.java` +
+`   toaster-impl/src/main/java/org/opendaylight/yang/gen/v1/urn/opendaylight/params/xml/ns/yang/toaster/impl/config/rev141210/ToasterImplModule.java` +
+`   toaster-impl/src/main/resources/toaster-impl-config.xml` +
+`   toaster-impl/src/main/yang/toaster-impl-config.yang`
+
+ToasterImplModule.java
+
+`   @Override` +
+`   public java.lang.AutoCloseable createInstance() {` +
+`       LOG.info("Creating a new Toaster instance");` +
+`       ToasterImpl provider = new ToasterImpl();` +
+`       String logMsg = "Provider: " + provider.toString();` +
+`       LOG.info(logMsg);` +
+`       getBindingAwareBrokerDependency().registerProvider(provider, null);` +
+`       return provider;` +
+`   }`
+
+ToasterImpl.java
+
+`public class ToasterImpl implements BindingAwareProvider, DataChangeListener, AutoCloseable {` +
+`   private static final Logger LOG = LoggerFactory.getLogger(ToasterImpl.class);` +
+`   private ProviderContext providerContext;` +
+`   private DataBroker dataService;` +
+`   private ListenerRegistration`` dcReg;` +
+`   public static final InstanceIdentifier`` TOASTER_IID = InstanceIdentifier.builder(Toaster.class).build();` +
+`   /**************************************************************************` +
+`    * AutoCloseable Method` +
+`    *************************************************************************/` +
+`   /**` +
+`    * Called when MD-SAL closes the active session. Cleanup is performed, i.e.` +
+`    * all active registrations with MD-SAL are closed,` +
+`    */` +
+`   @Override` +
+`   public void close() throws Exception {` +
+`       // Close active registrations` +
+`       dcReg.close();` +
+`       LOG.info("ToasterImpl: registrations closed");` +
+`   }` +
+`   /**************************************************************************` +
+`    * BindingAwareProvider Methods` +
+`    *************************************************************************/` +
+`   @Override` +
+`   public void onSessionInitiated(ProviderContext session) {` +
+`       this.providerContext = session;` +
+`       this.dataService = session.getSALService(DataBroker.class);` +
+`       // Register the DataChangeListener for Toaster's configuration subtree` +
+`       dcReg = dataService.registerDataChangeListener( LogicalDatastoreType.CONFIGURATION,` +
+`                                               TOASTER_IID,` +
+`                                               this,` +
+`                                               DataChangeScope.SUBTREE );` +
+`       LOG.info("onSessionInitiated: initialization done");` +
+`   }` +
+`   /**************************************************************************` +
+`    * DataChangeListener Methods` +
+`    *************************************************************************/` +
+`   /**` +
+`    * Receives data change events on toaster's configuration subtree. This` +
+`    * method processes toaster configuration data entered by ODL users through` +
+`    * the ODL REST API.` +
+`    */` +
+`   @Override` +
+`   public void onDataChanged( final AsyncDataChangeEvent``, DataObject> change ) {` +
+`       DataObject dataObject = change.getUpdatedSubtree();` +
+`       if( dataObject instanceof Toaster ) {` +
+`           Toaster toaster = (Toaster) dataObject;` +
+`           LOG.info("onDataChanged - new Toaster config: {}", toaster);` +
+`       } else {` +
+`           LOG.warn("onDataChanged - not instance of Toaster {}", dataObject);` +
+`       }` +
+`   }` +
+`}`
+
+toaster-impl-config.xml
+
+ +
+`   ` +
+`       `urn:opendaylight:params:xml:ns:yang:toaster:impl:config?module=toaster-impl-config&revision=2014-12-10[`urn:opendaylight:params:xml:ns:yang:toaster:impl:config?module=toaster-impl-config&revision=2014-12-10`] +
+`       `urn:opendaylight:params:xml:ns:yang:controller:md:sal:binding?module=opendaylight-md-sal-binding&revision=2013-10-28[`urn:opendaylight:params:xml:ns:yang:controller:md:sal:binding?module=opendaylight-md-sal-binding&revision=2013-10-28`] +
+`   ` +
+`   ` +
+`       ` +
+`           ` +
+`               ` +
+`                   ``prefix:toaster-impl-config` +
+`                   ``toaster-impl` +
+`                   ` +
+`                       ``binding:binding-broker-osgi-registry` +
+`                       ``binding-osgi-broker` +
+`                   ` +
+`               ` +
+`           ` +
+`       ` +
+`   ` +
+
+toaster-impl-config.yang
+
+`module toaster-impl-config {` +
+`   yang-version 1;` +
+`   namespace "`urn:opendaylight:params:xml:ns:yang:toaster:impl:config[`urn:opendaylight:params:xml:ns:yang:toaster:impl:config`]`";` +
+`   prefix "toaster-impl-config";` +
+`   import config { prefix config; revision-date 2013-04-05; }` +
+`   import opendaylight-md-sal-binding { prefix md-sal-binding; revision-date 2013-10-28;}` +
+`   description` +
+`       "Service definition for toaster project";` +
+`   revision "2014-12-10" {` +
+`       description` +
+`           "Initial revision";` +
+`   }` +
+`   identity toaster-impl-config {` +
+`       base config:module-type;` +
+`       config:java-name-prefix ToasterImpl;` +
+`   }` +
+`   augment "/config:modules/config:module/config:configuration" {` +
+`       case toaster-impl-config {` +
+`           when "/config:modules/config:module/config:type = 'toaster-impl-config'";` +
+`           container binding-aware-broker {` +
+`               uses config:service-ref {` +
+`                   refine type {` +
+`                       mandatory true;` +
+`                       config:required-identity md-sal-binding:binding-broker-osgi-registry;` +
+`                   }` +
+`               }` +
+`           }` +
+`       }` +
+`   }` +
+`}`
+
+[[building-and-testing]]
+= Building and Testing
+
+We build the Toaster Provider and the Service API just like we did in
+the previous two chapters. In Chapter 3 top directory, run:
+
+`mvn clean install`
+
+Start the built Karaf distribution:
+
+`> cd distribution-karaf/target/assembly/bin` +
+`> ./karaf`
+
+The system will initialize, and the toaster will too! To observe changes
+to the karaf log file without having to type *> display* each time, use
+the following command:
+
+`> log:tail`
+
+You should see messages similar to the following in the karaf log:
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+...
+2015-01-21 11:04:04,263 | INFO  | config-pusher    | ToasterImplModule                | 222 - org.opendaylight.toaster.impl - 0.0.1.SNAPSHOT | Performing custom validation
+2015-01-21 11:04:04,274 | INFO  | config-pusher    | ToasterImplModule                | 222 - org.opendaylight.toaster.impl - 0.0.1.SNAPSHOT | Creating a new Toaster instance
+2015-01-21 11:04:04,277 | INFO  | config-pusher    | ToasterImplModule                | 222 - org.opendaylight.toaster.impl - 0.0.1.SNAPSHOT | Provider: org.opendaylight.toaster.ToasterImpl@26e02b63
+2015-01-21 11:04:04,296 | INFO  | config-pusher    | ToasterImpl                      | 222 - org.opendaylight.toaster.impl - 0.0.1.SNAPSHOT | onSessionInitiated: initialization done
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Now, we will use a REST client (for example, Google Chrome Postman or
+curl) to write toaster configuration to the MD-SAL data store. Assuming
+that you run the client on the same machine as the controller, the
+parameters will be as follows:
+
+Let's configure the toaster's _darknessFactor_. Assuming that you run
+the client on the same machine as the controller, use the PUT operation
+as follows:
+
+`HTTP Method => PUT` +
+`URL => `http://localhost:8181/restconf/config/toaster:toaster[`http://localhost:8181/restconf/config/toaster:toaster`] +
+`Header => Content-type: application/json` +
+`       => Authorization: Basic admin:admin` +
+`Body =>  ` +
+`{` +
+`    "toaster": {` +
+`        "darknessFactor": 500` +
+`    }` +
+`}`
+
+We can again use curl:
+
+`> curl -H 'Content-Type: application/json' -X PUT -d '{"toaster": {"darknessFactor": 500}}' --verbose -u admin:admin `http://localhost:8181/restconf/config/toaster:toaster[`http://localhost:8181/restconf/config/toaster:toaster`]
+
+Because we implemented the ToasterImpl:OnDataChanged method and logged
+all changes, you should see a message similar to the following in the
+karaf log:
+
+-------------------------------------------------------------------------------------------------------------------------------------------
+...
+2015-01-21 11:06:16,039 | INFO  | DOM-CFG-DCL-0    | ToasterImpl   | 222 - org.opendaylight.toaster.impl - 0.0.1.SNAPSHOT | onDataChanged -
+    new Toaster config: Toaster{getDarknessFactor=5000, augmentations={}}
+-------------------------------------------------------------------------------------------------------------------------------------------
+
+Proceed to the next chapter.
+
+[[under-the-hood]]
+= Under the Hood
+
+[[what-are-all-the-classes-generated-from-the-yang-model]]
+== What are all the Classes Generated from the YANG Model?
+
+The generated JAVA files constitute the Bindings that MD-SAL uses as
+part of its
+https://wiki.opendaylight.org/view/OpenDaylight_Controller:Binding_Model[Binding
+Model]. This is referred as 'Consumer & Provider binding' – a subset of
+the binding model which is directly visible to 'binding aware' Consumers
+and Providers.
+
+There are three types of files that make up the binding:
+
+:* Data Transfer Objects represent the instances of data nodes defined
+by YANG Schema and are used to store and transfer data (in our example
+_Toaster_,_ToastDone_,_MakeToastInput_)
+
+::* *interface ToasterData extends DataRoot* (_Toaster.java_) <- DATA
+definitions for toaster
+
+:* DTO Builders are objects that create DTOs (in our example
+_ToasterBuilder_,_ToastDoneBuilder_,_MakeToastInputBuilder_)
+
+:* RPC interfaces represent the programmatic API to invoking RPCs (in
+our example _ToasterService_)
+
+::* *interface ToasterService extends RpcService*
+(_ToasterService.java_) <- SERVICE RPCs
+
+:* Listener interfaces:
+
+::* *interface ToasterListener extends NotificationListener*
+(_ToasterListener.java_) <- NOTIFICATIONS
+
+We will learn more about RPCs and Notifications in later chapters.
+
+The full binding specification can be found here:
+YANG_Tools:YANG_to_Java_Mapping

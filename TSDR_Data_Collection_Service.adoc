@@ -1,0 +1,106 @@
+[[design-overview]]
+== Design Overview
+
+TSDR Data Collection Service collects time series data in ODL
+Controller. It does that by launching and controlling the configured
+Data Collectors for each source of the data. Data Collector based on
+their respective configuration, collect the data and use Data Collection
+Service to persist the data. The Data Collection Service internally
+utilizes
+link:TSDR Data Storage Service and Persistence with HBase Plugin[TSDR
+Data Storage Service] to do the actual persistence of time series data.
+The TSDR Data Collection Service controls the lifecycle of the Data
+Collectors.
+
+The main modules of TSDR Data Collection Service
+
+* TSDR Data Collection Service - config subsystem initialized YANG based
+service integrating with MD-SAL services
+* TSDR Data Collector(s) - Data Collection implementing the defined
+DataCollector interface
+* TSDR Data Collection Service Writer - writer object registered with
+Data Collector(s) that help in communicating back to TSDR Data
+Collection Service for data writes
+
+[[design-considerationgoals]]
+== Design Consideration/Goals
+
+* Addition of new Data Collectors must be possible and should be easily
+integrated with collection service
+* Apart from Lifecycle management by Data Collection Service, the Data
+Collectors are independent of how they collect data
+* TSDR Data Collection should be optional to the overall functionality
+of the Controller and by default not turned on
+* Data Collectors are abstracted from the interaction of Data Collection
+Service with TSDR Data Storage Service
+* Data Collectors should not impact the performance of the data source
+while collecting TSDR
+* Data Collectors should recover from data source failure
+
+[[modules]]
+== Modules
+
+[[data-collection-service]]
+=== Data Collection Service
+
+* Acts like a container for all the DataCollectors
+* Reads the configuration to determine the DataCollectors to instantiate
+* Instantiates the DataCollectors , passing their respective
+configuration
+* Registers the Writer with DataCollectors so that DataCollectors can
+use it when they need to write the data
+* DataCollectors will work in parallel without dependency on one another
+* Interacts with Data Storage Service for actual persistence
+* Provides Data Collectors with the needed MD-SAL service like
+notification service
+
+[[data-collectors]]
+=== Data Collectors
+
+Data Collectors can be currently classified into 2 types
+
+`a) Data Collectors that act on Notification from Controller stores (OFStats fall into this group) ` +
+`b) Data Collectors that poll data (e.g. SNMP data collector) ` +
+
+Note : For Lithium we are implementing a) and if time permits PoC b)to
+validate more than one data collector
+
+In general all DataCollector have the following behavior
+
+* Implements the DataCollector interface of TSDR Data Collection Service
+* Parses the config passed by TSDR Data Collection Service to determine
+what data needs to be collected & from where. Note this configuration
+piece is very DataCollector specific and the DataCollector is the only
+one interpreting the same
+* Honors the start and stop request from TSDR Data Collection Service in
+efficient manner
+* DataCollector handles the data source failure recovery mechanism (if
+applicable)
+* Utilizes TSDR Data Collection Service registered
+DataCollectionServiceWriter to write the collected TSDR data
+
+[[datacollectionservicewriter]]
+=== DataCollectionServiceWriter
+
+For each DataCollector, the DataCollectionService registers a
+DataCollectionServiceWriter during initialization before the start of
+data collection. DataCollectionServiceWriter supports write(Mapdata)
+i..e taking a map wherein key uniquely identifies the metric being
+collected for the DataCollector and value is the Metric Value.
+
+[[module-interactions]]
+== Module Interactions
+
+image:cdraw.png[cdraw.png,title="cdraw.png"]
+
+[[tsdr-data-collection-service-config]]
+=== TSDR Data Collection Service Config
+
+The following shows the config for TSDR DataCollection Service. Note
+this initial config and is subject to change based on discovering more
+items that needs to be included.
+
+image:config.png[config.png,title="config.png"]
+
+[[intefaces]]
+== Intefaces

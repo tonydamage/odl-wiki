@@ -1,0 +1,817 @@
+[[overview]]
+== Overview
+
+This Proof of Concept performs the same implementation of Group Based
+Policy as the Group_Policy:Building_and_Running[ Mininet based example]
+meaning:
+
+* two endpoint groups, each with 4 hosts;
+* based on OpenVSwitch (OVS), OpenFlow and VXLAN tunnel overlays
+* policy that
+** enables HTTP in direction of EPG:client to EPG:webserver only
+** ping allowed both intra- and inter-EPG
+
+The differences are:
+
+* Uses native OVS directly within an Ubuntu VM (as opposed to mininet
+control)
+* Uses Docker guests for "hosts" within each Endpoint Group.
+* Infrastructure and Policy information are self-contained in separate
+configuration files and parsed.
+
+This allows via changing two configuration files, or the docker image
+itself, the ability to run a variety of host configurations,
+applications and policies.
+
+I would encourage all those who download and modify the POC to publish
+their results here along with any config file modifications
+Group_Policy:Use-Cases[Use-cases]
+
+[[assumed-knowledge-and-environment]]
+== Assumed knowledge and Environment
+
+* The following topology is required to run this POC (note: docker
+containers are automatically built by script):
+
+image:Environment.jpg[Environment.jpg,title="Environment.jpg"]
+
+* Assumes the following knowledge:
+** Basic Linux CLI, git, maven
+** docker attach and "detach" (ctrl-P, ctrl-Q to detach)
+
+* Assumes following versions:
+** Virtualization software (ie VirtualBox, VMWare workstation etc)
+** Ubuntu 14.04LTS VM (4G RAM if want to run Controller on same VM, or
+2G sufficient; 15GB HDD, single core)
+** OpenVSwitch 2.3 (although 2.1 _should_ work)
+** Docker 1.01
+**
+https://wiki.opendaylight.org/view/GettingStarted:Development_Environment_Setup[Recommended
+Development Environment for OpenDaylight]
+
+[[description-of-files]]
+== Description of Files
+
+Group_Policy:Building_and_Running_Docker:infrastructure_config.py[_infrastructure_config.py_
+]
+
+* Configuration of OVS instances, docker guests, and the EPGs they
+belong to
+
+Group_Policy:Building_and_Running_Docker:policy_config.py[_policy_config.py_
+]
+
+* Policy information including tenant, EPG and contract information
+
+_infrastructure_launch.py_
+
+* Parses and implements infrastructure_config.py on each VM, as well as
+modifying the docker net namespace to bind to OVS as well as change
+guest IP/MAC address
+
+_testOfOverlay.py_
+
+* Parses and implements policy_config.py
+
+_odl_gbp.py_
+
+* General GBP functions for parsing policy, used by testOfOverlay.py
+
+_start-poc.sh_
+
+* Startup script that cleans up all docker instances, removes any OVS
+config and launches the POC.
+
+_ovswork.sh_
+
+* A helper script for using pipeworks to perform the docker net
+namespace functions. Attribution to: http://fbevmware.blogspot.com/
+
+[[setup]]
+== Setup
+
+[[setup-vms]]
+=== Setup VMs
+
+* Ensure both VMs have two interfaces:
+** NAT (should be able to get to Internet)
+** Interface on hostnet (DHCP preferred, host should get same IP address
+on reboot)
+
+* Fetch IP address for each host's hostnet interface
+
+`alagalah@gbppoc1:~$ ifconfig | grep inet` +
+*`NAT->`*`          inet addr:10.0.2.15  Bcast:10.0.2.255  Mask:255.255.255.0` +
+*`Hostnet` `DHCP`
+`->`*`         inet addr:`*`192.168.56.31`*`  Bcast:192.168.56.255  Mask:255.255.255.0`
+
+`alagalah@gbppoc2:~$ ifconfig | grep inet` +
+*`NAT->`*`           inet addr:10.0.2.15  Bcast:10.0.2.255  Mask:255.255.255.0` +
+*`Hostnet` `DHCP`
+`->`*`           inet addr:`*`192.168.56.33`*`  Bcast:192.168.56.255  Mask:255.255.255.0`
+
+[[pulling-the-code]]
+=== Pulling the code
+
+* Clone the groupbasedpolicy repository on EACH of the VMs:
+
+`cd ~` +
+`git clone `https://git.opendaylight.org/gerrit/p/groupbasedpolicy.git[`https://git.opendaylight.org/gerrit/p/groupbasedpolicy.git`]
+
+[[customizing-the-infrastructure]]
+=== Customizing the Infrastructure
+
+* Modify IP addresses in scripts:
+
+`cd ~/groupbasedpolicy/util/dockerTestOfOverlay/` +
+`vi infrastructure_config.py`
+
+Edit IP address of each switch to reflect the IP address of the VM IT
+RESIDES ON! (ie if S1 resides on gbppoc1, use IP address 192.168.56.31
+etc as per output of "ifconfig" above)
+
+`switches = [{'name': 's1',` +
+`            'tunnelIp': '192.168.56.31',` +
+`            'dpid': '1'},` +
+`           {'name': 's2',` +
+`            'tunnelIp': '192.168.56.33',` +
+`            'dpid': '2'}]`
+
+In the same file, you can edit the default docker image:
+
+`defaultContainerImage='alagalah/odlpoc_ovs230'`
+
+... as well as edit the Docker guest information (note each container
+could have 'container_image' : key instantiated if you wanted to specify
+your own container image)
+
+`#Note that tenant name and endpointGroup name come from policy_config.py` +
+`hosts = [{'name': 'h35_2',` +
+`         'mac': '00:00:00:00:35:02',` +
+`         'ip': '10.0.35.2/24',` +
+`         'switch': 's1',` +
+`         'tenant': 'GBPPOC',` +
+`         'endpointGroup': 'client'},`
+
+etc etc
+
+* On gbppoc1 VM edit start-poc.sh with controller IP address (gbppoc1
+will also be the OpenDaylight controller)
+
+`CONTROLLER=192.168.56.31` +
+
+* On gbppoc2 VM edit start-poc.sh:
+
+`CONTROLLER=192.168.56.31` +
+`./testOfOverlay.py --local s2 --controller ${CONTROLLER} --policy`
+
+Note: changed the switch name, as well as used the --policy flag, which
+needs to be executed ONCE, NOT ONCE PER VM!
+
+* On both VMs:
+
+`sudo docker pull alagalah/odlpoc_ovs230`
+
+* On one host (gbppoc1 in this example) build the controller (this will
+be our controller host)
+
+`cd ~/groupbasedpolicy` +
+`mvn clean install`
+
+[[running-the-proof-of-concept]]
+== Running the Proof of Concept
+
+[[launch-controller]]
+=== Launch controller
+
+* On gbppoc1 (or where 'mvn clean install' was performed above):
+
+`cd ~/groupbasedpolicy/distribution-karaf/target/assembly/bin/` +
+`./karaf`
+
+* Install and start features. At the "opendaylight-user@root>" prompt:
+
+`feature:install odl-restconf odl-groupbasedpolicy-base odl-groupbasedpolicy-ofoverlay`
+
+* Features are initialized when following command gives following
+output:
+
+`log:display | grep "Initialized OFOverlay renderer"` +
+`2014-11-02 14:29:56,029 | INFO  | config-pusher    | OFOverlayRenderer                | 177 - org.opendaylight.groupbasedpolicy - 0.2.0.SNAPSHOT | Initialized OFOverlay renderer`
+
+[[start-poc]]
+=== Start POC
+
+* Change to root shell (its much easier) by "sudo bash"
+* Check OVS is running:
+
+`root@gbppoc1:~# ovs-vsctl show ` +
+`95424acf-d367-4bc3-b3cb-90f807227837` +
+`   ovs_version: "2.3.0"`
+
+`root@gbppoc2:~# ovs-vsctl show` +
+`95424acf-d367-4bc3-b3cb-90f807227837` +
+`   ovs_version: "2.3.0"`
+
+* On gbppoc1, run startup script (order isn't important, we could have
+kicked of gbppoc2 first, but the output below is from gbppoc1 with setup
+above):
+
+`cd ~/groupbasedpolicy/util/dockerTestOfOverlay/` +
+`./start-poc.sh`
+
+Should see following:
+
+`root@gbppoc1:~/groupbasedpolicy/util/dockerTestOfOverlay# ./start-poc.sh ` +
+ +
+`*** Removing containers... ` +
+ +
+`b30d3fd88103` +
+`141fe98bcb66` +
+`718afa8c6214` +
+`b9cc3c449566` +
+`b30d3fd88103` +
+`141fe98bcb66` +
+`718afa8c6214` +
+`b9cc3c449566` +
+`*** Removing excess controllers/ofprotocols/ofdatapaths/pings/noxes` +
+`killall controller ofprotocol ofdatapath ping nox_core lt-nox_core ovs-openflowd ovs-controller udpbwtest mnexec ivs 2> /dev/null` +
+`killall -9 controller ofprotocol ofdatapath ping nox_core lt-nox_core ovs-openflowd ovs-controller udpbwtest mnexec ivs 2> /dev/null` +
+`pkill -9 -f "sudo mnexec"` +
+`*** Removing junk from /tmp` +
+`rm -f /tmp/vconn* /tmp/vlogs* /tmp/*.out /tmp/*.log` +
+`*** Removing old X11 tunnels` +
+`*** Removing excess kernel datapaths` +
+`ps ax | egrep -o 'dp[0-9]+' | sed 's/dp/nl:/'` +
+`***  Removing OVS datapathsovs-vsctl --timeout=1 list-br` +
+`*** Removing all links of the pattern foo-ethX` +
+`ip link show | egrep -o '(\w+-eth\w+)'` +
+`*** Cleanup complete.` +
+ +
+`Pulling alagalah/odlpoc_ovs230 docker image...edit script for own images` +
+ +
+`Pulling repository alagalah/odlpoc_ovs230` +
+`91bb7d4564ae: Download complete ` +
+`511136ea3c5a: Download complete ` +
+`b18d0a2076a1: Download complete ` +
+`67b66f26d423: Download complete ` +
+`25c4824a5268: Download complete ` +
+`8b1c48305638: Download complete ` +
+`c900195dcbf3: Download complete ` +
+`6b4e8a7373fe: Download complete ` +
+`5f83c48d0f60: Download complete ` +
+`1a5edbcd7664: Download complete ` +
+`0b3f2b61f472: Download complete ` +
+`9db507bdc7a4: Download complete ` +
+`829dd181768a: Download complete ` +
+`aaf74203e63a: Download complete ` +
+`3cc4a8ddd968: Download complete ` +
+`e6f76a036f05: Download complete ` +
+`34bdf83aec70: Download complete ` +
+`adaa281858c5: Download complete ` +
+ +
+`Running POC script` +
+ +
+`Setting L3 context` +
+`Setting L2 Bridge domain` +
+`POST `http://192.168.56.31:8181/restconf/operations/endpoint:register-endpoint[`http://192.168.56.31:8181/restconf/operations/endpoint:register-endpoint`] +
+`{` +
+`   "input": {` +
+`       "endpoint-group": "1eaf9a67-a171-42a8-9282-71cf702f61dd", ` +
+`       "l2-context": "7b796915-adf4-4356-b5ca-de005ac410c1", ` +
+`       "l3-address": [` +
+`           {` +
+`               "ip-address": "10.0.35.2", ` +
+`               "l3-context": "cbe0cc07-b8ff-451d-8171-9eef002a8e80"` +
+`           }` +
+`       ], ` +
+`       "mac-address": "00:00:00:00:35:02", ` +
+`       "ofoverlay:node-connector-id": "openflow:1:1", ` +
+`       "ofoverlay:node-id": "openflow:1", ` +
+`       "tenant": "f5c7d344-d1c7-4208-8531-2c2693657e12"` +
+`   }` +
+`}` +
+ +
+`POST `http://192.168.56.31:8181/restconf/operations/endpoint:register-endpoint[`http://192.168.56.31:8181/restconf/operations/endpoint:register-endpoint`] +
+`{` +
+`   "input": {` +
+`       "endpoint-group": "1eaf9a67-a171-42a8-9282-71cf702f61dd", ` +
+`       "l2-context": "7b796915-adf4-4356-b5ca-de005ac410c1", ` +
+`       "l3-address": [` +
+`           {` +
+`               "ip-address": "10.0.35.3", ` +
+`               "l3-context": "cbe0cc07-b8ff-451d-8171-9eef002a8e80"` +
+`           }` +
+`       ], ` +
+`       "mac-address": "00:00:00:00:35:03", ` +
+`       "ofoverlay:node-connector-id": "openflow:1:2", ` +
+`       "ofoverlay:node-id": "openflow:1", ` +
+`       "tenant": "f5c7d344-d1c7-4208-8531-2c2693657e12"` +
+`   }` +
+`}` +
+ +
+`POST `http://192.168.56.31:8181/restconf/operations/endpoint:register-endpoint[`http://192.168.56.31:8181/restconf/operations/endpoint:register-endpoint`] +
+`{` +
+`   "input": {` +
+`       "endpoint-group": "e593f05d-96be-47ad-acd5-ba81465680d5", ` +
+`       "l2-context": "7b796915-adf4-4356-b5ca-de005ac410c1", ` +
+`       "l3-address": [` +
+`           {` +
+`               "ip-address": "10.0.36.2", ` +
+`               "l3-context": "cbe0cc07-b8ff-451d-8171-9eef002a8e80"` +
+`           }` +
+`       ], ` +
+`       "mac-address": "00:00:00:00:36:02", ` +
+`       "ofoverlay:node-connector-id": "openflow:1:3", ` +
+`       "ofoverlay:node-id": "openflow:1", ` +
+`       "tenant": "f5c7d344-d1c7-4208-8531-2c2693657e12"` +
+`   }` +
+`}` +
+ +
+`POST `http://192.168.56.31:8181/restconf/operations/endpoint:register-endpoint[`http://192.168.56.31:8181/restconf/operations/endpoint:register-endpoint`] +
+`{` +
+`   "input": {` +
+`       "endpoint-group": "e593f05d-96be-47ad-acd5-ba81465680d5", ` +
+`       "l2-context": "7b796915-adf4-4356-b5ca-de005ac410c1", ` +
+`       "l3-address": [` +
+`           {` +
+`               "ip-address": "10.0.36.3", ` +
+`               "l3-context": "cbe0cc07-b8ff-451d-8171-9eef002a8e80"` +
+`           }` +
+`       ], ` +
+`       "mac-address": "00:00:00:00:36:03", ` +
+`       "ofoverlay:node-connector-id": "openflow:1:4", ` +
+`       "ofoverlay:node-id": "openflow:1", ` +
+`       "tenant": "f5c7d344-d1c7-4208-8531-2c2693657e12"` +
+`   }` +
+`}`
+
+`root@gbppoc2:~/groupbasedpolicy/util/dockerTestOfOverlay# ./start-poc.sh ` +
+ +
+`*** Removing containers... ` +
+ +
+`[snip - should look like gbppoc1 above]` +
+`*** Cleanup complete.` +
+ +
+`*** Cleaning up OVS... ` +
+`[snip - should look like gbppoc1 above]` +
+`*** Cleanup complete.` +
+ +
+`Pulling alagalah/odlpoc_ovs230 docker image...edit script for own images` +
+ +
+`Pulling repository alagalah/odlpoc_ovs230` +
+`[snip - should look like gbppoc1 above]` +
+` ` +
+`Running POC script` +
+` ` +
+`PUT `http://192.168.56.31:8181/restconf/config/opendaylight-inventory:nodes[`http://192.168.56.31:8181/restconf/config/opendaylight-inventory:nodes`] +
+`{` +
+`   "opendaylight-inventory:nodes": {` +
+`       "node": [` +
+`           {` +
+`               "id": "openflow:1", ` +
+`               "ofoverlay:tunnel-ip": "192.168.56.31"` +
+`           }, ` +
+`           {` +
+`               "id": "openflow:2", ` +
+`               "ofoverlay:tunnel-ip": "192.168.56.33"` +
+`           }` +
+`       ]` +
+`   }` +
+`}` +
+ +
+`Setting L3 context` +
+`Setting L2 Bridge domain` +
+`PUT `http://192.168.56.31:8181/restconf/config/policy:tenants[`http://192.168.56.31:8181/restconf/config/policy:tenants`] +
+`{` +
+`   "policy:tenants": {` +
+`       "tenant": [` +
+`           {` +
+`               "contract": [` +
+`                   {` +
+`                       "clause": [` +
+`                           {` +
+`                               "name": "allow-http-clause", ` +
+`                               "subject-refs": [` +
+`                                   "allow-http-subject", ` +
+`                                   "allow-icmp-subject"` +
+`                               ]` +
+`                           }` +
+`                       ], ` +
+`                       "id": "22282cca-9a13-4d0c-a67e-a933ebb0b0ae", ` +
+`                       "subject": [` +
+`                           {` +
+`                               "name": "allow-http-subject", ` +
+`                               "rule": [` +
+`                                   {` +
+`                                       "classifier-ref": [` +
+`                                           {` +
+`                                               "direction": "in", ` +
+`                                               "name": "http-dest"` +
+`                                           }, ` +
+`                                           {` +
+`                                               "direction": "out", ` +
+`                                               "name": "http-src"` +
+`                                           }` +
+`                                       ], ` +
+`                                       "name": "allow-http-rule"` +
+`                                   }` +
+`                               ]` +
+`                           }, ` +
+`                           {` +
+`                               "name": "allow-icmp-subject", ` +
+`                               "rule": [` +
+`                                   {` +
+`                                       "classifier-ref": [` +
+`                                           {` +
+`                                               "name": "icmp"` +
+`                                           }` +
+`                                       ], ` +
+`                                       "name": "allow-icmp-rule"` +
+`                                   }` +
+`                               ]` +
+`                           }` +
+`                       ]` +
+`                   }` +
+`               ], ` +
+`               "endpoint-group": [` +
+`                   {` +
+`                       "consumer-named-selector": [` +
+`                           {` +
+`                               "contract": [` +
+`                                   "22282cca-9a13-4d0c-a67e-a933ebb0b0ae"` +
+`                               ], ` +
+`                               "name": "e593f05d-96be-47ad-acd5-ba81465680d5-1eaf9a67-a171-42a8-9282-71cf702f61dd-22282cca-9a13-4d0c-a67e-a933ebb0b0ae"` +
+`                           }` +
+`                       ], ` +
+`                       "id": "1eaf9a67-a171-42a8-9282-71cf702f61dd", ` +
+`                       "network-domain": "8284c6a8-9be7-4e99-9960-e48f24f13537", ` +
+`                       "provider-named-selector": []` +
+`                   }, ` +
+`                   {` +
+`                       "consumer-named-selector": [], ` +
+`                       "id": "e593f05d-96be-47ad-acd5-ba81465680d5", ` +
+`                       "network-domain": "426dcd2f-28d8-4fd6-bb68-0ec8a4d2dedf", ` +
+`                       "provider-named-selector": [` +
+`                           {` +
+`                               "contract": [` +
+`                                   "22282cca-9a13-4d0c-a67e-a933ebb0b0ae"` +
+`                               ], ` +
+`                               "name": "e593f05d-96be-47ad-acd5-ba81465680d5-1eaf9a67-a171-42a8-9282-71cf702f61dd-22282cca-9a13-4d0c-a67e-a933ebb0b0ae"` +
+`                           }` +
+`                       ]` +
+`                   }` +
+`               ], ` +
+`               "id": "f5c7d344-d1c7-4208-8531-2c2693657e12", ` +
+`               "l2-bridge-domain": [` +
+`                   {` +
+`                       "id": "7b796915-adf4-4356-b5ca-de005ac410c1", ` +
+`                       "parent": "cbe0cc07-b8ff-451d-8171-9eef002a8e80"` +
+`                   }` +
+`               ], ` +
+`               "l2-flood-domain": [` +
+`                   {` +
+`                       "id": "08e3904c-7850-41c0-959a-1a646a83598a", ` +
+`                       "parent": "7b796915-adf4-4356-b5ca-de005ac410c1"` +
+`                   }, ` +
+`                   {` +
+`                       "id": "e4ffa601-7625-4749-89bd-84d631f91ef2", ` +
+`                       "parent": "7b796915-adf4-4356-b5ca-de005ac410c1"` +
+`                   }` +
+`               ], ` +
+`               "l3-context": [` +
+`                   {` +
+`                       "id": "cbe0cc07-b8ff-451d-8171-9eef002a8e80"` +
+`                   }` +
+`               ], ` +
+`               "name": "GBPPOC", ` +
+`               "subject-feature-instances": {` +
+`                   "classifier-instance": [` +
+`                       {` +
+`                           "classifier-definition-id": "4250ab32-e8b8-445a-aebb-e1bd2cdd291f", ` +
+`                           "name": "http-dest", ` +
+`                           "parameter-value": [` +
+`                               {` +
+`                                   "name": "type", ` +
+`                                   "string-value": "TCP"` +
+`                               }, ` +
+`                               {` +
+`                                   "int-value": "80", ` +
+`                                   "name": "destport"` +
+`                               }` +
+`                           ]` +
+`                       }, ` +
+`                       {` +
+`                           "classifier-definition-id": "4250ab32-e8b8-445a-aebb-e1bd2cdd291f", ` +
+`                           "name": "http-src", ` +
+`                           "parameter-value": [` +
+`                               {` +
+`                                   "name": "type", ` +
+`                                   "string-value": "TCP"` +
+`                               }, ` +
+`                               {` +
+`                                   "int-value": "80", ` +
+`                                   "name": "sourceport"` +
+`                               }` +
+`                           ]` +
+`                       }, ` +
+`                       {` +
+`                           "classifier-definition-id": "79c6fdb2-1e1a-4832-af57-c65baf5c2335", ` +
+`                           "name": "icmp", ` +
+`                           "parameter-value": [` +
+`                               {` +
+`                                   "int-value": "1", ` +
+`                                   "name": "proto"` +
+`                               }` +
+`                           ]` +
+`                       }` +
+`                   ]` +
+`               }, ` +
+`               "subnet": [` +
+`                   {` +
+`                       "id": "8284c6a8-9be7-4e99-9960-e48f24f13537", ` +
+`                       "ip-prefix": "10.0.35.1/24", ` +
+`                       "parent": "08e3904c-7850-41c0-959a-1a646a83598a", ` +
+`                       "virtual-router-ip": "10.0.35.1"` +
+`                   }, ` +
+`                   {` +
+`                       "id": "426dcd2f-28d8-4fd6-bb68-0ec8a4d2dedf", ` +
+`                       "ip-prefix": "10.0.36.1/24", ` +
+`                       "parent": "e4ffa601-7625-4749-89bd-84d631f91ef2", ` +
+`                       "virtual-router-ip": "10.0.36.1"` +
+`                   }` +
+`               ]` +
+`           }` +
+`       ]` +
+`   }` +
+`}` +
+ +
+`POST `http://192.168.56.31:8181/restconf/operations/endpoint:register-endpoint[`http://192.168.56.31:8181/restconf/operations/endpoint:register-endpoint`] +
+`{` +
+`   "input": {` +
+`       "endpoint-group": "1eaf9a67-a171-42a8-9282-71cf702f61dd", ` +
+`       "l2-context": "7b796915-adf4-4356-b5ca-de005ac410c1", ` +
+`       "l3-address": [` +
+`           {` +
+`               "ip-address": "10.0.35.4", ` +
+`               "l3-context": "cbe0cc07-b8ff-451d-8171-9eef002a8e80"` +
+`           }` +
+`       ], ` +
+`       "mac-address": "00:00:00:00:35:04", ` +
+`       "ofoverlay:node-connector-id": "openflow:2:1", ` +
+`       "ofoverlay:node-id": "openflow:2", ` +
+`       "tenant": "f5c7d344-d1c7-4208-8531-2c2693657e12"` +
+`   }` +
+`}` +
+ +
+`POST `http://192.168.56.31:8181/restconf/operations/endpoint:register-endpoint[`http://192.168.56.31:8181/restconf/operations/endpoint:register-endpoint`] +
+`{` +
+`   "input": {` +
+`       "endpoint-group": "1eaf9a67-a171-42a8-9282-71cf702f61dd", ` +
+`       "l2-context": "7b796915-adf4-4356-b5ca-de005ac410c1", ` +
+`       "l3-address": [` +
+`           {` +
+`               "ip-address": "10.0.35.5", ` +
+`               "l3-context": "cbe0cc07-b8ff-451d-8171-9eef002a8e80"` +
+`           }` +
+`       ], ` +
+`       "mac-address": "00:00:00:00:35:05", ` +
+`       "ofoverlay:node-connector-id": "openflow:2:2", ` +
+`       "ofoverlay:node-id": "openflow:2", ` +
+`       "tenant": "f5c7d344-d1c7-4208-8531-2c2693657e12"` +
+`   }` +
+`}` +
+ +
+`POST `http://192.168.56.31:8181/restconf/operations/endpoint:register-endpoint[`http://192.168.56.31:8181/restconf/operations/endpoint:register-endpoint`] +
+`{` +
+`   "input": {` +
+`       "endpoint-group": "e593f05d-96be-47ad-acd5-ba81465680d5", ` +
+`       "l2-context": "7b796915-adf4-4356-b5ca-de005ac410c1", ` +
+`       "l3-address": [` +
+`           {` +
+`               "ip-address": "10.0.36.4", ` +
+`               "l3-context": "cbe0cc07-b8ff-451d-8171-9eef002a8e80"` +
+`           }` +
+`       ], ` +
+`       "mac-address": "00:00:00:00:36:04", ` +
+`       "ofoverlay:node-connector-id": "openflow:2:3", ` +
+`       "ofoverlay:node-id": "openflow:2", ` +
+`       "tenant": "f5c7d344-d1c7-4208-8531-2c2693657e12"` +
+`   }` +
+`}` +
+ +
+`POST `http://192.168.56.31:8181/restconf/operations/endpoint:register-endpoint[`http://192.168.56.31:8181/restconf/operations/endpoint:register-endpoint`] +
+`{` +
+`   "input": {` +
+`       "endpoint-group": "e593f05d-96be-47ad-acd5-ba81465680d5", ` +
+`       "l2-context": "7b796915-adf4-4356-b5ca-de005ac410c1", ` +
+`       "l3-address": [` +
+`           {` +
+`               "ip-address": "10.0.36.5", ` +
+`               "l3-context": "cbe0cc07-b8ff-451d-8171-9eef002a8e80"` +
+`           }` +
+`       ], ` +
+`       "mac-address": "00:00:00:00:36:05", ` +
+`       "ofoverlay:node-connector-id": "openflow:2:4", ` +
+`       "ofoverlay:node-id": "openflow:2", ` +
+`       "tenant": "f5c7d344-d1c7-4208-8531-2c2693657e12"` +
+`   }` +
+`}`
+
+[[testing]]
+== Testing
+
+[[validate-containers-started-and-switch-configured]]
+=== Validate containers started and switch configured
+
+* On each host:
+
+`root@gbppoc1:~/groupbasedpolicy/util/dockerTestOfOverlay# docker ps` +
+`CONTAINER ID        IMAGE                           COMMAND             CREATED             STATUS PORTS NAMES` +
+`5ce6a40873fb        alagalah/odlpoc_ovs230:latest   /bin/bash           3 minutes ago       Up 3 minutes     h36_3               ` +
+`60a69f868c3b        alagalah/odlpoc_ovs230:latest   /bin/bash           3 minutes ago       Up 3 minutes    h36_2               ` +
+`373dd253574d        alagalah/odlpoc_ovs230:latest   /bin/bash           3 minutes ago       Up 3 minutes    h35_3               ` +
+`2f6bbc0abb37        alagalah/odlpoc_ovs230:latest   /bin/bash           3 minutes ago       Up 3 minutes     h35_2` +
+ +
+`root@gbppoc1:~/groupbasedpolicy/util/dockerTestOfOverlay# ovs-vsctl show` +
+`95424acf-d367-4bc3-b3cb-90f807227837` +
+`   Bridge "s1"` +
+`       Controller "tcp:192.168.56.31:6653"` +
+`           is_connected: true` +
+`       Port "s1_vxlan0"` +
+`           Interface "s1_vxlan0"` +
+`               type: vxlan` +
+`               options: {key=flow, remote_ip=flow, source_ip="192.168.56.31"}` +
+`       Port "vethl6089"` +
+`           Interface "vethl6089"` +
+`       Port "vethl6012"` +
+`           Interface "vethl6012"` +
+`       Port "vethl6166"` +
+`           Interface "vethl6166"` +
+`       Port "vethl5935"` +
+`           Interface "vethl5935"` +
+`       Port "s1"` +
+`           Interface "s1"` +
+`               type: internal` +
+`   ovs_version: "2.3.0"` +
+ +
+`root@gbppoc2:~# docker ps` +
+`CONTAINER ID        IMAGE                           COMMAND             CREATED             STATUS              PORTS          NAMES` +
+`d4c64d757346        alagalah/odlpoc_ovs230:latest   /bin/bash           35 minutes ago      Up 35 minutes         h36_5               ` +
+`28f49ec3f1fb        alagalah/odlpoc_ovs230:latest   /bin/bash           35 minutes ago      Up 35 minutes            h36_4               ` +
+`e096d71d6ebd        alagalah/odlpoc_ovs230:latest   /bin/bash           35 minutes ago      Up 35 minutes         h35_5               ` +
+`4d6d1789b4dd        alagalah/odlpoc_ovs230:latest   /bin/bash           35 minutes ago      Up 35 minutes         h35_4               ` +
+`root@gbppoc2:~# ovs-vsctl show` +
+`95424acf-d367-4bc3-b3cb-90f807227837` +
+`   Bridge "s2"` +
+`       Controller "tcp:192.168.56.31:6653"` +
+`           is_connected: true` +
+`       Port "s2"` +
+`           Interface "s2"` +
+`               type: internal` +
+`       Port "vethl1773"` +
+`           Interface "vethl1773"` +
+`       Port "vethl1933"` +
+`           Interface "vethl1933"` +
+`       Port "vethl1690"` +
+`           Interface "vethl1690"` +
+`       Port "vethl1854"` +
+`           Interface "vethl1854"` +
+`       Port "s2_vxlan0"` +
+`           Interface "s2_vxlan0"` +
+`               type: vxlan` +
+`               options: {key=flow, remote_ip=flow, source_ip="192.168.56.33"}` +
+`   ovs_version: "2.3.0"`
+
+[[testing-policy]]
+=== Testing policy
+
+[[testing-icmp]]
+==== Testing ICMP
+
+We expect to be able to ping all hosts, regardless of endpoint group.
+
+* On gbppoc1:
+
+`root@gbppoc1:~/groupbasedpolicy/util/dockerTestOfOverlay# docker attach h35_2 `*`<-Hit`
+`Enter` `twice` `to` `get` `prompt`* +
+`root@h35_2:/# ` +
+`root@h35_2:/# ping -c1 10.0.35.3` +
+`PING 10.0.35.3 (10.0.35.3) 56(84) bytes of data.` +
+`64 bytes from 10.0.35.3: icmp_seq=1 ttl=64 time=0.865 ms` +
+`--- 10.0.35.3 ping statistics ---` +
+`1 packets transmitted, 1 received, 0% packet loss, time 0ms` +
+`rtt min/avg/max/mdev = 0.865/0.865/0.865/0.000 ms` +
+ +
+`root@h35_2:/# ping -c1 10.0.35.4` +
+`PING 10.0.35.4 (10.0.35.4) 56(84) bytes of data.` +
+`64 bytes from 10.0.35.4: icmp_seq=1 ttl=64 time=2.04 ms` +
+`--- 10.0.35.4 ping statistics ---` +
+`1 packets transmitted, 1 received, 0% packet loss, time 0ms` +
+`rtt min/avg/max/mdev = 2.049/2.049/2.049/0.000 ms` +
+ +
+`root@h35_2:/# ping -c1 10.0.35.5` +
+`PING 10.0.35.5 (10.0.35.5) 56(84) bytes of data.` +
+`64 bytes from 10.0.35.5: icmp_seq=1 ttl=64 time=2.24 ms` +
+`--- 10.0.35.5 ping statistics ---` +
+`1 packets transmitted, 1 received, 0% packet loss, time 0ms` +
+`rtt min/avg/max/mdev = 2.246/2.246/2.246/0.000 ms` +
+ +
+`root@h35_2:/# ping -c1 10.0.36.2` +
+`PING 10.0.36.2 (10.0.36.2) 56(84) bytes of data.` +
+`64 bytes from 10.0.36.2: icmp_seq=1 ttl=63 time=1.07 ms ` +
+`--- 10.0.36.2 ping statistics ---` +
+`1 packets transmitted, 1 received, 0% packet loss, time 0ms` +
+`rtt min/avg/max/mdev = 1.070/1.070/1.070/0.000 ms` +
+ +
+`root@h35_2:/# ping -c1 10.0.36.3` +
+`PING 10.0.36.3 (10.0.36.3) 56(84) bytes of data.` +
+`64 bytes from 10.0.36.3: icmp_seq=1 ttl=63 time=0.998 ms` +
+`--- 10.0.36.3 ping statistics ---` +
+`1 packets transmitted, 1 received, 0% packet loss, time 0ms` +
+`rtt min/avg/max/mdev = 0.998/0.998/0.998/0.000 ms` +
+ +
+`root@h35_2:/# ping -c1 10.0.36.4` +
+`PING 10.0.36.4 (10.0.36.4) 56(84) bytes of data.` +
+`64 bytes from 10.0.36.4: icmp_seq=1 ttl=62 time=1.69 ms` +
+`--- 10.0.36.4 ping statistics ---` +
+`1 packets transmitted, 1 received, 0% packet loss, time 0ms` +
+`rtt min/avg/max/mdev = 1.699/1.699/1.699/0.000 ms` +
+ +
+`root@h35_2:/# ping -c1 10.0.36.5` +
+`PING 10.0.36.5 (10.0.36.5) 56(84) bytes of data.` +
+`64 bytes from 10.0.36.5: icmp_seq=1 ttl=62 time=1.65 ms` +
+`--- 10.0.36.5 ping statistics ---` +
+`1 packets transmitted, 1 received, 0% packet loss, time 0ms` +
+`rtt min/avg/max/mdev = 1.650/1.650/1.650/0.000 ms`
+
+* You can repeat this on gbppoc2.
+
+[[testing-http]]
+==== Testing HTTP
+
+We expect to be able to query a simple HTTP server running on guests in
+EndPointGroup "webserver" from guests in EndPointGroup "client", but not
+the other way around!
+
+* On odlgbp2:
+
+`root@gbppoc2:~# docker attach h36_4` +
+`root@h36_4:/# ` +
+`root@h36_4:/# python -m SimpleHTTPServer 80` +
+`Serving HTTP on 0.0.0.0 port 80 ...`
+
+* On odlgbp1:
+
+--------------------------------------------------------------------
+ root@gbppoc1:~# docker attach h35_2
+ root@h35_2:/# 
+ root@h35_2:/# curl 10.0.36.4
+ <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 3.2 Final//EN"><html>
+ <title>Directory listing for /</title>
+ <body>
+ <h2>Directory listing for /</h2>
+ <hr>
+ <ul>
+ <li><a href=".dockerenv">.dockerenv</a>
+ <li><a href=".dockerinit">.dockerinit</a>
+ <li><a href="bin/">bin/</a>
+ <li><a href="boot/">boot/</a>
+ <li><a href="dev/">dev/</a>
+ <li><a href="etc/">etc/</a>
+ <li><a href="home/">home/</a>
+ <li><a href="lib/">lib/</a>
+ <li><a href="lib64/">lib64/</a>
+ <li><a href="media/">media/</a>
+ <li><a href="mnt/">mnt/</a>
+ <li><a href="openvswitch-2.3.0/">openvswitch-2.3.0/</a>
+ <li><a href="openvswitch-2.3.0.tar.gz">openvswitch-2.3.0.tar.gz</a>
+ <li><a href="opt/">opt/</a>
+ <li><a href="proc/">proc/</a>
+ <li><a href="root/">root/</a>
+ <li><a href="run/">run/</a>
+ <li><a href="sbin/">sbin/</a>
+ <li><a href="srv/">srv/</a>
+ <li><a href="sys/">sys/</a>
+ <li><a href="tmp/">tmp/</a>
+ <li><a href="usr/">usr/</a>
+ <li><a href="var/">var/</a>
+ </ul>
+ <hr>
+ </body>
+ </html>
+ root@h35_2:/# 
+--------------------------------------------------------------------
+
+* To test failure:
+
+On gbppoc1, h35_2 (above)
+
+`root@h35_2:/# python -m SimpleHTTPServer 80` +
+`Serving HTTP on 0.0.0.0 port 80 ...`
+
+On gbppoc2, h36_4:
+
+`root@h36_4:/# curl `http://10.0.35.2[`http://10.0.35.2`]` --connect-timeout 3` +
+`curl: (28) Connection timed out after 3001 milliseconds` +
+`root@h36_4:/#`

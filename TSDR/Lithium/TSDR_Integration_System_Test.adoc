@@ -1,0 +1,253 @@
+[[time-series-data-repository-tsdr]]
+= Time Series Data Repository (TSDR)
+
+[[code-name]]
+== Code Name
+
+odl-tsdr-all
+
+odl-tsdr-hbase
+
+[[description]]
+== Description
+
+TSDR:Lithium:User_Guide[TSDR User Guide]
+
+[[bundles]]
+== Bundles
+
+To do: upload the features.xml from git repository.
+
+[[upstream-dependencies]]
+== Upstream Dependencies
+
+None
+
+[[downstream-dependents]]
+== Downstream Dependents
+
+None
+
+[[incompatibilities]]
+== Incompatibilities
+
+None
+
+[[how-to-test]]
+== How to test
+
+The TSDR project in Lithium collects OpenFlow statistics data published
+to ODL controller in-memory data store and persist the data into
+persistence data stores. In Lithium, TSDR provides both the H2 as a data
+store embedded inside ODL controller, and HBase as an external data
+store to ODL controller. The following sections discuss how to test with
+these two types of data stores.
+
+[[test-with-embedded-h2-data-store]]
+=== Test with Embedded H2 data store
+
+To test with the embedded data store, the only step needed is to run the
+following command from Karaf console:
+
+feature:install odl-tsdr-all
+
+To do: need to list how to enable openflow statistics data pushing and
+how to check if the data is persisted into the H2 data store.
+
+[[test-with-external-hbase-data-store]]
+=== Test with External HBase data store
+
+Testing with HBase data store, which is external to ODL controller,
+requires the following steps:
+
+* Install HBase 0.94.15 by downloading the zip file and untar the tar
+ball to /usr/lib/hbase directory on the testing machine.
+
+https://archive.apache.org/dist/hbase/hbase-0.94.15/
+
+* Start hbase from /usr/lib/hbase//bin by running "./start-hbase.sh"
+* Start hbase shell by running "./hbase shell" from the above directory.
+* Start Karaf from ODL integration project.
+* Run “feature:install odl-tsdr-hbase” from Karaf.
+* Run mininet to connect to ODL controller. For example, use the
+following command to start a three node topology:
+
+`"mn --topo single,3  --controller 'remote,ip=172.17.252.210,port=6653' --switch ovsk,protocols=OpenFlow13"`
+
+* From hbase shell, check the data being captured in HBase FlowMetrics
+table using following command:
+
+"scan 'FlowMetrics'"
+
+* To truncate hbase tables and for re-testing purpose, run the following
+command:
+
+"truncate 'FlowMetrics'"
+
+[[test-cases]]
+=== Test Cases
+
+[cols=",,,,",options="header",]
+|=======================================================================
+|Purpose |Pre-conditions or Pre-requisites |Datastore Type |Test Steps
+|Expected Results
+|Test TSDR feature installation on Karaf a|
+* Fresh installation of the controller
+* In HBase data store case, install HBase server on the testing machine
+following steps listed in "How to Test with HBase Data Store" sections.
+
+ |Any a|
+* Install TSDR features with embedded data store:
+
+`   * On Karaf console, run command: ` +
+`      feature:install odl-tsdr-all`
+
+* Install TSDR features with HBase data store:
+
+`   * On Karaf console, run command:` +
+`      feature:install odl-tsdr-hbase` +
+`  `
+
+ a|
+* The TSDR Karaf feature is successfully installed
+
+|Test Automatic creation of tables in HBase a|
+* Fresh installation of the controller
+* Install HBase server on the testing machine following steps listed in
+"How to Test with HBase Data Store" sections.
+
+ |HBase |No extra steps needed after the precondition is met. a|
+* The following tables should exist in HBase server:
+
+` ** FlowMetrics` +
+` ** FlowTableMetrics` +
+` ** InterfaceMetrics` +
+` ** GroupMetrics` +
+` ** QueueMetrics`
+
+|Test the OpenFlow FlowMetrics, FlowTableMetrics, GroupMetrics,
+InterfaceMetrics, and QueueMetrics being collected and persisted a|
+* TSDR features installed on Karaf
+* In HBase data store case, HBase data store is installed successfully.
+
+ |Any a|
+1.  Use mininet to simulate openflow switches and connect to ODL
+controller using the command listed in "How to test with HBase Data
+Store section"
+2.  Check if the data is persisted in data stores.
+
+To do: detailed commands will be listed later in this section.
+
+ a|
+* The OpenFlow metrics are persisted successfully in data stores.
+
+|Test the continuous collection and persistence of OpenFlow statistics
+by TSDR a|
+* TSDR features installed on Karaf
+* In HBase data store case, HBase data store is installed successfully.
+
+ |Any a|
+1.  Use mininet to simulate openflow switches and connect to ODL
+controller using the command listed in "How to test with HBase Data
+Store section"
+2.  Check if the data is continuously persisted into the data store
+
+To do: a test application with visualization capabilities (such as a
+javascript based line chart) to help with this test will need to be
+developed and included in the release deliverables.
+
+ a|
+* The OpenFlow metrics are continuously persisted successfully in data
+stores.
+
+|Test the configuration change of HBase data store a|
+* TSDR features installed on Karaf
+* HBase data store is installed successfully.
+
+ |HBase a|
+1.  Change the configuration file, such as the pooSize of the HBase data
+store connection pools.
+
+To do: will specify the exact location of the configuration file.
+
+ a|
+* The configuration change gets picked up by checking the karaf log
+file.
+
+|Test the OpenFlow FlowMetrics, FlowTableMetrics, GroupMetrics,
+InterfaceMetrics, and QueueMetrics being collected and persisted a|
+* TSDR features installed on Karaf
+
+ |Embedded data store a|
+1.  Use mininet to simulate openflow switches and connect to ODL
+controller using the command listed in "How to test with Embedded Data
+Store" section.
+2.  Check if the data is persisted in the embedded data store.
+3.  Compare to make sure that all the OpenFlow metrics have been
+captured in the data store.
+4.  Make sure the object keys are correctly captured in the data store.
+
+To do:
+
+1.  detailed commands will be listed later in this section.
+2.  a list of supported metrics will be listed in this section.
+
+ a|
+* The OpenFlow metrics are persisted successfully in the embedded data
+store.
+
+|Test the dynamic switch from one data store to the other data store. a|
+* TSDR default embedded data store is installed successfully.
+* Make sure using the default embedded data store can capture the
+OpenFlow metrics successfully.
+
+ |Any |Use the TSDR command from Karaf to switch from the default
+embedded data store to HBase data store. To do: detailed commands will
+be specified. |Check if the OpenFlow metrics now is being captured into
+HBase data store.
+
+|Test the connection lost with HBase data store. a|
+* Karaf features are installed successfully from ODL controller
+* HBase server is installed successfully on the testing machine.
+
+ |HBase a|
+1.  First make sure that OpenFlow metrics are captured successfully with
+the healthy connection with HBase server.
+2.  Create the disconnection scenarios with HBase server, such as stop
+the HBase server.
+
+ a|
+* Appropriate error logs will be recorded in Karaf logs.
+* ODL controller keeps running in healthy status.
+
+|Test the Scalability and Performance of TSDR HBase data store. a|
+* Karaf features are installed successfully from ODL controller
+* HBase server is installed successfully on the testing machine.
+
+ |HBase a|
+1.  First make sure that OpenFlow metrics are captured successfully with
+the healthy connection with HBase server.
+2.  Try to generate large amount of OpenFlow statistics data.
+
+To do: how to generate large amount of data using mininet needs to be
+researched.
+
+ a|
+* Measure the performance in the stress scenario.
+
+| a|
+*
+*
+
+ | a|
+1. 
+2. 
+
+ a|
+*
+*
+
+|=======================================================================
+
+[[performancescalability-concerns]]
+== Performance/Scalability Concerns

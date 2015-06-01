@@ -1,0 +1,586 @@
+[[introduction]]
+= Introduction
+
+The purpose of this tutorial is to show how to work with Netconf devices
+attached to the controller. The tutorial gives examples on how to:
+
+* Discover Netconf devices attached to the controller
+* Perform read and write operations on attached Netconf devices
+* Build an application that will work with Netconf devices (i.e. it
+shows the dependencies and
+* Use YangUI to operate on an attached device
+
+The application code in this tutorial uses Binding-Aware Java APIs and
+DTOs generated from device models. The set of example models used in
+this application is a subset of models from a complex real-world Netconf
+device: IOS-XR v 5.3.1, which contains about 40 different Netconf
+models.
+
+[[the-project-structure]]
+== The Project Structure
+
+The ncmount project has been created using the MD-SAL Application
+archetype, and is therefore structured as an ODL MD-SAL application:
+
+`├── api` +
+`├── artifacts` +
+`├── features` +
+`├── impl` +
+`├── karaf` +
+`└── '''xrmodels`
+
+We added a directory called 'xrmodels' that contains a subset of IOS-XR
+Yang models used in our application. Note that our application uses the
+device models: YangTools generate Java APIs from the device models and
+our application is compiled against the generated APIs. We put the
+device models into its own directory in order to logically separate them
+from our app's API models contained in the _ncmount/api_ directory
+
+[[the-ncmount-application]]
+= The Ncmount Application
+
+[[prerequisites]]
+== Prerequisites
+
+[[adding-the-netconf-connector-to-the-test-karaf-distribution]]
+=== Adding the Netconf Connector to the Test Karaf Distribution
+
+We created the application structure by running the
+OpenDaylight_Controller:MD-SAL:Startup_Project_Archetype[MD-SAL Startup
+Project Archetype]. By default, the karaf distribution built in our app
+does not include the netconf connector. We added netconf to our features
+and our karaf test distribution as follows: In
+_features/src/main/features.xml_:
+
+* Add dependency on the netconf-connector feature to our *-impl feature
+* Add netconf-connector repository to the list of repositories
+
+as follows:
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------
+<?xml version="1.0" encoding="UTF-8"?>
+<features name="odl-ncmount-${project.version}" xmlns="http://karaf.apache.org/xmlns/features/v1.2.0"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://karaf.apache.org/xmlns/features/v1.2.0 http://karaf.apache.org/xmlns/features/v1.2.0">
+  <repository>mvn:org.opendaylight.yangtools/features-yangtools/${yangtools.version}/xml/features</repository>
+  <repository>mvn:org.opendaylight.controller/features-mdsal/${mdsal.version}/xml/features</repository>
+  <repository>mvn:org.opendaylight.controller/features-restconf/${mdsal.version}/xml/features</repository>
+  '''<repository>mvn:org.opendaylight.controller/features-netconf-connector/${mdsal.version}/xml/features</repository>
+  <feature name='odl-ncmount-api' version='${project.version}' description='OpenDaylight :: ncmount :: api'>
+    <feature version='${yangtools.version}'>odl-yangtools-models</feature>
+    <bundle>mvn:org.opendaylight.coretutorials/ncmount-api/${project.version}</bundle>
+  </feature>
+  <feature name='odl-ncmount' version='${project.version}' description='OpenDaylight :: ncmount'>
+    <feature version='${mdsal.version}'>odl-mdsal-broker</feature>
+    '''<feature version='${mdsal.version}'>odl-netconf-connector-ssh</feature>
+    <feature version='${project.version}'>odl-ncmount-api</feature>
+    <bundle>mvn:org.opendaylight.coretutorials/ncmount-impl/${project.version}</bundle>
+    <configfile finalname="${configfile.directory}/ncmount.xml">mvn:org.opendaylight.coretutorials/ncmount-impl/${project.version}/xml/config</configfile>
+  </feature>
+  <feature name='odl-ncmount-rest' version='${project.version}' description='OpenDaylight :: ncmount :: REST'>
+    <feature version="${project.version}">odl-ncmount</feature>
+    <feature version="${mdsal.version}">odl-restconf</feature>
+  </feature>
+  <feature name='odl-ncmount-ui' version='${project.version}' description='OpenDaylight :: ncmount :: UI'>
+    <feature version="${project.version}">odl-ncmount-rest</feature>
+    <feature version="${mdsal.version}">odl-mdsal-apidocs</feature>
+    <feature version="${mdsal.version}">odl-mdsal-xsql</feature>
+  </feature>
+</features>
+----------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Add the following dependency to _features/pom.xml_:
+
+---------------------------------------------------------
+    <dependency>
+      <groupId>org.opendaylight.controller</groupId>
+      <artifactId>features-netconf-connector</artifactId>
+      <classifier>features</classifier>
+      <version>${mdsal.version}</version>
+      <type>xml</type>
+      <scope>runtime</scope>
+    </dependency>
+---------------------------------------------------------
+
+[[creating-initial-configuration-for-the-netconf-connector]]
+=== Creating Initial Configuration for the Netconf Connector
+
+In order to connect to managed nodes at runtime, the ODL Netconf
+Connector must be configured with each managed node's management IP
+address. It would be quite a drag having to re-enter this configuration
+every time you rebuild your test Karaf distribution (which is every time
+you run *mvn clean install...*). Fortunately, the Netconf Connector can
+get its configuration from the initial configuration file that can be
+included in the Karaf test distribution when it's built..
+
+To instruct the build to include the initial config file for the Netconf
+Connection in the Karaf distribution, we need modify the project
+generated by MD-SAL archetype p as follows:
+
+* Add the netconf file config snapshot into a source directory; we chose
+the _/ncmount/impl/src/main/config_ directory, maily because the
+ncmount's initial configuration resides there. But, you can put the file
+into a directory of your choice. We called the file
+_xrnodes-config.xml_, because we connect to IOS-XR netconf-managed
+nodes. The configuration snapshot for one or more remote netconf node is
+as follows (just a add a ... for each node):
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ <?xml version="1.0" encoding="UTF-8"?>
+ <snapshot>
+  <configuration>
+    <data xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+      <modules xmlns="urn:opendaylight:params:xml:ns:yang:controller:config">
+        <module>
+          <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">prefix:sal-netconf-connector</type>
+          <name>xrv1</name>
+          <address xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">'''<your-netconf-node-ip-address>'''</address>
+          <port xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">'''<your-netconf-node-ssh-port>'''</port>
+          <username xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">'''<username>'''</username>
+          <password xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">'''<password>'''</password>
+          <tcp-only xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">false</tcp-only>
+          <reconnect-on-changed-schema>true</reconnect-on-changed-schema>
+          <event-executor xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">
+            <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:netty">prefix:netty-event-executor</type>
+            <name>global-event-executor</name>
+          </event-executor>
+          <binding-registry xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">
+            <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:md:sal:binding">prefix:binding-broker-osgi-registry</type>
+            <name>binding-osgi-broker</name>
+          </binding-registry>
+          <dom-registry xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">
+            <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:md:sal:dom">prefix:dom-broker-osgi-registry</type>
+            <name>dom-broker</name>
+          </dom-registry>
+          <client-dispatcher xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">
+            <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:config:netconf">prefix:netconf-client-dispatcher</type>
+            <name>global-netconf-dispatcher</name>
+          </client-dispatcher>
+          <processing-executor xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">
+            <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:threadpool">prefix:threadpool</type>
+            <name>global-netconf-processing-executor</name>
+          </processing-executor>
+        </module>
+      </modules>
+    </data>
+  </configuration>
+  <required-capabilities>
+      <capability>urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf?module=odl-sal-netconf-connector-cfg&amp;revision=2013-10-28</capability>
+  </required-capabilities>
+ </snapshot>
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+* Instruct the build in the _impl_ folder where to find the config
+snippet, what kind of a file it is and during which build phase it
+should be used. Add the following stanza to pom.xml in _ncmount/impl_:
+
+----------------------------------------------------------------
+  <build>
+   <plugins>
+    <plugin>
+       <groupId>org.codehaus.mojo</groupId>
+       <artifactId>build-helper-maven-plugin</artifactId>
+       <executions>
+         <execution>
+           <id>attach-artifacts</id>
+           <phase>package</phase>
+           <goals>
+             <goal>attach-artifact</goal>
+           </goals>
+           <configuration>
+             <artifacts>
+               <artifact>
+                 <file>src/main/config/xrnodes-config.xml</file>
+                 <type>xml</type>
+                 <classifier>xrnodes</classifier>
+               </artifact>
+             </artifacts>
+           </configuration>
+         </execution>
+       </executions>
+     </plugin>
+    </plugins>
+  </build>
+----------------------------------------------------------------
+
+* Finally, include the config file stanza in our application's feature:
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ <?xml version="1.0" encoding="UTF-8"?>
+ <features name="odl-ncmount-${project.version}" xmlns="http://karaf.apache.org/xmlns/features/v1.2.0"
+   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+   xsi:schemaLocation="http://karaf.apache.org/xmlns/features/v1.2.0 http://karaf.apache.org/xmlns/features/v1.2.0">
+  <repository>mvn:org.opendaylight.yangtools/features-yangtools/${yangtools.version}/xml/features</repository>
+  <repository>mvn:org.opendaylight.controller/features-mdsal/${mdsal.version}/xml/features</repository>
+  <repository>mvn:org.opendaylight.controller/features-restconf/${mdsal.version}/xml/features</repository>
+  <repository>mvn:org.opendaylight.controller/features-netconf-connector/${mdsal.version}/xml/features</repository>
+  <feature name='odl-ncmount-api' version='${project.version}' description='OpenDaylight :: ncmount :: api'>
+    <feature version='${yangtools.version}'>odl-yangtools-models</feature>
+    <bundle>mvn:org.opendaylight.coretutorials/ncmount-api/${project.version}</bundle>
+  </feature>
+  <feature name='odl-ncmount' version='${project.version}' description='OpenDaylight :: ncmount'>
+    <feature version='${mdsal.version}'>odl-mdsal-broker</feature>
+    <feature version='${mdsal.version}'>odl-netconf-connector-ssh</feature>
+    <feature version='${project.version}'>odl-ncmount-api</feature>
+    <bundle>mvn:org.opendaylight.coretutorials/ncmount-impl/${project.version}</bundle>
+    <configfile finalname="${configfile.directory}/ncmount.xml">mvn:org.opendaylight.coretutorials/ncmount-impl/${project.version}/xml/config</configfile>
+    '''<configfile finalname="${configfile.directory}/xrnodes-config.xml">mvn:org.opendaylight.coretutorials/ncmount-impl/${project.version}/xml/xrnodes</configfile>
+  </feature>
+  <feature name='odl-ncmount-rest' version='${project.version}' description='OpenDaylight :: ncmount :: REST'>
+    <feature version="${project.version}">odl-ncmount</feature>
+    <feature version="${mdsal.version}">odl-restconf</feature>
+  </feature>
+  <feature name='odl-ncmount-ui' version='${project.version}' description='OpenDaylight :: ncmount :: UI'>
+    <feature version="${project.version}">odl-ncmount-rest</feature>
+    <feature version="${mdsal.version}">odl-mdsal-apidocs</feature>
+    <feature version="${mdsal.version}">odl-mdsal-xsql</feature>
+  </feature>
+ </features>
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Note that we are configuring an outside feature (Netconf Connector) from
+within our application. You can basically configure the rest of the
+system to support your application. Netconf Connector is just one
+example of such application-specific configuration.
+
+[[application-code]]
+== Application Code
+
+The application code consists of code examples that show how to work
+Netconf nodes attached to the ODL controller. Key concepts required to
+work with attached NEtconf nodes are *Netconf Topology* and *mount*.
+Netconf Topology is used to discover Netconf nodes and to get state
+change events about Netconf nodes. The Netconf Topology data is
+populated by the Netconf Connector.
+
+[[running-the-application]]
+= Running the Application
+
+This guide show how to use utilize the ncmount tutorial code to
+communicate with a remote netconf device using generated APIs from yang
+models. OpenDaylight_Controller:Netconf:Testtool[Netconf testtool] will
+be used as a mock for a remote netconf device. In addition, ODL itself
+(the netconf northbound interface for MD-SAL) will be used as a "remote"
+netconf device (demonstrating how to mount and ODL controller using a
+loopback netconf connection).
+
+[[prerequisites-1]]
+== Prerequisites
+
+* ODL controller, current master branch version (Lithium release)
+* Postman REST collection: download from
+https://www.getpostman.com/collections/d704474ff5cd7ebd3619. If you are
+using POSTMAN as your REST client, you can find all necessary predefined
+requests used in this tutorial on this link. The collection contains
+both XML and JSON versions of required requests.
+
+[[getting-the-controller-up-and-running]]
+== Getting the controller up and running
+
+[[starting-the-controller]]
+=== Starting the Controller
+
+There are two options for downloading the ODL controller distribution:
+
+* Download pre-built generic ODL controller distribution from e.g.
+https://nexus.opendaylight.org/content/repositories/opendaylight.snapshot/org/opendaylight/integration/distribution-karaf/[a
+recent integration project distribution])
+* Use the custom distribution built by the ncmount tutorial project. The
+distribution can be found in _ncmount/target/assembly_ and it contains
+all the features that are required to run the ncmount app already
+pre-installed.
+
+*If you work with a generic distribution, you have to install the
+pre-requisite features:*
+
+* Start karaf:
+
+`./karaf `
+
+* Once karaf starts, add coretutorials repository:
+
+`> repo-add `mvn:org.opendaylight.coretutorials/ncmount-features/1.0.0-SNAPSHOT/xml/features[`mvn:org.opendaylight.coretutorials/ncmount-features/1.0.0-SNAPSHOT/xml/features`]
+
+Note: It might be necessary to pull the coretutorials code
+(https://git.opendaylight.org/gerrit/#/admin/projects/coretutorials) and
+build it using maven (cd coretutorials; mvn clean install)
+
+* Install features for restconf, netconf connector(southbound), netconf
+northbound for config, netconf northbound for MD-SAL, ncmount(netconf
+coretutorial) ... and all their dependencies:
+
+`> feature:install odl-restconf-all odl-netconf-mdsal odl-ncmount odl-netconf-connector-all`
+
+*If you work with the distribution pre-built in the tutorial, just go
+into the distribution directory and start karaf:*
+
+`cd karaf/target/assembly/bin` +
+`./karaf`
+
+[[verifying-controller-startup]]
+=== Verifying controller startup
+
+* After starting karaf, wait for a little while (10-20s)
+* Check if everything started successfully using logs. Logs can be
+checked using following commands (All should output log about successful
+start of different components):
+
+`> log:display | grep 2830` +
+`> log:display | grep successfully` +
+`> log:display | grep 8181`
+
+* Test netconf connections using RESTCONF: Issue a GET on
+http://localhost:8181/restconf/operational/network-topology:network-topology/topology/topology-netconf/.
+Two nodes should be reported (basic authentication is required by
+restconf with credentials: admin/admin):
+* controller-config with connected status - this is a loopback
+connection from netconf connector to netconf norhbound for config
+subsystem
+* xrvr1 - connection spawned by coretutorial to a remote device (to
+connect at this time, you need a 5.3.0 or later IOS-XR device; in the
+steps below we outline how to emulate the device in the Netconf Test
+Tool).
+
+[[testing-against-netconf-test-tool]]
+== Testing against Netconf Test Tool
+
+*
+OpenDaylight_Controller:Netconf:Testtool#Downloading_testtool[Download]
+the netconf test and simulation tool. It can simulate one or more
+netconf devices. In this tutorial we use it to simulate a single netconf
+node. The ncmount application will be tested against it.
+* Copy yang sources from ncmount tutorial into a new folder next to
+testtool:
+
+`mkdir yang` +
+`// Assuming the coretutorials sources are present at ~/Projects/coretutorials` +
+`cp ~/Projects/coretutorials/ncmount/xrmodels/src/main/yang/* ./yang ` +
+`// Now start the testtool` +
+`java -jar netconf-testtool-0.3.0-SNAPSHOT-executable.jar --schemas-dir ./yang/` +
+`// Testtool should log when ready: All simulated devices started successfully from port 17830 to 17830`
+
+* Configure a new netconf-connector to connect to the testtool by
+issuing a POST request to: +
+
+_http://localhost:8181/restconf/config/network-topology:network-topology/topology/topology-netconf/node/controller-config/yang-ext:mount/config:modules_ +
+with "Content-Type" and "Accept" header attributes set to
+_application/xml_ (if authentication is required by RESTCONF, default is
+_admin/admin_) and the following payload:
+
+-----------------------------------------------------------------------------------------------------------------------------------
+ <module xmlns="urn:opendaylight:params:xml:ns:yang:controller:config">
+   <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">prefix:sal-netconf-connector</type>
+   <name>testtool</name>
+   <address xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">127.0.0.1</address>
+   <port xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">17830</port>
+   <username xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">admin</username>
+   <password xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">admin</password>
+   <tcp-only xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">false</tcp-only>
+   <event-executor xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">
+     <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:netty">prefix:netty-event-executor</type>
+     <name>global-event-executor</name>
+   </event-executor>
+   <binding-registry xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">
+     <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:md:sal:binding">prefix:binding-broker-osgi-registry</type>
+     <name>binding-osgi-broker</name>
+   </binding-registry>
+   <dom-registry xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">
+     <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:md:sal:dom">prefix:dom-broker-osgi-registry</type>
+     <name>dom-broker</name>
+   </dom-registry>
+   <client-dispatcher xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">
+     <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:config:netconf">prefix:netconf-client-dispatcher</type>
+     <name>global-netconf-dispatcher</name>
+   </client-dispatcher>
+   <processing-executor xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">
+     <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:threadpool">prefix:threadpool</type>
+     <name>global-netconf-processing-executor</name>
+   </processing-executor>
+ </module>
+-----------------------------------------------------------------------------------------------------------------------------------
+
+[[verifying-netconf-test-tool-connection]]
+=== Verifying Netconf Test Tool connection
+
+* Verify that the controller has successfully connected to the testtool
+- check the ODL log:
+
+`>log:display | grep testtool | grep successfully`
+
+* Verify the connection to the testtool with RESTCONF:
+
+`GET `http://localhost:8181/restconf/operational/network-topology:network-topology/topology/topology-netconf/node/testtool[`http://localhost:8181/restconf/operational/network-topology:network-topology/topology/topology-netconf/node/testtool`]
+
+* Invoking show-node RPC from ncmount tutorial for the testtool
+mountpoint (This is actually hitting the tutorial code inside ncmount):
+
+`POST `http://localhost:8181/restconf/operations/ncmount:show-node[`http://localhost:8181/restconf/operations/ncmount:show-node`]
+
+with "Content-Type" and "Accept" header attributes set to
+_application/xml_ and the following payload:
+
+------------------------------------------------------------
+ <input xmlns="urn:opendaylight:params:xml:ns:yang:ncmount">
+   <node-name>testtool</node-name>
+ </input>
+------------------------------------------------------------
+
+The RPC will show no data, since the testtool does not contain any data
+(yet).
+
+* Invoke the list-nodes RPC:
+
+`POST `http://localhost:8181/restconf/operations/ncmount:list-nodes[`http://localhost:8181/restconf/operations/ncmount:list-nodes`]
+
+with "Content-Type" and "Accept" header attributes set to:
+*application/xml* and *NO* payload
+
+[[putting-test-data-into-the-netconf-test-tool]]
+=== Putting Test Data into the Netconf Test Tool
+
+We can add some test data into the Netconf Test Tool, for example, to
+test the show-node RPC call with some data. We will use RESTCONF and ODL
+itself to push test data into the test tool:
+
+`POST `http://localhost:8181/restconf/config/network-topology:network-topology/topology/topology-netconf/node/testtool/yang-ext:mount/Cisco-IOS-XR-ifmgr-cfg:interface-configurations[`http://localhost:8181/restconf/config/network-topology:network-topology/topology/topology-netconf/node/testtool/yang-ext:mount/Cisco-IOS-XR-ifmgr-cfg:interface-configurations`]
+
+with "Content-Type" and "Accept" header attributes set to
+application/xml and payload:
+
+---------------------------------------------------------------------------------
+<interface-configuration xmlns="http://cisco.com/ns/yang/Cisco-IOS-XR-ifmgr-cfg">
+    <active>act</active>
+    <interface-name>mpls</interface-name>
+    <description>Interface description</description>
+    <bandwidth>32</bandwidth>
+    <link-status></link-status>
+</interface-configuration>
+---------------------------------------------------------------------------------
+
+Verify data presence in the testtool:
+
+`GET `http://localhost:8181/restconf/config/network-topology:network-topology/topology/topology-netconf/node/testtool/yang-ext:mount/Cisco-IOS-XR-ifmgr-cfg:interface-configurations[`http://localhost:8181/restconf/config/network-topology:network-topology/topology/topology-netconf/node/testtool/yang-ext:mount/Cisco-IOS-XR-ifmgr-cfg:interface-configurations`]
+
+Re-invoke the show-node operation as in step 13.
+
+[[testing-against-odl-itself-md-sal-netconf-northbound-loopback-mount]]
+== Testing against ODL itself (MD-SAL netconf northbound loopback mount)
+
+* Configure a new netconf-connector to connect to the md-sal by issuing
+a POST request to:
+
+http://localhost:8181/restconf/config/network-topology:network-topology/topology/topology-netconf/node/controller-config/yang-ext:mount/config:modules[`http://localhost:8181/restconf/config/network-topology:network-topology/topology/topology-netconf/node/controller-config/yang-ext:mount/config:modules`]
+
+with "Content-Type" and "Accept" header attributes set to:
+application/xml and payload:
+
+-----------------------------------------------------------------------------------------------------------------------------------
+ <module xmlns="urn:opendaylight:params:xml:ns:yang:controller:config">
+   <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">prefix:sal-netconf-connector</type>
+   <name>controller-mdsal</name>
+   <address xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">127.0.0.1</address>
+   <port xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">2830</port>
+   <username xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">admin</username>
+   <password xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">admin</password>
+   <tcp-only xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">false</tcp-only>
+   <event-executor xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">
+     <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:netty">prefix:netty-event-executor</type>
+     <name>global-event-executor</name>
+   </event-executor>
+   <binding-registry xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">
+   <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:md:sal:binding">prefix:binding-broker-osgi-registry</type>
+   <name>binding-osgi-broker</name>
+   </binding-registry>
+   <dom-registry xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">
+      <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:md:sal:dom">prefix:dom-broker-osgi-registry</type>
+      <name>dom-broker</name>
+   </dom-registry>
+   <client-dispatcher xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">
+     <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:config:netconf">prefix:netconf-client-dispatcher</type>
+     <name>global-netconf-dispatcher</name>
+   </client-dispatcher>
+   <processing-executor xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">
+     <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:threadpool">prefix:threadpool</type>
+     <name>global-netconf-processing-executor</name>
+   </processing-executor>
+ </module>
+-----------------------------------------------------------------------------------------------------------------------------------
+
+Note that the above example will result in a loopback connection to be
+spawned; You can specify a mount to other ODL instances, not just self.
+
+* Check its status by issuing request:
+
+`GET `http://localhost:8181/restconf/operational/network-topology:network-topology/topology/topology-netconf/node/controller-mdsal[`http://localhost:8181/restconf/operational/network-topology:network-topology/topology/topology-netconf/node/controller-mdsal`]
+
+Read the data from mounted MD-SAL (the invocation pipeline is as
+following: RESTCONF, MD-SAL, NETCONF-CONNECTOR,
+NETCONF-NORTHBOUND-FOR-MD-SAL, MD-SAL)
+
+`GET `http://localhost:8181/restconf/config/network-topology:network-topology/topology/topology-netconf/node/controller-mdsal/yang-ext:mount[`http://localhost:8181/restconf/config/network-topology:network-topology/topology/topology-netconf/node/controller-mdsal/yang-ext:mount`] +
+`// FIXME reading the entire operational subtree results in a transformation problem for the topology model. But reading operational data for opendaylight-inventory:nodes works fine.`
+
+* Try to invoke list-nodes rpc in ncmount just like in step 14
+* Try to invoke show-node for controller-mdsal mountpoint:
+
+`POST `http://localhost:8181/restconf/operations/ncmount:show-node[`http://localhost:8181/restconf/operations/ncmount:show-node`]
+
+with "Content-Type" and "Accept" header attributes set to:
+application/xml and payload:
+
+-------------------------------------------------------------
+  <input xmlns="urn:opendaylight:params:xml:ns:yang:ncmount">
+    <node-name>testtool</node-name>
+  </input>
+-------------------------------------------------------------
+
+The RPC will show no return data, since the ODL does not contain any
+data for ncmount specific model
+
+[[adding-some-data-into-odl]]
+=== Adding some data into ODL
+
+* To test the show-node with some data, we need to push them to the
+testtool. We will use restconf to do so:
+
+`POST `http://localhost:8181/restconf/config/network-topology:network-topology/topology/topology-netconf/node/controller-mdsal/yang-ext:mount/Cisco-IOS-XR-ifmgr-cfg:interface-configurations[`http://localhost:8181/restconf/config/network-topology:network-topology/topology/topology-netconf/node/controller-mdsal/yang-ext:mount/Cisco-IOS-XR-ifmgr-cfg:interface-configurations`]` with "Content-Type" and "Accept" header attributes set to: application/xml and the following payload:`
+
+---------------------------------------------------------------------------------
+<interface-configuration xmlns="http://cisco.com/ns/yang/Cisco-IOS-XR-ifmgr-cfg">
+    <active>act</active>
+    <interface-name>mpls</interface-name>
+    <description>Interface description</description>
+    <bandwidth>32</bandwidth>
+    <link-status></link-status>
+</interface-configuration>
+---------------------------------------------------------------------------------
+
+* Verify data presence in the testtool:
+
+`GET `http://localhost:8181/restconf/config/network-topology:network-topology/topology/topology-netconf/node/testtool/yang-ext:mount/Cisco-IOS-XR-ifmgr-cfg:interface-configurations[`http://localhost:8181/restconf/config/network-topology:network-topology/topology/topology-netconf/node/testtool/yang-ext:mount/Cisco-IOS-XR-ifmgr-cfg:interface-configurations`]
+
+* Reinvoke the show-node operation as in step 5a.
+** WARNING: This call might fail with error due to missing
+Cisco-IOS-XR-ifmgr-oper model. Caused by bug:
+https://bugs.opendaylight.org/show_bug.cgi?id=1567[1567]
+
+[[troubleshooting]]
+= Troubleshooting
+
+* *Unable to build the ncmount project:*
+** If there are any issues building the required project, please consult
+the GettingStarted:Development_Environment_Setup[Development setup
+page].
+
+* *Invoking show-node against controller itself fails due to missing
+model for _Cisco-IOS-XR-ifmgr-oper_:*
+** There is a problem resolving Cisco-IOS-XR-ifmgr-oper model downloaded
+from the controller's netconf server due to bug 1567. The bug will be
+fixed by the Lithium release.
+
+* *Unable to restart the controller:*
+** If any problems appears when trying to start the controller after it
+was started/stopped previously, clean the entire folder _data_ and
+_etc/opendaylight/current_ within the distribution. This deletion will
+bring the controller to its original state.
+

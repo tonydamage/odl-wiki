@@ -1,235 +1,336 @@
-[[virtualization-edition-guide-for-vtn]]
-= Virtualization Edition Guide for VTN
+[[overview]]
+== Overview
 
-[[download-virtualization-edition]]
-== Download Virtualization Edition
+This guide explains how to install VTN Coordinator and VTN Manager to
+use VTN API.
 
-The OpenDaylight virtualization edition zip file for Hydrogen release
-can be downloaded from
-https://nexus.opendaylight.org/content/repositories/opendaylight.release/org/opendaylight/integration/distributions-virtualization/0.1.0/[1]
+VTN Manager is a set of OSGi bundles running in OpenDaylight controller,
+and VTN Coordinator is an application running outside the controller.
 
-* distributions-virtualization-0.1.0-osgipackage.zip
-
-The latest OpenDaylight virtualization edition zip file can be
-downloaded from
-http://nexus.opendaylight.org/content/repositories/opendaylight.snapshot/org/opendaylight/integration/distributions-virtualization/0.1.2-SNAPSHOT/[2]
+It is recommended to install VTN Coordinator and OpenDaylight controller
+on different machines, since their supported platforms and prerequisites
+are different.
 
 [[supported-platforms]]
 == Supported Platforms
 
 [cols=",",]
-|=======================================================================
-|*Supported Platform* |*Java Version*
+|===========================================================
+|*Software* |*Supported Platforms*
+|VTN Manager |All Java Platform
+|VTN Coordinator |(64-bit version of below Linux variants) +
+Fedora 20 +
+CentOS 6 +
+RHEL 6 +
+RHEL 7 +
+CentOS 7
+|===========================================================
 
-|RHEL 6.1 (64-Bit)
-|`  Download Oracle JDK 7 from the following page, and install it` +
-`  `http://www.oracle.com/technetwork/java/javase/downloads/index.html[`http://www.oracle.com/technetwork/java/javase/downloads/index.html`]
+[[downloading-helium]]
+== Downloading Helium
 
-|RHEL 6.4 (64-Bit) |` Install OpenJDK 7` +
-` yum install java-1.7.0-openjdk-devel`
-|=======================================================================
-
-[[installation]]
-== Installation
-
-`Important Note: File names differs for all the latest virtualization edition and Hydrogen Relase version.` +
-`So please ensure before running the commands, when following the installation procedure as below.`
-
-[[installing-odl-controller-and-execution]]
-=== Installing ODL Controller and Execution
+Observation: If you are using Ubuntu (or Debian like OS) go to
+installation from source:
+https://wiki.opendaylight.org/view/OpenDaylight_Virtual_Tenant_Network_(VTN):Installation:VTN_Coordinator
 
 ::
-  1.Unzip the downloaded file as follows
-
-`unzip distributions-virtualization-0.1.0-osgipackage.zip`
-
-::
-  2. This will create a directory with name opendaylight
+  1. Go to the download page of opendaylight.org.
   +
-  3. Please ensure the environment variable JAVA_HOME is set to the
-  location of the JDK.
+  ;;
+    http://www.opendaylight.org/software/downloads
   +
-  4. Execute Controller for VTN using the below command
+  2. Download the *Pre-Built Zip File* or *Pre-Built Tar File* of the
+  latest Helium.
+  +
+  3. Extract files from the downloaded file.
+  +
+  ;;
+    e.g.)
+    +
+    ::
+---------------------------------------------
+unzip distribution-karaf-0.2.1-Helium-SR1.zip
+---------------------------------------------
+      +
+      ;;
+        or
+      +
+---------------------------------------------------
+tar zxvf distribution-karaf-0.2.1-Helium-SR1.tar.gz
+---------------------------------------------------
 
-` * cd opendaylight` +
-` * ./run.sh -virt vtn`
+[[setting-up-vtn-coordinator]]
+== Setting up VTN Coordinator
+
+Arrange a physical/virtual server with any one of the supported 64-bit
+OS environment.
+
+* Fedora 19/20
+* RHEL 6 / 7
+* CentOS 6 / 7
+
+[[installing-the-java]]
+=== Installing the Java
+
+* For RHEL/CentOS 6.1 (x86_64)
 
 ::
-  5. The Controller will be up and running with the components required
-  for VTN virtualization.
+  Download Oracle JDK 7 and install it.
+  +
+  http://www.oracle.com/technetwork/java/javase/downloads/index.html
+
+* For RHEL/CentOS 6.4 (x86_64)
+
+::
+  ;;
+    Install OpenJDK 7.
+    +
+------------------------------------
+yum install java-1.7.0-openjdk-devel
+------------------------------------
+
+* For Fedora 19/20
+
+::
+  ;;
+    Install OpenJDK 7.
+    +
+------------------------------------
+yum install java-1.7.0-openjdk-devel
+------------------------------------
+
+[[installing-prerequisites]]
+=== Installing prerequisites
+
+* For RHEL 6
+
+----------------------------------------------------------------------------
+yum install perl-Digest-SHA uuid libxslt libcurl unixODBC
+wget http://dl.fedoraproject.org/pub/epel/6/i386/epel-release-6-8.noarch.rpm
+rpm -Uvh epel-release-6-8.noarch.rpm
+yum install json-c
+----------------------------------------------------------------------------
+
+* For CentOS6 and Fedora 20
+
+----------------------------------------------------------------
+yum install perl-Digest-SHA uuid libxslt libcurl unixODBC json-c
+----------------------------------------------------------------
+
+[[installing-postgresql-database]]
+=== Installing PostgreSQL Database
+
+::
+  1. Configure Yum repository to download the latest rpms for PostgreSQL
+  9.1
+  +
+  ;;
+------------------------------------------------------------------------------------------
+rpm -ivh http://yum.postgresql.org/9.1/redhat/rhel-6-x86_64/pgdg-redhat91-9.1-5.noarch.rpm
+------------------------------------------------------------------------------------------
+  +
+  2. Install the required PostgreSQL packages
+  +
+  ;;
+-----------------------------------------------------------------------------------------------------
+yum install postgresql91-libs postgresql91 postgresql91-server postgresql91-contrib postgresql91-odbc
+-----------------------------------------------------------------------------------------------------
+
+or
+
+::
+  1. Configure Yum repository to download the latest rpms for PostgreSQL
+  9.3
+  +
+  ;;
+------------------------------------------------------------------------------------------
+rpm -ivh http://yum.postgresql.org/9.3/redhat/rhel-6-x86_64/pgdg-redhat93-9.3-1.noarch.rpm
+------------------------------------------------------------------------------------------
+  +
+  2. Install the required PostgreSQL packages
+  +
+  ;;
+-----------------------------------------------------------------------------------------------------
+yum install postgresql93-libs postgresql93 postgresql93-server postgresql93-contrib postgresql93-odbc
+-----------------------------------------------------------------------------------------------------
+
+::
+  *Note*:
+  +
+  * If you are facing any problems while installing postgreSQL rpm,
+  Please refer to
+  OpenDaylight_Virtual_Tenant_Network_(VTN):Installation:Troubleshooting#Problems_while_Installing_PostgreSQL_due_to_openssl[openssl_problems]
+  query in troubleshooting FAQ.
+  * The above procedures indicate the rpms for RHEL 6 only, please visit
+  the http://yum.postgresql.org/ for the rpm for the other linux distros
+  * VTN Coordinator support PostgreSQL version greater than 9.1 only and
+  currently tested with 9.1 and 9.3. Please ensure the PostgreSQL
+  version>=9.1 is installed.
 
 [[installing-the-vtn-coordinator]]
 === Installing the VTN Coordinator
 
 ::
-  1. The VTN Coordinator is available in the externalapps of the
-  virtualization edition
+  1. Enter into the *externalapps* directory in the top directory of
+  Helium.
   +
-  2. Install the VTN Coordinator using the command
+  ;;
+    e.g.)
+    +
+---------------------------------------------------
+cd distribution-karaf-0.2.1-Helium-SR1/externalapps
+---------------------------------------------------
   +
-  * cd opendaylight/externalapps
-  * tar –C / -jxvf
-  org.opendaylight.vtn.distribution.vtn-coordinator-5.0.0.0-bin.tar.bz2
+  2. Run the below command to extract VTN Coordinator from the tar.bz2
+  file in the *externalapps* directory.
   +
-  3. This will install the Coordinator to /usr/local/vtn directory.
+  ;;
+-------------------------------------------------------------------------
+tar –C/ -jxvf distribution.vtn-coordinator-6.0.0.1-Helium-SR1-bin.tar.bz2
+-------------------------------------------------------------------------
+    +
+    This will install VTN Coordinator to */usr/local/vtn* directory.
+    +
+    The name of the tar.bz2 file name varies depending on the version.
+    Please give the same tar.bz2 file name which is there in your
+    directory.
+
+[[installing-https-in-vtn-coordinator]]
+=== Installing HTTPS in VTN Coordinator
+
+::
+  1. Please go through the below link,
   +
-  4. If the VTN Coordinator need to be run on a different machine, Copy
-  the
-  org.opendaylight.vtn.distribution.vtn-coordinator-5.0.0.0-bin.tar.bz2
-  and uncompress.
+  ;;
+    https://wiki.opendaylight.org/view/OpenDaylight_Virtual_Tenant_Network_(VTN):VTN_Coordinator:Enable_HTTPS_in_VTN_Coordinator#APR_Installation_Step
 
-[[launch-the-vtn-coordinator]]
-=== Launch the VTN Coordinator
+::
+  Note:
+  +
+  ;;
+    VTN Coordinator runs on port 8083 (TCP) for REST API by default. If
+    you want to run it on different port other than the default, change
+    the port number in the below file:
+    +
+    ::
+----------------------------------------
+/usr/local/vtn/tomcat/conf/tomcat-env.sh
+----------------------------------------
 
-[[prior-preparation]]
-==== Prior Preparation
+[[configuring-database-for-vtn-coordinator]]
+=== Configuring database for VTN Coordinator
 
-[[install-additional-applications-required-for-vtn-coordinator]]
-===== Install additional applications required for VTN Coordinator
+Execute the below command.
 
-:* yum install perl-Digest-SHA uuid libxslt libcurl unixODBC
+::
+----------------------------
+/usr/local/vtn/sbin/db_setup
+----------------------------
 
-:* wget
-http://dl.fedoraproject.org/pub/epel/6/i386/epel-release-6-8.noarch.rpm
+If you received "*** ERROR: DB error occurred during DB setting.", go to
+https://wiki.opendaylight.org/view/OpenDaylight_Virtual_Tenant_Network_(VTN):Installation:Troubleshooting#After_executing_db_setup.2C_you_have_encountered_the_error_.22Failed_to_setup_database.22.3F
 
-:* rpm -Uvh epel-release-6-8.noarch.rpm
+[[setting-up-vtn-manager]]
+== Setting up VTN Manager
 
-:* yum install json-c
+VTN Manager runs in OpenDaylight controller. In order to run VTN
+Manager, run the controller and install VTN Manager features.
 
-[[installing-postgresql-database]]
-===== Installing PostgreSQL Database
+::
+  1. Ensure Java Runtime Environment 7 is installed, else install it.
+  +
+  ;;
+------------------------------
+yum install java-1.7.0-openjdk
+------------------------------
+    +
+    ::
+      or
+    +
+------------------
+yum list *openjdk*
+------------------
+    +
+    ::
+      (then install the version available in the distro)
+
+::
+  2. Enter into the top directory of Helium.
+  +
+  ;;
+    e.g.)
+    +
+--------------------------------------
+cd distribution-karaf-0.2.1-Helium-SR1
+--------------------------------------
+
+::
+  3. Run the below command to run the controller.
+  +
+  ;;
+-----------
+./bin/karaf
+-----------
+
+::
+  4. Once the console is up, type as below to install VTN Manager and
+  other necessary features.
+  +
+  ;;
+--------------------------------------------------------------------------------------
+feature:install odl-vtn-manager-all odl-openflowplugin-all odl-adsal-compatibility-all
+--------------------------------------------------------------------------------------
+
+::
+  5. For logs, please look into the below file
+  +
+  ;;
+------------------
+data/log/karaf.log
+------------------
+
+[[basic-usage-of-vtn]]
+== Basic usage of VTN
+
+[[launching-the-vtn-coordinator]]
+=== Launching the VTN Coordinator
+
+----------------------------
+/usr/local/vtn/bin/vtn_start
+----------------------------
+
+[[using-vtn-rest-api]]
+=== Using VTN REST API
+
+:* Get the version of VTN REST API using the below command, and make
+sure the setup is working.
 
 ::
   ;;
-    The following steps to be followed to have PostgreSQL installed for
-    Hydrogen release
+-------------------------------------------------------------------------------------------------------------------------------------------
+curl --user admin:adminpass -H 'content-type: application/json' -X GET http://<VTN_COORDINATOR_IP_ADDRESS>:8083/vtn-webapi/api_version.json
+-------------------------------------------------------------------------------------------------------------------------------------------
+    +
+    The response should be like this:
+    +
+----------------------------------
+{"api_version":{"version":"V1.2"}}
+----------------------------------
 
-`  Configure Yum repository to download the latest rpms for PostgreSQL 9.1` +
-`  rpm -ivh `http://yum.postgresql.org/9.1/redhat/rhel-6-x86_64/pgdg-redhat91-9.1-5.noarch.rpm[`http://yum.postgresql.org/9.1/redhat/rhel-6-x86_64/pgdg-redhat91-9.1-5.noarch.rpm`] +
-`  `
-
-`  Install the required PostgreSQL packages` +
-`  yum install postgresql91-libs postgresql91 postgresql91-server postgresql91-contrib postgresql91-odbc`
-
-* Note: if you are facing any problems while installing postgreSQL rpm,
-Please refer to
-OpenDaylight_Virtual_Tenant_Network_(VTN):Installation:Troubleshooting#Problems_while_Installing_PostgreSQL_due_to_openssl[openssl_problems]
-query in troubleshooting FAQ.
-
-[[install-and-configure-tomcat]]
-===== Install and Configure tomcat
-
-Please use any one of the below procedure
-
-* Configuration via script::
-
-Follow the below link,
-
-https://wiki.opendaylight.org/view/OpenDaylight_Virtual_Tenant_Network_%28VTN%29:Main/Tomcat_configuration
-
-To run the script:
-
-`  sh Tomcat_setup.sh`
-
-Notes
-
-* Run the script as a sudo user
-* If the VTN Coordinator and the controller are deployed in the same
-server, then make sure, when the setup script asks you, to set the port
-from 8080 to some other number as available in the server (8080 is the
-port used by ODL). This will be the last step in the script and the
-question will be "Need to change connector port, Enter[Y/N]".
-
-* Manual Configuration::
-  1. Install Tomcat.
-  +
-  * Download the following file.
-  **
-  http://archive.apache.org/dist/tomcat/tomcat-7/v7.0.39/bin/apache-tomcat-7.0.39.tar.gz
-  * Extract under /usr/share/java.
-
-`tar zxvf apache-tomcat-7.0.39.tar.gz -C /usr/share/java`
+:* Create and use VTN
 
 ::
-  2. Carry out Tomcat settings.
-  +
-  * Create the following symbolic link.
+  ;;
+    Please refer to link:Release/Helium/VTN/User Guide[User Guide] and
+    OpenDaylight_Virtual_Tenant_Network_(VTN):VTN_Coordinator:RestApi#VTNCoordinator_RestApi_Contents[Web
+    API reference].
 
-`ln -s /usr/local/vtn/tomcat/webapps/vtn-webapi /usr/share/java/apache-tomcat-7.0.39/webapps/vtn-webapi`
+[[terminating-vtn-coordinator]]
+=== Terminating VTN Coordinator
 
-:* Add the following to common.loader of
-/usr/share/java/apache-tomcat-7.0.39/conf/catalina.properties.
-
-`/usr/local/vtn/tomcat/lib,/usr/local/vtn/tomcat/lib/*.jar`
-
-:* Add the following to shared.loader of
-/usr/share/java/apache-tomcat-7.0.39/conf/catalina.properties.
-
-`/usr/local/vtn/tomcat/shared/lib/*.jar`
-
-:* Add the following to of
-/usr/share/java/apache-tomcat-7.0.39/conf/server.xml.
-
-::
-  3. If the VTN Coordinator and the controller are deployed in the same
-  server, then change the apache port from 8080 to some
-
-other number as available in the server. 8080 is the port used by the
-ODL. The ports need to be modified in the server.xml of the tomcat
-installation.
-
-[[configure-database-for-vtn-coordinator]]
-===== Configure Database for VTN Coordinator
-
-`/usr/local/vtn/sbin/db_setup`
-
-[[launch-vtn-coordinator-to-accept-requests]]
-===== Launch VTN Coordinator to accept requests
-
-:* /usr/local/vtn/bin/vtn_start
-
-:* Launch tomcat to accept requests (Not necessary to run the below
-command if downloaded latest virtualization edition)
-
-`  /usr/share/java/apache-tomcat-7.0.39/bin/catalina.sh start`
-
-[[test-and-use-vtn-coordinator]]
-===== Test and use VTN Coordinator
-
-:*;Important Note
-
-`If installed "Hydrogen Release" version, VTN Coordinator runs on port 8080 by default.` +
-`If installed "latest virtualization edition" version, VTN Coordinator runs on port 8083 by default.` +
-`So, please ensure the port number on which VTN coordinator is running and execute the following commands.`
-
-::
-  1. The below command should yield such a response to ensure successful
-  installation
-
-::
-  Hydrogen release:
-
-`  curl -X GET -H 'content-type: application/json' -H 'username: admin' -H 'password: adminpass' \` +
-`  -H 'ipaddr:127.0.0.1' http://<VTN_COORDINATOR_IP_ADDRESS>:<VTN_COORDINATOR_PORT>/vtn-webapi/api_version.json`
-
-::
-  Latest virtualization edition:
-
-`  curl --user admin:adminpass -H 'content-type: application/json' -X GET -H 'ipaddr:127.0.0.1' \` +
-`  http://<VTN_COORDINATOR_IP_ADDRESS>:<VTN_COORDINATOR_PORT>/vtn-webapi/api_version.json`
-
-::
-  Response
-
-`  {"api_version":{"version":"V1.0"}}`
-
-::
-  2. Create and use VTN
-
-Please refer to
-OpenDaylight_Virtual_Tenant_Network_(VTN):VTN_Coordinator:RestApi#VTNCoordinator_RestApi_Contents[Web
-API reference] for all the API details to create VTN and all its sub
-components.
+---------------------------
+/usr/local/vtn/bin/vtn_stop
+---------------------------
 
 Category:OpenDaylight Virtual Tenant Network[Category:OpenDaylight
 Virtual Tenant Network]

@@ -34,7 +34,7 @@ lifecycle]
 
 * 1. Navigate to IntegrationTest.java
 * 2. Uncomment @Test anotation above testCommunicationWithVM() method
-* 3. Set the desired listening port in the setUp() method (see
+* 3. Set the desired configuration in the setUp() method (see
 configuration part below)
 * 4. Run the testCommunicationWithVM()
 ** Modify MockPlugin.java to test some scenarios with vswitch
@@ -44,15 +44,69 @@ configuration part below)
 
 Current implementation allows to configure:
 
-* startup address
-* listening port
-* transfer protocol
-** only TCP supported yet
-* TLS support
-** Required / Not supported
-* switch idle timeout
-* security object
-** hasn't been provided yet, infrastructure is ready
+* listening port (mandatory)
+* transfer protocol (mandatory)
+* switch idle timeout (mandatory)
+* TLS configuration (optional)
+* thread count (optional)
+
+You can find exemplary Openflow Protocol Library instance configuration
+below:
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------
+    <data xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+      <modules xmlns="urn:opendaylight:params:xml:ns:yang:controller:config">
+        <!-- default OF-switch-connection-provider (port 6633) -->
+        <module>
+          <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:openflow:switch:connection:provider:impl">prefix:openflow-switch-connection-provider-impl</type>
+          <name>openflow-switch-connection-provider-default-impl</name>
+          <port>6633</port>
+          <transport-protocol>TCP</transport-protocol>
+          <switch-idle-timeout>15000</switch-idle-timeout>
+          <tls>
+            <keystore>/exemplary-ctlKeystore</keystore>
+            <keystore-type>JKS</keystore-type>
+            <keystore-path-type>CLASSPATH</keystore-path-type>
+            <keystore-password>opendaylight</keystore-password>
+            <truststore>/exemplary-ctlTrustStore</truststore>
+            <truststore-type>JKS</truststore-type>
+            <truststore-path-type>CLASSPATH</truststore-path-type>
+            <truststore-password>opendaylight</truststore-password>
+            <certificate-password>opendaylight</certificate-password>
+          </tls>
+          <threads>
+            <boss-threads>2</boss-threads>
+            <worker-threads>8</worker-threads>
+          </threads>
+        </module>
+------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Possible transport-protocol options:
+
+* TCP
+* TLS
+* UDP +
+
+Switch-idle timeout specifies time needed to detect idle state of
+switch. When no message is received from switch within this time, upper
+layers are notified on switch idleness. +
+To be able to use this exemplary TLS configuration:
+
+* uncomment the tag
+* copy exemplary-switch-privkey.pem, exemplary-switch-cert.pem and
+exemplary-cacert.pem files into your virtual machine
+* set VM encryption options to use copied keys (please visit
+OpenDaylight OpenFlow Plugin: TLS Support[ TLS support] wiki page for
+detailed information regarding TLS)
+* start communication +
+
+Thread model configuration specifies how many threads are desired to
+perform Netty's I/O operations.
+
+* boss-threads specifies the number of threads that register incoming
+connections
+* worker-threads specifies the number of threads performing read / write
+(+ serialization / deserialization) operations.
 
 [[developer-guide]]
 = Developer Guide

@@ -1,0 +1,100 @@
+First, install a JDK.
+
+`# sudo apt-get install openjdk-7-jdk`
+
+We need Maven to build ODL. Install the most recent version of Maven
+
+`# sudo mkdir -p /usr/local/apache-maven`
+
+Download the maven source code
+
+`# wget `http://ftp.wayne.edu/apache/maven/maven-3/3.3.3/binaries/apache-maven-3.3.3-bin.tar.gz[`http://ftp.wayne.edu/apache/maven/maven-3/3.3.3/binaries/apache-maven-3.3.3-bin.tar.gz`]
+
+Now install maven
+
+`# sudo mv apache-maven-3.3.3-bin.tar.gz /usr/local/apache-maven` +
+`# sudo tar -xzvf /usr/local/apache-maven/apache-maven-3.3.3-bin.tar.gz -C /usr/local/apache-maven/` +
+`# sudo update-alternatives --install /usr/bin/mvn mvn /usr/local/apache-maven/apache-maven-3.3.3/bin/mvn 1` +
+`# sudo update-alternatives --config mvn` +
+`# sudo apt-get install vim` +
+`# vim ~/.bashrc`
+
+Add these to your ~/.bashrc
+
+`export M2_HOME=/usr/local/apache-maven/apache-maven-3.3.3` +
+`export MAVEN_OPTS="-Xms256m -Xmx512m" # Very important to put the "m" on the end` +
+`export JAVA_HOME=/usr/lib/jvm/java-7-openjdk-amd64 # This matches sudo update-alternatives --config java`
+
+Now use git to build ODL
+
+`# sudo apt-get install git` +
+`# git clone `https://github.com/opendaylight/integration.git[`https://github.com/opendaylight/integration.git`]
+
+Lesson Learned: You will get a "Parent no found" error unless you have
+the right settings.xml in your ~/.m2 folder
+
+`# wget `https://raw.githubusercontent.com/opendaylight/odlparent/master/settings.xml[`https://raw.githubusercontent.com/opendaylight/odlparent/master/settings.xml`]` ` +
+`# cp settings.xml ~/.m2` +
+`# cd integration` +
+`# mvn clean install -DskipTests`
+
+Lesson Learned: Prevent java.net.bind exception.
+
+We need to stop openvswitch if it's running! Otherwise we'll get a "bind
+to address already in use" error.
+
+`# sudo service openvswitch-switch stop`
+
+Run the thing (Takes about 3 minutes to start)
+
+`# cd distributions/karaf/target/assembly/bin` +
+`# ./karaf -of13`
+
+If it hangs, run
+
+`# ./karaf clean -of13`
+
+Now you can add "Apps." To enable DLUX use Karaf to install the
+following modules (Lesson Learned: The online ODL wiki is wrong, you
+need to install odl-restconf-all and not just odl-restconf)
+
+`opendaylight-user@root> feature:install odl-dlux-all odl-restconf-all odl-l2switch-switch`
+
+To use Mininet you need to install OVS "apps"
+
+`opendaylight-user@root> feature:install odl-base-all odl-aaa-authn odl-restconf odl-adsal-northbound odl-mdsal-apidocs odl-l2switch-switch`
+
+The "northbound" command allows you to use the REST API to hook into
+ovsdb
+
+`opendaylight-user@root> feature:install odl-ovsdb-northbound`
+
+Wait a while until you see "bound on address 0.0.0.0/0" (You can put
+this in the background... ^Z to stop, then type bg at the command
+prompt) Be sure to restart ovs so you can use mininet
+
+`# sudo service openvswitch-switch start`
+
+Install mininet
+
+`# sudo apt-get install mininet`
+
+Start a mininet
+
+`# sudo mn --mac --topo single,3 --controller remote --switch ovsk,protocols=OpenFlow13`
+
+In a different shell set the switch to OpenFlow13 (Beware, unlike Karaf
+"^z and then 'bg %2' the process" doesn't work consistently)
+
+`# sudo ovs-vsctl set bridge s1 protocols=OpenFlow13`
+
+You can dump the flow table of the mininet switch
+
+`# sudo ovs-ofctl -O OpenFlow13 dump-flows s1`
+
+You can open the controller at http://127.0.0.1:8181/index.html
+
+Restconf at
+http://127.0.0.1:8181/restconf/operational/network-topology:network-topology
+
+API browser at http://127.0.0.1:8181/apidoc/explorer/index.html

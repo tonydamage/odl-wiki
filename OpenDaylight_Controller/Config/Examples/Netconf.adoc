@@ -118,14 +118,212 @@ and has to be processed before 02-libnetconfd.xml in this case.
 
 Restart the controller.
 
+[[spawning-additional-netconf-connectors-while-the-controller-is-running]]
+= Spawning Additional Netconf Connectors While the Controller is Running
+
+In addition to initial config, controller allows users to spawn
+netconf-connector instances while its running. There are 3 ways of doing
+this, since we are just configuring a new instance for config subsystem:
+
+1.  Using JMX
+2.  Using pure Netconf
+3.  Using Restconf -> loopback netconf mountpoint
+
+There are user guides for how to perform ways
+OpenDaylight_Controller:Config:Main#Examples[1 and 2] and here we will
+describe way 3, using Restconf and loopback mountpoint.
+
+Preconditions:
+
+1.  ODL is running
+2.  In Karaf, you must have the netconf connector installed (in the
+karaf prompt, type: feature:install odl-netconf-connector-all); the
+loopback netconf mountpoint will be automatically configured and
+activated
+3.  If not in Karaf, you must have the loopback netconf mountpoint
+configured (by default its configured in 99-controller-config.xml file)
+4.  Wait until log displays following entry:
+RemoteDevice\{controller-config}: Netconf connector initialized
+successfully
+
+To configure a new netconf-connector you need to send following request
+to Restconf: +
+*Method*: POST +
+*URI*:
+http://localhost:8181/restconf/config/network-topology:network-topology/topology/topology-netconf/node/controller-config/yang-ext:mount/config:modules +
+*Headers*: +
+Accept application/xml +
+Content-Type application/xml +
+ *Payload*:
+
+----------------------------------------------------------------------------------------------------------------------------------
+<module xmlns="urn:opendaylight:params:xml:ns:yang:controller:config">
+  <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">prefix:sal-netconf-connector</type>
+  <name>new-netconf-device</name>
+  <address xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">127.0.0.1</address>
+  <port xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">830</port>
+  <username xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">admin</username>
+  <password xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">admin</password>
+  <tcp-only xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">false</tcp-only>
+  <event-executor xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">
+    <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:netty">prefix:netty-event-executor</type>
+    <name>global-event-executor</name>
+  </event-executor>
+  <binding-registry xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">
+    <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:md:sal:binding">prefix:binding-broker-osgi-registry</type>
+    <name>binding-osgi-broker</name>
+  </binding-registry>
+  <dom-registry xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">
+    <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:md:sal:dom">prefix:dom-broker-osgi-registry</type>
+    <name>dom-broker</name>
+  </dom-registry>
+  <client-dispatcher xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">
+    <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:config:netconf">prefix:netconf-client-dispatcher</type>
+    <name>global-netconf-dispatcher</name>
+  </client-dispatcher>
+  <processing-executor xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">
+    <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:threadpool">prefix:threadpool</type>
+    <name>global-netconf-processing-executor</name>
+  </processing-executor>
+</module>
+----------------------------------------------------------------------------------------------------------------------------------
+
+Just change the address, port, username and password to match the
+device. The name will be used as the id for mounted device. +
+Netconf-connector will be spawned right away but it might take a few
+moments until it connects successfully and downloads all necessary
+schemas.
+
+[[connecting-to-a-device-not-supporting-netconf-monitoring]]
+== Connecting to a device not supporting netconf monitoring
+
+The netconf connector in ODL relies on ietf-netconf-monitoring support
+when connecting to remote netconf device. The ietf-netconf-monitoring
+support allows netconf connector to list and download all yang schemas
+that are used by the device. Netconf connector can only communicate with
+a device if it knows the set of used schemas (or at least a subset).
+However some devices use yang models internally but do not support
+netconf monitoring. Netconf connector can also communicate with these
+devices, but you have to side load the necessary yang models into ODL's
+yang model cache for netconf connector. In general there are 2
+situations you might encounter:
+
+*1. Netconf device does not support ietf-netconf-monitoring but it does
+list all its yang models as capabilities in hello message* +
+ This could be a device that internally uses only only ietf-inet-types
+yang model with revision 2010-09-24. In the hello message that is sent
+from this device there is this capability reported:
+
+--------------------------------------------------------------------------------------
+urn:ietf:params:xml:ns:yang:ietf-inet-types?module=ietf-inet-types&revision=2010-09-24
+--------------------------------------------------------------------------------------
+
+For such devices you only need to put the schema into folder
+*cache/schema* inside your karaf distribution. +
+*Important note: The file with yang schema for ietf-inet-types has to be
+called ietf-inet-types@2010-09-24.yang.* Its the required naming format
+of the cache.
+
+*2. Netconf device does not support ietf-netconf-monitoring and it does
+NOT list its yang models as capabilities in hello message* +
+ Compared to device that lists its yang models in hello message, in this
+case there would be no capability with ietf-inet-types in the hello
+message. This type of device basically provides no information about the
+yang schemas it uses so its up to the user of ODL to properly configure
+netconf connector for this device. Netconf connector has an optional
+configuration attribute called *yang-module-capabilities* and this
+attribute can contain a list of "yang module based" capabilities. So by
+setting this configuration attribute, it is possible to *override* the
+"yang-module-based" capabilities reported in hello message of the
+device. To do this, we need to modify the configuration of netconf
+connector by adding this xml (It needs to be added next to the address,
+port, username etc. config elements):
+
+----------------------------------------------------------------------------------------------------------
+<yang-module-capabilities xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">
+  <capability xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">
+    urn:ietf:params:xml:ns:yang:ietf-inet-types?module=ietf-inet-types&amp;revision=2010-09-24
+  </capability>
+</yang-module-capabilities>
+----------------------------------------------------------------------------------------------------------
+
+*Remember to also put the yang schemas into the cache folder*. +
+Note: For putting multiple capabilities, you just need to replicate the
+capability xml element inside yang-module-capability element. Capability
+element is modeled as a leaf-list. +
+With this configuration, we would make the remote device report usage of
+ietf-inet-types in the eyes of netconf connector.
+
+[[reconfiguring-netconf-connector-while-the-controller-is-running]]
+= Reconfiguring Netconf Connector While the Controller is Running
+
+It is possible to change the configuration of a running module while the
+whole controller is running. Similarly to previous entry there are
+multiple ways of doing this but in this example we will use the Restconf
+way. This example will continue where the last left off and will change
+the configuration for the brand new netconf connector after it was
+spawned. Using one restconf request, we will change both username and
+password for the netconf connector.
+
+To configure a new netconf-connector you need to send following request
+to Restconf: +
+*Method*: POST +
+*URI*:
+http://localhost:8181/restconf/config/network-topology:network-topology/topology/topology-netconf/node/controller-config/yang-ext:mount/config:modules +
+*Headers*: +
+Accept application/xml +
+Content-Type application/xml +
+ *Payload*:
+
+----------------------------------------------------------------------------------------------------------------------------------
+<module xmlns="urn:opendaylight:params:xml:ns:yang:controller:config">
+  <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">prefix:sal-netconf-connector</type>
+  <name>new-netconf-device</name>
+  <username xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">bob</username>
+  <password xmlns="urn:opendaylight:params:xml:ns:yang:controller:md:sal:connector:netconf">passwd</password>
+</module>
+----------------------------------------------------------------------------------------------------------------------------------
+
+The whole request is almost identical to the one spawning a brand new
+instance but the configuration contains only the new values for username
+and password (The name and type elements must be included since they
+identify the module). This should result in a 2xx response and the
+instance of netconf-connector called *new-netconf-device* will be
+reconfigured to use username _bob_ and password _passwd_. New
+configuration can be verified by executing a GET request to:
+
+---------------------------------------------------------------------------------------------------------------------------------------
+http://localhost:8181/restconf/config/network-topology:network-topology/topology/topology-netconf/node/controller-config/yang-ext:mount
+---------------------------------------------------------------------------------------------------------------------------------------
+
+With new configuration, the old connection will be closed and a new one
+established.
+
+[[destroying-netconf-connector-while-the-controller-is-running]]
+= Destroying Netconf Connector While the Controller is Running
+
+Using RESTCONF one can also destroy an instance of a module. In case of
+netconf connector, the module will be destroyed, netconf connection
+dropped and all resources will be cleaned. To do this, simply issue a
+DELETE request to following URL:
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ http://localhost:8181/restconf/config/network-topology:network-topology/topology/topology-netconf/node/controller-config/yang-ext:mount/config:modules/module/odl-sal-netconf-connector-cfg:sal-netconf-connector/new-netconf-device
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+The last element of the URL is the name of the instance and its
+predecessor is the type of that module (In our case the type is
+*sal-netconf-connector* and name *new-netconf-device*). The type and
+name are actually the keys of the _module_ list.
+
 [[testing-mountpoint-via-restconf]]
 = Testing mountpoint via restconf
 
 Issuing
 
--------------------------------------------------------------------------------------------------
-curl -v http://localhost:8080/restconf/operational/opendaylight-inventory:nodes/node/libnetconfd/
--------------------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------------------------------------------------------
+curl -v http://localhost:8080/restconf/operational/network-topology:network-topology/topology/topology-netconf/node/libnetconfd/
+--------------------------------------------------------------------------------------------------------------------------------
 
 should output
 
@@ -166,9 +364,9 @@ However if the remote node is not connected, output will look like:
 
 Getting actual configuration data from server:
 
------------------------------------------------------------------------------------------------------------
-curl -v http://localhost:8080/restconf/config/opendaylight-inventory:nodes/node/libnetconfd/yang-ext:mount/
------------------------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------------------------------------------------------
+curl -v http://localhost:8080/restconf/config/network-topology:network-topology/topology/topology-netconf/node/libnetconfd/yang-ext:mount/
+------------------------------------------------------------------------------------------------------------------------------------------
 
 should output
 
@@ -185,9 +383,9 @@ should output
 
 Getting actual operational data from server:
 
-----------------------------------------------------------------------------------------------------------------
-curl -v http://localhost:8080/restconf/operational/opendaylight-inventory:nodes/node/libnetconfd/yang-ext:mount/
-----------------------------------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------------------------------------------
+curl -v http://localhost:8080/restconf/operational/network-topology:network-topology/topology/topology-netconf/node/libnetconfd/yang-ext:mount/
+-----------------------------------------------------------------------------------------------------------------------------------------------
 
 should output
 
@@ -255,27 +453,25 @@ should output
 [[remote-rpcs]]
 == Remote RPCs
 
-With gerrit https://git.opendaylight.org/gerrit/#/c/6815[6815] you can
-now perform RPC calls that are mounted on a node. The pattern is very
-similar to the gets being performed above.
+The pattern is very similar to the gets being performed above.
 
 `
  http://localhost:8080/restconf/operations/<mountPoint>/yang-ext:mount/<operation>
 `
 
 Now, since the netconf server adds netconf devices to the
-opendaylight-inventory:nodes url, you would likely be following this
-pattern to make the RPC call to the remote server:
+network-topology:network-topology url, you would likely be following
+this pattern to make the RPC call to the remote server:
 
 `
- http://localhost:8080/restconf/operations/opendaylight-inventory:nodes/node/<nodeId>/yang-ext:mount/<operation>
+ http://localhost:8080/restconf/operations/network-topology:network-topology/topology/topology-netconf/node/<nodeId>/yang-ext:mount/<operation>
 `
 
 For example, to make-toast on the node with id *netopeer* server, you
 would post to the following URL:
 
 `
- http://localhost:8080/restconf/operations/opendaylight-inventory:nodes/node/netopeer/yang-ext:mount/toaster:make-toast
+ http://localhost:8080/restconf/operations/network-topology:network-topology/topology/topology-netconf/node/netopeer/yang-ext:mount/toaster:make-toast
 `
 
 Note: In the case of the netopeer server, you get an immediate response
@@ -293,9 +489,9 @@ The default configuration of ODL controller contains file
 controller-config. To verify that the mount was successful, issue GET
 request to following URL:
 
----------------------------------------------------------------------------------------------------------
-http://localhost:8080/restconf/config/opendaylight-inventory:nodes/node/controller-config/yang-ext:mount/
----------------------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------------------------------------------------------------------
+http://localhost:8181/restconf/config/network-topology:network-topology/topology/topology-netconf/node/controller-config/yang-ext:mount/config:modules
+------------------------------------------------------------------------------------------------------------------------------------------------------
 
 You should see the current configuration of the ODL controller in XML. +
  +
@@ -304,9 +500,9 @@ example we will invoke get-schema rpc from
 http://tools.ietf.org/html/rfc6022[ietf-netconf-monitoring]. To do this,
 issue a POST request to:
 
------------------------------------------------------------------------------------------------------------------------------------------------
-http://localhost:8080/restconf/operations/opendaylight-inventory:nodes/node/controller-config/yang-ext:mount/ietf-netconf-monitoring:get-schema
------------------------------------------------------------------------------------------------------------------------------------------------
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+http://localhost:8181/operations/config/network-topology:network-topology/topology/topology-netconf/node/controller-config/yang-ext:mount/ietf-netconf-monitoring:get-schema
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 with:
 

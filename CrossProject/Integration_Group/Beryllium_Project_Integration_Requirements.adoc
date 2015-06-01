@@ -1,0 +1,213 @@
+ **** This is a DRAFT PROPOSAL for the BERYLLIUM RELEASE. These
+Requirements have not been fully reviewed nor approved by the
+OpenDaylight Technical Steering Committee. ***** +
+ *TO DO*: This Wiki Page was originally copied from the Lithium Release
+and may require updates to accommodate changes in the Beryllium Release.
+
+[[continuous-integration]]
+== Continuous Integration
+
+OpenDaylight CI process is described on this
+OpenDaylight_Controller:Development_Infrastructure_Overview[ link].
+Tests are also part of the CI as shown in the picture below:
+
+image:ci_infra_test.png[ci_infra_test.png,title="ci_infra_test.png"]
+
+[[karaf-distribution]]
+== Karaf Distribution
+
+* Karaf distribution is a release vehicle for Lithium
+* Projects need to define features in order to integrate in karaf
+* Integration project will hold a Karaf distribution containing all the
+features and bundles intended for release
+** These are features defined in projects and included in the
+integration Karaf distribution
+* Optionally projects can build their own Karaf (or other) distribution
+in their repositories
+* In any case projects will recommended which
+CrossProject:Integration_Group:About_User_Facing_Features[ user-facing
+karaf features] need to be enabled for test
+
+[[kinds-of-tests]]
+== Kinds of Tests
+
+These are "the classics" in OpenDaylight:
+
+* *Unit Test (UT)*
+** This is the test developers write in the code to verify bundle
+functionality (e.g. JUnit)
+** Runs automatically on project build
+** Test results and code coverage reported to Sonar
+
+* *Integration Test (IT)*
+** This is the test developers write in the code to verify some
+inter-bundle (feature) functionality (e.g. PAX-EXAM)
+** Runs automatically on project build
+** Test results and code coverage reported to Sonar (some limitations
+exist with PAX-EXAM)
+
+* *System Test (ST)*
+** This is the test to verify multiple features at system level (e.g.
+Robot FW)
+** Runs on a test bed made of robot, controller and device instances
+** Requires a karaf distribution as System Under Test (SUT)
+** Test results reported in Jenkins at a minimum
+** NOTE: We strongly recommend the use of Robot Framework for system
+test (ST), because:
+*** it is already running in OpenDaylight cloud and we have extensive
+examples and tutorials
+*** this will allow integration group to re-use the test code for the
+multi-project karaf editions test
+
+[[jenkins-job-builder]]
+== Jenkins Job Builder
+
+This release it is possible to have Jenkins jobs in Job Builder which
+means:
+
+* Jenkins jobs code will be stored in a central repository managed by LF
+* Jenkins jobs will be execute in a central instance (e.g. no project
+silos)
+
+Among other things, this will allow a project:
+
+* To trigger other project jobs
+* To add an extra step in other project jobs (e.g. merge job) to trigger
+own job (e.g. integration job)
+
+* NOTE: We strongly recommend projects to adopt Jenkins Job Builder
+infrastructure
+
+[[test-strategy]]
+== Test Strategy
+
+The CI process includes 2 key events:
+
+* *Code Submit ->*
+** Upon code submit project verify job will build the project using the
+submitted patch and so it will automatically run Unit Test (UT) and
+Integration Test (IT)
+** New in this release: We can optionally trigger System Test (ST) upon
+code commit. This would be useful on sensitive projects that can break
+others
+*** NOTE: We are currently working on the options for doing this
+
+* *Code Merge ->*
+** Upon code merge, project merge job will build the project and so it
+will automatically run Unit Test (UT), Integration Test (IT) and upload
+artifacts to Nexus
+** New in this release: Project will run System Test (ST) on project
+recommended user-facing features using just uploaded artifacts
+** New in this release: Downstream projects will trigger their own build
+and System Test (ST)
+*** NOTE: We have never tested before the chain of tests in dynamic VM
+cloud, there is risk we cannot fulfill 100% the above
+
+Autorelease project will produce different releases (weekly Release,
+Release Candidate, Formal Release, etc...), for all of them:
+
+* *Release Creation ->*
+** New in this release: Upon release creation, project release test job
+will run System Test (ST) on project recommended user-facing features
+** Upon release creation, integration project release test jobs will run
+System Test (ST) on multi-project Karaf editions
+** New in this release: Integration project will provide "extra" longer
+tests, scalability/performance, platform test, etc…
+
+[[requirements]]
+== Requirements
+
+In this release projects are expected to:
+
+* Setup the Continous Integration process according to
+GettingStarted:Project Main#New_Project_Checklist[Project Checklist]
+* New in this release: Report Unit Test (UT) and Integration Test (IT)
+results to Sonar
+* Define release karaf features and include them in the integration
+Karaf distribution
+* New in this release: Provide Integration and System Test (ST)
+information for "user-facing" features (description, dependencies,
+incompatibilities, project recommended karaf features, few test cases)
+* New in this release: Write System Test (ST) for "user-facing" project
+features
+* New in this release: Run System Test (ST) on project recommended
+user-facing features after Code Merge (new artifacts available in
+Nexus), any upstream project Code Merge (new artifacts in Nexus) and any
+Release Creation events [1]
+
+[1] For projects running System Test outside OpenDaylight (external
+Lab), they should provide at a minimum:
+
+* New in this release: System Test (ST) report upon any Release Creation
+
+[[timeline-for-deliverables]]
+== Timeline for Deliverables
+
+* *M1:* Projects join SR
+** Projects must have elected their Project Leads
+** New in this release: Projects specify a Test contact
+
+* *M2:* Projects join CI
+** Project GettingStarted:Project Main#New_Project_Checklist[ CI
+Checklist] (including Sonar reporting) completed
+** Participating Projects must have declared their final
+Simultaneous_Release:DRAFT_Release_Plan_2014_Template[ Release Plan]
+with all sections fully completed
+** New in this release: Projects must specify whether they are going to
+use OpenDaylight CI infrastructure for system test. It is recommended to
+use the OpenDaylight CI infrastructure unless there is some resource
+that is not available there, e.g., particular hardware or software.
+** Start Test tools installation in rackspace. Projects that need any
+extra configuration or resources for test in the OpenDaylight CI
+infrastructure must have opened helpdesk tickets to add the
+configuration or resources.
+
+* *M3:* Functionality Freeze
+** Projects must have release features defined and included in the
+integration Karaf distribution. Instructions can be found in the
+Karaf:Step by Step Guide[Karaf:Step by Step Guide]
+** Integration project must set triggers to build integration project
+and run integration System Test (ST) after any project Code Merge (new
+artifacts in Nexus)
+** New in this release: Projects must have filled out the
+CrossProject:Integration_Group:Feature_Integration_System_Test_Template[
+Integration and System Test template] for each user-facing features
+(karaf and not karaf)
+** New in this release: Integration project must provide Integration &
+System test plan based on above feature templates (+2 wk offset)
+** Start System Test (ST) integration: Automate controller deployment,
+devices provisioning and system test run. Integration will provide
+step-by-step guide for basic automation and robot
+
+* *M4:* API Freeze
+** New in this release: Projects must have defined a simple system test
+for karaf distribution with recommended features installed
+** New in this release: Projects must run the simple system test on Code
+Merge (e.g. merge job), any upstream project Code Merge (e.g.
+integration job), as well as Release Creation events, e.g., weekly, RC
+and formal releases [1]
+** Integration project must have jobs deploying multi-project karaf
+editions, and running sanity test at least on Release Creation events
+
+* *M5:* Code Freeze
+** New in this release: Projects must have completed the system test for
+each user-facing feature
+** New in this release: Projects must run the user-facing feature system
+tests on Code Merge (e.g. merge job), any upstream project Code Merge
+(e.g. integration job), as well as Release Creation events, e.g.,
+weekly, RC and formal releases [1]
+** Integration project must have system test (ST) for multi-project
+karaf editions complete and running at least on Release Creation event
+(+2 wk offset)
+
+[1] For projects running system test in external Lab:
+
+* *M5:* Code Freeze
+** New in this release: Projects running system test outside the
+OpenDaylight CI infrastructure, do not need to run system tests on each
+"-merge" and "-integration" Jenkins job, but should if they can. These
+projects are required to report the results of external system test in a
+timely fashion after Release Creation events, e.g., weekly, RC and
+formal releases.
+
+Category:Integration Group[Category:Integration Group]

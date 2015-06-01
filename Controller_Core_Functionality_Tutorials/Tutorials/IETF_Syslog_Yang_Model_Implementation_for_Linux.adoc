@@ -1,0 +1,279 @@
+[[goal]]
+= Goal
+
+Demo Goal: Use OpenDaylight with the proposed ietf-syslog.yang model to
+configure the Linux rsyslog daemon syslog selectors.
+
+Method:
+
+* Build an OpenDaylight project that imports the ietf-syslog.yang model
+* Write a Java onDataChanged method that reacts to changes to the syslog
+model leaf paths and rewrites the rsyslog.conf file.
+
+[[prerequisites]]
+= Prerequisites
+
+cisco-devnet VM which has pre-installed ODL environment setup
+
+[[building-the-syslog-app-using-the-opendaylight-repository]]
+= Building the Syslog App Using The OpenDaylight Repository
+
+*_[1]_* Open a terminal in the dev-net VM. Create a directory say
+'hackathon' (`_mkdir hackathon_`) under _~/Documents_.
+
+*_[2]_* `_cd hackathon_`
+
+*_[3]_* Fetch the ODL coretutorials project using `"git clone
+https://git.opendaylight.org/gerrit/p/coretutorials.git"`
+
+*_[4]_* `_cd coretutorials/ietfsyslog_` and compile the project using
+the below command.
+
+`mvn clean install -DskipTests `
+
+Verify the project successfully builds.
+
+*_[5]_* cd 'ietfsyslog/karaf/target/assembly/bin/'. Run './karaf'.
+
+*_[6]_* Verify the syslog module is available with "feature:list -i |
+grep syslog" command in ODL prompt
+
+1.  Also verifiable through
+"http://localhost:8181/apidoc/explorer/index.html"
+2.  Also verifiable with DLUX GUI at
+"http://localhost:8181/index.html#/login", Userid: admin, Password:
+admin
+
+[[building-the-syslog-app-from-scratch]]
+= Building the Syslog App From Scratch
+
+*_[1]_* Open a terminal in the dev-net VM. Create a directory say
+'hackathon' (`_mkdir hackathon_`) under _~/Documents_.
+
+*_[2]_* `_cd hackathon_`
+
+*_[3]_* Create a maven artifact reference link [1] below:
+
+`mvn archetype:generate -DarchetypeGroupId=org.opendaylight.controller -DarchetypeArtifactId=opendaylight-startup-archetype DarchetypeRepository=`http://nexus.opendaylight.org/content/repositories/opendaylight.snapshot/[`http://nexus.opendaylight.org/content/repositories/opendaylight.snapshot/`]` -DarchetypeCatalog=`http://nexus.opendaylight.org/content/repositories/opendaylight.snapshot/archetype-catalog.xml[`http://nexus.opendaylight.org/content/repositories/opendaylight.snapshot/archetype-catalog.xml`]`\``
+
+Provide the following parameters when asked :
+
+`groupid : org.opendaylight.coretutorials` +
+`artifact id : ietfsyslog` +
+`version: 1.0.0-SNAPSHOT` +
+`package: ietfsyslog` +
+`copyright: ietf-92, hackathon, 2015`
+
+Verify a directory named 'ietfsyslog' is created. The 'ietfsyslog'
+directory will have the following sub-directories:
+
+`api, artifact, feature, imply, karaf, syslog, target`
+
+*_[4]_* `_cd ietfsyslog_` and compile the project using the below
+command.
+
+`mvn clean install -DskipTests `
+
+Verify the project successfully builds.
+
+*_[5]_* Clone _ietfsyslog/api_ directory.
+
+`cwd = ietfsylog` +
+`\`mkdir syslog\`` +
+`\`cd syslog\`` +
+`\`cp -R ../api/* .\``
+
+*_[6]_* Open _ietfsyslog/pom.xml_ in your favorite text-editor. Add
+'syslog' module as _'syslog' inside _. This will instruct maven to
+include the newly created syslog module.
+
+*_[7]_*Open _ietfsyslog/syslog/pom.xml_ and change _ietfsyslog-api_ to
+_ietfsyslog-syslog_
+
+*_[8]_* Get the following 5 yang models [ietf-inet-types.yang,
+ietf-ineterfaces.yang, ietf-syslog-types.yang, ietf-syslog.yang,
+ietf-yang-types.yang] relevant to syslog and drop them in
+_ietfsyslog/syslog/src/main/yang directory_.
+
+*_[9]_* Remove file _ietfsyslog/syslog/src/main/yang/ietfsyslog.yang_.
+
+*_[10]_* Open _ietfsyslog/features/src/main/features/features.xml_.
+
+* Add
+"mvn:org.opendaylight.coretutorials/ietfsyslog-syslog/$\{project-version}"
+to the feature "odl-ietfsyslog-api".
+* Add the below to the list of repositories:
+
+mvn:org.opendaylight.controller/features-netconf-connector/[`mvn:org.opendaylight.controller/features-netconf-connector/`]`${mdsal.version}/xml/features`
+
+* Add odl-netconf-connector-ssh to odl-ietfsyslog
+
+`
+ <feature version='${mdsal.version}'>odl-netconf-connector-ssh</feature>
+ <feature version='${project.version}'>odl-ietfsyslog-api</feature>  <<<< just for reference
+`
+
+*_[11]_* Open _ietfsyslog/features/pom.xml_ and add dependency for the
+syslog feature like: `
+ <dependency>
+       <groupId>${project.groupId}</groupId>
+       <artifactId>ietfsyslog-syslog</artifact>
+       <version>${project.version}</version>
+ </dependency>
+`
+
+To workaround DLUX bug, add the below dependency too:
+
+`
+ <dependency>
+      <groupId>org.opendaylight.controller</groupId>
+      <artifactId>features-netconf-connector</artifactId>
+      <classifier>features</classifier>
+      <version>${mdsal.version}</version>
+      <type>xml</type>
+      <scope>runtime</scope>
+ </dependency>
+`
+
+*_[12]_* Rerun "_mvn clean install -DskipTests_" from ietfsyslog
+directory.
+
+*_[13]_* Import the project in Eclipse as in File -> Import -> Existing
+Maven Project ->
+
+*_[14]_* At this point the team modified the following files to add code
+for this project. That code may be obtained from the git repository
+referenced above.
+
+This file was modified to add the ODL syslog path listener:
+
+1. 
+ietfsyslog/impl/src/main/java/ietfsyslog/impl/IetfsyslogProvider.java
+
+These files were modified to add code that resolves YANG unions:
+
+1. 
+ietfsyslog/syslog/src/main/java/org/opendaylight/yang/gen/v1/urn/ietf/params/xml/ns/yang/ietf/inet/types/rev130715/HostBuilder.java
+2. 
+ietfsyslog/syslog/src/main/java/org/opendaylight/yang/gen/v1/urn/ietf/params/xml/ns/yang/ietf/inet/types/rev130715/IpAddressBuilder.java
+3. 
+ietfsyslog/syslog/src/main/java/org/opendaylight/yang/gen/v1/urn/ietf/params/xml/ns/yang/ietf/inet/types/rev130715/IpPrefixBuilder.java
+
+*_[15]_* Rerun "_mvn clean install -DskipTests_" from ietfsyslog
+directory.
+
+*_[16]_* cd 'ietfsyslog/karaf/target/assembly/bin/'. Run './karaf'.
+
+*_[17]_* Verify the syslog module is available with "feature:list -i |
+grep syslog" command in ODL prompt
+
+1.  Also verifiable through
+"http://localhost:8181/apidoc/explorer/index.html"
+2.  Also verifiable with DLUX GUI at
+"http://localhost:8181/index.html#/login", Userid: admin, Password:
+admin
+
+[[getpost-syslog-examples]]
+= GET/POST Syslog Examples
+
+Using method [17], Item 1 from above - the OpenDaylight RestConf API
+Documentation page:
+
+Use the Firefox browser to access
+"http://localhost:8181/apidoc/explorer/index.html".
+
+Click on "ietf-syslog(2015-03-05)" to open the ietf-syslog model.
+
+Click on "POST /config/ietf-syslog:syslog/console-logging-action/ ".
+
+Enter this text in the first box and then hit the "Try It Out" button:
+
+`{` +
+`   "severity" : "warning"    ` +
+`}`
+
+You should receive a Response Code of "204".
+
+Verify rsyslog.conf is generated using a Linux Terminal window:
+
+`more Documents/hackathon/ietfsyslog/karaf/target/assembly/rsyslog.conf`
+
+Click on "DELETE /config/ietf-syslog:syslog/console-logging-action/ ".
+
+You should receive a Response Code of "200".
+
+Using method [17], Item 2 from above - the OpenDaylight DLUX page:
+
+Use the Firefox browser to access
+"http://localhost:8181/index.html#/login".
+
+Login using Userid: admin Password: admin
+
+Click on the "Yang UI" tab in the left column.
+
+Click on the + sign for the ietf-syslog rev.2015-xx-xx model.
+
+Click on the + sign for config.
+
+Click on the + sign for syslog.
+
+Click on the + sign for console-logging-action
+
+Page down to the section with a right arrow pointing to
+console-logging-action followed by a question mark and hit the right
+arrow.
+
+Select logging-facility-all for the logging-level-scope drop-down box.
+
+Select "emergency" for the severity drop-down-box.
+
+Hit the "Put" button and verify that the message at the top of the
+window says "Request Sent Successfully".
+
+Verify rsyslog.conf is generated using a Linux Terminal window:
+
+`more Documents/hackathon/ietfsyslog/karaf/target/assembly/rsyslog.conf`
+
+Click on the "Yang Visualizer" tab in the left column.
+
+Select the "syslog" model in the Model: drop-down window at the top of
+the screen to view the visualized syslog model.
+
+Find the six containers under syslog by exploring the leaves radiating
+from the center of the model.
+
+[[reference]]
+= Reference
+
+[1] ODL Core Tutorial:
+https://wiki.opendaylight.org/view/Controller_Core_Functionality_Tutorials:Main
+
+[[the-code]]
+= The Code
+
+Documents/hackathon/ietfsyslog/impl/src/main/java/ietfsyslog/impl/IetfsyslogProvider.java
+contains a new function, public void onDataChanged(), which is
+registered to be called when any syslog model path is modified. This
+function:
+
+* opens the config file "syslog.conf" for output and outputs comments to
+the file
+* examines each of the six containers in the syslog container for
+changes. Example:
+
+`  if (syslog.getConsoleLoggingAction() != null) {` +
+`  } `
+
+* for each container calls the processSelector() function to construct
+the syslog selector facility-priority string and outputs that string and
+outputs the appropriate action string
+* flushes the config file and closes it
+
+[[the-project-team]]
+= The Project Team
+
+* Hariharan Ananthakrishnan - Packet Design
+* Bill Cerveny - Arbor Networks
+* Jinzhu Wang - China Mobile Research Institute
+* Clyde Wildes - Cisco Systems, Inc.
+

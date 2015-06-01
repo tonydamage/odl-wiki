@@ -1,0 +1,205 @@
+[[introduction]]
+=== Introduction
+
+This user guide will help to setup the ODL-SDNi application for lithium
+release and contains the examples configuration using ODL-BGPCEP.
+
+[[audience]]
+=== Audience
+
+For the purpose of connecting multiple opendaylight federated
+controllers in a network and sharing the topology information among
+them.
+
+[[odl-sdni-app-source-code]]
+=== ODL-SDNi App Source code
+
+---------------------------------------------------------------------
+git clone https://git.opendaylight.org/gerrit/sdninterfaceapp.git
+OR
+git clone ssh://<username>@git.opendaylight.org:29418/sdninterfaceapp
+---------------------------------------------------------------------
+
+[[components]]
+=== Components
+
+SDNiAggregator(controller), SDNi REST API(controller) and
+SDNiWrapper(bgpcep) are the three components in ODL-SDNi App
+
+* SDNiAggregator: Connects with switch, topology, hosttracker managers
+of controller to get the topology and other related data.
+* SDNi Rest API: It is a part of controller northbound, which gives the
+required information by quering SDNiAggregator
+* SDNiWrapper: This component uses the SDNi RestAPI and gathers the
+information required to be shared among controllers.
+
+[[running-odl-sdni-application]]
+=== Running ODL-SDNi Application
+
+The ODL-SDNi App can be run using ODL-Karaf
+
+[[installing-karaf-distribution]]
+=== Installing Karaf Distribution
+
+* Download the Lithium Latest Distribution Artifact
+
+--------------------------------------------------------------------------------------
+https://wiki.opendaylight.org/view/CrossProject:Integration_Group:Controller_Artifacts
+--------------------------------------------------------------------------------------
+
+* Download SDNi-BGPCEP related jar files from the Opendaylight-Jenkins
+
+* Deploy the downloaded jar files under the respective directories in
+"distribution-karaf-0.3.0-SNAPSHOT/system/org/opendaylight/"
+
+--------------------------------------------------------------------------------------------------------------------------------------------
+bgp-linkstate-0.4.0-SNAPSHOT.jar - distribution-karaf-0.3.0-SNAPSHOT/system/org/opendaylight/bgpcep/bgp-linkstate/0.4.0-SNAPSHOT/
+bgp-parser-impl-0.4.0-SNAPSHOT.jar - distribution-karaf-0.3.0-SNAPSHOT/system/org/opendaylight/bgpcep/bgp-parser-impl/0.4.0-SNAPSHOT/
+bgp-rib-impl-0.4.0-SNAPSHOT.jar - distribution-karaf-0.3.0-SNAPSHOT/system/org/opendaylight/bgpcep/bgp-rib-impl/0.4.0-SNAPSHOT/
+sdni-0.6.0-SNAPSHOT.jar - distribution-karaf-0.3.0-SNAPSHOT/system/org/opendaylight/sdninterfaceapp/sdni/0.6.0-SNAPSHOT/
+sdniaggregator-0.6.0-SNAPSHOT.jar - distribution-karaf-0.3.0-SNAPSHOT/system/org/opendaylight/sdninterfaceapp/sdniaggregator/0.6.0-SNAPSHOT/
+--------------------------------------------------------------------------------------------------------------------------------------------
+
+* Sdniwrapper is a new component added in bgpcep for SDNi Rest API
+communication. Create a new folder “bgp-sdniwrapper/0.4.0-SNAPSHOT”
+under "distribution-karaf-0.3.0-SNAPSHOT/system/org/opendaylight/bgpcep"
+directory and deploy the following jar file into it.
+
+----------------------------------
+bgp-sdniwrapper-0.4.0-SNAPSHOT.jar
+----------------------------------
+
+* Change the following bgpcep related files to add bgp-sdniwrapper
+module:
+
+\1) In
+"distribution-karaf-0.3.0-SNAPSHOT/system/org/opendaylight/bgpcep/features-bgp/0.4.0-SNAPSHOT/features-bgp-0.4.0-SNAPSHOT-features.xml"
+file add the following lines under “odl-bgpcep-dependencies” feature:
+
+----------------------------------------------------------------------------
+<bundle>mvn:org.opendaylight.bgpcep/bgp-sdniwrapper/0.4.0-SNAPSHOT</bundle> 
+<bundle>mvn:com.fasterxml.jackson.core/jackson-annotations/2.3.2</bundle> 
+<bundle>mvn:com.fasterxml.jackson.core/jackson-core/2.3.2</bundle> 
+<bundle>mvn:com.fasterxml.jackson.core/jackson-databind/2.3.2</bundle> 
+<bundle>mvn:com.sun.jersey/jersey-core/1.17</bundle> 
+<bundle>mvn:com.sun.jersey/jersey-server/1.17</bundle> 
+<bundle>mvn:com.sun.jersey/jersey-servlet/1.17</bundle> 
+<bundle>mvn:com.sun.jersey/jersey-client/1.17</bundle>
+----------------------------------------------------------------------------
+
+And Under "odl-bgpcep-linkstate", "odl-bgpcep-parser" and
+"odl-bgpcep-rib" features tab add this line
+
+----------------------------------------------------------------------------
+<bundle>mvn:org.opendaylight.bgpcep/bgp-sdniwrapper/0.4.0-SNAPSHOT</bundle> 
+----------------------------------------------------------------------------
+
+\2) In
+"distribution-karaf-0.3.0-SNAPSHOT/system/org/opendaylight/bgpcep/bgp-parent/0.4.0-SNAPSHOT/bgp-parent-0.4.0-SNAPSHOT.pom"
+file add the lines:
+
+-----------------------------
+<module>sdniwrapper</module> 
+-----------------------------
+
+3)In
+"distribution-karaf-0.3.0-SNAPSHOT/system/org/opendaylight/bgpcep/features-bgp/features-bgp-0.4.0-SNAPSHOT.pom"
+file add the lines:
+
+---------------------------------------------
+<dependency> 
+    <groupId>${project.groupId}</groupId> 
+    <artifactId>bgp-sdniwrapper</artifactId> 
+</dependency> 
+---------------------------------------------
+
+* Run the karaf using the command ./karaf under bin directory.
+
+* Install the following features, for eg. command for installing
+restconf feature is "feature:install odl-restconf"
+
+------------------------------------------
+odl-restconf
+odl-l2switch-all
+odl-adsal-all
+odl-openflowplugin-adsal-compatibility-all
+odl-openflowplugin-adsal-compatibility
+odl-nsf-all
+odl-sdninterfaceapp-all
+odl-bgpcep-bgp-all
+------------------------------------------
+
+* Check Karaf log in
+distribution-karaf-0.3.0-SNAPSHOT/data/log/karaf.log
+
+[[checking-odl-sdni-app-output]]
+=== Checking ODL-SDNi App Output
+
+* After running the controllers (either in SP Edition or in Karaf), run
+the mininet script to create the network topology in controller.
+Topology can be created in all the connected controllers. Ping can be
+used to test the connectivity of the controllers.
+
+* Check the ODL-SDNi Rest APIs URL with the following result.
+
+URL: http://localhost:8282/controller/nb/v2/sdni/default/topology
+
+----------------------------------------------------------------------------------------------------------------------------------
+Result: {"link":["(OF|3@OF|00:00:00:00:00:00:00:01->OF|1@OF|00:00:00:00:00:00:00:02)",
+"(OF|1@OF|00:00:00:00:00:00:00:03->OF|2@OF|00:00:00:00:00:00:00:02)",
+"(OF|1@OF|00:00:00:00:00:00:00:04->OF|2@OF|00:00:00:00:00:00:00:03)",
+"(OF|2@OF|00:00:00:00:00:00:00:02->OF|1@OF|00:00:00:00:00:00:00:03)",
+"(OF|4@OF|00:00:00:00:00:00:00:01->OF|3@OF|00:00:00:00:00:00:00:03)",
+"(OF|1@OF|00:00:00:00:00:00:00:02->OF|3@OF|00:00:00:00:00:00:00:01)",
+"(OF|3@OF|00:00:00:00:00:00:00:03->OF|4@OF|00:00:00:00:00:00:00:01)"],
+"bandwidth":["10Gbps","10Gbps","10Gbps","10Gbps","10Gbps","10Gbps","10Gbps"],
+"latency":[],"macAddressList":["00:00:00:00:00:01","00:00:00:00:00:02","00:00:00:00:00:03"],"ipAddressList":["10.0.0.1"],
+"controller":["10.132.35.14"],"node":["00:00:00:00:00:00:00:01","00:00:00:00:00:00:00:02","00:00:00:00:00:00:00:03"],"host":["1"]}
+----------------------------------------------------------------------------------------------------------------------------------
+
+URL: http://localhost:8282/controller/nb/v2/sdni/default/qos
+
+-------------------------------------------------------------------------------------------------------------------------------
+[{"node":"00:00:00:00:00:00:00:04","port":"0","receivePackets":0,"transmitPackets":0,"collisionCount":0,"receiveFrameError":0,
+"receiveOverRunError":0,"receiveCrcError":0
+{"node":"00:00:00:00:00:00:00:04","port":"1","receivePackets":31,"transmitPackets":31,"collisionCount":0,"receiveFrameError":0,
+"receiveOverRunError":0,"receiveCrcError":0},
+{"node":"00:00:00:00:00:00:00:04","port":"2","receivePackets":32,"transmitPackets":32,"collisionCount":0,"receiveFrameError":0,
+"receiveOverRunError":0,"receiveCrcError":0},
+{"node":"00:00:00:00:00:00:00:04","port":"3","receivePackets":29,"transmitPackets":33,"collisionCount":0,"receiveFrameError":0,
+"receiveOverRunError":0,"receiveCrcError":0},
+{"node":"00:00:00:00:00:00:00:06","port":"4","receivePackets":32,"transmitPackets":29,"collisionCount":0,"receiveFrameError":0,
+"receiveOverRunError":0,"receiveCrcError":0},
+{"node":"00:00:00:00:00:00:00:06","port":"0","receivePackets":0,"transmitPackets":0,"collisionCount":0,"receiveFrameError":0,
+"receiveOverRunError":0,"receiveCrcError":0},
+{"node":"00:00:00:00:00:00:00:06","port":"1","receivePackets":8,"transmitPackets":141,"collisionCount":0,"receiveFrameError":0,
+"receiveOverRunError":0,"receiveCrcError":0},
+{"node":"00:00:00:00:00:00:00:06","port":"2","receivePackets":9,"transmitPackets":139,"collisionCount":0,"receiveFrameError":0,
+"receiveOverRunError":0,"receiveCrcError":0},
+{"node":"00:00:00:00:00:00:00:06","port":"3","receivePackets":31,"transmitPackets":30,"collisionCount":0,"receiveFrameError":0,
+"receiveOverRunError":0,"receiveCrcError":0},
+{"node":"00:00:00:00:00:00:00:05","port":"0","receivePackets":0,"transmitPackets":0,"collisionCount":0,"receiveFrameError":0,
+"receiveOverRunError":0,"receiveCrcError":0},
+{"node":"00:00:00:00:00:00:00:05","port":"1","receivePackets":32,"transmitPackets":31,"collisionCount":0,"receiveFrameError":0,
+"receiveOverRunError":0,"receiveCrcError":0},
+{"node":"00:00:00:00:00:00:00:05","port":"2","receivePackets":30,"transmitPackets":31,"collisionCount":0,"receiveFrameError":0,
+"receiveOverRunError":0,"receiveCrcError":0}]
+-------------------------------------------------------------------------------------------------------------------------------
+
+* BGP session will get established between the connected controllers and
+update message will be exchanged periodically along with the SDNi data.
+Check the log files for more information.
+
+[[troubleshooting]]
+=== TroubleShooting
+
+To work with multiple controllers, change some of the configuration in
+config.ini file. For example change the listening port of one controller
+to 6653 and other controller to 6663 in
+/root/controller/opendaylight/distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/configuration/config.ini
+(i.e of.listenPort=6653)
+
+-------------------------------------------------------------------------------
+Open Flow related system parameters 
+TCP port on which the controller is listening (default 6633) of.listenPort=6653
+-------------------------------------------------------------------------------

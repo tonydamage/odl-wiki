@@ -1,0 +1,133 @@
+This configuration guide is updated to conform Lithium Release SNAPSHOT
+version.
+
+[[bgp-speakerlistener-overview]]
+=== BGP speaker/listener overview
+
+Application Peer is a special type of BGP peer. It has it's own BGP RIB.
+This RIB can be acquired or changed through RESTCONF.
+
+Odl can be set as:
+
+* BGP speaker
+* BGP listener
+
+BGP Listener (stateless):
+
+* tell controller of prefixes received
+* tell controller of BGP sessions comming (up/down)
+* preferably using structure envelope (JSON/XML)
+
+BGP Speaker (stateful):
+
+* announce or withdraw a route to a peer
+* keep state of announced prefixes
+* state is not shared among speakers
+
+File:Bgp_speaker_listener.jpg|BGP Speaker/Listener
+
+[[bgp-speaker-configuration]]
+==== BGP Speaker configuration
+
+ODL supports BGP Speaker functionality and accepts incoming BGP
+connections.
+
+The configuration of BGP speaker is located in:
+https://jenkins.opendaylight.org/integration/view/Integration%20jobs/job/integration-master-project-centralized-integration/lastSuccessfulBuild/artifact/distributions/serviceprovider/target/distributions-serviceprovider-0.2.0-SNAPSHOT-osgipackage/opendaylight/configuration/initial/41-bgp-example.xml[41-bgp-example.xml]
+
+ +
+`   ``prefix:bgp-peer-acceptor` +
+`   ``bgp-peer-server` +
+`   ``25.25.25.25``-->` +
+`   ``179``-->` +
+`   ` +
+`       ``prefix:bgp-dispatcher` +
+`       ``global-bgp-dispatcher` +
+`   ` +
+`   ` +
+`       ``prefix:bgp-peer-registry` +
+`      ``global-bgp-peer-registry` +
+`   ` +
+
+[[configure-rib]]
+==== Configure RIB
+
+In this example, where ODL is configured as Listener, every BGP RIB
+point to the same BGP peer acceptor with IP address in bgp-rib-id. Each
+RIB table is configured in its own module. We will specify name, rib-id
+and bgp-rib-id.
+
+*First RIB:*
+
+ +
+`    ``prefix:rib-impl` +
+`    ``example-bgp-rib1` +
+`    ``example-bgp-rib1` +
+`    ``64496` +
+`    ``25.25.25.25`` // is the same for each RIB`
+
+*Second RIB:*
+
+ +
+`    ``prefix:rib-impl` +
+`    ``example-bgp-rib2` +
+`    ``example-bgp-rib2` +
+`    ``64496` +
+`    ``25.25.25.25`` // is the same for each RIB`
+
+*Third RIB:*
+
+ +
+`    ``prefix:rib-impl` +
+`    ``example-bgp-rib3` +
+`    ``example-bgp-rib3` +
+`    ``64496` +
+`    ``25.25.25.25`` // is the same for each RIB`
+
+[[configure-bgp-peer]]
+==== Configure BGP peer
+
+Every BGP peer is configured in its own module. We sep up host name, IP
+adddress and name of BGP RIB.
+
+*First Peer:*
+
+ +
+`    ``prefix:bgp-peer` +
+`    ``example-bgp-peer1` +
+`    ``11.12.13.14` +
+`    ``180` +
+`    ` +
+`        ``prefix:rib` +
+`        ``example-bgp-rib1` +
+`    `
+
+*Second Peer:*
+
+ +
+`    ``prefix:bgp-peer` +
+`    ``example-bgp-peer2` +
+`    ``72.71.70.69` +
+`    ``180` +
+`    ` +
+`        ``prefix:rib` +
+`        ``example-bgp-rib2` +
+`    `
+
+*Third Peer:*
+
+ +
+`    ``prefix:bgp-peer` +
+`    ``example-bgp-peer3` +
+`    ``42.32.22.12` +
+`    ``180` +
+`    ` +
+`        ``prefix:rib` +
+`        ``example-bgp-rib3` +
+`    `
+
+Every BGP peer has its own BGP RIB and we refer to this RIB with unique
+name.
+
+If all is configured properly, through the Restconf we can get content
+of every RIB table. See *BGP_LS_PCEP:Restconf[ Restconf Tutorial]*.

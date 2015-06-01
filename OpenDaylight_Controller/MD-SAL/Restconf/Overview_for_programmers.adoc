@@ -1,0 +1,74 @@
+[[overview-of-the-most-important-classes]]
+== Overview of the most important classes
+
+Following part contains basic overview for programmers. Restconf uses
+these base classes:
+
+* *YangInstanceIdentifier* represents the path in the data tree.
+* *ConsumerSession* is used for invoking RPCs.
+* *DOMDataBroker* provides access to transaction through which it is
+possible to manipulate with data in datastore.
+* *SchemaContext* holds information about yang modules.
+* *DOMMountPointService* returns instance of DOMMountPoint based on the
+InstanceIdentifier pointing to a mount point.
+* *DOMMountPoint* contains reference to SchemaContext behind the mount
+point.
+* *DataSchemaNode* contains information about the schema node.
+* *NormalizedNode* common parent of
+https://wiki.opendaylight.org/view/OpenDaylight_Controller:MD-SAL:Design:Normalized_DOM_Model[all
+classes] which are used for holding data described by YANG.
+* **SimpleNode* has name as the schema node, and contains the value
+representing the data node value.
+* **CompositeNode* can contain CompositeNode-s and SimpleNode-s.
+
+* - will be completely removed from system (replaced with
+NormalizedNode)
+
+[[get-in-action]]
+== GET in action
+
+The first picture shows the GET operation with URI restconf/config/M:N
+where M is the module name and N is the node name. +
+image:Get.png[GET operation with URI restconf/config/M:N where M is
+module name and N is node
+name.,title="fig:GET operation with URI restconf/config/M:N where M is module name and N is node name."] +
+# The requested URI is translated into the InstanceIdentifier which
+points to the data node. During this translation,the DataSchemaNode that
+conforms to the data node is obtained. If the data node is behind the
+mount point the MountInstance is obtained as well.
+
+1.  Restconf asks for the value of the data node from DataBrokerService
+based on InstanceIdentifier.
+2.  DataBrokerService returns CompositeNode as data.
+3.  StructuredDataToXmlProvider or StructuredDataToJsonProvider is
+called based on the Accept field from http request. These two providers
+can transform CompositeNode regarding to DataSchemaNode to an XML or
+JSON document.
+4.  XML or JSON is returned as the answer on the request from the
+client.
+
+[[put-in-action]]
+== PUT in action
+
+The second picture shows the PUT operation with URI restconf/config/M:N
+where M is the module name and N is the node name. Data is sent in the
+request either in the XML or JSON format. image:Put.png[PUT operation
+with URI restconf/config/M:N where M is the module name and N is the
+node name. Data is sent in the request either in the XML or JSON
+format.,title="fig:PUT operation with URI restconf/config/M:N where M is the module name and N is the node name. Data is sent in the request either in the XML or JSON format."]
+
+1.  Input data is sent to JsonToCompositeNodeProvider or
+XmlToCompositeNodeProvider. the correct provider is selected based on
+the Content-Type field from the http request. These two providers can
+transform input data to CompositeNode. However, this CompositeNode does
+not contain enough information for transactions.
+2.  the requested URI is translated into InstanceIdentifier which points
+to the data node. DataSchemaNode conforming to the data node is obtained
+during this translation. If the data node is behind the mount point, the
+MountInstance is obtained as well.
+3.  CompositeNode can be normalized by adding additional information
+from DataSchemaNode.
+4.  Restconf begins transaction and puts CompositeNode with
+InstanceIdentifier into it. The response on the request from the client
+is the status code which depends on the result from the transaction.
+

@@ -1,0 +1,340 @@
+[[purpose]]
+= Purpose
+
+This page describes the various Mininet Scripts that are used in
+examples for VTN usage.
+
+[[network-with-multiple-switches-and-openflow-controllers]]
+= Network with multiple switches and OpenFlow controllers
+
+[[purpose-1]]
+== Purpose
+
+To run multiple clusters of OpenDaylight Controllers under VTN
+Coordinator, you can use the following python script (multitree.py) for
+Mininet.
+
+[[script]]
+== Script
+
+The script run six OpenFlow switches on Mininet. Three of them will
+connect a OpenDaylight Controller, and the other three switches will
+connect other controller. Please copy paste the script to execute and
+replace your controller IP addresses.
+
+1.  Edit "ControllerAddress" in the script for your environment.
+2.  Execute the script.
+
+`% sudo python multitree.py`
+
+*multitree.py*
+
+code,python----------------------------------------------------------------------------
+code,python
+#!/usr/bin/python
+
+"""
+Run Mininet network using tree topology per remote controller.
+"""
+
+from mininet.cli import CLI
+from mininet.log import info, setLogLevel
+from mininet.net import Mininet
+from mininet.node import Host, OVSKernelSwitch, RemoteController
+from mininet.topo import Topo
+
+TreeDepth = 2
+FanOut = 2
+ControllerAddress = ["192.168.0.180", "192.168.0.181"]
+
+class MultiTreeTopo(Topo):
+    """Topology for multiple tree network using remote controllers.
+    A tree network is assigned to a remote controller."""
+
+    def __init__(self):
+        Topo.__init__(self)
+
+        self.hostSize = 1
+        self.switchSize = 1
+        self.treeSwitches = []
+
+        prev = None
+        for cidx in range(len(ControllerAddress)):
+            switches = []
+            self.treeSwitches.append(switches)
+            root = self.addTree(switches, TreeDepth, FanOut)
+            if prev:
+                self.addLink(prev, root)
+            prev = root
+
+    def addTree(self, switches, depth, fanout):
+        """Add a tree node."""
+        if depth > 0:
+            node = self.addSwitch('s%u' % self.switchSize)
+            self.switchSize += 1
+            switches.append(node)
+            for i in range(fanout):
+                child = self.addTree(switches, depth - 1, fanout)
+                self.addLink(node, child)
+        else:
+            node = self.addHost('h%u' % self.hostSize)
+            self.hostSize += 1
+
+        return node
+
+    def start(self, net):
+        """Start all controllers and switches in the network."""
+
+        cidx = 0
+        for c in net.controllers:
+            info("*** Starting controller: %s\n" % c)
+            info("    + Starting switches ... ")
+            switches = self.treeSwitches[cidx]
+            for sname in switches:
+                s = net.getNodeByName(sname)
+                info(" %s" % s)
+                s.start([c])
+            cidx += 1
+            info("\n")
+
+        self.treeSwitches = None
+
+class MultiTreeNet(Mininet):
+    """Mininet network environment with multiple tree network using remote
+    controllers."""
+
+    def __init__(self, **args):
+        args['topo'] = MultiTreeTopo()
+        args['switch'] = OVSKernelSwitch
+        args['controller'] = RemoteController
+        args['build'] = False
+        Mininet.__init__(self, **args)
+
+        idx = 1
+        for addr in ControllerAddress:
+            name = 'c%d' % idx
+            info('*** Creating remote controller: %s (%s)\n' % (name, addr))
+            self.addController(name, ip=addr, port=6633)
+            idx = idx + 1
+
+    def start(self):
+        "Start controller and switches."
+        if not self.built:
+            self.build()
+
+        self.topo.start(self)
+
+if __name__ == '__main__':
+    setLogLevel('info')  # for CLI output
+    net = MultiTreeNet()
+    net.build()
+
+    print "*** Starting network"
+    net.start()
+
+    print "*** Running CLI"
+    CLI(net)
+
+    print "*** Stopping network"
+    net.stop()
+----------------------------------------------------------------------------
+
+[[network-with-hosts-in-different-vlan]]
+= Network with hosts in different vlan
+
+[[purpose-2]]
+== Purpose
+
+Used to emulate networks with multiple hosts and multiple vlan-id
+configurations
+
+[[script-1]]
+== Script
+
+*multi_vlan_network.py*
+
+code,python-----------------------------------------------------------------------------------
+code,python
+#!/usr/bin/python
+
+from mininet.node import Host, RemoteController
+from mininet.topo import Topo
+import apt
+
+#Note Vlan package check only work with ubuntu
+#Please comment the package check if your running the script other than ubuntu
+
+#package check Start
+cache = apt.Cache()
+if cache['vlan'].is_installed:
+    print "Vlan installed"
+else:
+    print "ERROR:VLAN package not  installed please run sudo apt-get install vlan"
+    exit(1)
+#package check End
+
+class VLANHost( Host ):
+        def config( self, vlan=100, **params ):
+                """Configure VLANHost according to (optional) parameters:
+                        vlan: VLAN ID for default interface"""
+                r = super( Host, self ).config( **params )
+                intf = self.defaultIntf()
+# remove IP from default, "physical" interface
+                self.cmd( 'ifconfig %s inet 0' % intf )
+# create VLAN interface
+                self.cmd( 'vconfig add %s %d' % ( intf, vlan ) )
+# assign the host's IP to the VLAN interface
+                self.cmd( 'ifconfig %s.%d inet %s' % ( intf, vlan, params['ip'] ) )
+# update the intf name and host's intf map
+                newName = '%s.%d' % ( intf, vlan )
+# update the (Mininet) interface to refer to VLAN interface name
+                intf.name = newName
+# add VLAN interface to host's name to intf map
+                self.nameToIntf[ newName ] = intf
+                return r
+
+
+
+class MyTopo( Topo ):
+    "Simple topology example."
+
+    def __init__( self ):
+        "Create custom topo."
+
+        # Initialize topology
+        Topo.__init__( self )
+
+        # Add hosts and switches
+        host1=self.addHost( 'h1', cls=VLANHost, vlan=200)
+        host2=self.addHost( 'h2', cls=VLANHost, vlan=300)
+        host3=self.addHost( 'h3', cls=VLANHost, vlan=200)
+        host4=self.addHost( 'h4', cls=VLANHost, vlan=300)
+        host5=self.addHost( 'h5', cls=VLANHost, vlan=200)
+        host6=self.addHost( 'h6', cls=VLANHost, vlan=300)
+
+        s1 = self.addSwitch( 's1' )
+        s2 = self.addSwitch( 's2' )
+        s3 = self.addSwitch( 's3' )
+
+        self.addLink(s1,host1)
+        self.addLink(s1,s2)
+        self.addLink(s2,host2)
+        self.addLink(s2,host3)
+        self.addLink(s2,host4)
+        self.addLink(s1,s3)
+        self.addLink(s3,host5)
+        self.addLink(s3,host6)
+
+topos = { 'mytopo': ( lambda: MyTopo() ) }
+-----------------------------------------------------------------------------------
+
+[[network-with-multiple-paths-for-delivering-packets]]
+= Network with Multiple Paths for delivering packets
+
+[[purpose-3]]
+== Purpose
+
+Used to emulate networks with multiple paths for packet delivery to
+demonstrate VTN Manager capability to use other paths as per
+configuration.
+
+[[script-2]]
+== Script
+
+*multi_path_network.py*
+
+code,python------------------------------------------------- code,python
+#!/usr/bin/python
+
+from mininet.topo import Topo
+
+class MyTopo( Topo ):
+    "Simple topology example."
+    def __init__( self ):
+
+       "Create custom topo."
+
+       # Initialize topology
+       Topo.__init__( self )
+
+       # Add hosts and switches
+       leftHost = self.addHost( 'h1' )
+       rightHost = self.addHost( 'h2' )
+       leftSwitch = self.addSwitch( 's1' )
+       middleSwitch = self.addSwitch( 's2' )
+       middleSwitch2 = self.addSwitch( 's4' )
+       rightSwitch = self.addSwitch( 's3' )
+
+       # Add links
+       self.addLink( leftHost, leftSwitch )
+       self.addLink( leftSwitch, middleSwitch )
+       self.addLink( leftSwitch, middleSwitch2 )
+       self.addLink( middleSwitch, rightSwitch )
+       self.addLink( middleSwitch2, rightSwitch )
+       self.addLink( rightSwitch, rightHost )
+
+topos = { 'mytopo': ( lambda: MyTopo() ) }
+-------------------------------------------------
+
+[[network-with-multiple-hosts-for-service-function-chain]]
+= Network with Multiple Hosts for Service Function Chain
+
+[[purpose-4]]
+== Purpose
+
+Used to emulate networks with multiple hosts for demonstrating Service
+function chainning using VTN Manager capability.
+
+[[script-3]]
+== Script
+
+*topo_handson.py*
+
+code,python-------------------------------------------- code,python
+#!/usr/bin/python
+
+from mininet.topo import Topo
+
+class MyTopo2( Topo ):
+    "Simple topology example."
+
+    def __init__( self ):
+        "Create custom topo."
+
+        # Initialize topology
+        Topo.__init__( self )
+
+        # Add hosts and switches
+        Switch1 = self.addSwitch( 's1' )
+        Switch2 = self.addSwitch( 's2' )
+        Switch3 = self.addSwitch( 's3' )
+        Switch4 = self.addSwitch( 's4' )
+        Host11 = self.addHost( 'h11' )
+        Host12 = self.addHost( 'h12' )
+        Host21 = self.addHost( 'h21' )
+        Host22 = self.addHost( 'h22' )
+        Host23 = self.addHost( 'h23' )
+        Service1 = self.addHost( 'srvc1' )
+        Service2 = self.addHost( 'srvc2' )
+
+        # Add links
+        self.addLink( Host11, Switch1 )
+        self.addLink( Host12, Switch1 )
+        self.addLink( Host21, Switch2 )
+        self.addLink( Host22, Switch2 )
+        self.addLink( Host23, Switch2 )
+        self.addLink( Switch1, Switch2 )
+        self.addLink( Switch2, Switch4 )
+        self.addLink( Switch4, Switch3 )
+        self.addLink( Switch3, Switch1 )
+        self.addLink( Switch3, Service1 )
+        self.addLink( Switch4, Service1 )
+        self.addLink( Switch3, Service2 )
+        self.addLink( Switch4, Service2 )
+
+
+topos = { 'mytopo2': ( lambda: MyTopo2() ) }
+--------------------------------------------
+
+Category:OpenDaylight Virtual Tenant Network[Category:OpenDaylight
+Virtual Tenant Network]

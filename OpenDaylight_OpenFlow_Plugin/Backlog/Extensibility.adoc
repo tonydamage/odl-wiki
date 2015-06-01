@@ -18,6 +18,14 @@ Based on chat with Ed:
 `(2014-06-04 14:23:15) mirehak@cisco.com: noone understand this match except vendor code` +
 `(2014-06-04 14:23:56) mirehak@cisco.com: now this special match goes into augmentation, again modeled by yang in this custom bundle`
 
+*UPDATE*
+
+Transparent forwarding was abandoned in favor of 2 level conversion:
+
+* between semantic high level model (MD-SAL) and protocol oriented low
+level model (OFJava)
+* and between low level model (OFJava) and wire protocol
+
 [[way-md-sal----ofjava]]
 == Way MD-SAL -- OFJAva
 
@@ -43,12 +51,10 @@ to MD-SAL
 3.  MD-SAL deliveres the model to vendor app and app reads the exact
 data object which was created by decoder.
 
-[[transparent-forwarding-model-layout]]
-== Transparent forwarding model layout
+[[conversions-strategy]]
+== 2 conversions strategy
 
-This diagram covers one case - match. There will be more cases each
-requiring new augmentation and probably som additional info used to
-lookup appropriate encoder.
+This diagram covers one case - action.
 
 image:OFPlugin_ExtensibilitySupportInOFPlugin.png[basic strategy of
 transparent forwarding of vendor
@@ -60,13 +66,140 @@ data,title="basic strategy of transparent forwarding of vendor data"]
 Current MD-SAL and current OFJava wont change. All changes regarding
 vendor data forwarding affect OFPlugin:
 
-* New bundles*
-* of-general-extensible bundle
-* vendor bundle(s): app, extensions (codecs to be registered by OFJava)
+*New bundles*
 
-* New depencies*
-* OFPlugin depends on of-general-extensible
-* of-general-extensible depends on md-sal models, OFJava-API models
-* vendor bundle depends on of-general-extensible (+ md-sal models,
-OFJava-API models) + other dependencies if required
+* openflowplugin-extension-api (odl)
+* openflowplugin-extension-nicira (vendor)
+* openflowjava-extension-nicira (vendor)
+* openflowjava-extension-nicira-api (vendor)
 
+*New depencies*
+
+* OFPlugin depends on:
+** openflowplugin-extension-api
+* openflowplugin-extension-nicira depends on:
+** openflowjava-extension-nicira
+** openflowjava-extension-nicira-api
+* openflowjava-extension-nicira depends on:
+** openflowjava-extension-nicira-api
+
+[[helpful-hints-for-reviewing-httpsgit.opendaylight.orggerritc9393]]
+== Helpful hints for reviewing
+https://git.opendaylight.org/gerrit/#/c/9393/
+
+pushed https://git.opendaylight.org/gerrit/#/c/9393
+
+There are:
+
+* action converters looked up using case type and version only.
+* completely removed action augmentations from ofplugin-extension-api
+* action convertors are registered for: src=dataStore/config,
+src=rpc-addFlow
+* in comment there is url on change required for integration to work
+(new openflowplugin-extension-api dependency)
+
+This change was successfully build by ofplugin jenkins. I tried locally
+some flow related robot tests and cbench:
+
+* robots end up green
+* cbench claims that performance is not affected
+
+I also tried locally full regression robot testing against integration
+base distro (containing fresh plugin):
+
+* only ovsdb suite robots reported issues (random 4~7 failures out of
+10)
+* then I tried the same with ofplugin and integration from master and
+got same failing rate.
+
+Regarding nicira:
+
+* both (rest and rpc) ways to push alien matches and actions worked,
+matches and actions were visible in wireshark, on device, in statistics
+
+Here is the crash test dummy xml (still alive):
+
+----------------------------------------------------------------------------------------------------------
+Push the flow : 
+PUT : http://localhost:8080/restconf/config/opendaylight-inventory:nodes/node/openflow:1/table/0/flow/1234
+----------------------------------------------------------------------------------------------------------
+
+---------------------------------------------------------------------------------------------------------------------------------
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<flow xmlns="urn:opendaylight:flow:inventory">
+    <barrier>false</barrier>
+    <cookie>10</cookie>
+    <cookie_mask>10</cookie_mask>
+    <flags>SEND_FLOW_REM</flags>
+    <flow-name>FooXf1</flow-name>
+    <hard-timeout>0</hard-timeout>
+    <id>1234</id>
+    <idle-timeout>0</idle-timeout>
+    <installHw>false</installHw>
+    <instructions>
+        <instruction>
+            <apply-actions>
+                <action>
+                    <order>0</order>
+                    <dec-nw-ttl/>
+                </action>
+
+                <action>
+                  <order>1</order>
+                  <nx-reg-load xmlns="urn:opendaylight:openflowplugin:extension:nicira:action">
+                    <dst>
+                      <nx-reg xmlns:nxSB="urn:opendaylight:openflowjava:nx:match">nxSB:nxm-nx-reg0</nx-reg>
+                      <start>0</start>
+                      <end>5</end>
+                    </dst>
+                    <value>55</value>
+                  </nx-reg-load>
+                </action>
+
+            </apply-actions>
+            <order>0</order>
+        </instruction>
+    </instructions>
+    <match>
+        <ethernet-match>
+            <ethernet-type>
+                <type>2048</type>
+            </ethernet-type>
+        </ethernet-match>
+        <ipv4-destination>10.0.0.1/24</ipv4-destination>
+
+        <extension-list xmlns="urn:opendaylight:openflowplugin:extension:general">
+          <extension-key xmlns:nxNB="urn:opendaylight:openflowplugin:extension:nicira:match">nxNB:nxm-nx-reg0-key</extension-key>
+          <extension>
+            <nxm-nx-reg xmlns="urn:opendaylight:openflowplugin:extension:nicira:match">
+              <reg xmlns:nxSB="urn:opendaylight:openflowjava:nx:match">nxSB:nxm-nx-reg0</reg>
+              <value>42</value>
+            </nxm-nx-reg>
+          </extension>
+        </extension-list>
+
+    </match>
+    <priority>2</priority>
+    <strict>false</strict>
+    <table_id>0</table_id>
+</flow>
+---------------------------------------------------------------------------------------------------------------------------------
+
+Check flow's statistics data in operational data store:
+
+---------------------------------------------------------------------------------------------------------------
+GET : http://localhost:8080/restconf/operational/opendaylight-inventory:nodes/node/openflow:1/table/0/flow/1234
+---------------------------------------------------------------------------------------------------------------
+
+Rpc: http://localhost:8080/restconf/operations/test:test-flow POST:
+
+------------------------------------------------------
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<input xmlns="urn:opendaylight:test">
+  <dummy>go test, go!</dummy>
+</input>
+------------------------------------------------------
+
+Some combinations or particular matches or actions failed to get
+accepted by device. I found out that ovs-1.11.0 is more tolerant than
+2.1.2.

@@ -1,0 +1,743 @@
+[[intro-and-expectations]]
+= Intro and Expectations
+
+This is an attempt to make the process of getting end to end into karaf
+straight forward and easy. Please be patient and please report any
+issues found. Please feel free to record any issues you see and their
+solutions in the link:#Common_Test_Failures_and_their_solutions[common
+test failures and their solutions] section.
+
+[[guidance-for-feature-creators]]
+= Guidance for Feature Creators
+
+[[create-a-features-file]]
+== Create a features file
+
+[[run-the-opendaylight-karaf-features-archetype]]
+=== Run the opendaylight-karaf-features archetype
+
+From a directory in your _existing_ project which contains a pom.xml
+suitable to be a parent pom run:
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+mvn archetype:generate -DarchetypeGroupId=org.opendaylight.controller -DarchetypeArtifactId=opendaylight-karaf-features-archetype -DarchetypeRepository=http://nexus.opendaylight.org/content/repositories/opendaylight.snapshot/ -DarchetypeCatalog=http://nexus.opendaylight.org/content/repositories/opendaylight.snapshot/archetype-catalog.xml
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+You will be prompted for:
+
+-----------------------------------------------------------------------------------
+groupId: (enter your project groupId)
+artifactId: features-${repoName}
+version: (version of your project)
+package: (accept default)
+repoName: (your projects repoName, examples: controller, yangtools, openflowplugin)
+-----------------------------------------------------------------------------------
+
+Note: you have to run the above command in an existing project in a
+directory that already has a pom.xml file.
+
+[[rename-the-directory]]
+=== Rename the directory
+
+You will now have a directory
+
+--------------------
+features-${repoName}
+--------------------
+
+but... it is supposed to be named 'features' (see
+https://wiki.opendaylight.org/view/Runtime:Karaf_Features_Guidelines#Project_Location)
+so
+
+--------------------------------
+mv features-${repoName} features
+--------------------------------
+
+If the directory in which you ran the archetype has a pom.xml file (for
+example, you ran the archetype while in directory foo/ that already had
+a foo/pom.xml) then edit the pom.xml in the directory that you ran the
+archetype to change
+
+-------------------------------------
+<module>features-${repoName}</module>
+-------------------------------------
+
+to
+
+-------------------------
+<module>features</module>
+-------------------------
+
+(this is done because if you run an archetype in a directory with an
+existing pom.xml, it will add the newly created maven subproject as a in
+that directories pom.xml, and since you just renamed the directory, you
+have to change the entry to match).
+
+[[edit-the-featuressrcmainresourcefeatures.xml]]
+=== Edit the features/src/main/resource/features.xml
+
+Edit the
+
+----------------------------------------
+features/src/main/resources/features.xml
+----------------------------------------
+
+find the TODO items, and do them :)
+
+Note: If you have config files you need included, see
+Karaf:How to create a configfile project for Karaf[How to create a
+configfile project for Karaf].
+
+[[edit-the-featurespom.xml]]
+=== Edit the features/pom.xml
+
+Edit the
+
+----------------
+features/pom.xml
+----------------
+
+find the TODO items, and do them :)
+
+Note: Remember this file should include declaration for bundles and
+config files included in your feature file.
+
+[[build-and-debug]]
+=== Build and debug
+
+-----------------
+cd features/
+mvn clean install
+-----------------
+
+This will run the features test, which will check to see if your
+features load at the OSGI level. You will likely have to iterate
+debugging the load failures, adding bundles or features to your features
+until the tests pass.
+
+[[common-test-failures-and-their-solutions]]
+==== Common Test Failures and their solutions
+
+[[reason-missing-constraint-import-package]]
+===== Reason: Missing Constraint: Import-Package:
+
+This error means you are missing a bundle in a feature of yours. Fixing
+it is simple, add the bundle containing the indicated package to the
+failing feature.
+
+[[could-not-find-artifact]]
+===== Could not find artifact
+
+This error means you are missing a dependency for either a bundle,
+config file, or other features.xml repo in your features/pom.xml. Add
+the dependency at scope compile and all will be well.
+
+[[exceptions-you-can-ignore]]
+===== Exceptions you can ignore
+
+----------------------------------------------------------------------------------------------------------------------
+Exception in thread "config-pusher" java.lang.IllegalStateException: java.lang.InterruptedException: sleep interrupted
+    at org.opendaylight.controller.netconf.persist.impl.ConfigPusherImpl.sleep(ConfigPusherImpl.java:219)
+----------------------------------------------------------------------------------------------------------------------
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+java.lang.IllegalStateException: Error while copying old configuration from ModuleInternalInfo [name=ModuleIdentifier{factoryName='shutdown', instanceName='shutdown'}] to org.opendaylight.controller.config.yang.shutdown.impl.ShutdownModuleFactory@1ea5c8f6
+    at org.opendaylight.controller.config.manager.impl.ConfigTransactionControllerImpl.copyExistingModule(ConfigTransactionControllerImpl.java:189)
+    at org.opendaylight.controller.config.manager.impl.ConfigTransactionControllerImpl.copyExistingModulesAndProcessFactoryDiff(ConfigTransactionControllerImpl.java:110)
+    at org.opendaylight.controller.config.manager.impl.ConfigRegistryImpl.beginConfigInternal(ConfigRegistryImpl.java:191)
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------
+java.util.ConcurrentModificationException
+    at java.util.HashMap$HashIterator.nextEntry(HashMap.java:922)[:1.7.0_65]
+    at java.util.HashMap$KeyIterator.next(HashMap.java:956)[:1.7.0_65]
+    at java.util.AbstractCollection.toArray(AbstractCollection.java:195)[:1.7.0_65]
+    at org.apache.karaf.features.internal.FeaturesServiceImpl.listInstalledFeatures(FeaturesServiceImpl.java:754)[24:org.apache.karaf.features.core:3.0.1]
+    at Proxy0810500d_6b67_43e5_bf83_eba0f2f7b203.listInstalledFeatures(Unknown Source)[:]
+----------------------------------------------------------------------------------------------------------------------------------------------------------
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------
+org.sonatype.aether.resolution.ArtifactResolutionException: Could not find artifact org.eclipse.equinox:region:jar:1.0.0.v20110506 in defaultlocal (file:/C:/...)
+        at org.sonatype.aether.impl.internal.DefaultArtifactResolver.resolve(DefaultArtifactResolver.java:538)
+        at org.sonatype.aether.impl.internal.DefaultArtifactResolver.resolveArtifacts(DefaultArtifactResolver.java:216)
+        at org.sonatype.aether.impl.internal.DefaultArtifactResolver.resolveArtifact(DefaultArtifactResolver.java:193)
+        at org.sonatype.aether.impl.internal.DefaultRepositorySystem.resolveArtifact(DefaultRepositorySystem.java:286)
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+NOTE: The last exception on org.eclipse.equinox:region:jar can be seen
+when building locally. Exception is not seen when project is being built
+by jenkins.
+
+[[really-test-your-features.xml]]
+=== *Really* test your features.xml
+
+Your feature should be able to build with an empty .m2, so try:
+
+-------------------------------------
+rm ~/.m2/repository/org/opendaylight/
+mvn clean install
+-------------------------------------
+
+and track down the last of your missing dependencies.
+
+This is because you may have a really warm .m2 cache from building your
+project locally, but your consumers may not.
+
+[[a-bit-more-about-warm-vs-cold-.m2-and-why-it-matters]]
+==== A bit more about warm vs cold .m2 and why it matters
+
+Karaf when it seeks to load bundles, looks in the 'central' maven repo
+and your .m2/ locally. If you build your whole project, or have done
+something else which causes the things you need to be in your local .m2,
+that .m2 is said to be 'warm'.
+
+When people *use* your feature, their .m2 is unlikely to be warm. If you
+have the dependencies in your features/pom.xml correct then it will make
+sure all the thing your consumer needs get into their .m2.
+
+To make sure you got it right, you want to delete your .m2 as instructed
+above, and then try building your feature. That should shake out the
+last of the errors in your pom.xml file.
+
+[[test-your-features-for-functionality-in-your-local-karaf-distro]]
+=== Test your features for functionality in your local karaf distro
+
+[[create-your-local-distro]]
+==== Create your local distro
+
+[[run-the-opendaylight-karaf-distro-archetype]]
+===== Run the opendaylight-karaf-distro-archetype
+
+From the project root level directory:
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+mvn archetype:generate -DarchetypeGroupId=org.opendaylight.controller -DarchetypeArtifactId=opendaylight-karaf-distro-archetype -DarchetypeRepository=http://nexus.opendaylight.org/content/repositories/opendaylight.snapshot/ -DarchetypeCatalog=http://nexus.opendaylight.org/content/repositories/opendaylight.snapshot/archetype-catalog.xml
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+[[edit-the-karafpom.xml-file]]
+===== Edit the karaf/pom.xml file
+
+Edit the features/pom.xml, find the TODO items, and do them :)
+
+You will be prompted for
+
+-----------------------------------------------------------------------------------
+groupId: (enter your project groupId)
+artifactId: distribution-karaf
+version: (version of your project)
+package: (accept default)
+repoName: (your projects repoName, examples: controller, yangtools, openflowplugin)
+-----------------------------------------------------------------------------------
+
+[[rename-the-directory-1]]
+===== Rename the directory
+
+You will now have a directory
+
+------------------
+distribution-karaf
+------------------
+
+If you already have a structure like:
+
+------------------
+distributions/base
+------------------
+
+you may want to move "distribution-karaf" directory to
+
+-------------------
+distributions/karaf
+-------------------
+
+If you move the distribution-karaf directory to distributions/karaf, the
+reference to "distribution-karaf" in the root pom.xml is no longer
+valid, and the entry below needs to be removed.
+
+-----------------------------------
+<module>distribution-karaf</module>
+-----------------------------------
+
+[[build-your-local-distribution]]
+===== Build your local distribution
+
+-----------------
+mvn clean install
+-----------------
+
+[[run-the-karaf-distro]]
+==== Run the karaf distro
+
+From the directory of your karaf distribution:
+
+----------------------
+cd target/assembly/bin
+./karaf
+----------------------
+
+[[test-your-feature-functionally]]
+==== Test your feature functionally
+
+You can check to see if your features are installed with
+
+---------------
+feature:list -i
+---------------
+
+If they are not, try installing them with:
+
+-----------------------------
+feature:install <yourfeature>
+-----------------------------
+
+Run your functional tests to make sure things work.
+
+Note: restconf is on port 8181, not 8080.
+
+You can also see the logs with
+
+-----------
+log:display
+-----------
+
+[[commit-your-feature-and-wait-for-verify]]
+=== Commit your feature and wait for verify
+
+Commit your feature, push it upstream, and wait for your tests to
+verify.
+
+[[get-your-feature-reviewed-and-merged]]
+=== Get your feature reviewed and merged
+
+Get your feature reviewed and merged
+
+[[prepare-your-feature-for-addition-to-the-integration-project]]
+== Prepare your feature for addition to the integration project
+
+IMPORTANT: Make sure you have the SingleFeature test running in your
+project merge job before starting this section
+
+[[checkout-the-integration-project]]
+=== Checkout the integration project
+
+--------------------------------------------------------------------------
+git clone ssh://${ODL_USERNAME}@git.opendaylight.org:29418/integration.git
+--------------------------------------------------------------------------
+
+[[edit-the-integrationfeaturesindexsrcmainresourcesfeatures.xml-file]]
+=== Edit the integration/features/index/src/main/resources/features.xml
+file
+
+Edit the integration/features/index/src/main/resources/features.xml and
+add your feature repository
+
+[[edit-the-integrationfeaturestestsrcmainresourcesfeatures.xml-file]]
+=== Edit the integration/features/test/src/main/resources/features.xml
+file
+
+Edit the integration/features/test/src/main/resources/features.xml and
+follow the directions there to add your user-facing feature/s.
+
+Compatible features are those that can co-exist with other features in
+ODL because:
+
+* They do not interfere with any other feature
+* They are not network intrusive (e.g. configure network devices or push
+flows out-of-the-box)
+
+The rest are non-compatible features.
+
+*NOTE*: non-compatible feature does NOT mean your feature cannot work
+with other features, it is just a label we use in integration to
+understand we have to test it separately as it can impact some test we
+are doing for other features.
+
+[[edit-the-integrationfeaturesindexpom.xml-file]]
+=== Edit the integration/features/index/pom.xml file
+
+Edit the integration/features/pom.xml and add a dependency for your
+feature file.
+
+[[example-of-the-changes-above]]
+=== Example of the changes above
+
+https://git.opendaylight.org/gerrit/#/c/14613/
+
+[[build-integrationfeatures-and-debug]]
+=== Build integration/features and debug
+
+-----------------
+mvn clean install
+-----------------
+
+This will run feature tests again...
+
+[[test-your-feature-alone]]
+=== Test your feature alone
+
+-----------------------------------
+cd integration/distributions/karaf/
+mvn clean install
+cd target/assembly/bin
+./karaf
+-----------------------------------
+
+-----------------------------
+feature:install <yourfeature>
+-----------------------------
+
+If you need restconf
+
+--------------------------------
+feature:install odl-restconf-all
+--------------------------------
+
+Test out your feature to make sure it works.
+
+[[test-your-feature-with-all-compatible-installed]]
+=== Test your feature with all compatible installed
+
+First you have to add integration features (only for testing), type the
+following in Karaf console:
+
+------------------------------------------------------------------------------------------------------------------------------
+opendaylight-user@root>feature:repo-add mvn:org.opendaylight.integration/features-integration-test/0.3.0-SNAPSHOT/xml/features
+------------------------------------------------------------------------------------------------------------------------------
+
+If your feature is compatible with all:
+
+---------------------------------------------------
+feature:install odl-integration-compatible-with-all
+---------------------------------------------------
+
+If your feature is not compatible with all others try it with:
+
+---------------------------------------------------
+feature:install odl-integration-compatible-with-all
+feature:install <yourfeature>
+---------------------------------------------------
+
+[[commit-your-addition]]
+=== Commit your addition
+
+--------------------
+git add -A
+git commit --signoff
+--------------------
+
+[[what-to-put-in-the-commit-message-to-assist-integration-committers-in-reviewing]]
+==== What to put in the commit message to assist integration committers
+in reviewing
+
+Reviewing incoming integration patches is a large load on the
+integration committers, please make their life easier by structuring
+your commit message in the following template:
+
+--------------------------------------------------------------------------------------------------------------------------------------------------------
+Adding ${repoName} features
+
+1) Feature Tests Pass: ${link to single feature test passing for your merge job} 
+2) Features Comply with Guidelines: ${link to your features.xml in your projects master}
+    a) Feature Names (prefixed with 'odl-'): ${your feature} (check https://wiki.opendaylight.org/view/Runtime:Karaf_Features_Guidelines#Feature_Naming)
+    b) Features Descriptions: Present (check https://wiki.opendaylight.org/view/Runtime:Karaf_Features_Guidelines#Description)
+    c) Features Start-Levels: ${start-levels on <bundle> elements or <feature> elements}
+3) Features Tested: Features have been tested for functionality with
+    a) feature:install ${your feature}
+    b) feature:install ${your feature}, odl-integration-compatible-with-all
+4) Integration Test Impact: ${indicate which if any integration project tests will be impacted and how}
+--------------------------------------------------------------------------------------------------------------------------------------------------------
+
+[[example-of-the-above]]
+==== Example of the above
+
+https://git.opendaylight.org/gerrit/#/c/14613/
+
+https://git.opendaylight.org/gerrit/#/c/16144/
+
+[[push-your-commit-upstream]]
+=== Push your commit upstream
+
+----------
+git review
+----------
+
+[[await-review-and-merge]]
+=== Await review and merge
+
+Watch for comments on your gerrit and respond to them promptly.
+
+Do not hesitate to *politely* inquire to integration committers as to
+your gerrit.
+
+[[guidance-for-testers-once-your-feature-is-in-integration]]
+= Guidance for testers once your Feature is in Integration
+
+[[download-integration-karaf-distribution-from-nexus]]
+== Download integration Karaf distribution from Nexus
+
+-----------------------------------------------------------------------------------------------------------------------------------------
+https://nexus.opendaylight.org/content/repositories/opendaylight.snapshot/org/opendaylight/integration/distribution-karaf/0.3.0-SNAPSHOT/
+-----------------------------------------------------------------------------------------------------------------------------------------
+
+[[install-karaf-distribution]]
+== Install Karaf Distribution
+
+Download the distribution file from link above, unzip it and run it:
+
+--------------------------------------------------------------
+odluser@odl-vm:~\$ unzip distribution-karaf-0.3.0-SNAPSHOT.zip
+odluser@odl-vm:~\$ cd distribution-karaf-0.3.0-SNAPSHOT
+odluser@odl-vm:~\$ bin/karaf 
+--------------------------------------------------------------
+
+[[add-integration-test-feature-repository]]
+== Add integration test feature repository
+
+Type the following in Karaf console:
+
+------------------------------------------------------------------------------------------------------------------------------
+opendaylight-user@root>feature:repo-add mvn:org.opendaylight.integration/features-integration-test/0.3.0-SNAPSHOT/xml/features
+------------------------------------------------------------------------------------------------------------------------------
+
+[[install-your-feature]]
+== Install Your Feature
+
+-------------------------------
+feature:install ${your feature}
+-------------------------------
+
+[[install-other-helpful-features]]
+== Install other helpful features
+
+If you need RESTCONF
+
+----------------------------
+feature:install odl-restconf
+----------------------------
+
+Note: RESTCONF is on port 8181
+
+If you want the api explorer
+
+---------------------------------
+feature:install odl-mdsal-apidocs
+---------------------------------
+
+Note: You can see the apidocs explorer at
+
+http://localhost:8181/apidoc/explorer/index.html
+
+[[test-your-feature]]
+== Test your Feature
+
+Do whatever you need to do to test your feature
+
+[[test-your-feature-in-the-presence-of-everything-compatible-with-it]]
+== Test your Feature in the Presence of everything compatible with it
+
+Just enable the following feature (in addition to yours):
+
+---------------------------------------------------
+feature:install odl-integration-compatible-with-all
+---------------------------------------------------
+
+Do your functional testing.
+
+[[guidance-for-integration-committers]]
+= Guidance for Integration Committers
+
+[[what-to-expect]]
+== What to expect
+
+Expect a lot of incoming code reviews of the described here
+
+[[what-to-review]]
+== What to review
+
+1.  Check to make sure the commit message is of the requested format
+2.  Check to make sure the "Feature Tests Pass:" is to a merge job, not
+a verify job
+3.  Follow the "Feature Tests Pass:" link to make sure it points to
+Features Tests and they pass
+4.  Check to make sure the "Features Comply with Guidelines:" link is to
+gitweb and a features.xml file
+5.  Follow the "Features Comply with Guidelines:" and check to make sure
+1.  Feature Names: Prefixed with 'odl-'
+2.  Features Descriptions: - Features have descriptions
+3.  Features Start-Levels: No start-levels on elements or elements
+4.  Check to make sure there is a statement in the commit message about
+"Features Tested:"
+5.  Consider "Impacted Integration Project Tests:"
+6.  Make sure the commit does not add any new features directly to
+distributions/extra/karaf/pom.xml (in fact these commits generally
+shouldn't alter it at all).
+
+[[doing-your-own-integration-based-distro-for-testing]]
+= Doing your own integration based distro for testing
+
+Follow the directions for creating a
+Karaf:Step_by_Step_Guide#Test_your_features_for_functionality_in_your_local_karaf_distro[
+Karaf Distro].
+
+Only put the following dependency in the karaf distro pom.xml file:
+
+-----------------------------------------------------
+<!-- integration feature -->
+    <dependency>
+      <artifactId>features-integration</artifactId>
+      <groupId>org.opendaylight.integration</groupId>
+      <version>${project.version}</version>
+      <classifier>features</classifier>
+      <type>xml</type>
+      <scope>runtime</scope>
+    </dependency>
+  </dependencies>
+-----------------------------------------------------
+
+Everything else can be as in
+integration/distributions/extra/karaf/pom.xml
+
+Add the features you want to have on in your own integration based
+distro to the in the pom.xml.
+
+DO NOT CHECK THIS INTO YOUR PROJECT. IT WILL CREATE LOOPS BETWEEN
+PROJECTS THAT WILL BREAK AUTORELEASE.
+
+DO NOT PUSH THINGS TO INTEGRATION THAT ADD BOOT FEATURES.
+
+[[how-to-test-rc0]]
+= How to Test RC0
+
+Intentionally left here to make links that pointed to the old section
+title work as well. See the next section for how to test your stuff.
+
+[[how-to-test-your-projectfeatures-in-rcs]]
+= How to Test (Your Project/Features in) RCs
+
+[[download-the-rc]]
+== Download the RC
+
+* Release Candidates
+** You can find the RC0 zip file here:
+http://nexus.opendaylight.org/content/groups/staging/org/opendaylight/integration/distribution-karaf/0.2.0-Helium-RC0/distribution-karaf-0.2.0-Helium-RC0.zip[Download
+RC0]
+** You can find the RC1 zip file here:
+http://nexus.opendaylight.org/content/groups/staging/org/opendaylight/integration/distribution-karaf/0.2.0-Helium-RC1/distribution-karaf-0.2.0-Helium-RC1.zip[Download
+RC1]
+** You can find the RC2 zip file here:
+http://nexus.opendaylight.org/content/groups/staging/org/opendaylight/integration/distribution-karaf/0.2.0-Helium/distribution-karaf-0.2.0-Helium.zip[Download
+RC2 (tagged Helium)]
+* Nightly Builds
+** You can find the RC1-2 zip file here:
+http://nexus.opendaylight.org/content/repositories/opendaylight.daily/org/opendaylight/integration/distribution-karaf/0.2.0-Helium-RC1-2-v201409180238/distribution-karaf-0.2.0-Helium-RC1-2-v201409180238.zip[Download
+RC1-2]
+** You can find the RC1-3 zip file here:
+http://nexus.opendaylight.org/content/repositories/opendaylight.daily/org/opendaylight/integration/distribution-karaf/0.2.0-Helium-RC1-3-v201409190324/distribution-karaf-0.2.0-Helium-RC1-3-v201409190324.zip[Download
+RC1-3]
+** You can find the RC1-4 zip file here:
+http://nexus.opendaylight.org/content/repositories/opendaylight.daily/org/opendaylight/integration/distribution-karaf/0.2.0-Helium-RC1-4-v201409200046/distribution-karaf-0.2.0-Helium-RC1-4-v201409200046.zip[Download
+RC1-4]
+** You can find the RC1-5 zip file here:
+http://nexus.opendaylight.org/content/repositories/opendaylight.daily/org/opendaylight/integration/distribution-karaf/0.2.0-Helium-RC1-5-v201409210001/distribution-karaf-0.2.0-Helium-RC1-5-v201409210001.zip[Download
+RC1-5]
+** You can find the RC1-6 (latest nightly) zip file here:
+http://nexus.opendaylight.org/content/repositories/opendaylight.daily/org/opendaylight/integration/distribution-karaf/0.2.0-Helium-RC1-6-v201409220013/distribution-karaf-0.2.0-Helium-RC1-6-v201409220013.zip[Download
+RC1-6]
+* Later RCs can be found in this directory:
+http://nexus.opendaylight.org/content/repositories/opendaylight.daily/org/opendaylight/integration/distribution-karaf/[http://nexus.opendaylight.org/content/repositories/opendaylight.daily/org/opendaylight/integration/distribution-karaf/]
+** The RCs come in two flavors: _base RCs_ and _nightlies_
+*** _base RCs_ will be in a folder named `0.2.0-Helium-RC'''X'''`, where
+*X* is the RC number
+*** _nightlies_ will be in a folder named
+`0.2.0.-Helium-RC'''X'''-'''Y'''-'''timestamp'''`, where *X* is the last
+RC number, *Y* is the nightly number starting with 1 and increasing, and
+*timestamp* is the time at which the build for the nightly started
+** Once in the right folder, download the zip file and follow the rest
+of the instructions.
+
+[[unzip-the-rc]]
+== Unzip the RC
+
+For example:
+
+---------------------------------------------
+unzip distribution-karaf-0.2.0-Helium-RC0.zip
+---------------------------------------------
+
+Replace "RC0" with the appropriate version based on what you downloaded.
+
+[[clean-out-your-local-.m2]]
+== Clean out your local .m2
+
+Karaf can mistakenly pick up artifacts from your local .m2, so:
+
+----------------------------------------
+rm -rf ~/.m2/repository/org/opendaylight
+----------------------------------------
+
+[[run-karaf]]
+== Run Karaf
+
+For example:
+
+-------------------------------------------
+cd distribution-karaf-0.2.0-Helium-RC0/bin/
+./karaf
+-------------------------------------------
+
+Replace "RC0" with the appropriate version based on what you downloaded.
+
+[[load-your-features]]
+== Load your features
+
+Example:
+
+-----------------------------------------------------------------------------------------
+opendaylight-user@root>feature:install odl-l2switch-switch odl-restconf odl-mdsal-apidocs
+-----------------------------------------------------------------------------------------
+
+[[make-sure-youre-features-loaded]]
+== Make sure youre features loaded
+
+Example:
+
+--------------------------------------------------------------------------------------------------------------------------------------------------------------
+opendaylight-user@root>feature:list -i | grep odl-l2switch-switch
+odl-l2switch-switch              | 0.1.0-Helium-RC0 | x         | l2switch-0.1.0-Helium-RC0               | OpenDaylight :: L2Switch :: Switch                
+opendaylight-user@root>feature:list -i | grep odl-restconf
+odl-restconf                     | 1.1-Helium-RC0   | x         | odl-mdsal-1.1-Helium-RC0                | OpenDaylight :: Restconf               
+--------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+[[test-your-feature-to-make-sure-it-works]]
+== Test your feature to make sure it works
+
+Do whatever you need to do to functionally test your feature.
+
+Example:
+
+* Use http://localhost:8181/apidoc/explorer/index.html to explore and
+exercise your REST API
+
+[[document-your-testing]]
+== Document your testing
+
+The spreadsheet to record testing is here:
+https://docs.google.com/spreadsheets/d/1PYxjiSYEks44uJByVO1P44rnI5xTJRulpKyrSsDQF9g/edit#gid=1751723309[https://docs.google.com/spreadsheets/d/1PYxjiSYEks44uJByVO1P44rnI5xTJRulpKyrSsDQF9g/edit#gid=1751723309]
+
+* The first tab is to report out the results for the "top level"
+features each project listed in the integration features file
+** *column B* is for the feature being tested, it and its dependencies
+should be the only things loaded when you do the "single feature" test
+which you’ll report doing by putting "Yes" in *column D*
+** *column F* is for reporting what other features you loaded to test
+when doing your "feature compatibility test", which when run, you report
+with by putting "Yes" in *column E*
+*** _Note:_ *column F* should likely be
+"odl-integration-compatibility-with-all" (for projects which don’t have
+any expected compatibility issues), or
+"odl-integration-compatibility-with-" (for projects that do have known
+compatibility issues)
+* The second tab lists all features in all projects and is mostly there
+for projects to use for themselves and to provide more detailed
+visibility
+

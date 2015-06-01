@@ -1,0 +1,106 @@
+[[description]]
+= Description
+
+Support for security groups is very experimental. There are limitations
+in determining the state of flows in the Open vSwitch. Please see
+http://%20https://www.youtube.com/watch?v=DSop2uLJZS8[Open vSwitch and
+the Intelligent Edge] from Justin Petit for a deep dive into the
+challenges we faced creating a flow based port security implementation.
+The current set of rules that will be installed only supports filtering
+of the TCP protocol. This is because via a Nicira TCP_Flag read we can
+match on a flows TCP_SYN flag, and permit or deny the flow based on the
+Neutron port security rules. If rules are requested for ICMP and UDP,
+they are ignored until greater visibility from the Linux kernel is
+available as outlined in Justin's OpenStack presentation above.
+
+Using the port security groups of Neutron, one can add rules that
+restrict the network access of the tenants. As of Helium, the OVSDB
+Neutron integration will check the port security rules configured and
+apply them via openflow rules.
+
+Through the ML2 interface, Neutron security rules are present in the
+port object, following this scope: Neutron Port -> Security Group ->
+Security Rules.
+
+The current rules are applied based on the following attributes:
+ingress/egress, tcp protocol, port range, prefix.
+
+[[openstack-workflow]]
+= OpenStack workflow
+
+Note that _this is no different than what user would normally do in
+regular openstack deployments_.
+
+1.  Stack
+2.  Add network and subnet
+3.  Add Security Group and Rules
+
+` neutron security-group-create group1 --description "Group 1"` +
+` neutron security-group-list` +
+` neutron security-group-rule-create --direction ingress --protocol tcp group1`
+
+::
+  4. Start tenant, specifying security-group
+
+` nova boot --flavor m1.tiny \` +
+` --image $(nova image-list | grep 'cirros-0.3.1-x86_64-uec\s' | awk '{print $2}') \` +
+` --nic net-id=$(neutron net-list | grep 'vxlan2' | awk '{print $2}') vxlan2 \` +
+` `*`--security-groups` `group1`*
+
+[[other-examples-of-rules-that-are-supported]]
+=== Other examples of rules that are supported
+
+` neutron security-group-create group2 --description "Group 2"` +
+` neutron security-group-rule-create --direction ingress --protocol tcp --port-range-min 54 group2` +
+` neutron security-group-rule-create --direction ingress --protocol tcp --port-range-min 80 group2` +
+` neutron security-group-rule-create --direction ingress --protocol tcp --port-range-min 1633 group2` +
+` neutron security-group-rule-create --direction ingress --protocol tcp --port-range-min 22 group2`
+
+` neutron security-group-create group3 --description "Group 3"` +
+` neutron security-group-rule-create --direction ingress --protocol tcp --remote-ip-prefix 10.200.0.0/16 group3`
+
+` neutron security-group-create group4 --description "Group 4"` +
+` neutron security-group-rule-create --direction ingress --remote-ip-prefix 172.24.0.0/16 group4`
+
+` neutron security-group-create group5 --description "Group 5"` +
+` neutron security-group-rule-create --direction ingress --protocol tcp group5` +
+` neutron security-group-rule-create --direction ingress --protocol tcp --port-range-min 54 group5` +
+` neutron security-group-rule-create --direction ingress --protocol tcp --port-range-min 80 group5` +
+` neutron security-group-rule-create --direction ingress --protocol tcp --port-range-min 1633 group5` +
+` neutron security-group-rule-create --direction ingress --protocol tcp --port-range-min 22 group5`
+
+` neutron security-group-create group6 --description "Group 6"` +
+` neutron security-group-rule-create --direction ingress --protocol tcp --remote-ip-prefix 0.0.0.0/0 group6`
+
+` neutron security-group-create group7 --description "Group 7"` +
+` neutron security-group-rule-create --direction egress --protocol tcp --port-range-min 443 --remote-ip-prefix 172.16.240.128/25 group7`
+
+Ref gist: https://gist.github.com/anonymous/1543a410d57f491352c8[gist]
+
+[[security-group-rules-supported-in-odl-helium]]
+== Security group rules supported in ODL Helium
+
+These are the supported rules format in the current implementation. The
+direction (ingress/egress) is always expected. Rules are implemented
+such that tcp-syn packets that do not satisfy the rules are dropped.
+
+[cols=",,",options="header",]
+|======================
+|Proto |Port |IP Prefix
+|tcp |x |x
+|any |any |x
+|tcp |x |any
+|tcp |any |any
+|======================
+
+[[limitations]]
+= Limitations
+
+* In mid to long term, conntrack will be supported by OVS. Until then,
+TCP flags are used as way of checking for connection state.
+Specifically, that is done by matching on TCP-SYN flag;
+* The param '--port-range-max' in 'security-group-rule-create' is not
+used until implementation uses contrack;
+* No UDP/ICMP specific match support is provided;
+* No IPv6 support is provided.
+

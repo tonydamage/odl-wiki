@@ -1,0 +1,387 @@
+_This page contains a short description and mock intents for use cases
+we plan to support in the NIC project. This is a work-in-progress,
+meaning that all use cases listed here may not yet be agreed upon._
+
+[[service-chaining]]
+== Service Chaining
+
+The Interface between an SDN controller and a CMS for SFC must allow the
+details of implementing the service chain to be decided within the
+controller "black box" The intent interface does not include any details
+of actual communication between devices and virtual functions. What is
+passed to the SDN controller is a description of the relationships
+between terminating systems and those that are inserted between them.
+This interface describes the what (send through firewall type X), rather
+than the how (connect this instance to this one).
+
+The basic unit of the intent system is an end point group (EPG). This is
+an abstraction that is used to describe how to treat traffic from
+entities that need similar network behaviors. In the trivial case an EPG
+might contain only a single End-Point (EP)> Furthermore, to use the
+intent interface, you do not have to understand what an endpoint is. It
+is also an abstraction that represents some kind of traffic source that
+can be identified by looking at various bits in the traffic on the wire.
+
+For SFC we start off by recognizing that a pool of virtual network
+function with like behaviors maps perfectly to our primary intent
+abstraction, the EPG. In the trivial case, I have a single firewall. I
+add it to EPG as the only member and name that EPG the firewall group. I
+create a LAN EPG to represent all my PCs, and an Internet EPG to
+represent my cable router. Now I create a forward graph saying that all
+traffic from my LAN to the internet should go through the firewall (LAN
+EPG -> firewall EPG -> Internet EPG). As I add PCs to my LAN they get
+the firewall treatment. When I buy a second firewall and add to the
+network, I add it to the firewall EPG and the controller starts to load
+balance across the two. Etc.
+
+For the simplest version of this use case we propose a very simple
+initial model:
+
+EPG EP L2 or L3 Redirect Verb.
+
+From these simple atoms we can support some simple SFC use cases. The
+model shall include extensible end-point definitions and intent verbs,
+contraints, etc.
+
+[cols=",,,,,,",options="header",]
+|=======================================================================
+|SrcEPG |chain | |chain | |chain |DstEPG
+|one or more Endpoint |redirect verb |one or more Endpoint |redirect
+verb |one or more Endpoint |redirect verb |one or more endpoint
+|=======================================================================
+
+[cols="",options="header",]
+|====================
+|Endpoint
+|L2 field or L3 field
+|====================
+
+The source Endpoint with its levels of granularity combined with the
+destination Endpoint with its levels of granularity inherently specify
+the flow identification rule.
+
+[cols="",options="header",]
+|======================================
+|Service Chain
+|The "verb" we choose to represent this
+|======================================
+
+To send traffic between say, the users group and the internet, via a
+firewall and an IPS system, the operator would configure: EP,
+"Firewall", L2Addr=xyzxyzxyzz EP, "IPS", L2Addr=012345678 EPG, "IPS",
+\{IPS} EP, "Bob", L3Addr=a.b.c.d EP, "Jim", L3Addr=a.b.c.e EPG
+"Firewall" \{Firewall"} EPG "Users" \{Bob, Jim} EP "Internet"
+L3Addr=FF.FF.FF.FF EPG "Internet" \{Internet}
+
+Now the group "policy"
+
+USERS chain firewall chain IPS chain Interent
+
+For another example, with L3/L4 identifiers, a user (could be an
+application) wants a flow from source 172.255.255.1 port 10 to
+destination 172.255.253.2 port 12 to go through a firewall and then a
+parental control. The source endpoint is identified by 172.255.255.1
+port 10. The destination endpoint is identified by 172.255.253.2 port
+12. The Service Chain consists of "FW type + FW rules" and "Parental
+Control type + Control rules". Favor is introduced to differentiate
+different treatments provided by the same type of service function. For
+example, a firewall could have different rules which can be categorized
+by different flavors. Each type of service function has its own
+definition of flavor.
+
+[[network-monitoring-of-a-single-user]]
+== Network Monitoring of a Single User
+
+An application wants to monitor all traffic from a specific endpoint. A
+copy of the traffic will be sent to a listener service which collects
+the monitored traffic (ie: wire-tapping). The application wants to
+specify the intent even if the endpoint is not currently connected to
+the network, and have the intent applied once the endpoint connects. The
+intent should apply even as the endpoint changes location.
+
+[cols=",,",options="header",]
+|=================================================
+|SrcEPG |DstEPG |Operation
+|10.0.0.1 |* |audit(ListenerService) or statistics
+|=================================================
+
+Related mail:
+https://lists.opendaylight.org/pipermail/nic-dev/2015-February/000213.html
+
+[[dns-monitoring-for-infection]]
+== DNS monitoring for infection
+
+An application wants to inspect (hijack) all DNS packets to determine if
+an endpoint is attempting to access a site which is known to be
+malicious. If an endpoint attempts to resolve a malicious site, the
+application wants to respond with a DNS failure. If an endpoint attempts
+to resolve too many malicious sites, the application will presume that
+the endpoint is infected and will block the endpoint from further
+communication on the network.
+
+[cols=",,",options="header",]
+|======================================
+|SrcEPG |DstEPG |Operation
+|* |all DNS |inspect(InspectionService)
+|infected |* |block
+|======================================
+
+Related mail:
+https://lists.opendaylight.org/pipermail/nic-dev/2015-February/000214.html
+
+[[suspicious-ddos-activity-monitoring]]
+== Suspicious DDoS activity monitoring
+
+An application wants to inspect all traffic through the internet
+gateways to any destinations within the network. A copy of the traffic
+will be sent to a listener service, which will perform deeper inspection
+on the traffic. Alternately, traffic statistics could be gathered. If a
+specific destination within the network looks suspicious either due to
+deeper inspection or statistics, the application will express a second
+intent which redirects traffic destined for that destination through a
+DDoS service.
+
+[cols=",,",options="header",]
+|===============================================================
+|SrcEPG |DstEPG |Operation
+|internet gateways |* |audit(ListenerService) or statistics
+|internet gateways |suspicious destination |inspect(DDoSService)
+|===============================================================
+
+Related mail:
+https://lists.opendaylight.org/pipermail/nic-dev/2015-February/000224.html
+
+[[lync-call-qos]]
+== Lync call QoS
+
+An application wants to optimize MS Lync call quality. The application
+gets notified by the Lync server when a new call is established. For
+*each* new call, the application will provide an intent to set QoS
+between the two endpoints involved in the call. The application will
+also optimize traffic to/from the Lync server. The application will also
+preserve existing QoS on any voice vlans:
+
+[cols=",,",options="header",]
+|=======================================================================
+|SrcEPG |DstEPG |Operation
+|1.1.1.1, TCP, l4port=21058 |2.2.2.2, TCP, l4port=28273 |Set QoS
+(DSCP=18)
+
+|2.2.2.2, TCP, l4port=21058 |1.1.1.1, TCP, l4port=28273 |Set QoS
+(DSCP=18)
+
+|* |LyncServer |Set QoS (DSCP=25)
+
+|LyncServer |* |Set QoS (DSCP=25)
+
+|VoiceVlan |VoiceVlan |Allow
+|=======================================================================
+
+Related mail:
+https://lists.opendaylight.org/pipermail/nic-dev/2015-February/000236.html
+
+[[openstack-integration-isolated-logical-networks]]
+== OpenStack Integration: Isolated logical networks
+
+OpenStack provides a way to create an isolated logical network, and
+launch VM instances on the logical network. To establish isolated
+communication between VM instances in the same logical network,
+OpenStack requests *Intents with Allow operation* to the Intent system.
+
+E.g.) When an OpenStack user creates two logical networks (Network A and
+B), and launches three VM instances on each logical network, OpenStack
+requests the following Intents.
+
+[cols=",,",options="header",]
+|=======================================================================
+|SrcEPG |DstEPG |Operation
+|*EPG A* (associated with Network A) |*EPG A* (associated with Network
+A) |Allow
+
+|*EPG B* (associated with Network B) |*EPG B* (associated with Network
+B) |Allow
+|=======================================================================
+
+In this example, OpenStack registers two EPGs on the Intent system. For
+each EPG, OpenStack puts three MAC address for three VM instances.
+
+[cols=",",options="header",]
+|=======================================================================
+|EPG |End Points
+|*EPG A* (associated with Network A) |12-34-56-78-90-00,
+12-34-56-78-90-01, 12-34-56-78-90-02
+
+|*EPG B* (associated with Network B) |12-34-56-78-90-03,
+12-34-56-78-90-04, 12-34-56-78-90-05
+|=======================================================================
+
+[[l2switch]]
+== L2Switch
+
+[[host-discovery]]
+=== Host Discovery
+
+An application within the controller wants to discover end-hosts on the
+network. The application wants to listen to all ARP and DHCP packets to
+learn the location of IPv4 end-hosts:
+
+[cols=",,",options="header",]
+|=================================================
+|SrcEPG |DstEPG |Operation
+|* |ARP |audit(Controller)
+|UDP, l4port=67 |UDP, l4port=68 |audit(Controller)
+|UDP, l4port=68 |UDP, l4port=67 |audit(Controller)
+|=================================================
+
+[[link-discovery]]
+=== Link Discovery
+
+An application within the controller wants to discover links between
+controlled switches. The application wants to inject LLDP packets from
+each connected switch port, then listen to any such packets received on
+controlled switch ports:
+
+[cols=",,",options="header",]
+|============================
+|SrcEPG |DstEPG |Operation
+|* |LLDP |inspect(Controller)
+|============================
+
+Related mail:
+https://lists.opendaylight.org/pipermail/nic-dev/2015-February/000276.html
+
+[[end-point-policy-resolution]]
+== End Point / Policy Resolution
+
+An application should be able to specify an end point or all members of
+an end point group as a query against a abstract identification scheme
+such as "labels". Additionally, it may be possible for and EPG to
+reference an existing resolution. For example if you want to connect a
+host to a web server it is possible that in an given deployment there
+are multiple (identical) web servers in each location, thus the web
+server to which the host should connect depends on the location of the
+host.
+
+Finally, the policy specified for an intent may be abstract as well and
+require resolution or precision to be defined, or could be a combination
+of abstract and precise specification.
+
+[cols=",,",options="header",]
+|=======================================================================
+|SrcEPG |DstEPG |Policy
+|label in (dev_host) and label not in (test_host) |WEBSERVER local to
+SRC |WEB_TRAFFIC, Latency : LOW
+|=======================================================================
+
+[[multilayer-adjacency]]
+== Multilayer Adjacency
+
+The point of this use case is to allow the specification of an adjacency
+that will allow the path that implements the adjacency to traverse
+multiple network layers, leveraging L2-0 forwarding when it best suites
+the fulfillment needs of the request. How and when layer transforms and
+forwards are used depends on the "sideways" injection of policy or
+specific precision specified in the initial request. As has been
+discussed in email threads intent composition or multiple intents being
+rendered as a single atomic unit may be outside the scope of the initial
+implementation, but it will be required for a complete implementation.
+Customers have already requested patch computation with such constraints
+such as "include node" or "exclude node".
+
+[cols=",,",options="header",]
+|=========================================
+|SrcEPG |DstEPG |Policy
+|NODEA/1/2/4 |NODEZ/4/2/1 |HD_Video_Stream
+|=========================================
+
+[cols="",options="header",]
+|===========================================
+|Policy
+|IncludeNode: NODEC
+|ExcludeNode: NODEB
+|IF (between NODEC and NODEF) use TIMESLOT 1
+|===========================================
+
+[[diverse-intents]]
+== Diverse Intents
+
+The point of this use case is to be able to inform the system that the
+realization of a set of intents should be diverse in that shared risk is
+eliminated or minimized to an acceptable level.
+
+[cols=",,,",options="header",]
+|=======================================================================
+|ID |SrcEPG |DstEPG |Policy
+|| INTENT-1234 |NODEA/1/2/3 |NODEB/4/3/4 |ALLOW, HIGH_SPEED,
+LOW_LATENCY, PROTECTED, DIVERSE(INTENT-5678, INTENT-9012)
+
+|| INTENT-5678 |NODEA/2/2/3 |NODEB/5/3/4 |ALLOW, HIGH_SPEED,
+LOW_LATENCY, PROTECTED, DIVERSE(INTENT-1234, INTENT-9012)
+
+|| INTENT-9012 |NODEA/3/2/3 |NODEB/6/3/4 |ALLOW, HIGH_SPEED,
+LOW_LATENCY, PROTECTED, DIVERSE(INTENT-1234, INTENT-5678)
+|=======================================================================
+
+[[multi-point-vpn-intent]]
+== Multi-point VPN Intent
+
+The point of this use case is to establish private, secure
+communications between multiple end points. The communication should be
+bidirectional between all EPGs. It is unclear how to express this use
+case given only a src and dst EPG, unless it breaks down into multiple
+intents. As such I modified the format for the intent.
+
+[cols=",",options="header",]
+|==========================================================
+|EPG (list) |Policy
+|| SJ_USERS, TX_USERS, HI_USERS |SECURE, PRIVATE, FTP, HTTP
+|==========================================================
+
+[[bandwidth-on-demand]]
+== Bandwidth on Demand
+
+The point of this use case is adjusting the bandwidth on demand which is
+triggered by specific "conditions".
+
+*For example, there's a connection between the branch(located in
+Beijing) and headquarter (located in Shanghai) offices*
+
+* The bandwidth of the connection can be adjusted on demand.
+* The adjustment can be triggered by "conditions", e.g.the bandwidth
+will be adjusted at specific time.
+* Bandwidth can be adjusted by application, eg. Video, email
+
+image:BoD.png [Bandwidth on Demand,title="Bandwidth on Demand"]
+
+[cols=",,",options="header",]
+|==================
+|ID |EPG |Operation
+|1 |EPG A |CRUD
+|2 |EPG B |CRUD
+|==================
+
+[cols=",,",options="header",]
+|=================================================================
+|ID |Connection |Operation
+|1 |1-2, bandwidth: 10G, delay: y/n, status: connected, ...) |CRUD
+|=================================================================
+
+[cols=",,",options="header",]
+|================================
+|ID |Flow |Operation
+|1 |app: Video / email, ... |CRUD
+|================================
+
+[[enterprise-with-multiple-branches]]
+== Enterprise with multiple branches
+
+An enterprise has three big offices , separately located in Los Angeles,
+Houston and New York. as shown in the following picture
+image:Enterprise-branches.jpg [Enterprise with multiple
+branches,title="fig:Enterprise with multiple branches"]
+
+The requirement is to establish network communication for all offices
+with guaranteed QoS. The security policy of the enterprise requires all
+traffic sent to the New York Office must go through the firewall service
+node before reaching the destination. User requires 10Gbps throughput
+for the firewall.

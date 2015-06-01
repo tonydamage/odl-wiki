@@ -1,0 +1,181 @@
+[[karaf-hints-and-tips]]
+== Karaf Hints and Tips
+
+This page is just to list some helpful hints and tips.
+
+[[suggestions-before-starting]]
+=== Suggestions Before Starting
+
+In case you are redeploying a karaf distro (i.e. with different
+features) remove the data folder:
+
+--------------------------
+rm -rf karaf-distro/data/*
+--------------------------
+
+With master code you have to also remove cluster data:
+
+-------------------------------
+rm -rf karaf-distro/snapshots/*
+rm -rf karaf-distro/journal/*
+-------------------------------
+
+Default Java options for Karaf are: -Xmx2048m -XX:MaxPermSize=512m
+
+In case you need more:
+
+-------------------------------------------------
+export JAVA_OPTS="-Xmx4096m -XX:MaxPermSize=512m"
+-------------------------------------------------
+
+[[starting-karaf]]
+=== Starting Karaf
+
+There two way's to start the controller
+
+---------
+bin/karaf
+---------
+
+This will drop you direct into Karaf console.
+
+---------
+bin/start
+---------
+
+This will start karaf as a background task, can access the console via
+bin/client or SSH
+
+----------
+bin/client
+----------
+
+This will connect to the Karaf console from the linux shell
+
+--------------------
+bin/client <command>
+--------------------
+
+This will execute a command on the Karaf console and return to linux
+shell
+
+[[ports]]
+=== PORTS
+
+There been some port changes that AD-SAL and MD-SAL API's
+
+RESTCONF = 8181 (Yang, Dlux, MD-SAL API's) +
+REST = 8080 (AD-SAL API)
+
+[[ssh]]
+=== SSH
+
+We can use SSH to access the Karaf console, kind of like how we had
+telnet to access OSGi console
+
+SSH is listening on 8101 and default username/password is karaf/karaf
+
+I recommend the command below as the HostKey isn't kept and we don't
+check the host key.
+
+--------------------------------------------------------------------------------------------
+ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -p 8101 karaf@<controllerIP>
+--------------------------------------------------------------------------------------------
+
+Log out of the ssh shell
+
+--------------
+ shell:logout 
+--------------
+
+[[configure-features-at-startup-optional]]
+=== Configure features at startup (Optional)
+
+Features can be installed automatically when karaf starts by editing
+features file:
+
+--------------------------------------------------
+vi karaf-distro/etc/org.apache.karaf.features.cfg 
+--------------------------------------------------
+
+modify this line:
+
+--------------------------------------------------------------
+featuresBoot=config,standard,region,package,kar,ssh,management
+--------------------------------------------------------------
+
+to be:
+
+----------------------------------------------------------------------------------
+featuresBoot=config,standard,region,package,kar,ssh,management,odl-l2switch-switch
+----------------------------------------------------------------------------------
+
+[[karaf-cli]]
+=== Karaf CLI
+
+To list only installed features
+
+-----------------
+ feature:list -i 
+-----------------
+
+Filter with grep
+
+------------------------------------
+ feature:list | grep openflowplugin 
+------------------------------------
+
+list bundles loaded
+
+----------------
+ bundle:list -s 
+----------------
+
+List web endpoints
+
+----------
+ web:list 
+----------
+
+Install a feature
+
+-------------------------------------
+ feature:install odl-l2switch-switch 
+-------------------------------------
+
+For a complete list of features and their description please check the
+ODL Installation Guide:
+
+http://www.opendaylight.org/software/downloads
+
+[[debugging-karaf]]
+=== Debugging Karaf
+
+Set root logger to ERROR:
+
+---------------
+ log:set ERROR 
+---------------
+
+Set bundle to debug to TRACE:
+
+-----------------------------------------
+ log:set TRACE org.opendaylight.l2switch 
+-----------------------------------------
+
+See log in karaf:
+
+-------------
+ log:display 
+-------------
+
+or see log outside karaf:
+
+-----------------------------------------
+ tail -f karaf-distro/data/log/karaf.log 
+-----------------------------------------
+
+You can find more debug information in:
+http://karaf.apache.org/manual/latest-2.2.x/developers-guide/debugging.html
+
+Category:Integration Group[Category:Integration Group]

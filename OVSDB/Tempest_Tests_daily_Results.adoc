@@ -1,0 +1,96 @@
+We have a Jenkings job based on JJB that tracks the latest tempest tests
+resuls of ODL against Openstack with networking-odl ml2.
+
+Since the tests 1) require networking-old and 2) that is not available
+before Kilo, and 3) Kilo is not yet released, we use the latest devstack
+build. That is not ideal, as we really should use a stable openstack
+build against the latest and greatest ODL snapshot. Within a month's
+time, Kilo will be released and this issue can be addressed.
+
+The JJB we use is:
+
+` `https://jenkins.opendaylight.org/releng/view/ovsdb/job/ovsdb-daily-openstack-master/[`ovsdb-daily-openstack-master`]
+
+To obtain the tempest report in a human friendly table, use this url:
+
+` Example:` +
+` BUILD=4 ;  # Note: the latest build number can be obtained from the link above.` +
+` `https://jenkins.opendaylight.org/releng/view/ovsdb/job/ovsdb-daily-openstack-master/4/artifact/logs/testr_results.html[`.../ovsdb-daily-openstack-master/${BUILD}/artifact/logs/testr_results.html`]
+
+There is a handy python script you can use to iterate thru the daily
+builds and get a convenient count on how the tests went:
+
+` `https://raw.githubusercontent.com/flavio-fernandes/odl-openstack-ci-1/master/tools/showResultsHistory.py[`https://raw.githubusercontent.com/flavio-fernandes/odl-openstack-ci-1/master/tools/showResultsHistory.py`]
+
+To use it simply run as the example below:
+
+` $ ./showResultsHistory.py` +
+` Grabbing results from builds 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 done.` +
+` build 1: Pass 83 Failure 55 Skip 1` +
+` build 2: Pass 133 Failure 51 Skip 1` +
+` build 3: Pass 91 Failure 55 Skip 1`
+
+There are a couple of files, also in the Build Artifacts of the build
+that can show us more details on how the tests proceeded:
+
+* ODL's Karaf logs
+* networking-odl (ml2)
+
+[[odls-karaf-logs]]
+==== ODL's Karaf logs
+
+` https://jenkins.opendaylight.org/releng/view/ovsdb/job/ovsdb-daily-openstack-master/${BUILD}/artifact/logs/q-odl-karaf.log*`
+
+These files (up to 10 log rotates of 1Mb) will have a chatty log of what
+ODL did during the tests.
+
+[[networking-odl-ml2]]
+==== networking-odl (ml2)
+
+` https://jenkins.opendaylight.org/releng/view/ovsdb/job/ovsdb-daily-openstack-master/${BUILD}/artifact/logs/screen-q-svc.txt`
+
+This file will contain all the json RPCs sent and received by the ml2.
+For any given test, search for its name here and you can pretty easily
+locate the RPCs.
+
+[[example]]
+== Example
+
+We can see in
+
+` `https://jenkins.opendaylight.org/releng/view/ovsdb/job/ovsdb-daily-openstack-master/4/artifact/logs/testr_results.html[`https://jenkins.opendaylight.org/releng/view/ovsdb/job/ovsdb-daily-openstack-master/4/artifact/logs/testr_results.html`]
+
+that the test *PortsAdminExtendedAttrsIpV6TestJSON* failed. So, if we
+look for *PortsAdminExtendedAttrsIpV6TestJSON* in:
+
+` `https://jenkins.opendaylight.org/releng/view/ovsdb/job/ovsdb-daily-openstack-master/4/artifact/logs/screen-q-svc.txt[`https://jenkins.opendaylight.org/releng/view/ovsdb/job/ovsdb-daily-openstack-master/4/artifact/logs/screen-q-svc.txt`]
+
+We can see:
+
+https://gist.githubusercontent.com/anonymous/467d1f0f25984b90a175/raw/75b800076a9175ca47fd44c1eb1cabe225c7afc6/gistify48445.txt[gist
+link]
+
+` ...` +
+`  2015-03-30 20:52:33.098 ERROR neutron.plugins.ml2.managers [req-88ec64f0-f2c1-426e-a50e-a958b8dab945 RoutersTest-1866364724 RoutersTest-321687430] Mechanism driver 'opendaylight' failed in delete_network_postcommit` +
+`  2015-03-30 20:52:33.098 12878 TRACE neutron.plugins.ml2.managers Traceback (most recent call last):` +
+`  2015-03-30 20:52:33.098 12878 TRACE neutron.plugins.ml2.managers   File "/opt/stack/new/neutron/neutron/plugins/ml2/managers.py", line 323, in _call_on_drivers` +
+`  2015-03-30 20:52:33.098 12878 TRACE neutron.plugins.ml2.managers     getattr(driver.obj, method_name)(context)` +
+`  2015-03-30 20:52:33.098 12878 TRACE neutron.plugins.ml2.managers   File "/opt/stack/new/neutron/neutron/plugins/ml2/drivers/opendaylight/driver.py", line 75, in delete_network_postcommit` +
+`  2015-03-30 20:52:33.098 12878 TRACE neutron.plugins.ml2.managers     self.odl_drv.synchronize('delete', odl_const.ODL_NETWORKS, context)` +
+`  2015-03-30 20:52:33.098 12878 TRACE neutron.plugins.ml2.managers   File "/usr/lib/python2.7/site-packages/networking_odl/ml2/mech_driver.py", line 56, in synchronize` +
+`  2015-03-30 20:52:33.098 12878 TRACE neutron.plugins.ml2.managers     self.sync_full(context)` +
+`  2015-03-30 20:52:33.098 12878 TRACE neutron.plugins.ml2.managers   File "/usr/lib/python2.7/site-packages/oslo_concurrency/lockutils.py", line 445, in inner` +
+`  ...`
+
+Also, we can go to ODL logs and check if there was anything on the ODL's
+side that could explain the failure.
+
+Lastly, it may be worth mentioning that some failures are intermittent,
+and these can be a bit harder to debug. We can always run the failing
+tests locally, once we know their name. For the example above, the way
+to run it would be by using the following name:
+
+` tempest.api.network.test_ports.PortsAdminExtendedAttrsIpV6TestJSON`
+
+See info on running tests locally by going
+OVSDB:Running_Tempest_Tests[here].

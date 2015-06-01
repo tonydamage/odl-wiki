@@ -1,0 +1,248 @@
+[[technical-architecture]]
+== Technical Architecture
+
+[[overview]]
+=== Overview
+
+We propose a southbound plugin that can control the off-the-shelf
+commodity Ethernet switches for the purpose of building SDN using
+Ethernet switches. For Ethernet switches, forwarding table and ACL are
+where one can install the flow configuration on, and this is done via
+SNMP and CLI in the proposed plugin. In addition, extensions to the SAL
+configuration APIs are needed to provide additional API to support some
+settings, e.g. disabling STP and flooding, etc, which are required for
+Ethernet switches in SDN.
+
+image:SNMP4SDN_in_ODL_Architecture.jpg[SNMP4SDN_in_ODL_Architecture.jpg,title="SNMP4SDN_in_ODL_Architecture.jpg"]
+
+*Figure. SNMP4SDN as a southbound plugin in OpenDaylight architecture*
+
+[[architecture]]
+=== Architecture
+
+The modules in the plugin are depicted as the following figure.
+
+image:snmp4sdn_modules.jpg[snmp4sdn_modules.jpg,title="snmp4sdn_modules.jpg"]
+
+*Figure. Modules in the SNMP4SDN plugin*
+
+* FlowProgrammerService: to add/modify/remove flows on the switches.
+* ReadService: to acquire the flow's or switch's or port's statistics.
+* InventoryService: to acquire the switches’ and their ports’
+properties.
+* DiscoveryService: to probe and resolve the underlying switches as well
+as the port pairs connecting the switches. The probing is realized by
+SNMP queries. The updates from discovery will also be reflected to the
+TopologyService.
+* TopologyService: to query and acquire the switches' topology.
+* ConfigService: to do kinds of vendor-specific proprietary settings on
+switches
+** Supported vendor-specific proprietary settings, such as: to disable
+kind of flooding (BPDU flooding, broadcast flooding, multicast flooding,
+and unknown flooding), disabling source mac check and source learning,
+and setting SNMP host and community.
+
+For the services above, when they need to read or configure the
+underlying switches via SNMP or CLI, these queries are dealt with the
+modules SNMPHandler and CLIHandler which directly talk with the
+switches.
+
+[[design]]
+=== Design
+
+In terms of the architecture of the SNMP4SDN plugin’s features, the
+features include flow configuration, topology discovery, proprietary
+configuration, statistic retrieving, and switch/port property
+retrieving. Their architectures are as follows.
+
+[[flow-configuration]]
+==== Flow configuration
+
+FlowProgrammer implements the SAL API, IPluginInFlowProgrammerService.
+FlowProgrammer is in charge of listening to the flow given from upper
+layer and pass it to the MessageReadWriteService, which maintains
+command sending queue of the specific switch, and then SNMPHandler or
+CLIHandler will be called to send the command out to the switch.
+(SNMPHandler is to handle configurations on forwarding table, which can
+be done via SNMP, CLIHandler is to handle configurations on ACL)
+
+image:snmp4sdn_arch_flow_config.jpg[snmp4sdn_arch_flow_config.jpg,title="snmp4sdn_arch_flow_config.jpg"]
+
+*Figure. Flow configuration*
+
+[[topology-discovery]]
+==== Topology discovery
+
+A topology consists of the elements, including switches, ports, and
+edges. For the switches, in the plugin’s initialization, given a switch
+list (a switch list database file), the plugin’s core would create a
+SwitchHandler instance for every switch, and inform each SwitchHandler
+of the new switch. As for the ports of every switch, the plugin’s core
+uses SNMPHandler to query the number of ports on the switch, and inform
+the corresponding SwitchHandler of the new ports. As for edges, upon
+informed of new port, SwitchHandler calls DiscoveryService to read LLDP
+data on the switch, so the edges are finally resolved.
+
+image:SNMP4SDN_TopologyDiscovery.jpg[SNMP4SDN_TopologyDiscovery.jpg,title="SNMP4SDN_TopologyDiscovery.jpg"]
+
+*Figure. Topology discovery by resolving LLDP data on every switche*
+
+image:snmp4sdn_arch_topo_discover_update.jpg[snmp4sdn_arch_topo_discover_update.jpg,title="snmp4sdn_arch_topo_discover_update.jpg"]
+
+*Figure. Topology discovery and update*
+
+[[new-switch-detection]]
+==== New switch detection
+
+Ethernet switches were not designed to behave like OpenFlow switches to
+proactively connect to the controller, since in tradition it is not
+assumed to have a central controller above. Therefore, the approach for
+Ethernet switch to proactively notify the controller of its existence
+could be: using SNMP trap. That is, every Ethernet switch is (1)
+configured with its SNMP host (i.e. the controller’s IP address) and (2)
+configured to send SNMP trap when the switch boots up. (1) and (2) are
+supported in general and needs to be configured manually via CLI for
+only once. In this way, the controller will know a switch joining in,
+when receiving the switch’s SNMP trap of booting up.
+
+image:SNMP4SDN_SwitchDiscovery.jpg [ 500px,title=" 500px"]
+
+*Figure. Switch discovery by means of SNMP trap*
+
+[[proprietary-configuration]]
+==== Proprietary configuration
+
+To enable generic Ethernet switch to become SDN device, functions for
+decentralization purposes, such as broadcast flooding, source learning,
+etc, needs to be disabled. Especially, these functions are usually
+configured via CLI. As the figure below, ConfigService exposes all the
+proprietary functions to users, and from the user input, it retrieves
+the switch’s IP address and port number to CLIHandler. Then CLIHandler
+uses then IP address and port number to translate out a CLI command
+string. This string is passed to ExpectHandler to send to the switch.
+With this architecture, for different Ethernet switch products,
+developers only need to rewrite the vendor-specific CLI command strings
+in CLIHandler.
+
+image:snmp4sdn_arch_config_service.jpg[snmp4sdn_arch_config_service.jpg,title="snmp4sdn_arch_config_service.jpg"]
+
+*Figure. Proprietary configuration*
+
+[[statistic-retrieving]]
+==== Statistic retrieving
+
+ReadService is in charge of listening to the query from upper layer, and
+passes the request to the StatisticMangager with the target switch’s ID,
+then the specific SwitchHandler calls CLIHandler to query the switch for
+statistics.
+
+image:snmp4sdn_arch_statistic_retrive.jpg[snmp4sdn_arch_statistic_retrive.jpg,title="snmp4sdn_arch_statistic_retrive.jpg"]
+
+*Figure. Statistic retrieving*
+
+[[switchport-property-retrieving]]
+==== Switch/port property retrieving
+
+InventoryService is in charge of listening to the query from upper layer
+and call CLIHandler to request the switch for properties.
+
+[[installation-guide]]
+== Installation Guide
+
+* SNMP4SDN:Installation_Guide[Installation Guide]
+* SNMP4SDN:User_Guide#Installation_Troubleshooting[Installation
+Troubleshooting]
+
+[[configuration]]
+== Configuration
+
+SNMP4SDN:User_Guide#Configuration[User Guide: Configuration]
+
+[[tutorial-how-to]]
+== Tutorial / How-To
+
+SNMP4SDN:User_Guide#Tutorial_.2F_How-To[User Guide: Tutorial / How-To]
+
+[[command-line-interface]]
+== Command Line Interface
+
+None
+
+[[commit-the-code-via-git-cli]]
+== Commit the code via Git CLI
+
+The steps to commit code is the same with controller's project, please
+refer to
+OpenDaylight_Controller:Pulling,_Hacking,_and_Pushing_the_Code_from_the_CLI#Commit_the_code_via_Git_CLI[
+here]. Just note to replace the Git location as
+
+--------------------------------------------------------
+ssh://<username>@git.opendaylight.org:29418/snmp4sdn.git
+--------------------------------------------------------
+
+[[programmatic-interfaces]]
+== Programmatic Interface(s)
+
+* The SAL APIs SNMP4SDN plugin currently has implemented are listed
+below.
+* The usage note is also remarked.
+
+[[interface-iplugininflowprogrammerservice]]
+==== Interface IPluginInFlowProgrammerService
+
+* Status addFlow(Node node, Flow flow)
+* Status modifyFlow(Node node, Flow oldFlow, Flow newFlow)
+* Status removeFlow(Node node, Flow flow)
+* *[Note]:* for the Flow object in the APIs above,
+** The 'Match' field in the Flow: only 'Ethernet Type'
+(MatchType.DL_TYPE), 'Destination MAC Address' (MatchType.DL_DST) and
+'VLAN ID' (MatchType.DL_VLAN) are effective. If any other field is given
+value, this Flow would be regarded as a flow configuration on ACL, and
+so far this capability is under implementation.
+** The 'Action' field of the Flow: only 'Assign output port'
+(ActionType.OUTPUT) is effective. If any other kind of action is given,
+this Flow is regarded invalid.
+
+[[interface-ipluginintopologyservice]]
+==== Interface IPluginInTopologyService
+
+* void sollicitRefresh()
+** now can effectively retrieve the topology maintained the plugin
+
+[[extended-interface-iconfigservice]]
+==== Extended Interface IConfigService
+
+IConfigService is extended API, proposed by SNMP4SDN project, for
+proprietary configurations.
+
+* Status disableSTP(Node node)
+* Status disableBpduFlooding(Node node)
+* Status disableBpduFlooding(Node node, NodeConnector nodeConnector)
+* Status disableBroadcastFlooding(Node node)
+* Status disableBroadcastFlooding(Node node, NodeConnector
+nodeConnector)
+* Status disableMulticastFlooding(Node node)
+* Status disableMulticastFlooding(Node node, NodeConnector
+nodeConnector)
+* Status disableUnknownFlooding(Node node)
+* Status disableUnknownFlooding(Node node, NodeConnector nodeConnector)
+* Status disableSourceMacCheck(Node node)
+* Status disableSourceMacCheck(Node node, NodeConnector nodeConnector)
+* Status disableSourceLearning(Node node)
+* Status disableSourceLearning(Node node, NodeConnector nodeConnector)
+* *[Note]:* for the APIs above,
+** For the variables in the Node object, 'nodeType' should be "SNMP",
+and 'nodeId' should be given as the switch's ID (i.e. mac adress)
+** For the variables in the NodeConnector object, 'nodeConnectorType'
+should be "SNMP", and 'nodeConnectorID' should be given as an Short
+
+[[help]]
+== Help
+
+* SNMP4SDN:Main[ SNMP4SDN Wiki]
+* SNMP4SDN Mailing List
+(https://lists.opendaylight.org/mailman/listinfo/snmp4sdn-users[user],
+https://lists.opendaylight.org/mailman/listinfo/snmp4sdn-dev[developer],
+https://lists.opendaylight.org/mailman/listinfo/snmp4sdn-bugs[bugs],
+https://lists.opendaylight.org/mailman/listinfo/snmp4sdn-announce[announcement])
+

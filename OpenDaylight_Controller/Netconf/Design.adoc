@@ -1,0 +1,231 @@
+[[netconf-subsystem]]
+= Netconf subsystem
+
+This page contains documented design for the netconf subsystem. +
+image:Component_Netconf_All.png [ center | Component diagram for Netconf
+subsystem,title="fig: center | Component diagram for Netconf subsystem"]
+
+[[server]]
+== Server
+
+Netconf server was designed as an extensible generic netconf server
+using http://netty.io/[Netty] for async IO. The core is implemented in
+*netconf-impl* module with 2 extensions: *config-netconf-connector*
+providing RPC handles for config subsystem and *netconf-monitoring*
+providing a small set of support handles regarding
+http://tools.ietf.org/html/rfc6022[ietf-netconf-monitoring]. On top of
+*netconf-impl*, there are 2 interfaces for outside world: *netconf-tcp*
+providing a pure TCP netconf server endpoint and *netconf-ssh* providing
+SSH netconf server endpoint.
+
+[[netconf-extensions]]
+=== Netconf extensions
+
+Netconf server is just a generic, dynamic handler that delegates rpc
+execution to a collection of specific handlers provided by extensions
+like *config-netconf-connector*. Arbitrary amount of these extensions
+can be supplied for the netconf server. The discovery mechanism for such
+extensions is following:
+
+1.  Extension registers an instance of _NetconfOperationServiceFactory_
+into OSGi service registry
+2.  Netconf server listens on new registrations and retrieves every
+instance
+3.  Netconf server retrieves a list of capabilities and a list of
+operation handlers from that instance
+4.  Capabilities are added to server hello (those with schema are also
+added to netconf-monitoring#get-schema operation handler in
+netconf-monitoring)
+5.  Operations are added to the generic operation handler as delegates
+
+Note: The capabilities and handlers are retrieved at the time a new
+netconf connection is established, so even though the server is
+dynamic(extensions can appear at any time), it seems static from the
+netconf user point of view.
+
+[[netconf-interfaces]]
+=== Netconf interfaces
+
+Netconf server binds itself just to a local address (local address is
+not accessible from the outside of a VM) and allows additional
+interfaces (accessible from the outside) to be provided on top of it.
+
+[[uml-component-diagram]]
+=== UML Component diagram
+
+image:Component_Netconf_Server.png[Netconf server
+components,title="Netconf server components"]
+
+[[util]]
+== Util
+
+There are two modules that contain utility classes: *netconf-util* and
+*netconf-netty-util*.
+
+[[netconf-util]]
+=== Netconf-util
+
+Contains utilities for:
+
+* Xml handling
+* Abstract Netconf operation handlers implementation
+* Netconf message utilities
+
+[[netconf-netty-util]]
+=== Netconf-netty-util
+
+Contains netty channel handler implementations for:
+
+* Encoders/Decoders
+* Aggregators/Chunkers
+* EXI handlers
+* SSH handlers
+
+[[netconf-to-config-mapping]]
+== Netconf to config mapping
+
+*Config-netconf-connector* is an extension for the netconf server and
+provides handlers for editing and reading the data in config subsystem.
+It translates the netconf rpcs into java calls on config-subsystem. +
+ The connector connects to config subsystem using *JMX* interface, where
+it looks for _ConfigRegistry_ and uses it to edit the current state of
+configured modules.
+
+[[mapping]]
+=== Mapping
+
+Since we are using JMX, there needs to be a mapping performed between
+XML and JMX open type objects. *Config-netconf-connector* implements
+custom mapping between these types using parsed _SchemaContext_ that is
+available in the controller.
+
+[[uml-component-diagram-1]]
+=== UML Component Diagram
+
+image:Component_Config_Netconf_Connector.png[Config Netconf Connector
+components,title="Config Netconf Connector components"]
+
+[[auth]]
+== Auth
+
+The default netconf transport protocol is SSH using username/password
+authentication. The authentication process is extracted from the netconf
+SSH server into a plugin that provides authentication.
+
+[[authentication-api]]
+=== Authentication API
+
+Authentication service API definition is located in *netconf-auth*
+bundle. This bundle contains only one interface called _AuthProvider_.
+
+[[netconf-ssh-server-cooperation]]
+=== Netconf SSH server cooperation
+
+Netconf SSH server requires an implementation of _AuthProvider_ to be
+able to authenticate its users. There is no direct dependency on any
+auth implementation from SSH server. The server picks up the
+implementation from OSGi service registry after its started. In case
+there is no implementation available, the server will reject every user.
+In case there are multiple implementations registered, server will
+choose just one of them and the choice depends on an attribute
+associated with every registered implementation called:
+*org.opendaylight.controller.netconf.auth.AuthConstants.SERVICE_PREFERENCE_KEY*.
+This attribute contains a numerical value and the higher the value, the
+higher the preference for netconf server to pick that implementation.
+
+[[authentication-implementations]]
+=== Authentication Implementations
+
+Currently there are 2 implementations for netconf authentication.
+
+[[usermanager]]
+==== Usermanager
+
+*Deprecated* implementation using authentication mechanism provided by
+OpenDaylight_Controller:AD-SAL[AD-SAL] called _UserManager_. This
+implementation requires AD-SAL infrastructure in order to provide
+authentication for netconf. This implementation is deprecated in favor
+of AAA implementation. Located in bundle *netconf-usermanager* and part
+of netconf subsystem in controller project.
+
+[[aaa-project]]
+==== AAA project
+
+Current implementation using authentication mechanism provided by the
+AAA:Main[AAA project]. Located in bundle *aaa-authn-odl-plugin* and part
+of AAA project.
+
+[[uml-component-diagram-2]]
+=== Uml Component Diagram
+
+image:Component Netconf Authentication.png[Netconf Auth
+components,title="Netconf Auth components"]
+
+[[monitoring]]
+== Monitoring
+
+Netconf-monitoring is an extension for the netconf server and provides
+http://tools.ietf.org/html/rfc6022[ietf-netconf-monitoring] capability
+as well as handlers for get-schema(this handler is still located in
+*netconf-impl* module, needs to be moved) and get operation.
+
+Note: Get operation handler is also provided by
+config-netconf-connector, but netconf server allows multiple operations
+to take part in forming of the response. Get from netconf monitoring
+just adds the netconf-state subtree to the response.
+
+[[netconf-monitoring-current-netconf-server-state-retrieval]]
+=== Netconf monitoring current netconf server state retrieval
+
+*Netconf-monitoring* module provides information about current state of
+the netconf server e.g. sessions. However these information needs to be
+retrieved first from the netconf server. Netconf server exposes such
+information with a service named NetconfMonitoringService. This service
+is registered into OSGi service registry and located by the netconf
+monitoring when its started.
+
+[[ietf-netconf-monitoring]]
+=== Ietf netconf monitoring
+
+Modules *ietf-netconf-monitoring* and
+*ietf-netconf-monitoring-extension* contain yang modules for
+ietf-netconf-monitoring with a small extension and generated java
+classes.
+
+[[uml-component-diagram-3]]
+=== UML Component Diagram
+
+image:Component Netconf Monitoring.png[Netconf Monitoring
+components,title="Netconf Monitoring components"]
+
+[[config-persister-impl]]
+== Config persister impl
+
+Config persister is component responsible for loading initial
+configuration and persisting changed configuration in the controller.
+Detailed information about persister implementation can be found at
+OpenDaylight_Controller:Config:Configuration:Initial[Initial config
+documentation]. +
+ Only the implementation *config-persister-impl* is part of
+netconf-subsystem. The rest of the components is located in
+config-subsystem. The reason is that config-persister-impl hooks to
+netconf for receiving notifications about changed config.
+
+[[uml-component-diagram-4]]
+=== UML Component Diagram
+
+image:Component_Config_Persister_Impl.png[Config persister
+components,title="Config persister components"]
+
+[[cli]]
+== Cli
+
+Cli is a prototype for netconf cli using existing code from
+netconf-client as well as sal-netconf-connector. Its development is on
+hold.
+
+[[testtool]]
+== Testtool
+
+The testtool is just a small application that produces executable jar
+file. It is built using existing code for netconf-server.

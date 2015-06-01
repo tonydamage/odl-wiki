@@ -9,6 +9,20 @@ Specification.
 [[general-mapping]]
 == General mapping
 
+[[style-guide]]
+=== Style Guide
+
+We desperately need a style guide to help make the naming of things
+clearer both in YANG and in the generate bindings. Some initial ideas:
+
+* All groupings SHOULD end in "-attributes"
+** A more relaxed form would be ending in "-attribute", "--attributes",
+"-property", or "-properties".
+* All list names SHOULD be singular as the name applies to the items not
+the list.
+* All lists SHOULD reside inside a container. The container is the name
+of the list.
+
 [[conflict-between-grouping-identities-type-definitions-and-data-objects-with-same-name]]
 === Conflict between grouping, identities, type definitions and data
 objects with same name
@@ -35,6 +49,69 @@ data object.
 
 Any code using YANG modeled entities, simple reimport of Java interfaces
 will fix the change, estimated update is 1MD per application.
+
+[[generated-types-should-be-usable-independent-of-the-md-sal]]
+=== Generated Types Should be Usable Independent of the MD-SAL
+
+Modeling and modeled types have intrinsic value beyond being able to be
+stored in the MD-SAL and we should not tie this benefit directly to the
+MD-SAL. Some examples follow.
+
+[[groupings-cannot-be-instantiated]]
+==== Groupings Cannot be Instantiated
+
+Currently, because it is impossible to store a bare grouping in the
+MD-SAL, we do not generate builders for them.
+
+[[proposed-solution-1]]
+===== Proposed Solution
+
+It should be possible to build and use groupings directly as types in
+Java even though there is no place to store them in the MD-SAL. They are
+still useful constructs to have around and use in Java. The can be
+prevented from being stored in the MD-SAL by having the builders not
+produce objects that implement `DataObject`.
+
+[[a-schema-for-modeled-types-cannot-be-uniquely-identified-without-a-path]]
+==== A Schema for Modeled Types Cannot be Uniquely Identified Without a
+Path
+
+To find the correct schema for a modeled type requires an ordered list
+of `QName`s because the `QName`s because we assume all modeled objects
+will be stored in the MD-SAL and thus have a corresponding path which
+can identify the right schema. This assumption has been baked in by
+allowing for different types to have the same `QName` as long as the
+path will be able to disambiguate them.
+
+[[proposed-solution-2]]
+===== Proposed Solution
+
+The static `QName` stored in every interface must be unique and utility
+functions and/or services provided to find the schema using that `QName`
+explicitly (by passing the `QName`) and/or implicitly (by having the
+utility/service look up the `QName` in the object).
+
+[[ability-to-alias-a-field]]
+=== Ability to Alias a Field
+
+It would be useful (especially as we change models) to alias a field in
+YANG so that it gets two accessors in it's binding. This allows for a
+field to be renamed in YANG but retain the older accessor in the
+binding. An option to make the old accessor deprecated (possibly by
+default) would likely also make sense.
+
+This is also particularly useful if we make the Java interface bindings
+for Augmentations extend the Java interfaces for the things the augment
+as described below in [#Augmentation Mapping]. For example, if the is a
+`HostNode` augmentation of `Node` in the network-topology model, it
+would be useful to be able to provide a more meaningful name for
+`list termination-point`, i.e., `list attachment-point`.
+
+[[proposed-solution-3]]
+==== Proposed Solution
+
+This could be done via a YANG extension defining both the original filed
+name and proposed alias name.
 
 [[simple-types-mapping]]
 == Simple types mapping
@@ -170,6 +247,95 @@ Any code which accessed leaf list items directly from parent node, any
 code which constructed nodes containing leaf lists and filled out leaf
 list.
 
+[[list-naming]]
+=== List Naming
+
+It the names of the binding generated classes for lists and the
+accessors for those lists are such that one or the other is confusingly
+named. For example a list declared like:
+
+`container book {` +
+`  list books {` +
+`    leaf name {` +
+`      type string;` +
+`    }` +
+`  }` +
+`}`
+
+Will create an Interface named `Book` with a method called `getBooks()`,
+which returns `List<Books>` along with the interface `Books` with a
+method `getName()`, which returns `String`. The result is that either
+the accessor for the list or the item in the list has the wrong
+pluralization.
+
+[[possible-solutions]]
+==== Possible Solutions
+
+1.  *Do the right (de)pluralization in the binding interface.* That is,
+use the plural form in the accessor and the singular form for the item
+name.
+* A simple version could simply check for the presence or lack of an 's'
+at the end and add or remove it as needed.
+* Downsides:
+1.  Field names aren't quite as obviously named—they might have an extra
+or missing 's'.
+2.  Automated (de)pluralization isn't going to always work, e.g.,
+address(es)
+** However, it would be pretty easy to define a yang extension that
+would allow people to express what they wanted the singular/plural to be
+in their model in these cases.
+2.  *Add "List" to the end of list acessors.* In this case, the list
+name would be encouraged to be singular. In the example above, we would
+change the YANG to say `list book`. The accessor for the list would be
+`getBookList()` and the interface for an item in that list would be
+`Book`.
+* In this case, it might also make sense to ask if we can add extra
+keywords to yang, "listof" and "leaf-listof", as alises for "list" and
+"leaf-list" to make things read a bit better.
+* Downsides:
+1.  This would make it possible for a model to define `book` and
+`book-list` in the same region and have a name collision.
+** Solutions to this would likely work as described below in
+link:#Binding-Specification_specific_properties[#Binding-Specification
+specific properties]
+
+[[augmentation-mapping]]
+=== Augmentation Mapping
+
+It is cumbersome to get from an augmentation type to the type which it
+augments. To do so requires, issuing another query to the MD-SAL data
+store and then you must use the two types separately even though they
+should logically be one object.
+
+[[possible-solutions-1]]
+==== Possible Solutions
+
+1.  *Have augmentation bindings extend the binding for the thing they
+augment.* This would allow for the whole logical object to be accessed
+cleanly because all the methods of both the base and the augmentation
+will be present.
+* Downsides:
+1.  You can't build objects with multiple augmentations in the same way
+we do today unless you generate 2^n builders whenever a class has n
+augmentations. The only alternative would be to use
+
+runtime code generation to have the builder's `addAugmentation()` method
+dynamically add additional interfaces to the object being built.
+
+::# Critical Downside: Object could not implement two different
+augmentations with same named leafs / containers (e.g. one adds
+container foo, other one leaf foo of type string). Proposed solution
+will kill heap with class definitions.
+
+1.  *Provide a function that returns the thing the augmentation
+augmented.* This isn't quite as clean, but is likely a lot easier to
+provide.
+* Downsides:
+1.  Not quite as clean because you have to do something like
+`getAugmented().getField()` instead of just `getField()`
+2.  Queries to the data store must now walk both "up" and "down" the
+augmentation tree when they return values.
+
 [[binding-specification-specific-properties]]
 == Binding-Specification specific properties
 
@@ -187,7 +353,7 @@ Properties currently defined by YANG Binding:
 * implementedInterface, getImplementedInterface() - low possibility of
 collision
 
-[[proposed-solution-1]]
+[[proposed-solution-4]]
 ==== Proposed solution
 
 Solution is to not use get prefix for properties defined by Binding
@@ -202,4 +368,26 @@ call of method to implementedInterface().
 entities, this would require change in lot of code. Changes could be
 minimized by still generating deprecated getKey(),setKey() for YANG
 entities where there is no conflict.
+
+[[other-ideas-for-improving-the-v2-binding-spec]]
+== Other ideas for improving the v2 Binding Spec
+
+Please add other ideas for improving the v2 Binding Spec here:
+
+[[complete-augment-types]]
+=== Complete Augment Types
+
+1.  *Suggester* - Ed Warnicke IRCHandle: edwarnicke
+2.  *Suggestions* - An Augmentation Type should implement the interface
+for the type it is augmenting, in addition to
+
+the interface of the new fields for the augmentation.
+
+[[tostring-method-of-a-type-should-return-a-string-representation-of-_value]]
+=== toString method of a type should return a string representation of
+_value
+
+1.  *Suggester* - Dave Tucker IRC: dave_tucker
+2.  *Suggestions* - The toString method should return a string
+representation of _value
 

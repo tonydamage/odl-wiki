@@ -22,13 +22,43 @@ The goal of this wiki is to:
 We agreed we are going to start with following performance metrics:
 
 * Inventory Scalability:
-** Max number of OF switches and ports
-** Time/CPU/RAM consumed in learning switches, ports and topology
+** Standalone Box
+*** Max number of OF switches and ports
+*** Max number of links
+*** Max number of network hosts
+*** Max number of REST calls per second
+*** Time/CPU/RAM consumed in learning switches, ports and topology
+** Clustering Scalability
+*** Max number of Controller Nodes in cluster.(What is the maximum
+value?)
+*** Max number of OF switches and ports
+*** Max number of Links
+*** Max number of hosts
+*** Max number of REST calls per second
+*** Time/CPU/RAM consumed in learning switches, ports and topology
 
 * Flow performance:
-** Max number of flows in memory
-** Max flows/sec we can process
-** Time/CPU/RAM consumed in pushing flows
+** Max flows/sec we can process for OF1.0
+** Max flows/sec we can process for OF1.3
+** Packet latency in OF1.0
+** Packet latency in OF1.3
+** Flow performance in clustered environment
+** Layer 2 switch performance (As a factor of number of switches in the
+path)
+** Time/CPU/RAM consumed in above cases
+
+* REST Performance
+** REST Call latency
+** SOUTHBOUND REST Call Latency (Eg: Time to install a flow on a switch)
+
+* Datastore Performance
+** Max data writes per second
+** Max data reads per second
+** Data read/write performance in a clustered environment
+*** Read performance on a Leader.
+*** Write performance on a Leader.
+*** Read performance on a Follower.
+*** Write performance on a Follower.
 
 [[controller-baseline]]
 == Controller Baseline
@@ -41,152 +71,581 @@ configuration for all performance test:
 ** CPU: 4 Cores
 ** RAM: 6 GB
 ** OS: Linux Server (no Desktop) is recommended. Report used OS when
-publishing results
+publishing results.
 
 * Controller configuration:
-** Use controller Base edition. See
+** Use ODL Helium (Karaf). See
 CrossProject:Integration_Group:Controller_Artifacts[Controller Artifacts
 for testing]
-** ODL Log level set to ERROR, edit
-opendaylight/configuration/logback.xml
-** Optional: To enable new datastore edit file
-opendaylight/config/initial/01-md-sal.xml and follow instructions in the
-file comments (comment everything within the DATA-BROKER comments and
-uncomment everything within the NEW-DATA-BROKER comments)
-** Enable OF plugin with -of13 option: *run.sh -of13*
-** Set Java memory: Min=4G, Max=4G, in run.sh we have to add following
-JVM options:
+** Set the ODL log level to ERROR by editing
+etc/org.ops4j.pax.logging.cfg, replacing `rootLogger=INFO` with
+`rootLogger=ERROR`
+** Set the minimum and maximum heap size to 4G. When min and max are the
+same, there will be no dynamic heap allocation. If increasing to higher
+values, increase both at same time for better performance.
+** Use G1GC garbage collection strategy.
+***
+http://www.oracle.com/webfolder/technetwork/tutorials/obe/java/G1GettingStarted/index.html[Getting
+Started with the G1GC Garbage Collector]
+***
+http://www.slideshare.net/MonicaBeckwith/garbage-first-garbage-collector-g1-gc-migration-to-expectations-and-advanced-tuning[Garbage
+First Garbage Collector (G1 GC) - Migration to, Expectations and
+Advanced Tuning]
 
---------------------------------------------------------------------------------------------------------------------------------
-run.sh -Xmx4G -XX:+UseG1GC -XX:MaxPermSize=512m -Xms4G    
+[[performance-tools-overview]]
+== Performance Tools Overview
 
-# Minimum heap size 4G and maximum heap size 4G. When min and max are the same, there will be no dynamic heap allocation. 
-  When increasing to higher values, increase both at same time for better performance 
-# Use G1GC garbage collection strategy. 
-  Getting Started with the G1GC Garbage Collector: 
-    http://www.oracle.com/webfolder/technetwork/tutorials/obe/java/G1GettingStarted/index.html 
-  Garbage First Garbage Collector (G1 GC) - Migration to, Expectations and Advanced Tuning: 
-    http://www.slideshare.net/MonicaBeckwith/garbage-first-garbage-collector-g1-gc-migration-to-expectations-and-advanced-tuning
+[[actively-used-or-under-active-development]]
+=== Actively Used or Under Active Development
 
+[[wcbench]]
+==== WCBench
 
+https://github.com/dfarrell07/wcbench[WCBench] consumes CBench as a
+library, then builds a robust test automation, stats collection and
+stats analysis/graphing system around it. Using WCBench, instead of
+CBench directly, is strongly recommended. Please see the
+https://github.com/dfarrell07/wcbench/blob/master/README.md[WCBench
+README] for detailed documentation.
 
-# OutOfMemoryError crashes when MACs and Switches count are increased in CBench cmdline args
---------------------------------------------------------------------------------------------------------------------------------
+[[restconf-performance-scale-tools]]
+==== RESTCONF Performance & Scale Tools
 
-[[performance-tools]]
-== Performance tools
+Set of tools to measure the controller performance and scale through its
+NorthBound API. The tools can be used interactively (from command line)
+or programmatically (called from scripts). Detailed description can be
+found here.
 
-* *Mininet*
+[[mininet]]
+==== Mininet
 
 Available at http://mininet.org[mininet.org] and also installed in the
 CrossProject:Integration_Group:Test_VMs[Test VMs]. Mininet simulates a
-topology of openflow switches connected each other and also hosts
+topology of OpenFlow switches connected each other and also hosts
 attached to them. This tool can be used for inventory performance by
 increasing the number of switches and ports in the topology. It also
 allows custom configurations so that we can create topologies close to
 real scenarios (i.e. data centers)
 
-* *Cbench*
+[[additional-tools]]
+=== Additional Tools
+
+[[cbench]]
+==== CBench
 
 Available at
 http://www.openflowhub.org/display/floodlightcontroller/Cbench+(New)[Openflowhub]
 and also installed in the CrossProject:Integration_Group:Test_VMs[Test
-VMs]. Cbench emulates a bunch of openflow switches which connect to a
+VMs]. CBench emulates a bunch of OpenFlow switches which connect to a
 controller, send packet-in messages, and watch for flow-mods to get
-pushed down. This tool can be used for flow performance
+pushed down. The recommended way to use CBench is through
+https://github.com/dfarrell07/wcbench[WCBench].
 
-* *Enhanced Cbench*
+[[enhanced-cbench]]
+==== Enhanced Cbench
 
 We can use Cbench with Performance test scripts created by Michal Rehak
 to generate a 2D/3D plot with Gnuplot. Check instructions in
 CrossProject:Integration_Group:Performance_Test_Enhanced_Cbench[Enhanced
 CBench Test]
 
-* *Jconsole*
+[[jconsole]]
+==== Jconsole
 
 With Jconsole it is possible to monitor CPU and RAM for a Java process.
 Instructions on how to start the Jconsole are available
 Media:Jconsole.pdf[here].
 
-* *Yourkit*
+[[yourkit]]
+==== Yourkit
 
 This tool can be used to monitor CPU and RAM per Java bundle, problem is
 that it is not free.
 
-* *Jenkins Monitoring plugin*
+[[performance-tools-details]]
+== Performance Tools Details
 
-Jenkins can also monitor CPU and RAM on slave nodes (like controller VM)
-through
-https://wiki.jenkins-ci.org/display/JENKINS/Monitoring[Monitoring
-plugin]
+[[wcbench-1]]
+=== WCBench
 
-[[cbench-setup]]
-=== CBench Setup
+The authoritative source for WCBench documentation is the
+https://github.com/dfarrell07/wcbench/blob/master/README.md[README] in
+its https://github.com/dfarrell07/wcbench[GitHub repo].
 
-The https://github.com/andi-bigswitch/oflops[OFLOPS/CBench READMEs] are
-quite short on details.
-http://www.openflowhub.org/display/floodlightcontroller/Cbench+(New)[This
-page] is a fairly useful resource, but the steps below are more succinct
-and give additional explanation.
+[[installing-cbench-and-opendaylight]]
+==== Installing CBench and OpenDaylight
 
-According to the OFLOPS README, _net-snmp-devel_ and _libpcap-devel_ are
-required dependencies. Starting from a clean Fedora 20 install, you'll
-also need _autoconf_, _automake_, _libtool_ and _libconfig-devel_ to get
-CBench built. Git is required for the install process:
+---------------------------------------------------
+[fedora@dfarrell-wcbench wcbench]$ ./wcbench.sh -ci
+CBench is not installed
+Installing CBench dependencies
+Cloning CBench repo
+Cloning openflow source code
+Building oflops/configure file
+Building CBench
+CBench is installed
+Successfully installed CBench
+Installing OpenDaylight dependencies
+Downloading last successful ODL build
+Unzipping last successful ODL build
+Downloading openflowplugin
+Removing simpleforwarding plugin
+Removing arphandler plugin
+---------------------------------------------------
 
------------------------------------------------------------------------------------------------------
-[~]$ sudo yum install net-snmp-devel libpcap-devel autoconf make automake libtool libconfig-devel git
------------------------------------------------------------------------------------------------------
+[[starting-opendaylight]]
+==== Starting OpenDaylight
 
-CBench lives in the OFLOPS repo, so you'll need to clone that repo to
-your local system. The _--recursive_ flag pulls down the project's
-submodule in the same step (submodule seems to be optional):
+-------------------------------------------------------------------
+[fedora@dfarrell-wcbench wcbench]$ ./wcbench.sh -o
+Starting OpenDaylight
+Giving ODL 90 seconds to get up and running
+80 seconds remaining
+70 seconds remaining
+60 seconds remaining
+50 seconds remaining
+40 seconds remaining
+30 seconds remaining
+20 seconds remaining
+10 seconds remaining
+0 seconds remaining
+Installing telnet, as it's required for issuing ODL config.
+Issuing `dropAllPacketsRpc on` command via telnet to localhost:2400
+Trying ::1...
+Connected to localhost.
+Escape character is '^]'.
+osgi> dropAllPacketsRpc on
+DropAllFlows transitions to on
+osgi> Connection closed by foreign host.
+-------------------------------------------------------------------
 
------------------------------------------------------------------------
-[~]$ git clone --recursive https://github.com/andi-bigswitch/oflops.git
------------------------------------------------------------------------
+[[running-a-test]]
+==== Running a Test
 
-Go ahead and build the submodule (seems to be optional):
+--------------------------------------------------------------------
+[fedora@dfarrell-wcbench wcbench]$ ./wcbench.sh -t 2 -r
+Set MS_PER_TEST to 120000, TESTS_PER_SWITCH to 1, CBENCH_WARMUP to 0
+Collecting pre-test stats
+Running CBench against ODL on localhost:6633
+Collecting post-test stats
+Collecting time-irrelevant stats
+Average responses/second: 22384.52
+/home/fedora/results.csv not found or empty, building fresh one
+--------------------------------------------------------------------
 
------------------------------------------------------------
-[~/oflops/netfpga-packet-generator-c-library]$ ./autogen.sh
-[~/oflops/netfpga-packet-generator-c-library]$ ./configure 
-[~/oflops/netfpga-packet-generator-c-library]$ make
------------------------------------------------------------
+[[generating-stats]]
+==== Generating Stats
 
-You'll need the OpenFlow source code, as CBench must be pointed at it
-during the build (this is 1.0, 1.3 currently breaks the CBench build):
+------------------------------------------------------------------------------
+[~/wcbench]$ ./stats.py -S
+{'fifteen_load': {'max': 0,
+                  'mean': 0.62,
+                  'min': 0,
+                  'relstddev': 0.0,
+                  'stddev': 0.0},
+ 'five_load': {'max': 0,
+               'mean': 0.96,
+               'min': 0,
+               'relstddev': 0.0,
+               'stddev': 0.0},
+ 'flows': {'max': 22384,
+           'mean': 22384.52,
+           'min': 22384,
+           'relstddev': 0.0,
+           'stddev': 0.0},
+ 'iowait': {'max': 0, 'mean': 0.0, 'min': 0, 'relstddev': 0.0, 'stddev': 0.0},
+ 'one_load': {'max': 0,
+              'mean': 0.85,
+              'min': 0,
+              'relstddev': 0.0,
+              'stddev': 0.0},
+ 'runtime': {'max': 120,
+             'mean': 120.0,
+             'min': 120,
+             'relstddev': 0.0,
+             'stddev': 0.0},
+ 'sample_size': 1,
+ 'steal_time': {'max': 0,
+                'mean': 0.0,
+                'min': 0,
+                'relstddev': 0.0,
+                'stddev': 0.0},
+ 'used_ram': {'max': 3657,
+              'mean': 3657.0,
+              'min': 3657,
+              'relstddev': 0.0,
+              'stddev': 0.0}}
+------------------------------------------------------------------------------
 
-------------------------------------------------------
-[~]$ git clone git://gitosis.stanford.edu/openflow.git
-------------------------------------------------------
+[[generating-graphs]]
+==== Generating Graphs
 
-Use the _oflops/boot.sh_ script to build an _oflops/configure_ file:
+-----------------------
+./stats.py -g flows ram
+-----------------------
+
+image:WCBench_graphed_results.png[ 800 px,title=" 800 px"]
+
+[[restconf-performance-scale-tools-1]]
+=== RESTCONF Performance & Scale Tools
+
+This is collection of Python scripts that can be used to measure
+controller's performance and scale. The performance tests in this suite
+use ODL's RESTCONF API to add/delete flows into/from ODL's configuration
+data store. Scripts in this test suite can be used for interactive
+performance testing or re-used in other scripts. The test suite allows
+users to experiment with different parameters that may impact
+controller's performance.
+
+The test suite contains the following scripts:
+
+* *inventory_crawler.py*: Retrieves all openflow nodes from either the
+config data store or the operational data store and prints out a summary
+of flow and table statistics for each node in the network. Depending on
+the print level specified in a command line option, the summary can
+shows the overall number of flows in the network, the number of flows in
+each node, or detailed data for each flow. The script is useful with
+larger number of flows, where megabytes of data are returned by the
+controller and the REST utilities such as curl becomes difficult to
+interpret.
+
+* *flow_config_blaster.py*: Adds and deletes ("blasts") flows into ODL's
+config space. Command line options control the number of "blaster"
+threads, the number of blast cycles, the number of flows blasted in each
+cycle by each thread, etc. flow_config_blaster.py contains the
+_FlowConfigBlaster_ class that is reusable in other tests, such as in
+flow_add_delete_test.py
+
+* *flow_config_blaster_fle.py*: "FlowConfigBlaster Floodlight Edition" -
+the same as flow_config_blaster, but for the Floodlight controller.
+
+* *config_cleanup.py*: cleans up the config data store by deleting the
+entire inventory.
+
+* *flow_add_delete_test.py*: adds/deletes ("blasts") flows into ODL's
+config space. Similar to the flow_config_blaster (in fact,
+FlowConfigBlaster is used in this test), but has more advanced handling
+of the add/delete phases. The test executes in three steps:
+** The specified number of flows is added in the 'add cycle' (uses
+flow_config_blaster to blast flows)
+** The network is polled for flow statistics from the network (using
+inventory_crawler) to make sure that all flows have been properly
+programmed into the network *and stats can properly read them
+** The flows are deleted in the flow cycle (either in 'bulk' using the
+config_cleanup script or one by one using the flow_config_blaster)
+
+* *pretty_print.py*: a simple utility to format JSON output from the
+controller into a human-readable form (the controller outputs everything
+in a single line, so if you use curl and are getting anything beyond
+trivial, reading the output is quite difficult).
+
+* multi_blaster.sh: a shell utility that can start multiple
+FlowConfigBlasters simultaneously. Even though FlowConfigBlaster is
+multithreaded, because of the global interpreter lock it takes multiple
+simultaneously running FlowConfigBlasters to fully utilize the
+controller's flow processing capacity.
+
+[[how-to-download]]
+==== How to Download
+
+The utilities are located in the integration project Git.
 
 --------------------------------------------------------------------------------
-[~/oflops]$ test -e configure && echo "File exists" || echo "File doesn't exist"
-File doesn't exist
-[~/oflops]$ ./boot.sh
-<snip>
-[~/oflops]$ test -e configure && echo "File exists" || echo "File doesn't exist"
-File exists
+git clone https://git.opendaylight.org/gerrit/p/integration.git
+cd integration/test/tools/odl-mdsal-clustering-tests/clustering-performance-test
 --------------------------------------------------------------------------------
 
-You can now build OFLOPS:
+[[prerequisites]]
+==== Prerequisites
 
----------------------------------------------------------------------------------
-[~/oflops]$ ./configure --with-openflow-src-dir=/absolute/path/to/openflow/source
-[~/oflops]$ make
-[~/oflops]$ sudo make install
-[~/oflops]$ whereis cbench
-/usr/local/bin/cbench
----------------------------------------------------------------------------------
+* Python 2.7
+* Packages not commonly installed:
+** http://docs.python-requests.org/en/latest/[requests]
+** https://pypi.python.org/pypi/netaddr[netaddr]
 
-[[test-cases]]
-== Test Cases
+To install the above libraries, type for example:
 
-[[mininet-test]]
-=== Mininet Test
+-------------------------
+sudo pip install requests
+sudo pip install netaddr
+-------------------------
+
+[[inventory-crawler]]
+==== Inventory Crawler
+
+To see the command line options, type:
+
+----------------------------
+> ./inventory_crawler --help
+----------------------------
+
+You'll see the following output:
+
+------------------------------------------------------------------------------
+usage: inventory_crawler.py [-h] [--odlhost ODLHOST] [--odlport ODLPORT]
+                            [--plevel PLEVEL]
+                            [--datastore {operational,config}] [--no-auth]
+                            [--auth] [--debug]
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --lhost ODLHOST     host where odl controller is running (default is
+                        127.0.0.1)
+  --port ODLPORT     port on which odl's RESTCONF is listening (default is
+                       8181)
+  --plevel PLEVEL       Print Level: 0 - Summary (stats only); 1 - Node names;
+                        2 - Node details;3 - Flow details
+  --datastore {operational,config}
+                        Which data store to crawl; default operational
+  --no-auth             Do not use authenticated access to REST (default)
+  --auth                Use authenticated access to REST (username: 'admin',
+                        password: 'admin').
+  --debug               List nodes that have not provided proper statistics
+                        data
+------------------------------------------------------------------------------
+
+*Examples:*
+
+* To show a summary of all flows present in all openflow switches in the
+network, type:
+
+------------------------------------------
+> ./inventory_crawler.py --plevel=1 --auth
+------------------------------------------
+
+NOTE: REST authentication is turned by default in ODL Helium. To use
+authenticated REST, you have to specify the '--auth' switch in the
+command line.
+
+* To show a summary of all flows programmed into the config data store,
+type:
+
+-------------------------------------------------------------
+> ./inventory_crawler.py --plevel=1 --datastore=config --auth
+-------------------------------------------------------------
+
+[[flow-config-blaster]]
+==== Flow Config Blaster
+
+To see the command line options, type:
+
+-----------------------------------
+  > ./flow_config_blaster.py --help
+-----------------------------------
+
+You'll see the following output:
+
+------------------------------------------------------------------------------
+usage: flow_config_blaster.py [-h] [--host HOST] [--port PORT]
+                              [--cycles CYCLES] [--threads THREADS]
+                              [--flows FLOWS] [--nodes NODES] [--delay DELAY]
+                              [--delete] [--no-delete] [--auth]
+                              [--startflow STARTFLOW] [--file FILE]
+
+Flow programming performance test: First adds and then deletes flows into the
+config tree, as specified by optional parameters.
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --host HOST        Host where odl controller is running (default is
+                        127.0.0.1)
+  --port PORT        Port on which odl's RESTCONF is listening (default is
+                        8181)
+  --cycles CYCLES  Number of flow add/delete cycles; default 1. Both Flow
+                        Adds and Flow Deletes are performed in cycles.
+                        <THREADS> worker threads are started in each cycle and
+                        the cycle ends when all threads finish. Another cycle
+                        is started when the previous cycle finished.
+  --threads THREADS     Number of request worker threads to start in each
+                        cycle; default=1. Each thread will add/delete <FLOWS>
+                        flows.
+  --flows FLOWS         Number of flows that will be added/deleted by each
+                        worker thread in each cycle; default 10
+  --nodes NODES         Number of nodes if mininet is not connected;
+                        default=16. If mininet is connected, flows will be
+                        evenly distributed (programmed) into connected nodes.
+  --delay DELAY         Time (in seconds) to wait between the add and delete
+                        cycles; default=0
+  --delete              Delete all added flows one by one, benchmark delete
+                        performance.
+  --no-delete           Do not perform the delete cycle.
+  --auth                Use the ODL default username/password 'admin'/'admin'
+                        to authenticate access to REST; default: no
+                        authentication
+  --startflow STARTFLOW
+                        The starting Flow ID; default=0
+  --file FILE           File from which to read the JSON flow template;
+                        default: no file, use a built in template.
+------------------------------------------------------------------------------
+
+NOTE: The 'startflow' command line parameter is used with multiple
+flow_config_blasters blasting flows at the same ODL instance. With
+Python's GIL any given blaster can not use more than one CPU even when
+multiple blaster threads are specified. Therefore, multiple blaster
+processes must be used to test ODL's performance limits. The 'startflow'
+parameter gives each blaster process its own flow id space so that each
+injects unique flows into ODL's config data store.
+
+NOTE: You don't have to be connected to mininet (or another openflow
+network, for that matter) to use this script. If ODL is connected to an
+openflow network, flow_config_blaster will evenly distribute flows
+across the network.If ODL is not connected to a network, flows are only
+stored in the config data store (i.e. nodes that may connect at some
+point in the future are in effect "preconfigured"). The not-connected
+mode can be used to test the performance of the data store and the REST
+subsystems. The 'nodes' parameter determines the number of nodes that
+are "pre-programmed" with flows in the non-connected mode.
+
+*Examples:*
+
+* To put 5000 flows into ODL running on the same node as the script
+type:
+
+-------------------------------------------------------------
+   > ./flow_config_blaster.py --flows=5000 --auth --no-delete
+-------------------------------------------------------------
+
+NOTE: The flows will not be deleted, since the 'no-delete- option was
+used. Use config_cleanup.py to deletete the flows.
+
+* To use 5 threads to put 5000 flows into ODL running on the same node
+as the script type:
+
+-------------------------------------------------------------------------
+   > ./flow_config_blaster.py --threads=5 --flows=1000 --auth --no-delete
+-------------------------------------------------------------------------
+
+NOTE: each thread will put 1000 flows, and all 5 threads will work
+simultaneously.
+
+* To first put and then delete 5000 flows into ODL running on the same
+node as the script, type:
+
+------------------------------------------------
+  > ./flow_config_blaster.py --flows=5000 --auth
+------------------------------------------------
+
+* To use 5 threads to first put and then delete 5000 flows into ODL
+running on the same node as the script type:
+
+------------------------------------------------------------
+  > ./flow_config_blaster.py --threads=5 --flows=1000 --auth
+ 
+------------------------------------------------------------
+
+NOTE: 5 threads are used to both add and delete flows
+
+* To use 5 threads to first put and then delete 5000 flows into ODL in
+10 add/delete cycles, type:
+
+-----------------------------------------------------------------------
+  > ./flow_config_blaster.py --threads=5 --flows=100 --cycles=10 --auth
+-----------------------------------------------------------------------
+
+`NOTE: 5 threads are used to both add and delete flows. `
+
+`NOTE: Both Add and Delete are performed in the same number of cycles, (10 in this example). 5 worker threads are started in each cycle and the cycle ends when all threads finish.  Cycles are useful to determine performance degradation with increasing` +
+`number of flows in the datastore and in the network. `
+
+* To put and then delete 1000 flows with nicira match and action
+extensions, type:
+
+----------------------------------------------------------------------------
+  >./flow_config_blaster.py --flows=1000 --auth --file=./nicira-ext-all.json
+----------------------------------------------------------------------------
+
+NOTE: json for flow adds will be taken from the file
+'nicira-ext-all.json'
+
+[[configuration-cleanup]]
+==== Configuration Cleanup
+
+----------------------------------------
+* To see the command line options, type:
+  > ./config_cleanup.py --help
+----------------------------------------
+
+--------------------------------------------------------------------------
+usage: config_cleanup.py [-h] [--odlhost ODLHOST] [--odlport ODLPORT]
+                         [--no-auth] [--auth]
+
+Cleans up the config space
+
+optional arguments:
+  -h, --help         show this help message and exit
+  --odlhost ODLHOST  host where odl controller is running (default is
+                     127.0.0.1)
+  --odlport ODLPORT  port on which odl's RESTCONF is listening (default is
+                     8181)
+  --no-auth          Do not use authenticated access to REST (default)
+  --auth             Use authenticated access to REST (username: 'admin',
+                     password: 'admin').
+ 
+--------------------------------------------------------------------------
+
+[[flow-adddelete-test]]
+==== Flow Add/Delete Test
+
+To see the command line options, type:
+
+------------------------------------------------------------------------------
+  >./flow_add_delete_test.py --help
+
+usage: flow_add_delete_test.py [-h] [--host HOST] [--port PORT]
+                               [--flows FLOWS] [--cycles CYCLES]
+                               [--threads THREADS] [--nodes NODES]
+                               [--delay DELAY] [--timeout TIMEOUT] [--delete]
+                               [--bulk-delete] [--auth]
+                               [--startflow STARTFLOW]
+
+Flow programming performance test: First adds and then deletes flows into the
+config tree, as specified by optional parameters.
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --host HOST           Host where odl controller is running (default is
+                        127.0.0.1)
+  --port PORT           Port on which odl's RESTCONF is listening (default is
+                        8181)
+  --cycles CYCLES       Number of flow add/delete cycles; default 1. Both Flow
+                        Adds and Flow Deletes are performed in cycles.
+                        <THREADS> worker threads are started in each cycle and
+                        the cycle ends when all threads finish. Another cycle
+                        is started when the previous cycle finished.
+  --threads THREADS     Number of request worker threads to start in each
+                        cycle; default=1. Each thread will add/delete <FLOWS>
+                        flows.
+  --flows FLOWS         Number of flows that will be added/deleted by each
+                        worker thread in each cycle; default 10
+  --nodes NODES         Number of nodes if mininet is not connected;
+                        default=16. If mininet is connected, flows will be
+                        evenly distributed (programmed) into connected nodes.
+  --delay DELAY         Time (seconds) to between inventory polls when waiting
+                        for stats to catch up; default=1
+  --timeout TIMEOUT     The maximum time (seconds) to wait between the add and
+                        delete cycles; default=100
+  --delete              Delete all added flows one by one, benchmark delete
+                        performance.
+  --bulk-delete         Delete all flows in bulk; default=False
+  --auth                Use authenticated access to REST (username: 'admin',
+                        password: 'admin'); default=False
+  --startflow STARTFLOW
+                        The starting Flow ID; default=0
+  --file FILE           File from which to read the JSON flow template;
+                        default: no file, use a built in template.
+------------------------------------------------------------------------------
+
+*Examples:*
+
+* To put 5000 flows into ODL, then wait for stats to catch up and then
+delete the flows in bulk (using config_cleanup), type:
+
+----------------------------------------------------------------------------
+   > ./flow_add_delete_test.py --flows=5000 --auth --no-delete --bulk-delete
+----------------------------------------------------------------------------
+
+[[mininet-1]]
+=== Mininet
 
 Still in design, the idea will be to bring up small to large topologies
 of 16-32-64-128-256-... switches and verify the controller can properly
@@ -232,8 +691,8 @@ curl --user "admin":"admin" -H "Accept: application/json" -H "Content-type: appl
 * 10. Repeat the test increasing the number of switches, like -tree,5
 (31 switches)
 
-[[cbench-test]]
-=== CBench Test
+[[cbench-1]]
+=== CBench
 
 This test is still being designed, but the idea is to bring up varying
 typologies of switches (16, 32, 64...) and benchmark how many flows/sec
@@ -350,7 +809,7 @@ RESULT: 16 switches 9 tests min/max/avg/stdev = 6556.99/13672.79/11951.73/2257.9
 MACs/switch (-M 200000).
 
 [[known-issues]]
-=== Known Issues
+==== Known Issues
 
 * Cbench Throughput test does not work well, CPU goes very high and
 cannot process incoming packet-in messages in an stable way. It looks
@@ -359,5 +818,62 @@ are working on fixing this.
 * The data store drop test *dropAllPackets on* does not work well
 either, flows get hung after a while. FRM seems to be the bottleneck, OF
 plugin devs are looking at this was well.
+* Can't support more than 128 switches
+https://bugs.opendaylight.org/show_bug.cgi?id=1581[Bug 1581]
+
+[[results]]
+== Results
+
+[[test-bed-setup]]
+=== Test Bed Setup
+
+Device under Test (DUT)
+
+* CPU: Dual Intel(R) Xeon(R) CPU E5-2660 (32 Cores)
+* Memory: 8*8GB DDR3 - 1600 Mhz
+* Harddrive:
+* OS: CentOS 7.0
+* Java: OpenJDK java version "1.7.0_65"
+* Default ODL memory settings
+
+North/Southbound simulator (SIM)
+
+* CPU: Dual Intel(R) Xeon(R) CPU E5-2660 (32 Cores)
+* Memory: 4*8GB DDR3 - 1333 Mhz
+* Harddrive:
+* OS: CentOS 7.0
+
+[[helium-cbench-results]]
+=== Helium CBench Results
+
+.RPC Flow per second - RPC drop-test
+CrossProject:Integration_Group:Performance_Test#note1[[1]]
+[cols=",,,,,,,,,,,",]
+|=======================================================================
+||Switches || 1 || 2 || 3 || 4 || 5 || 6 || 7 || 8 || 16 || 32 || 64
+
+||Throughput || 29396.66 || 76041.18 || 93280.33 || 104213.88 ||
+100489.83 || 101304.47 || 106000.88 || 104909.61 || 89412.92 || 52890.66
+|| 29789.51
+
+||latency || 2305 || 5545.5 || 8639 || 11998.99 || 14810.49 || 16793.49
+|| 19108.99 || 21534.49 || 43400.98 || 62299.94 || 69135.55
+|=======================================================================
+
+image:Rpc-flow.png[ 800 px,title=" 800 px"]
+
+.Flow per second - Datastore drop-test
+[cols=",,,,,,,,,,,",]
+|=======================================================================
+||Switches || 1 || 2 || 3 || 4 || 5 || 6 || 7 || 8 || 16 || 32 || 64
+
+||Throughput || 42.48 || 19 || 14 || 11.5 || 10 || 9 || 8 || 7.5 || 6.5
+|| 3.5 || 2
+
+||latency || 7 || 7 || 6.5 || 6.5 || 6 || 6 || 5 || 4.5 || 3.5 || 3.5 ||
+4
+|=======================================================================
+
+[1] limiting to 16 core show the same results.
 
 Category:Integration Group[Category:Integration Group]

@@ -6,18 +6,65 @@ where you provide following information:
 1.  Java version (output of java --version)
 2.  Opendaylight version (where and when did you download it, build
 number)
-3.  Opendaylight log file. If you encounter ANY kind of problems, turn
-on logger on level TRACE for bgpcep project. Log file will be located in
-opendaylight/logs/opendaylight.log , after you run ODL.
+3.  Karaf log file. If you encounter ANY kind of problems, turn on
+logger on level TRACE for bgpcep project. Log file will be located in
+/data/log/karaf.log , after you run ODL.
 
-Add to
-https://jenkins.opendaylight.org/integration/view/Integration%20jobs/job/integration-project-centralized-integration/lastSuccessfulBuild/artifact/distributions/serviceprovider/target/distributions-serviceprovider-0.1.2-SNAPSHOT-osgipackage/opendaylight/configuration/logback.xml[logback.xml]
-following lines:
+Turn on BGPCEP debugging with following lines:
 
-`<!-- BGPCEP plugin --> ` +
- +
+`log:set TRACE org.opendaylight.bgpcep `
+
+`log:set TRACE org.opendaylight.protocol`
 
 We will need this log file to investigate your problem.
+
+[[general]]
+== GENERAL
+
+[[what-features-should-i-install]]
+==== What features should I install?
+
+There are 3 major features in bgpcep project:
+
+* _odl-bgpcep-bgp-all_ - installs every BGP feature
+* _odl-bgpcep-pcep-all_ - installs every PCEP feature
+* _odl-data-change-counter_ - installs data change counter feature for
+testing
+
+This means that if you want to use ODL only for PCEP, you don't need to
+install BGP at all. This is also a preferred option, the less features
+you install, the easier is the debugging of issues that you might
+encounter.
+
+If you want to view data, you need to install one of RESTCONF features:
+
+* _odl-restconf_ - installs RESTCONF with authentification (defaults to
+admin/admin)
+* _odl-restconf-noauth_ - installs RESTCONF without authentification
+
+If you want to configure BGP or PCEP via RESTCONF you need
+
+* _odl-netconf-connector-all_ - installs netconf-connector that provides
+you write access to configuration files. This feature needs to be
+installed as the last one.
+
+[[i-dont-see-any-configuration-files-nor-the-directory-etcopendaylight]]
+==== I don't see any configuration files, nor the directory
+etc/opendaylight
+
+For the configuration directory and files to appear, you need to install
+features first. Configuration files are associated with features:
+
+* _odl-bgpcep-bgp-all_ - installs _31-bgp.xml_ and _41-bgp-example.xml_
+* _odl-bgpcep-pcep-all_ - installs _32-pcep.xml_,
+_33-pcep-segment-routing.xml_, _39-pcep-provider.xml_
+* _odl-data-change-counter_ - installs
+_50-topology-data-change-counter.xml_
+
+After installing the features you can either shutdown controller and
+update configuration files manually (BGP LS PCEP:User Guide[User Guide])
+or edit the config files via RESTCONF
+(BGP_LS_PCEP:User_Guide#Configuration_through_RESTCONF[Configuration_through_RESTCONF]).
 
 [[restconf]]
 == RESTCONF
@@ -28,19 +75,108 @@ We will need this log file to investigate your problem.
 You have to specify custom HTTP header: Content-type: application-xml in
 your request.
 
+[[i-cant-find-restconf-sites.]]
+==== I can't find RESTCONF sites.
+
+In Hydrogen the port to RESTCONF sites was 8080. From Helium, it changed
+to 8181.
+
+[[restconf-asks-for-usernamepassword.-what-is-it]]
+==== RESTCONF asks for username/password. What is it?
+
+From Helium release, project AAA enforces authorization upon RESTCONF
+calls. The default credentials are admin/admin.
+
+[[i-cant-configure-rib-restconf-complains-about-bgp-rib-id-not-found]]
+==== I can't configure RIB, RESTCONF complains about _bgp-rib-id_ not
+found
+
+Ensure you have installed _odl-netconf-connector-all_. Try to issue a
+GET request on
+http://localhost:8181/restconf/config/network-topology:network-topology/topology/topology-netconf/node/controller-config/yang-ext:mount/config:modules/
+and try searching for the bgp-rib. If you can't find any, BGP itself is
+not configured properly. Shutdown karaf, remove data folder, start karaf
+and issue:
+
+`feature:install odl-bgpcep-bgp-all odl-restconf-noauth odl-netconf-connector-all`
+
 [[bgp-ls]]
 == BGP-LS
+
+[[bgp-linkstate-or-attributes-does-not-appear]]
+==== BGP Linkstate (or attributes) does not appear
+
+The allocation of old BGP Linkstate path attribute type (=99) can cause
+linkstate attributes to dissapear. If you see this in log:
+
+`WARN | oupCloseable-4-4 | SimpleAttributeRegistry          | 261 - org.opendaylight.bgpcep.bgp-parser-spi - 0.3.3.SNAPSHOT | Ignoring unrecognized attribute type 99`
+
+Switch this value by editing 31-bgp.xml configuration file (or use
+RESTCONF as described in User Guide). If you are using Karaf
+installation, it shall be placed in etc/opendaylight/karaf/. If you are
+building bgpcep project from scratch, it is in
+bgp/controller-config/src/main/resources/initial/.
+
+code,xml----------------------------------------------------------------------------------------------------------------------------------
+code,xml
+<!-- IANA has issued an early allocation for the BGP Linkstate path attribute (=29).
+ To preserve (TYPE = 99) set value bellow to false; to use IANA assigned type set the value to true or remove (true by default)-->
+<iana-linkstate-attribute-type>false</iana-linkstate-attribute-type>
+----------------------------------------------------------------------------------------------------------------------------------
+
+[[how-to-remove-a-capability-from-sent-open-message]]
+==== How to remove a capability from sent open message?
+
+There are 2 capabilities that can not be withdrawn from advertisement to
+peers: AS-4B capability and Graceful restart (for now). The advertised
+multiprotocol capabilities are set by default to ip4, ipv6, linkstate
+and flowspec. They can be withdrawn by removing appropriate
+advertized-tables tag located in configuration file _41-bgp-example.xml_
+. Those tables are per peer, so that each peer can be configured
+differently.
+
+To remove linkstate capability, remove:
+
+code,xml--------------------------------------------------------------------------------------------------------------
+code,xml
+<advertized-table>
+ <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:bgp:rib:impl">prefix:bgp-table-type</type>
+ <name>linkstate</name>
+</advertized-table>
+--------------------------------------------------------------------------------------------------------------
+
+[[how-to-enableuse-segment-routing-for-bgp]]
+==== How to enable/use segment routing for BGP
+
+Segment routing for BGP is an extension to linkstate. It does not
+require additional capability or configuration, so it's enabled by
+default, when linkstate is configured and enabled. New TLVs specified in
+https://tools.ietf.org/html/draft-gredler-idr-bgp-ls-segment-routing-extension[draft-gredler-idr-bgp-ls-segment-routing-extension]
+will be part of linkstate-routes in RIB BGP LS PCEP:Restconf[Restconf]
+output.
 
 [[pcep]]
 == PCEP
 
-*Important note : troubleshoot guide for PCEP is currently only for
-draft versions ietf-stateful-02 & crabbe-initiated-00.*
+[[i-got-back-error-message.-what-does-the-error-type-and-value-mean]]
+==== I got back Error message. What does the error type and value mean?
+
+Most of the Error type/value pairs are defined in various RFCs. You can
+find a summary at
+http://www.iana.org/assignments/pcep/pcep.xhtml#pcep-error-object[iana.org]
+website. Since ODL has several drafts implemented, their type/values
+cannot be yet found in IANA registry, they are listed at the end of each
+draft or in Error Object section (e.g.:
+http://tools.ietf.org/html/draft-ietf-pce-stateful-pce-07#section-8.4 ).
+PCCs can also have various platform or vendor specific error type/value
+pairs. Because of this, ODL does not try to decode the type/value pair.
+In case you don't find the type/value pair in RFCs or drafts, check with
+your PCC vendor/developer about its meaning.
 
 [[session-with-pcc-does-not-come-up]]
 ==== Session with PCC does not come up
 
-There are multiple causes for this problem. Inspect opendaylight.log:
+There are multiple causes for this problem. Inspect karaf.log:
 
 * *I can find following line in the log*
 
@@ -52,9 +188,8 @@ you specified stateful02 version in your configuration. Session proposal
 for stateful07 does NOT contain this TLV as it was removed from the
 draft in later versions.
 
-Please, check again your configuration for PCEP and make sure it is set
-according to BGP_LS_PCEP:User_Guide#Configure_draft_versions[User Guide]
-.
+From Helium release, the support for stateful02 was deprecated, please
+upgrade your router OS.
 
 * *No error/warning is shown in the log file*
 
@@ -65,31 +200,50 @@ for PCC to initiate the connection.
 ==== Bandwidth and symbolic path name return a weird string instead of a
 number and readable string
 
-YANG currently does not suport IEEE-544 floating type data type,
+YANG currently does not support IEEE 754 floating type data type,
 therefore bandwidth is stored as 4B binary array. Symbolic path name is
 stored as byte array by default. Binary data are encoded in RESTCONF as
-base64 string, which is what you see in your output. If you want to send
-e.g. bandwidth value through RESTCONF, you also have to encode it in
-base64.
+base64 string, which is what you see in your output.
 
 Example:
 
 'sample-lsp-name' will be encoded as 'c2FtcGxlLWxzcC1uYW1l'
 
-'3,14' to IEEE-544 floating point in hexa is '4048F5C2' encoded in
-base64 : 'QEj1wg=='
+[[how-do-i-set-the-bandwidth-via-restconf]]
+==== How do I set the bandwidth via RESTCONF?
 
-Useful translator: http://home.paulschou.net/tools/xlate/
+Let's demonstrate it in an example. You want to set bandwidth of
+1000kbps. First, some unit conversion. According to
+http://tools.ietf.org/html/rfc5440#section-7.7[RFC5440]: Bandwidth (32
+bits): The requested bandwidth is encoded in 32 bits in IEEE 754
+floating point format (see [IEEE.754.1985]), expressed in bytes per
+second.
+
+First step is to convert kbps to Bps.
+
+1000kbps = 125000Bps (
+http://www.sengpielaudio.com/calculator-transferrate.htm )
+
+Second conversion is to IEEE 754 in hexadecimal.
+
+125000Bps = 0x47f42400 (
+http://www.h-schmidt.net/FloatConverter/IEEE754.html )
+
+Last conversion is to base64 encoding.
+
+0x47f42400 = BH9CQAA= ( http://home.paulschou.net/tools/xlate/ )
+
+This is the value you have to enter in Restconf in order to get 1000kbps
+set on router.
 
 [[i-cant-seem-to-synchronize-pcep-session.-i-see-initial-resync-in-my-xml-output]]
 ==== I can't seem to synchronize PCEP session. I see _initial-resync_ in
 my xml output
 
 _Initial resync_ means that the PCEP session is established, but the
-initial Pcrpt message coming from PCC was not yet received. This is
-caused by not advertizing LSP Cleanup Tlv. Please, check the PCEP
-configuration files and make sure that all three steps described in
-BGP LS PCEP:User Guide[User Guide] were completed.
+initial Pcrpt message coming from PCC was not yet received. Make sure
+your PCC does have 'instantiated' capability turned on, otherwise check
+in PCC logs if the message was sent.
 
 [[ive-successfully-created-a-tunnel-but-im-not-able-to-set-it-operational]]
 ==== I've successfully created a tunnel, but I'm not able to set it
@@ -98,4 +252,4 @@ operational
 If PCC log shows: _No IP source address is configured_ , please
 configure PCC with:
 
-*ipv4 unnumbered mpls traffic-eng Loopback0*
+_ipv4 unnumbered mpls traffic-eng Loopback0_

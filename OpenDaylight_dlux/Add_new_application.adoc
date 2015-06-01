@@ -1,0 +1,109 @@
+Dlux works as a karaf based UI platform, where you can create a new
+karaf feature of your UI component and install that UI applications in
+dlux using blueprint. This page will help you to create and load a new
+application for dlux. You don't have to add new module in dlux
+repository.
+
+[[create-new-module]]
+== Create new module
+
+For your application, first step would be to create a new module for
+your code. We have defined a module structure for existing dlux
+applications under modules directory. Follow this wiki to add a new
+module of your code - *OpenDaylight dlux:Create and add a module[ How to
+add a new js module]
+
+[[add-a-new-osgi-blueprint-bundle]]
+== Add a new OSGi blueprint bundle
+
+The OSGi Blueprint Container specification allows us to use dependency
+injection in our OSGi environment. Each dlux application module
+registers itself via blueprint configuration. Each application will have
+its own blueprint.xml to place its configuration.
+
+\1. Create a maven project to place blueprint configuration. For
+reference, take a look at topology bundle, present under
+_dlux/bundles/topology_. All the existing dlux modules's configurations
+are available under bundles directory of dlux code.
+
+\2. In pom.xml, you have to add a maven plugin to unpack your module
+code under generated-resources of this project. For reference, you can
+check pom.xml of "dlux/bundles/topology" project. your bundle will
+eventually gets deployed in karaf as feature, so your bundle should
+contain all your module code. If you want to combine module and bundle
+project, that should not an issue either.
+
+\3. Create a blueprint.xml configuration file under
+src/main/resources/OSGI-INF/blueprint. Below is the content of the
+blueprint.xml taken from topology bundles's blueprint.xml. any new
+application should create a blueprint.xml in following format -
+
+----------------------------------------------------------------------------------------------------------------------------------
+
+<blueprint xmlns="http://www.osgi.org/xmlns/blueprint/v1.0.0">
+    <reference id="httpService" availability="mandatory" activation="eager" interface="org.osgi.service.http.HttpService"/>
+    <reference id="loader" availability="mandatory" activation="eager" interface="org.opendaylight.dlux.loader.DluxModuleLoader"/>
+
+    <bean id="bundle" init-method="initialize" destroy-method="clean" class="org.opendaylight.dlux.loader.DluxModule">
+      <property name="httpService" ref="httpService"/>
+      <property name="loader" ref="loader"/>
+      <property name="moduleName" value="topology "/>
+      <property name="url" value="/src/app/topology"/>
+      <property name="directory" value="/topology"/>
+      <property name="requireJs" value="app/topology/topology.module"/>
+      <property name="angularJs" value="app.topology"/>
+       <property name="cssDependencies">
+            <list>
+                <value>http://yui.yahooapis.com/3.18.1/build/cssreset/cssreset-min.css</value>
+                 <value>src/app/topology/topology-custom.css</value>
+            </list>
+        </property>
+    </bean>
+</blueprint>
+----------------------------------------------------------------------------------------------------------------------------------
+
+In above configuration, there are two references with id httpService and
+loader. These two beans will already be initialized by dlux-core, so any
+new application can use them. Without these two bean references, a new
+application will not be able to register.
+
+Next is the initialization of your application bean, which will be an
+instance of class _org.opendaylight.dlux.loader.DluxModule_. There are 5
+properties that you should provide in this bean besides the references
+of httpService and loader. Lets talk about those bean properties in
+little more detail.
+
+*moduleName* : Name of your module. This name should be unique in dlux.
+
+*url*: This is the url via which requireJS in dlux will try to load your
+module js/html files. Also, this is the url that browser will use to
+load the static html, js or css files. requireJS in dlux has a base path
+of "src", so all the url should start with /src so requireJS and browser
+can correctly reach to the file name.
+
+*directory*: In your bundle's pom.xml, you unpack your module code. This
+is the directory where your actual static files will resides. Above
+mentioned url is registered with httpService, so when browser makes a
+call to that url, it will be redirected to the directory mentioned here.
+So, in above example, all the topology files are present under /topology
+directory and browser/requireJS can access those files with uri
+/src/app/topology.
+
+*requireJS*: This is the path to your requireJS module. If you notice
+closely, you will see the initial path of requireJS _app/topology_ in
+above example matches with the last part of url. this path will be be
+used by requireJS. As mentioned above, we have kept "src" as base path
+in requireJS, that is the exact reason url start with /src.
+
+*angularJS*:name of your angularJS module.
+
+*cssDependencies*: If the application has any external/internal css
+dependency, then those can be added here. If you create your own css
+files, just point to those css files here. Use the url path that you
+mentioned above, so browser can find your css file.
+
+OSGi understands blueprint.xml, once you will deploy your bundle in
+karaf (you can create a new feature for your application also), karaf
+will read your blueprint.xml and it will try to register your
+application with dlux. Once successful, if you refresh your dlux UI, you
+will see your application in left hand navigation bar of dlux.

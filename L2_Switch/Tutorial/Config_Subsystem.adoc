@@ -1,0 +1,248 @@
+[[preface]]
+== Preface
+
+The L2Switch project provides Layer2 switch functionality.
+
+The L2Switch project can serve as a tutorial project for integrating
+with config subsystem.
+
+[[check-out-the-project-using-git]]
+== Check out the project using git
+
+`git clone `https://git.opendaylight.org/gerrit/p/l2switch.git[`https://git.opendaylight.org/gerrit/p/l2switch.git`]
+
+The above command will create a directory called "l2switch" with the
+project.
+
+All the code samples will refer to classes in this repository.
+
+[[yang-file]]
+== Yang file
+
+You will need to write a yang file for
+
+* configuration properties of the module
+** In the example below, some configuration properties are
+"lldp-flow-table-id" & "is-install-lldp-flow"
+* services the module depends on.
+** In the example below, the dependencies are "container
+notification-service" & "container data-broker" & "container
+rpc-registry". You will notice that each references a service.
+
+`module loop-remover-impl {` +
+` yang-version 1;` +
+` namespace "`urn:opendaylight:packet:loop-remover-impl[`urn:opendaylight:packet:loop-remover-impl`]`";` +
+` prefix "loop-remover-impl";` +
+` import config { prefix config; revision-date 2013-04-05; }` +
+` import opendaylight-md-sal-binding { prefix mdsal; revision-date 2013-10-28; }` +
+` description` +
+`   "This module contains the base YANG definitions for` +
+`   loop-remover-impl implementation.";` +
+` revision 2014-05-28 {` +
+`   description "Initial module draft.";` +
+` }` +
+` // This is the definition of the service implementation as a module identity.` +
+` identity loop-remover-impl {` +
+`   base config:module-type;` +
+`   // Specifies the prefix for generated java classes.` +
+`   config:java-name-prefix LoopRemover;` +
+` }` +
+` // Augments the 'configuration' choice node under modules/module.` +
+` augment "/config:modules/config:module/config:configuration" {` +
+`   case loop-remover-impl {` +
+`     when "/config:modules/config:module/config:type = 'loop-remover-impl'";` +
+`     leaf is-install-lldp-flow {` +
+`       type boolean;` +
+`     }` +
+`     leaf lldp-flow-table-id {` +
+`       type uint8;` +
+`     }` +
+`     leaf lldp-flow-priority {` +
+`       type uint16;` +
+`     }` +
+`     leaf lldp-flow-hard-timeout {` +
+`       type uint16;` +
+`     }` +
+`     leaf lldp-flow-idle-timeout {` +
+`       type uint16;` +
+`     }` +
+`     leaf graph-refresh-delay {` +
+`       type uint32;` +
+`     }` +
+`     leaf topology-id {` +
+`       type string;` +
+`     }` +
+`     container notification-service {` +
+`       uses config:service-ref {` +
+`         refine type {` +
+`           mandatory true;` +
+`           config:required-identity mdsal:binding-notification-service;` +
+`         }` +
+`       }` +
+`     }` +
+`     container data-broker {` +
+`       uses config:service-ref {` +
+`         refine type {` +
+`           mandatory false;` +
+`           config:required-identity mdsal:binding-async-data-broker;` +
+`         }` +
+`       }` +
+`     }` +
+`     container rpc-registry {` +
+`       uses config:service-ref {` +
+`         refine type {` +
+`           mandatory true;` +
+`           config:required-identity mdsal:binding-rpc-registry;` +
+`         }` +
+`       }` +
+`     }` +
+`   }` +
+` }` +
+`}` +
+` `
+
+[[pom-changes]]
+=== POM changes
+
+You'll need to add the following to your pom.
+
+`     ` +
+`       ``org.apache.felix` +
+`       ``maven-bundle-plugin` +
+`       ``true` +
+`       ` +
+`         ` +
+`           ``org.opendaylight.yang.gen.v1.urn.opendaylight.packet.loop.remover.impl.rev140528`` <-- This corresponds to the classes used by other modules.` +
+`           ``*` +
+`         ` +
+`       ` +
+`     ` +
+`     ` +
+`       ``org.opendaylight.yangtools` +
+`       ``yang-maven-plugin` +
+`       ``${yangtools.version}` +
+`       ` +
+`         ` +
+`           ` +
+`             ``generate-sources` +
+`           ` +
+`           ` +
+`             ` +
+`               ` +
+`                 ` +
+`                   org.opendaylight.controller.config.yangjmxgenerator.plugin.JMXGenerator` +
+`                 ` +
+`                 ``${configCodeGeneratorPath}``  <-- value is "src/main/yang-gen-config"` +
+`                 ` +
+`                   ` +
+`                     `urn:opendaylight:params:xml:ns:yang:controller[`urn:opendaylight:params:xml:ns:yang:controller`]`==org.opendaylight.controller.config.yang` +
+`                   ` +
+`                 ` +
+`               ` +
+`               ` +
+`                 ` +
+`                   org.opendaylight.yangtools.maven.sal.api.gen.plugin.CodeGeneratorImpl` +
+`                 ` +
+`                 ``${codeGeneratorPath}``  <-- value is "src/main/yang-gen-code"` +
+`               ` +
+`             ` +
+`             ``true` +
+`           ` +
+`         ` +
+`       ` +
+`       ` +
+`         ` +
+`           ``org.opendaylight.controller` +
+`           ``yang-jmx-generator-plugin` +
+`           ``0.2.5-SNAPSHOT` +
+`         ` +
+`         ` +
+`           ``org.opendaylight.yangtools` +
+`           ``maven-sal-api-gen-plugin` +
+`           ``${yangtools.version}` +
+`           ``jar` +
+`         ` +
+`       ` +
+`     `
+
+[[generated-java-classes]]
+=== Generated Java classes
+
+WIth the POM change above, "mvn clean install" will create classes in
+src/main/yang-gen-code and src/main/yang-gen-config
+
+[[generated-java-classes-to-change]]
+=== Generated Java classes to change
+
+You will want to change the *Module.java file.
+
+See the file
+/l2switch/loopremover/implementation/src/main/java/org/opendaylight/yang/gen/v1/urn/opendaylight/packet/loop/remover/impl/rev140528/LoopRemoverModule.java
+for an example. This is the file used to startup your module.
+
+[[config-module]]
+== Config module
+
+You will need to create a config module.
+
+See the directory /l2switch/loopremover/config/
+
+[[config-pom]]
+=== Config POM
+
+Notice the following section.
+
+`     ` +
+`       ``org.codehaus.mojo` +
+`       ``build-helper-maven-plugin` +
+`       ` +
+`         ` +
+`           ``attach-artifacts` +
+`           ` +
+`             ``attach-artifact` +
+`           ` +
+`           ``package` +
+`           ` +
+`             ` +
+`               ` +
+`                 ``${project.build.directory}/classes/initial/${config.loopremover.configfile}``  <-- the value corresponds to "52-loopremover.xml"` +
+`                 ``xml` +
+`                 ``config` +
+`               ` +
+`             ` +
+`           ` +
+`         ` +
+`       ` +
+`     `
+
+* The file must match the name of the config file.
+
+[[config-file]]
+=== Config file
+
+You will need to create a config file.
+
+You can see
+/l2switch/loopremover/config/src/main/resources/initial/52-loopremover.xml
+as an example.
+
+This file has the configuration values.
+
+[[karaf-distribution-changes]]
+== Karaf distribution changes
+
+You will need to change the features.xml section for your feature.
+
+` ` +
+`   ``odl-openflowplugin-flow-services` +
+`   `mvn:org.opendaylight.l2switch.loopremover/loopremover-model/[`mvn:org.opendaylight.l2switch.loopremover/loopremover-model/`]`${project.version}` +
+`   `mvn:org.opendaylight.l2switch.loopremover/loopremover-impl/[`mvn:org.opendaylight.l2switch.loopremover/loopremover-impl/`]`${project.version}` +
+`   `mvn:org.opendaylight.controller.thirdparty/net.sf.jung2/2.0.1[`mvn:org.opendaylight.controller.thirdparty/net.sf.jung2/2.0.1`] +
+`   `mvn:org.opendaylight.l2switch.loopremover/loopremover-config/[`mvn:org.opendaylight.l2switch.loopremover/loopremover-config/`]`${project.version}/xml/config` +
+` `
+
+* Notice this last part of "configfile" -- this is the part you will
+need to add.
+* The value of "config.configfile.directory" is "etc/opendaylight/karaf"
+* THe value of "config.loopremover.configfile" is "52-loopremover.xml"
+

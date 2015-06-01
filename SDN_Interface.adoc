@@ -1,0 +1,460 @@
+[[purpose]]
+== Purpose
+
+A common definition of the interface to a SDN controller must be defined
+in order that companies can correctly plan and architect solutions that
+work across SDN providers. This interface should be such that it
+correctly scopes the behavior of an SDN controller to a common industry
+understanding and thus also prevents a SDN controller from increasing
+scope to that of a management system or beyond.
+
+By having a common SDN interface vendors can build added value
+capability on top of an SDN controller with the knowledge that their
+development effort can be used independent of the SDN controller a given
+customer chooses to deploy. Additionally, by defining the boundary of a
+SDN controller (planning and realization) the industry can start to
+understand and evolve how cooperating systems, such as network
+management and SDN, work to provide customer value.
+
+[[proposal]]
+== Proposal
+
+The proposed SDN interface leverages the concept of a graph to allow a
+client to define the desired connectivity and constraints for a request.
+The graph request is sparse and only contains those nodes and
+constraints that are relevant to the request. As an example, consider
+the symbolic network graph in Figure 1. In this diagram, each vertex in
+the graph represents a network element and each edge represents a
+network connection. Sample SDN graph requests are :
+
+* Figure 2 depicts a request of connectivity where the the adjacency
+between the two end points must traverse through a middle point (red
+vertex).
+* Figure 3 depicts a request for hub and spoke adjacencies
+* Figure 4 depicts a request for a ring adjacencies
+
+Each of these requests would be specified as a set or vertices and edges
+along with constraints and passed to a SDN system as a request. A sample
+request is at the end of this document.
+
+[cols=",",]
+|=======================================================================
+|image:Network.png[Figure 1 - Symbolic
+Network,title="fig:Figure 1 - Symbolic Network"]
+|image:Linear.png[Figure 2 - Linear Adjacency
+Request,title="fig:Figure 2 - Linear Adjacency Request"]
+
+|Figure 1 - Symbolic Network |Figure 2 - Linear Adjacency Request^‡^
+
+| |image:Hubspoke.png[Figure 3 - Hub and Spoke Adjacency
+Request,title="fig:Figure 3 - Hub and Spoke Adjacency Request"]
+
+| |Figure 3 - Hub and Spoke Adjacency Request^‡^
+
+| |image:Ring.png[Figure 4 - Ring Adjacency
+Request,title="fig:Figure 4 - Ring Adjacency Request"]
+
+| |Figure 4 - Ring Adjacency Request
+|=======================================================================
+
+‡ The network elements highlighted in red represent a constraint on the
+request that traffic paths must include this network element
+
+[[planning-and-realization]]
+=== Planning and Realization
+
+::
+  While the main thrust of this proposal pertains to the SDN interface,
+  as a consequence of this interface it is also proposed that a SDN
+  controller be conceptualized as at least two components. The first,
+  planning, is responsible for dealing with requests in terms of loose
+  adjacencies as well as incorporating business level concepts such as
+  reservations and priority; where the second component, realization, is
+  responsible for "current time" requests as well as multiplexing to
+  multiple network element. More information is in the section labeled
+  "SDN Controller Interface" below.
+
+[[time-element-reservations]]
+=== Time Element / Reservations
+
+::
+  The element of time and reservations is important to a SDN controller,
+  particularly the planing portion of the system. It is proposed that
+  time based aspects of a SDN controller are maintained within the
+  planning component of the SDN controller and not at the realization
+  component. Thus it is the responsibility of the planner to understand
+  and manage resource contention along a time line where the realization
+  will only manage resource contention at the time of a request.
+
+[[responsibility-of-the-sdn-controller]]
+== Responsibility of the SDN Controller
+
+The purpose of the SDN controller is to accept multiple requests and
+based on the state of the network elements under its control, previous
+requests and any reservations; it should transition the state of the
+network elements to meet the request (if possible) or reject the
+request, if not possible. How the SDN controller calculates paths,
+optimizes the network, and to some extent applies constraints /
+policies, is left up to the implementation. It is possible that
+different implementations support different constraint sets, as such it
+should be possible to query a SDN controller for the constraints that it
+supports.
+
+[[ask]]
+== Ask
+
+The "ask" fro this document is somewhat vague. The main purpose of the
+document and thus the ask, is to get general agreement / acceptance of
+the ideas presented in the document. Given that general agreement can be
+reached some actions may follow, such as:
+
+* implementation of the tight adjacency interface
+* implementation of the loose adjacency interface
+* performance test suite based on the interfaces
+
+[[queries]]
+== Queries
+
+(All query results must be filtered based on authorization)
+
+It should be possible to query the controller for the graph requests
+that it has in its inventory as well as information as to how those
+graph requests map from loose adjacencies to tight adjacencies and are
+realized on the physical network, including all logical layers on top of
+the physical network, and all network layers (i.e. L3 to L0). This
+mapping may be system implementation dependent, in that different
+implementations may represent this mapping in different ways. (it would
+be nice to have a standard, but if we could agree on the request that
+would be a first step).
+
+It should be possible to query the policies defined in the system (the
+API to add policies is left to the imagination of the reader, but i
+suspect it looks RESTful as policies are resources)
+
+[[multiple-autonomous-controllers]]
+== Multiple Autonomous Controllers
+
+In the situation where a single SDN controller is not responsible for an
+entire network graph, controllers can be configured to have areas of
+responsibility. In this scenario any controller can view the areas of
+the network to which they are connected, but not in control, as a "black
+box". Thus when calculating a path a given controller can calculate and
+provision that in which they are in control and hand off "subgraphs" to
+other controllers that are responsible for the other areas. In this way
+controllers can be deployed hierarchical or as a peering mesh, i.e.
+various deployment implementations can be utilized. When managing a
+network change across domains of control the concept of a transaction
+would likely be required where by policies such as best effort or all or
+nothing can be implemented.
+
+[[conceptual-block-diagram]]
+== Conceptual Block Diagram
+
+As described above the SDN controller interface is responsible to
+handling a request of loose adjacencies and compiling or render that
+graph to a specific or tight adjacencies. The method of performing this
+transformation is left to the implementations, but from a general
+perspective this transformation would include such operations as path
+computation (PCE) and network optimization. This transformation would
+also have to support this transformation in the context of both a
+multiple layer physical network as well as logical network overlays.
+
+[cols=",",]
+|=======================================================================
+|image:Block.png[Figure 5 - Illustrative System Block
+Diagram,title="fig:Figure 5 - Illustrative System Block Diagram"] a|
+Figure 5 illustrates the basic structure of the SDN system in that it
+depicts how the planning component of the SDN controller processes the
+loose adjacency request, eventually rendering it down to a tight
+adjacency graph request. Important in this illustration is that if the
+planner implementation performs optimization or other cross request,
+network wide operations on the more abstract graph the more flexibility
+the implementation will have in terms of rendering down to tight
+adjacencies.
+
+Additionally this block diagram highlights the possibility of separation
+between the planning component of the SDN controller and the realization
+component (dotted line). While this separation is not a requirement it
+does provide for the possibility of implementations being compliant with
+the either the loose adjacency interface or the tight adjacency
+interface as well as the possibility of planning components to leverage
+different implementations of the tight adjacency interface.
+
+_Note: This diagram and explanation is only illustrative and not meant
+to imply implementation or architectural decisions. The point of this
+document is to work towards agreement on the broad idea of a planning
+and realization component of a SDN controller and the interfaces to
+those components._
+
+|Figure 5 - Illustrative System Block Diagram |
+|=======================================================================
+
+[[sdn-controller-interface]]
+== SDN Controller Interface
+
+Up to this point the focus has been on the loose adjacency interface. A
+distinction can be made in a SDN controller that there is a planner
+component and a realization component. The suggestion by this
+distinction is that what has been described as the loose adjacency graph
+request is really the interface to the SDN planner and that the SDN
+planner's interface can be viewed as the highest level interface to a
+SDN controller. The SDN realization interface, by extension, is a lower
+level interface and will be defined here as an interface that allows an
+external client, such as the SDN planner, to describe well defined,
+tight (i.e. not loose) adjacencies and the parameters to those
+adjacencies. It is the responsibility of the realization component to
+protect from resource contention in current time‡‡ and to multiplex a
+single request to multiple network elements under its control.
+
+Figures 6 and 7 (below) attempt to illustrate how a SDN, loose adjacency
+request might be transformed into a SDN, tight adjacency request that
+would be fulfilled by a SDN realization component. Figure 7 does not
+contain the complete detail of the tight adjacency request as this
+request would include directives that ensure that forwarding would be
+realized based on the higher level request, i.e. in a ring scheme, as
+well as it does depict aspects such as layer transformations.
+
+It may be noted that the tight adjacency request that is consumed by a
+realizer can be viewed as just a more detailed version of the graph
+request that is consumed by the SDN planner, thus a common syntax might
+be leveraged to simply communication as well as documentation.
+
+[[resource-contention]]
+=== Resource Contention
+
+::
+  As mentioned above, it is the responsibility of the SDN realizer to
+  manage resource contention of the requests it processes. Contention
+  should be managed not only at the SDN realization level, but at the
+  planning level as well; still the realization component requires some
+  level of contention protection. The contention protection at the
+  realization level will be scoped to that of contention across tight
+  adjacency graphs, where each of these graphs will be identified by a
+  unique ID, thus they can be created, manipulated, and deleted as
+  entities. The rule would be that two graphs cannot utilize the same
+  resource except where policy permits, such as over subscription or
+  path protection with non-complete diversity.
+
+‡‡ What is meant by "resource contention in current time" is that the
+component implementing the tight adjacency interface only protects from
+resource contention for current requests and does not provide for
+resource contention that utilizes time based reservations. Time based
+resource contention protection would be managed by the planning
+component.
+
+[[path-protection]]
+=== Path Protection
+
+Path protection is an important aspect of modern controlled networks.
+Protection can be implemented in various way, but it is important from
+the perspective of the SDN interface to allow protection to be specified
+in the abstract such that the controller has the optimum flexibility to
+determine how protection is realized in the network. For this interface
+protection will be specified as a constraint on the request where the
+constraint can be expressed against the whole request or against
+specific edges in the request.
+
+Protection constraint specification must include not only the type of
+protection (e.g., 1+1, 1:1) but also characteristics of the protection
+such as diversity and fail-over latency.
+
+[[multiple-layers]]
+=== Multiple Layers
+
+`TBD`
+
+[[example-mapping-from-loose-to-tight-adjacencies]]
+=== Example Mapping from Loose to Tight Adjacencies
+
+[cols=",",]
+|=======================================================================
+|image:Ring.png[Figure 6 - Loose Ring Adjacency SDN Planner
+Request,title="fig:Figure 6 - Loose Ring Adjacency SDN Planner Request"]
+|image:Actual.png[Figure 7 - Tight Adjacency SDN Controller
+Request,title="fig:Figure 7 - Tight Adjacency SDN Controller Request"]
+
+|Figure 6 - Loose Ring Adjacency SDN Planner Controller Request |Figure
+7 - Tight Adjacency SDN Controller Request
+|=======================================================================
+
+[[hosts]]
+== Hosts
+
+In the proposed interface model hosts are modeled as any other network
+element in that they are a box with ports. As such hosts can be included
+both in loose adjacency and tight adjacency graph requests.
+
+[[resources]]
+== Resources
+
+The following is meant to be an example of the RESTful requests possible
+against a system as described above. It is not meant to be the
+definitive listing of operations, but is instead meant to characterize
+the interactions between a client and and SDN system.
+
+[cols=",,",options="header",]
+|=======================================================================
+|Operation |Resource |Description
+|POST |/requests |The request was accepted and a record of the request
+now exists. The POST operation will return a location header that
+references the /requests/\{id} from which the request, its status, and
+any other runtime information can be queried. Still up for debate is if
+the status and runtime information should be available within the
+request structure or as a separate resources.
+
+|PUT |/reqeusts/\{id} |TBD - Can a request be modified or is this really
+a new request?
+
+|GET |/requests |Returns the list of all requests in the system. This
+URL should accept filter and paging capabilities
+
+|GET |/requests/\{id} |Returns a single request
+
+|DELETE |/requests/\{id} |Deletes a single request, if this request has
+been processed into the network, this will remove that configuration
+from the network
+
+|POST |/policies |The policy was accepted and a record of the request
+now exists. This new policy will be applied against all existing
+requests in the system and thus can effect the realization of the
+requests on the network
+
+|PUT |/policies/\{id} |The policy was updated to the information in the
+PUT. This is a replacement operation, not a merge. The updated policy
+will be applied against all existing requests in the system and thus can
+effect the realization of the requests on the network
+
+|GET |/policies/\{id} |Returns a single policy
+
+|DELETE |/policies/\{id} |Deletes a single policy. The removal of this
+policy will be applied against all existing requests in the system and
+thus can effect the realization of the request on the network.
+|=======================================================================
+
+† Note: requests and policies will be augmented with a value such as
+'enabled' that can have a boolean value of 'true' or 'false' such that
+requests or policies can be deactivated without removing them from the
+system.
+
+[[notes-on-the-request]]
+== Notes on the Request
+
+Below is an example of a SDN request. It is essentially a structure that
+represents the graph, its constraints, and the policies to be applied.
+While this representation is in JSON notation, the the request could be
+encoded in other forms such as XML. One important aspect of this
+structure, regardless of encoding, is that in several places a value can
+be either a single primitive type or it can be structure that is
+essentially a preferred value and constraints that define other
+acceptable values if the preferred value can not be met. An example of
+this is the *bandwidth* constraint. In one edge the value is *3Gpbs* in
+another it is a sub-structure with a 'desired' value and an acceptable
+*range*.
+
+[[example-sdn-request]]
+== Example SDN Request
+
+`` +
+`{` +
+`    'vertices' : [` +
+`        {` +
+`            'id' : 'v001',                // Unique ID to reference within the request` +
+`            'selector' : 'lorem',         // Used to select a single network element from within the inventory` +
+`            'port-selector' : 'ipsum',    // Used to select a single termination point from within the selected network element` +
+`            'constraints' : {}            // (optional) Any constraints that might be placed on the PCE with respect to the selected network element` +
+`        },` +
+`        {` +
+`            'id' : 'v002',` +
+`            'selector' : 'dolor',` +
+`            'port-selector' : 'amet',` +
+`        },` +
+`        {` +
+`            'id' : 'v003',` +
+`            'selector' : 'consectetur',` +
+`            'port-selector' : 'adipiscing'` +
+`        }` +
+`    ],` +
+`    'edges' : [` +
+`        {` +
+`            'vertex-a' : 'v001',               // References the vertex of one end point of the edge` +
+`            'vertex-z' : 'v002',               // References the vertex of the other end point of the edge` +
+`            'constraints' : {                  // (optional) Any constraints that might be placed on the PCE with respect to the edge` +
+`                'direction' : 'bi-direction',  // Sample constraint indicating the edge represents bi-directional communication` +
+`                'bandwidth' : '3Gbps',         // Sample constraint indicating the desired bandwidth` +
+`                'latency'   : '20ms'           // Sample constraint indicating the desired latency` +
+`            }` +
+`        },` +
+`        {` +
+`            'vertex-a' : 'v001',` +
+`            'vertex-z' : 'v003',` +
+`            'constraints' : {` +
+`                'direction' : 'unidirectional-a-to-z',` +
+`                'bandwidth' : {                             // Sample constraint demonstrating a desired value and an acceptable range` +
+`                    'desired' : '10Gbps',                   //   of values` +
+`                    'range' : {` +
+`                        'minimum' : '5Gpbs',` +
+`                        'maximum' : '12Gpbs'` +
+`                    }` +
+`                }` +
+`                'latency' : {                               // Sample constraint demonstrating a desired value and acceptable` +
+`                    'desired' : '100ms',                    //   alternative values` +
+`                    'choice' : [ '80ms', '50ms' ]` +
+`                }` +
+`            }` +
+`        }` +
+`    ],` +
+`    'policies' : {  // (optional) Requests may contain optional policies the should be applie` +
+`                    //   to a request. The controller will also likely apply other policies` +
+`                    //   based on the controller configuration. A given request would only` +
+`                    //   be able to adjust the inclusion of such controller policies based` +
+`                    //   on the authorization under which the request is being made` +
+` ` +
+`        'exclude' : [     // List of policies to exclude when processing this request. This list` +
+`            'pharetra',   //   should reference predefined policies that may or may not be applied` +
+`            'consequat'   //   by default. These would really only be excluded based on authorization` +
+`        ],` +
+`        'include' : [      ` +
+`            'facilisis',    // References predefined policies that should be applied to this request` +
+`            'imperdiet',               ` +
+`            {                             // Defines an in-line policy to be applied to this request` +
+`                'rules' : [               // Policy rules are simply a condition that when matched` +
+`                                          //   applies additional constraints to the request` +
+`                                          //   NOTE: a target of a rule (edge / vertex) has intensionally been left out,` +
+`                                          //     the assumption is that this time of specification is contained in the` +
+`                                          //     condition statement, which has not been defined.` +
+` ` +
+`                    {                              // Rule example that always matches, i.e. no condition` +
+`                        'constraints' : {          ` +
+`                            'maximus', 'accumsan', ` +
+`                            'inceptos', 'himenaeos'` +
+`                        }` +
+`                    },` +
+`                    {` +
+`                        'condition' : 'dictum nunc tellus, dictum sagittis',  // Rule example with condition.` +
+`                        'constraints' : {` +
+`                            'consectetur', 'eros',` +
+`                            'eleifend', 'eleifend'` +
+`                        }` +
+`                    }` +
+`                ]` +
+`            }` +
+`        ]` +
+`    }` +
+`}`
+
+[[implementation]]
+== Implementation
+
+[[opendaylight]]
+=== OpenDaylight
+
+::
+  It has been discussed that in the OpenDaylight project, this type of
+  SDN Interface:ODL[interface might be mapped to the group based policy]
+  project such that group based policy could be used to realize the
+  intent of a graph request within a controller.
+
+[[onos]]
+=== ONOS
+
+`TBD`

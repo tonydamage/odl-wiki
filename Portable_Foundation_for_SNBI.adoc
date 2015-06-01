@@ -1,0 +1,291 @@
+[[running-portable-foundations-on-ubuntu-servers]]
+== Running Portable Foundations on Ubuntu Servers
+
+In the SNBI test topology, the Portable Foundations run on Ubuntu Linux
+servers, running Docker 1.0.0 or later version. We rely on 3 files from
+the SNBI repository to run a Portable Foundation Container: CPA
+(Container Provisioning Agent), UDI_DB.json (A UDI configuration
+database), host_pf_server.py (a RESTconf server implementation). Using
+the CPA script to start, monitor and login to a portable foundation is
+easier. But if you need to customize the way things are set up, you can
+do it the hard way, as described in the later part of this page.
+
+[[what-is-inside-the-reference-container]]
+== What Is Inside The Reference Container
+
+The SNBI reference container base is built upon the basic Docker image
+for ubuntu, with the following additions:
+
+1.  gcc, gdb, make;
+2.  ssh server, listening to TCP port 5000;
+3.  daemontools, that starts and monitors SSHD and other user processes
+inside container;
+4.  For testing purpose, one can log into the container user root,
+password cisco123 ;
+5.  User processes can be added into the container and to thelist of
+services daemontools manage, by adding the service file under
+/etc/service/ directory. Refer to the setup file for sshd on how to
+manage a new service;
+6.  A reference client that queries the host RESTconf server and
+extracts the portable foundation's UDI
+
+[[preparation-for-running-portable-foundations]]
+== Preparation for Running Portable Foundations
+
+\1. Install Ubuntu 14.04LTS server/cloud release onto a host;
+
+\2. Install docker. Docker installation instruction is available at,
+
+`     `http://docs.docker.com/installation/ubuntulinux/[`http://docs.docker.com/installation/ubuntulinux/`]
+
+We need docker v1.0.0 or above. At the time of this writing docker
+v1.1.2 is the latest release. To confirm the version of docker
+installed,
+
+`    % sudo docker -v` +
+`    Docker version 1.0.0, build 63fe64c`
+
+\3. Docker configurations.
+
+3.1 If you are behind a firewall and rely on a HTTP proxy, add the
+following line into the /etc/default/docker file,
+
+`    export http_proxy="`http://[`http://`]`:port/"` +
+`    export https_proxy="`http://[`http://`]` /tmp/nsenter` +
+`   % sudo cp /tmp/nsenter /usr/local/bin/nsenter`
+
+[[running-the-portable-foundations-the-easy-way]]
+== Running the Portable Foundations the Easy Way
+
+\1) Check out SNBI source code
+
+`  git clone `https://[`https://`]`@git.opendaylight.org/gerrit/p/snbi.git`
+
+\2) cd snbi/portablefoundation/infra/
+
+\3) For the SNBI test environment, there are potentially 3 portable
+foundations in use. Their names are SNBI_PF0, SNBI_PF1, SNBI_CTRL. Their
+configuration parameters associated with the local host are stored in
+file UDI_DB.json. At the time of this writing (Sept 2014), only the
+Universal Device Identifier (UDI) is associated with a portable
+foundation. New portable foundations can be added to the host after
+their local configurations are added into the UDI_DB.json file.
+
+\4) Start the RESTconf server on the host.
+
+`  % cpa rest_start`
+
+`  The RESTconf server will be listening to requests on `http://localhost:8080[`http://localhost:8080`]`.`
+
+\5) Start SNBI_PF0
+
+`  % cpa pf_start SNBI_PF0 21000`
+
+\6) Start SNBI_PF1
+
+`  % cpa pf_start SNBI_PF1 21001`
+
+\7) Check all running portable foundations
+
+`  % cpa list`
+
+\8) Login to SNBI_PF0
+
+`  % cpa login SNBI_PF0`
+
+\9) Stop SNBI_PF0
+
+`  % cpa pf_stop SNBI_PF0`
+
+\10) Kill SNBI_PF0 and free all resources.
+
+`  % cpa pf_kill SNBI_PF0`
+
+[[steps-to-start-a-snbi-portable-foundation-container-the-hard-way]]
+== Steps to Start a SNBI Portable Foundation Container the Hard Way
+
+After completing the "preparation" steps above,
+
+\1. Pull the SNBI reference container image,
+
+`    % sudo docker pull lwei/snbi:v4`
+
+This image is based on the ubuntu base image. The Dockerfile used to
+build this image is checked into the ODL source repository at
+
+`   `https://github.com/opendaylight/snbi/blob/master/portablefoundation/infra/Dockerfile[`https://github.com/opendaylight/snbi/blob/master/portablefoundation/infra/Dockerfile`]
+
+\2. Start a portable foundation container.
+
+*Due to a bug in the audit area in the current shipping kernel, the
+following steps won't work for ssh login to the container. Before a
+kernel official release with the fix is identified, please use the
+alternative method listed in the next section.*
+
+`   % sudo docker run -d --name="SNBI_PF" -p 127.0.0.1:5000:5000 lwei/snbi:v2`
+
+The above starts a container based on image of lwei/snbi:v2, in daemon
+mode. Its name is "SNBI_PF", and it maps the container internal TCP port
+of 5000 onto the host's 127.0.0.1:5000.
+
+The following is an example of a container mapped to host's
+127.0.0.1:3000.
+
+`` +
+`cisco@snbi13:~/BUILD_ENV$ sudo docker run -d --name="SNBI_PF1" -p 127.0.0.1:3000:5000 lwei/snbi:v2 ` +
+`687a0dcd0cede2fcad6dafddbdd3c96d39fc1776cec0a20c29d5c98dfa08760c` +
+`` +
+`cisco@snbi13:~/BUILD_ENV$ sudo docker ps` +
+`CONTAINER ID        IMAGE               COMMAND                CREATED             STATUS              PORTS                      NAMES` +
+`687a0dcd0ced        lwei/snbi:v2        /usr/bin/svscan /etc   5 seconds ago       Up 4 seconds        127.0.0.1:3000->5000/tcp   SNBI_PF1` +
+`` +
+`cisco@snbi13:~/BUILD_ENV$ ssh root@127.0.0.1 -p 3000` +
+`The authenticity of host '[127.0.0.1]:3000 ([127.0.0.1]:3000)' can't be established.` +
+`ECDSA key fingerprint is cd:76:47:47:5a:56:c3:8c:84:ea:e7:0f:9e:7c:f2:fb.` +
+`Are you sure you want to continue connecting (yes/no)? yes` +
+`Warning: Permanently added '[127.0.0.1]:3000' (ECDSA) to the list of known hosts.` +
+`root@127.0.0.1's password:` +
+`Welcome to Ubuntu 14.04 LTS (GNU/Linux 3.2.0-58-generic x86_64)` +
+`` +
+` * Documentation:  https://help.ubuntu.com/` +
+`` +
+`The programs included with the Ubuntu system are free software;` +
+`the exact distribution terms for each program are described in the` +
+`individual files in /usr/share/doc/*/copyright.` +
+`` +
+`Ubuntu comes with ABSOLUTELY NO WARRANTY, to the extent permitted by applicable law.` +
+`` +
+`root@687a0dcd0ced:~# ps aux` +
+`USER       PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND` +
+`root         1  0.0  0.0   4376   484 ?        Ss   13:54   0:00 /usr/bin/svscan /etc/service/` +
+`root         9  0.0  0.0   4204   432 ?        S    13:54   0:00 supervise sshd` +
+`root        11  0.0  0.0  61364  1176 ?        Ss   13:54   0:00 /usr/sbin/sshd` +
+`root        46  0.4  0.0  95088  3980 ?        Ss   13:54   0:00 sshd: root@pts/0` +
+`root        65  0.0  0.0  18184  1908 pts/0    Ss   13:54   0:00 -bash` +
+`root        82  0.0  0.0  15568  1148 pts/0    R+   13:54   0:00 ps aux` +
+`root@687a0dcd0ced:~# exit` +
+`logout` +
+`Connection to 127.0.0.1 closed.` +
+` `
+
+[[starting-a-portable-forwarding-foundation-using-the-host-networking-stack]]
+== Starting a Portable Forwarding Foundation using the Host Networking
+Stack
+
+A bug in the current Linux kernels
+(https://bugzilla.redhat.com/show_bug.cgi?id=893751), causes failure in
+creation of passwords inside a container that is started with the host
+network stack. Until an official kernel release image with the fix is
+available, we will use a facility nsenter to "login" to the portable
+forwarding foundations.
+
+\1) Compile and install nsenter, follow instructions from,
+
+`   `https://github.com/jpetazzo/nsenter[`https://github.com/jpetazzo/nsenter`]
+
+Which can summarized into one command,
+
+`   % sudo docker run --rm jpetazzo/nsenter cat /nsenter > /tmp/nsenter` +
+`   % sudo cp /tmp/nsenter /usr/local/bin/nsenter`
+
+\2) Create two bash functions in the alias file for convenience,
+
+`` +
+`cisco@snbi13:~$ cat .bash_aliases` +
+`nsenter_pid()` +
+`{` +
+`    sudo nsenter --target $1 --mount --uts --ipc --net --pid` +
+`}` +
+`` +
+`pid()` +
+`{` +
+`    export PID=$(sudo docker inspect --format {{.State.Pid}} $1)` +
+`}` +
+`` +
+`$ source .bash_aliases` +
+` `
+
+\3) The following shows an example of a portable forwarding foundation
+started with host network stack, and accessed via nsenter.
+
+`` +
+`` +
+`cisco@snbi13:~$ sudo docker run -d --name "SNBI_PF0" --net="host" lwei/snbi:v2` +
+`7d7ef2c483484bd6a1b441f0b9eec9b683d5a30af14f6bad53c121789ce4a4ea` +
+`` +
+`` +
+`cisco@snbi13:~$ source .bash_aliases` +
+`cisco@snbi13:~$ pid SNBI_PF0` +
+`cisco@snbi13:~$ nsenter_pid $PID` +
+`` +
+`root@snbi13:/# ifconfig -a` +
+`docker0   Link encap:Ethernet  HWaddr 56:84:7a:fe:97:99` +
+`          inet addr:172.17.42.1  Bcast:0.0.0.0  Mask:255.255.0.0` +
+`          inet6 addr: fe80::5484:7aff:fefe:9799/64 Scope:Link` +
+`          UP BROADCAST MULTICAST  MTU:1500  Metric:1` +
+`          RX packets:99 errors:0 dropped:0 overruns:0 frame:0` +
+`          TX packets:412 errors:0 dropped:0 overruns:0 carrier:0` +
+`          collisions:0 txqueuelen:0` +
+`          RX bytes:11587 (11.5 KB)  TX bytes:43249 (43.2 KB)` +
+`` +
+`eth0      Link encap:Ethernet  HWaddr 00:0c:29:20:73:f2` +
+`          inet addr:172.19.200.229  Bcast:172.19.200.255  Mask:255.255.255.0` +
+`          inet6 addr: fe80::20c:29ff:fe20:73f2/64 Scope:Link` +
+`          UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1` +
+`          RX packets:2091065 errors:0 dropped:0 overruns:0 frame:0` +
+`          TX packets:362690 errors:0 dropped:0 overruns:0 carrier:0` +
+`          collisions:0 txqueuelen:1000` +
+`          RX bytes:744613969 (744.6 MB)  TX bytes:29471125 (29.4 MB)` +
+`` +
+`eth1      Link encap:Ethernet  HWaddr 00:0c:29:20:73:fc` +
+`          inet6 addr: fe80::20c:29ff:fe20:73fc/64 Scope:Link` +
+`          UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1` +
+`          RX packets:2187874 errors:0 dropped:206 overruns:0 frame:0` +
+`          TX packets:230388 errors:0 dropped:0 overruns:0 carrier:0` +
+`          collisions:0 txqueuelen:1000` +
+`          RX bytes:762044479 (762.0 MB)  TX bytes:38741188 (38.7 MB)` +
+`eth2      Link encap:Ethernet  HWaddr 00:0c:29:20:73:06` +
+`          inet6 addr: fe80::20c:29ff:fe20:7306/64 Scope:Link` +
+`          UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1` +
+`          RX packets:2187102 errors:0 dropped:206 overruns:0 frame:0` +
+`          TX packets:232150 errors:0 dropped:0 overruns:0 carrier:0` +
+`          collisions:0 txqueuelen:1000` +
+`          RX bytes:761782293 (761.7 MB)  TX bytes:38859466 (38.8 MB)` +
+`` +
+`eth3      Link encap:Ethernet  HWaddr 00:0c:29:20:73:10` +
+`          inet6 addr: fe80::20c:29ff:fe20:7310/64 Scope:Link` +
+`          UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1` +
+`          RX packets:2185715 errors:0 dropped:206 overruns:0 frame:0` +
+`          TX packets:232444 errors:0 dropped:0 overruns:0 carrier:0` +
+`          collisions:0 txqueuelen:1000` +
+`          RX bytes:761429262 (761.4 MB)  TX bytes:38841805 (38.8 MB)` +
+`` +
+`lo        Link encap:Local Loopback` +
+`          inet addr:127.0.0.1  Mask:255.0.0.0` +
+`          inet6 addr: ::1/128 Scope:Host` +
+`          UP LOOPBACK RUNNING  MTU:65536  Metric:1` +
+`          RX packets:332 errors:0 dropped:0 overruns:0 frame:0` +
+`          TX packets:332 errors:0 dropped:0 overruns:0 carrier:0` +
+`          collisions:0 txqueuelen:0` +
+`          RX bytes:34997 (34.9 KB)  TX bytes:34997 (34.9 KB)` +
+`` +
+`root@snbi13:/# wget -c http://www.google.com` +
+`--2014-08-19 17:06:23--  http://www.google.com/` +
+`Resolving www.google.com (www.google.com)... 74.125.25.106, 74.125.25.147, 74.125.25.99, ...` +
+`Connecting to www.google.com (www.google.com)|74.125.25.106|:80... connected.` +
+`HTTP request sent, awaiting response... 200 OK` +
+`Length: unspecified [text/html]` +
+`Saving to: 'index.html'` +
+`` +
+`    [ <=>                                                                  ] 19,357      --.-K/s\` +
+`   in 0.005s` +
+`` +
+`2014-08-19 17:06:23 (3.41 MB/s) - 'index.html' saved [19357]` +
+`` +
+`root@snbi13:/# ps` +
+`  PID TTY          TIME CMD` +
+`  852 ?        00:00:00 bash` +
+`  987 ?        00:00:00 ps` +
+`` +
+`` +
+` `

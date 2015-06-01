@@ -1,0 +1,422 @@
+[[introduction]]
+= Introduction
+
+The purpose of this chapter is to show design the API for your service
+and how to access is from the outside world through the controller's
+RESTCONF subsystem. To show this, we will create a yang file that
+defines the API in the simple toaster provider that we created in
+Chapter 1. After we start the karaf distribution containing our toaster
+provider, we use REST to access the newly created API. In this chapter,
+we will:
+
+* Create the toaster.yang file that defines the API for our provider
+* Update maven build files that control the Java code generation from
+the toaster.yang module.
+
+In this section, we will looking at the following highlighted files:
+
+`├── artifacts` +
+`├── distribution-karaf` +
+`├── features` +
+`├── parent` +
+`├── toaster-api` +
+`│   ├── '''pom.xml` +
+`│   └── src` +
+`│       └── main` +
+`│           └── yang` +
+`│               └── '''toaster.yang` +
+`├── toaster-consumer` +
+`├── toaster-impl` +
+`└── toaster-it`
+
+[[defining-the-toasters-service-api-toaster.yang]]
+= Defining the Toaster's Service API: toaster.yang
+
+The Toaster's service API is defined by it's yang data model; the file
+is located in the _sample-toaster_ project in:
+_toaster-api/src/main/yang/toaster.yang_
+
+The yang model (schema) defines the toaster service (YANG RPCs), the
+toaster configuration and operational data (the YANG Container), and
+notifications from the toaster (YANG Notifications):
+
+1.  DATA definitions for toaster: (YANG: _container toaster_)
+* (YANG: _leaf toasterManufacturer_)
+* (YANG: _leaf toasterModelNumber_)
+* (YANG: _leaf toasterStatus_)
+2.  SERVICE RPCs: operations that can be done, they are defined through
+RPCs, there are two available:
+* (YANG: _rpc make-toast_) taking input parameters:
+** (YANG: _leaf toasterDoneness_)
+** (YANG: _leaf toasterToastType_)
+* (YANG: _rpc cancel-toast_)
+3.  NOTIFICATIONS:
+* (YANG: _notification toastDone_)
+** (YANG: _leaf toastStatus_)
+
+The toaster yang model is as follows:
+
+` module toaster {` +
+`   yang-version 1;` +
+` ` +
+`  namespace` +
+`     "`http://netconfcentral.org/ns/toaster[`http://netconfcentral.org/ns/toaster`]`";` +
+`   prefix toast;` +
+ +
+`   organization "Netconf Central";` +
+`   contact` +
+`     "Andy Bierman ``";` +
+ +
+`   description` +
+`     "YANG version of the TOASTER-MIB.";` +
+ +
+`   revision "2009-11-20" {` +
+`     description` +
+`       "Toaster module in progress.";` +
+`   }` +
+ +
+`   identity toast-type {` +
+`     description` +
+`       "Base for all bread types supported by the toaster.` +
+`          New bread types not listed here nay be added in the` +
+`          future.";` +
+`   }` +
+ +
+`   identity white-bread {` +
+`     base toast:toast-type;` +
+`     description "White bread.";` +
+`   }` +
+ +
+`   identity wheat-bread {` +
+`     base toast-type;` +
+`     description "Wheat bread.";` +
+`   }` +
+ +
+`   identity wonder-bread {` +
+`     base toast-type;` +
+`     description "Wonder bread.";` +
+`   }` +
+ +
+`   identity frozen-waffle {` +
+`     base toast-type;` +
+`     description "Frozen waffle.";` +
+`   }` +
+ +
+`   identity frozen-bagel {` +
+`     base toast-type;` +
+`     description "Frozen bagel.";` +
+`   }` +
+ +
+`   identity hash-brown {` +
+`     base toast-type;` +
+`     description "Hash browned potatos.";` +
+`   }` +
+ +
+`   typedef DisplayString {` +
+`     type string {` +
+`       length "0 .. 255";` +
+`     }` +
+`     description` +
+`       "YANG version of the SMIv2 DisplayString TEXTUAL-CONVENTION.";` +
+`     reference` +
+`       "RFC 2579, section 2.";` +
+ +
+`   }` +
+ +
+`   container toaster {` +
+`     presence` +
+`       "Indicates the toaster service is available";` +
+`     description` +
+`       "Top-level container for all toaster database objects.";` +
+`     leaf toasterManufacturer {` +
+`       type DisplayString;` +
+`       config false;` +
+`       mandatory true;` +
+`       description` +
+`         "The name of the toaster's manufacturer. For instance,` +
+`               Microsoft Toaster.";` +
+`     }` +
+ +
+`     leaf toasterModelNumber {` +
+`       type DisplayString;` +
+`       config false;` +
+`       mandatory true;` +
+`       description` +
+`         "The name of the toaster's model. For instance,` +
+`              Radiant Automatic.";` +
+`     }` +
+ +
+`     leaf toasterStatus {` +
+`       type enumeration {` +
+`         enum "up" {` +
+`           value 1;` +
+`           description` +
+`             "The toaster knob position is up.` +
+`                     No toast is being made now.";` +
+`         }` +
+`         enum "down" {` +
+`           value 2;` +
+`           description` +
+`             "The toaster knob position is down.` +
+`                     Toast is being made now.";` +
+`         }` +
+`       }` +
+`       config false;` +
+`       mandatory true;` +
+`       description` +
+`         "This variable indicates the current state of` +
+`              the toaster.";` +
+`     }` +
+ +
+`     leaf darknessFactor {` +
+`       type uint32;` +
+`       config true;` +
+`       default 1000;` +
+`       description` +
+`         "The darkness factor. Basically, the number of ms to multiple the doneness value by.";` +
+`     }` +
+`   }  // container toaster` +
+` ` +
+`   rpc make-toast {` +
+`     input {` +
+`       leaf toasterDoneness {` +
+`         type uint32 {` +
+`           range "1 .. 10";` +
+`         }` +
+`         default '5';` +
+`       }` +
+`       leaf toasterToastType {` +
+`         type identityref {` +
+`           base toast:toast-type;` +
+`         }` +
+`         default 'wheat-bread';` +
+`       }` +
+`     }` +
+`   }  // rpc make-toast` +
+` ` +
+`   rpc cancel-toast {` +
+`   }  // rpc cancel-toast` +
+ +
+`   rpc restock-toaster {` +
+`     input {` +
+`       leaf amountOfBreadToStock {` +
+`         type uint32;` +
+`       }` +
+`     }` +
+`   }` +
+ +
+`   notification toasterOutOfBread {` +
+`   }  // notification toasterOutOfStock` +
+ +
+`   notification toasterRestocked {` +
+`     leaf amountOfBread {` +
+`       type uint32;` +
+`       description` +
+`         "Indicates the amount of bread that was re-stocked";` +
+`     }` +
+`   }  // notification toasterOutOfStock` +
+ +
+` }  // module toaster`
+
+You can see above that in the _toaster_ container we marked all three of
+the leaf attributes on the toaster container as operational (config
+false), instead of configuration data. MD-SAL, according to the RESTONF
+spec defined in IETF, splits the Data Store into two logically separate
+data stores - configuration and operational:
+
+* *Operational* - Operational data stores are used to show the running
+state view of the devices, network, services, etc that you might be
+looking at. In our case we have a service called toaster which is
+available - the manufacture, model and status of the toaster are all
+provided by the underlying toaster and can not be configured (later we
+will add a configuration attribute). Think of the first two attributes
+as constants which are hardcoded into the physical device, while the
+third is a representation of current state, and changes as the toaster
+is used. Operational data stores are read-only from RESTCONF, but can be
+read or written by Java components in the controller.
+* *Config* - Config data stores are generally used to set to set
+"configuration" data (i.e. parameters for operation) for a device or
+service. in someway. These configurations are user provided and is a way
+for the user to tell the device how to behave. For example if you wanted
+to configure the resource in some way, such as applying a policy or
+other configuration then you would use this data store. Config data
+stores are read-write both from RESTCONF and by Java components in the
+controller.
+
+[[making-the-controller-understand-our-service-model]]
+= Making the Controller Understand our Service Model
+
+Now that we defined the toaster service model, how do make the
+controller understand it? It's simple - we need to load the model into
+the controller. But how do we do that? We define and build a karaf
+feature - toaster-api - that will contain the model. When the feature is
+loaded into the controller, the controller infrastructure add our model
+to its schema set and can from then on understand toaster data and
+operations.
+
+The feature is defined in
+_features-toaster/src/main/resources/features.xml_:
+
+ +
+ +
+`   `mvn:org.opendaylight.yangtools/features-yangtools/[`mvn:org.opendaylight.yangtools/features-yangtools/`]`${yangtools.version}/xml/features` +
+`   `mvn:org.opendaylight.controller/features-mdsal/[`mvn:org.opendaylight.controller/features-mdsal/`]`${controller.mdsal.version}/xml/features` +
+`   `mvn:org.opendaylight.controller/features-restconf/[`mvn:org.opendaylight.controller/features-restconf/`]`${controller.restconf.version}/xml/features` +
+ +
+`   '''` +
+`       '''``odl-yangtools-common` +
+`       '''``odl-yangtools-binding` +
+`       '''``odl-restconf` +
+`       '''`mvn:org.opendaylight.toaster/toaster-api/[`mvn:org.opendaylight.toaster/toaster-api/`]`${project.version}` +
+`   '''` +
+` ` +
+`   ` +
+`       ``odl-mdsal-broker` +
+`       ``odl-restconf` +
+`       ``odl-toaster-api` +
+`       `mvn:org.opendaylight.toaster/toaster-impl/[`mvn:org.opendaylight.toaster/toaster-impl/`]`${project.version}` +
+`       `mvn:org.opendaylight.toaster/toaster-impl/[`mvn:org.opendaylight.toaster/toaster-impl/`]`${project.version}/xml/config` +
+`   ` +
+ +
+`   ` +
+`       ``odl-mdsal-broker` +
+`       ``odl-restconf` +
+`       ``odl-toaster-api` +
+`       ``odl-toaster-impl` +
+`       `mvn:org.opendaylight.toaster/toaster-consumer/[`mvn:org.opendaylight.toaster/toaster-consumer/`]`${project.version}` +
+`   ` +
+
+The _odl-toaster-api_ feature contains a bundle built from files in the
+toaster-api folder. Note we also made the feature dependent on the
+_odl-restconf_ feature - we want the toaster-api to be always accessible
+via RESTCONF.
+
+The creation of the toaster-api bundle is governed by the
+_toaster-api/pom.xml file_. We need to configure the yang tools plugin
+to only include the yang model in the bundle and to not generate any
+code:
+
+ +
+`    ` +
+`        ` +
+`            ``org.apache.felix` +
+`            ``maven-bundle-plugin` +
+`        ` +
+`        '''` +
+`            '''``org.opendaylight.yangtools` +
+`            '''``yang-maven-plugin` +
+`            '''``${yangtools.version}` +
+`            '''` +
+`                '''` +
+`                    '''` +
+`                        '''``generate-sources` +
+`                    '''` +
+`                    '''` +
+`                        '''``src/main/yang` +
+`                        '''``true` +
+`                    '''` +
+`                '''` +
+`            '''` +
+`        '''` +
+`    ` +
+
+[[building-and-testing]]
+= Building and Testing
+
+We build the Toaster Provider and the Service API just like we did in
+the previous two chapters. In Chapter 2 top directory, run:
+
+`mvn clean install`
+
+Start the built Karaf distribution:
+
+`> cd distribution-karaf/target/assembly/bin` +
+`> ./karaf`
+
+Now, we will use a REST client (for example, Google Chrome Postman or
+curl) to write and read back toaster configuration data from the MD-SAL
+data store. Assuming that you run the client on the same machine as the
+controller, the parameters will be as follows:
+
+`HTTP Method => GET` +
+`URL => `http://localhost:8181/restconf/config/toaster:toaster[`http://localhost:8181/restconf/config/toaster:toaster`] +
+`Header => Accept: application/json` +
+`       => Authorization: Basic admin:admin`
+
+For example, you can use curl:
+
+`> curl --verbose -u admin:admin `http://localhost:8181/restconf/config/toaster:toaster[`http://localhost:8181/restconf/config/toaster:toaster`]
+
+You should see response response code _HTTP/1.1 404 Not Found_, since no
+toaster configuration data has been stored in MD-SAL.
+
+Next, let's configure the toaster's _darknessFactor_. Assuming that you
+run the client on the same machine as the controller, use the PUT
+operation as follows:
+
+`HTTP Method => PUT` +
+`URL => `http://localhost:8181/restconf/config/toaster:toaster[`http://localhost:8181/restconf/config/toaster:toaster`] +
+`Header => Content-type: application/json` +
+`       => Authorization: Basic admin:admin` +
+`Body =>  ` +
+`{` +
+`    "toaster": {` +
+`        "darknessFactor": 500` +
+`    }` +
+`}`
+
+We can again use curl:
+
+`> curl -H 'Content-Type: application/json' -X PUT -d '{"toaster": {"darknessFactor": 500}}' --verbose -u admin:admin `http://localhost:8181/restconf/config/toaster:toaster[`http://localhost:8181/restconf/config/toaster:toaster`]
+
+We can use curl again to verify that the data has been written to the
+data store:
+
+`> curl --verbose -u admin:admin `http://localhost:8181/restconf/config/toaster:toaster[`http://localhost:8181/restconf/config/toaster:toaster`]
+
+You should see response response code _HTTP/1.1 200 OK_ and the
+controller returning the previously configured data.
+
+Try issuing an RPC service request:
+
+`HTTP Method => POST` +
+`URL => `http://localhost:8181/restconf/operations/toaster:make-toast[`http://localhost:8181/restconf/operations/toaster:make-toast`]` ` +
+`Header =>   Content-Type: application/yang.data+json  ` +
+`Body =>  ` +
+`{` +
+`  "input" :` +
+`  {` +
+`     "toaster:toasterDoneness" : "10",` +
+`     "toaster:toasterToastType":"wheat-bread"` +
+`}`
+
+For example, you can use curl:
+
+`> curl -H 'Content-Type: application/json' -X POST -d '{"input" : {"toaster:toasterDoneness" : "10","toaster:toasterToastType":"wheat-bread"}}' --verbose -u admin:admin `http://localhost:8181/restconf/operations/toaster:make-toast[`http://localhost:8181/restconf/operations/toaster:make-toast`]
+
+What you will see is the following error:
+
+`{` +
+`   "errors": {` +
+`       "error": [` +
+`           {` +
+`               "error-type": "rpc",` +
+`               "error-tag": "operation-not-supported",` +
+`               "error-message": "No implementation for this operation is available."` +
+`           }` +
+`       ]` +
+`   }` +
+`}`
+
+This means that the controller understand the URL and JSON of our
+request, but there is nobody to route the request to. We will implement
+the service provider in Chapter 6.
+
+[[under-the-hood]]
+= Under the Hood
+
+[[how-did-you-know-what-to-put-in-the-restconf-urls-and-json]]
+== How did you know what to put in the RESTCONF URLs and JSON?
+
+Read about this (and much more) here:
+OpenDaylight_Controller:MD-SAL:Restconf

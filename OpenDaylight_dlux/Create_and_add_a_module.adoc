@@ -1,5 +1,3 @@
-*Page in progress* _maximem_
-
 This section describes how to create and add a module to OpenDaylight
 Dlux.
 
@@ -112,7 +110,7 @@ is an id who refer as the level of your menu and the second is a object.
 var module = angular.module('app.a_module', ['app.core']);
 module.config(function(NavMenuHelper) {
     NavMenuHelper.addToMenu('myFirstModule', {
-        "link" : "index.html#/module/index",
+        "link" : "#/module/index",
         "active" : "module",
         "title" : "My First Module",
         "icon" : "icon-sitemap",
@@ -124,7 +122,7 @@ module.config(function(NavMenuHelper) {
 });
 ----------------------------------------------------------
 
-The ID parameter support, for now, one level of depth. So if your ID
+The ID parameter support, for now, two level of depth. So if your ID
 look like 'rootNode.chilNode', the helper will look for a node named
 'rootNode' and it will append the 'childNode' to it. If the root node
 doesn't exist, it will create it.
@@ -161,12 +159,13 @@ define(['<relative_path_to_module>/<module_name>.module'], function(module) {
 *Note :* Don't forget, if your module only refer to an other module you
 don't need the register.
 
-[[append-to-the-main-file-temporary]]
-== Append to the main file (temporary)
+[[append-to-the-main-file-not-required-only-to-run-dlux-outside-karaf]]
+== Append to the main file (not required, only to run dlux outside
+karaf)
 
-The last thing to do is to add the path of the module definition file
-and add the name of the angular module. So edit the file app.module.js
-as the follow
+In app.module.js, there is a commented piece of code, where you can add
+the path of the module definition file and add the name of the angular
+module. So edit the file app.module.js as the follow
 
 --------------------------------------------
 //----Temporary-------\\
@@ -181,3 +180,48 @@ var e = [
    [...]
 //--------------------\\
 --------------------------------------------
+
+[[editing-pom.xml-files]]
+== Editing POM.xml files
+
+The last thing you need to do is, modify the *POM.xml* files inside the
+main dlux directory (dlux/), modules directory (dlux/modules/) and
+dlux-web directory (dlux/dlux-web/). Edit the POM.xml files as the
+following
+
+*POM.xml file inside dlux/*
+
+----------------------------------------------------------------------------------
+<properties>
+      <nexus.repository.release>opendaylight.release</nexus.repository.release>
+      <nexus.repository.snapshot>opendaylight.snapshot</nexus.repository.snapshot>
+      <{app_name}.resources.version>0.1.0-SNAPSHOT</{app_name}.resources.version>
+      ...........
+<properties>
+----------------------------------------------------------------------------------
+
+*POM.xml file inside dlux/modules/*
+
+---------------------------------------------------------------------------------------------------------------
+   <modules>
+       <module>{name of the app directory}</module> //For example "grouppolicy-resources" or "loader-resources"
+       .......
+   </modules>
+---------------------------------------------------------------------------------------------------------------
+
+*POM.xml file inside dlux/dlux-web/*
+
+--------------------------------------------------------------------------------------------------------------
+    <dependencies>
+        <dependency>
+           <groupId>org.opendaylight.dlux</groupId>
+           <artifactId>dlux.{app Name}.resources</artifactId>
+           <version>${{app name}.resources.version}</version>
+        </dependency>
+    </dependencies>
+      ......
+    <includeArtifactIds>    //Line 183
+        dlux.{app name}.resources      //for example "dlux.grouppolicy.resources" or "dlux.topology.resources"
+        .....
+    </includeArtifactIds>
+--------------------------------------------------------------------------------------------------------------

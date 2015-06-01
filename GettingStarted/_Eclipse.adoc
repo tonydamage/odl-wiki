@@ -29,9 +29,17 @@ Eclipse->Preferences).
 [[installing-eclipse]]
 == Installing Eclipse
 
+WARNING: If you use Ubuntu, see
+link:Installing Eclipse on Ubuntu[Installing Eclipse on Ubuntu]. If you
+try to install eclipse manually (as stated in these instructions) you
+may end up in a situation in which it seens to not work or to work
+erratically. For example the menu may fail to integrate with Ubuntu's
+window manager properly.
+
 1.  Make sure you have a Java 1.7 JDK installed.
-2.  Download and install Eclipse ("for Java EE Developers", "for Java
-Developers" and "for RCP and RAP Developers" all seem to work)
+2.  Download the Eclipse package ("for Java EE Developers", "for Java
+Developers" and "for RCP and RAP Developers" all seem to work) and
+extract it into your home directory.
 3.  Increase the memory for the Eclipse installation by modifying the
 http://wiki.eclipse.org/Eclipse.ini[eclipse.ini] file in the same
 directory as the eclipse executable.
@@ -42,7 +50,8 @@ documentation] if you don't see the file._
 * Also change the PermGen space (-XX:MaxPermSize) to be at most 512MB,
 i.e., -XX:MaxPermSize=512m. If you are only using 1 GB for max memory,
 then I would suggest 300 MB to start for PermSize.
-4.  Install Eclipse Maven Integration
+4.  (not required if you use Eclipse Luna) Install Eclipse Maven
+Integration
 1.  From Eclipse, go to Help => Install New Software...
 2.  Paste "http://download.eclipse.org/technology/m2e/releases" into the
 "Work with:" field
@@ -55,28 +64,32 @@ of the writing of these instructions)_
 2.  Paste
 "http://download.eclipse.org/modeling/tmf/xtext/updates/composite/releases"
 into the "Work with:" field
-3.  Select Xtend SDK and Xtend M2E extensions under Xtend-2.4.3 +
+3.  Uncheck "Show only the latest versions of available software" and
+"Group items by category", if necessary.
+4.  Select Xtend SDK 2.4.3.XXX and Xtend M2E extensions 2.4.3.XXX +
 _There are newer versions, however our source currently uses version
 2.4.3. Choosing a newer version will cause compile errors._
-4.  Click Next, OK and Finish else until things install
-5.  Restart Eclipse when it asks
+5.  Click Next, OK and Finish else until things install
+6.  Restart Eclipse when it asks
 6.  Install Eclipse Tycho integration
 1.  From Eclipse, go to Help => Install New Software...
 2.  Paste
 http://repo1.maven.org/maven2/.m2e/connectors/m2eclipse-tycho/0.7.0/N/0.7.0.201309291400/
 into the "Work with:" field.
 3.  Select the Tycho Project Configurators. Click Next, OK, Finish etc
-until it installs.
+until it installs (ignore the unsigned content warning by clicking "OK"
+in the form).
 4.  Restart Eclipse when it asks.
 7.  Install the build-helper-maven plugin (this allows eclipse to see
 yang/xtend generated directories as source folders)
 1.  From Eclipse, go to Windows => Preferences, expand the Maven folder
-and select Discover.
+and select Discovery.
 2.  In the right panel, click 'Open Catalog'.
 3.  Type 'build' in he Find box to filter the list.
 4.  You should see 'buildhelper' listed. Select it and click Finish.
 5.  Click Next in the following 2 panels, accept the license terms and
-click Finish (ignore the unsigned content warning).
+click Finish (ignore the unsigned content warning by clicking "OK" in
+the form).
 6.  Restart Eclipse when it asks.
 8.  Install Groovy plugin
 1.  From Eclipse, go to Help => About, and note what eclipse version you
@@ -98,12 +111,17 @@ OpenDaylight (at least in the controller project) will refuse to compile
 code which has trailing whitespaces in in. Eclipse can be configured to
 automatically eliminate them for Java files.
 
-1.  Go to Preferences => Java => Editor => Save Actions
+1.  Go to Window => Preferences, expand Java => Editor and click "Save
+Actions"
 2.  check "Perform the selected actions on save" and "Additional
 actions", but uncheck the rest
-3.  click "Configure..." next to the additional actions
+3.  click "Configure..." next to the additional actions (expand the
+form's window if you don't see the button).
 4.  Check "Remove trailing whitespace" and "All lines" on the first tab
-("Code Organizing"), uncheck everything else on the other tabs.
+("Code Organizing"), uncheck everything else on the other tabs (at the
+bottom of the form you should see "1 of 27 save actions activated"; the
+"1" in the message is important, the "27" can differ if not in version
+4.4).
 
 [[eclipse-maven-integration-m2e-version]]
 === Eclipse Maven Integration (m2e) version
@@ -120,12 +138,20 @@ OpenDaylight Controller:Pulling, Hacking, and Pushing the Code from the CLI[inst
 The short version is:
 1.  Pull the code:
 `git clone ssh://<username>@git.opendaylight.org:29418/controller.git`
-2.  Build the code: `cd controller && mvn clean install` _You can also
-build from opendaylight/distribution/opendaylight, but it just builds
-the distribution as opposed to building everything_ +
+2.  Build the code:
+`cd controller && MAVEN_OPTS="-Xmx2048m -XX:MaxPermSize=512m" mvn clean install`
+_You can also build from opendaylight/distribution/opendaylight, but it
+just builds the distribution as opposed to building everything_ +
 The long version is available here
 GettingStarted:Pulling,_Hacking,_and_Pushing_All_the_Code_from_the_CLI.
-2.  Import all of the OpenDaylight projects into eclipse
+3.  Incase you face issues with Non-Resolvable POM Parent Error while
+compiling, you can check whether you have settings.xml properly
+configured as mentioned in below link (See Edit ~/ml2/settings.xml
+section)
+
+https://wiki.opendaylight.org/view/GettingStarted:Development_Environment_Setup#Edit_your_.7E.2F.m2.2Fsettings.xml
+
+1.  Import all of the OpenDaylight projects into eclipse
 1.  From Eclipse, go to File => Import => Maven => Existing Maven
 Projects
 2.  Browse to the root directory of the git repository
@@ -139,26 +165,29 @@ those errors
 [[help---i-still-have-red-xs-i.e.-eclipse-compile-errors]]
 == Help - I still have Red X's! (i.e. Eclipse compile errors)
 
-* The first thing to try when you still have eclipse compile errors is
-to right click the offending projects and choose:
-** Refresh <-- Causes eclipse to scan the project directory and pull in
-any files that were manipulated (generated etc) outside of eclipse.
-** Maven -> Update Projects <-- This will cause eclipse to reevaluate
-the pom.xml and possibly pull in missing (runtime generated) files.
-Additionally this refreshes the source as well (above command).
-* If you still have compile errors, then you may need to run mvn clean
-install from the command line the offending projects. Yang and xtend
-source files are only generated when maven is invoked directly (either
-by right clicking and choosing Run -> mvn generate-sources or via the
-command line).
-* Sometimes you may have auto generated files under
-src/main/sal-gen-config or sal-gen-yang or xtend directories.
-Occasionally some sources can be generated but not cleaned up properly
-which can lead to compile errors. Try removing the generated directories
-manually and then rebuilding, or pulling a clean copy of the source.
+Eclipse is no longer able to compile OpenDayLight. The reason is three
+maven plugins which are used by OpenDayLight but are not integrated into
+Eclipse: maven-plugin-plugin, karaf-maven-plugin and
+maven-antrun-plugin. This means you will always have Eclipse compile
+errors in the project (this could go to up to 100000 errors).
+
+You can use Eclipse for editing easily but to compile the project you
+need to open a terminal window and do the compilation according to the
+instructions from
+OpenDaylight Controller:Pulling, Hacking, and Pushing the Code from the CLI[OpenDaylight
+Controller:Pulling, Hacking, and Pushing the Code from the CLI] or
+GettingStarted:Pulling, Hacking, and Pushing All the Code from the CLI[GettingStarted:Pulling,
+Hacking, and Pushing All the Code from the CLI]. If you want to debug
+the code, you need to do it remotely as described in the next section.
 
 [[debugging-the-controller]]
 == Debugging the Controller
+
+As it is no longer possible to build OpenDayLight cleanly in Eclipse,
+the only way to debug it is to use remote debugging. If you attempt to
+run or debug OpenDayLight from Eclipse, you will end up with a build
+failure reporting over 100000 errors and most likely run out of memory
+as well.
 
 [[attaching-the-debugger-to-a-running-odl]]
 === Attaching the Debugger to a Running ODL
@@ -171,7 +200,7 @@ localhost, otherwise provide the hostname or IP address of the remote
 server! +
  +
 To remotely debug the controller you first need to start ODL with the
-*-debug* flag.
+*-debug* flag, or just *debug* since Helium release.
 
 1.  Start the controller with the -debug flag passed to the run.sh
 script.
@@ -180,7 +209,15 @@ script.
 ./run.sh -debug   
 ------------------
 +
-_This starts the controller, opening up port 8000 for debugging._
+_This starts the controller, opening up port 8000 for debugging._ +
+Since Helium, start the controller with the debug flag passed to the
+karaf.sh script.
++
+-----------------
+./karaf.sh debug 
+-----------------
++
+_This starts the controller, opening up port 5005 for debugging._
 2.  In Eclipse choose Run->"Debug Configurations"
 * Under "Remote Java Application" choose a standard connection type, and
 enter the hostname (localhost or remote controller name) and port (8000

@@ -1,0 +1,311 @@
+[[introduction]]
+= Introduction
+
+The tutorial represents an example of an application project. The result
+at each step of the tutorial is a standalone application that can be
+deployed into the OpenDaylight container. The first step in the tutorial
+is an empty skeleton app (that can nevertheless be deployed into ODL's
+Karaf container); simple functionality is added at each subsequent step.
+Each step is described in its own chapter.
+
+This chapter introduces the basic skeletal project directory structure,
+explains the basics of the OpenDaylight build system (such as the Maven
+POM files), describes karaf features introduces a local ODL karaf
+distribution used to test your application. Each of the subdirectories
+has a basic pom.xml enabling us to build the basic features for the
+project. The features will not do anything but they will be installable
+in karaf.
+
+[[the-structure-of-the-project]]
+= The Structure of the Project
+
+The directory structure of the Toaster example project is as show below.
+In this section we will be looking at the highlighted files. `
+ ├── artifacts
+ ├── distribution-karaf
+ ├── features
+ │   └── src
+ │       └── main
+ │           └── resources
+ │               └── '''features.xml
+ ├── parent
+ ├── toaster-api
+ ├── toaster-consumer
+ ├── toaster-impl
+ └── toaster-it
+`
+
+Note that this is the preferred structure for every OpenDaylight
+application/plugin project. In your application, you will replace
+"toaster" with "your-project". We are developing an archetype that will
+create this directory structure for you.
+
+Each of the directories in the project has its pom.xml file, as does the
+main project directory. We will now describe the contents of each
+folder:
+
+* *artifacts*: (???Jan: what is the purpose of this directory???)
+* *distribution-karaf*: the ODL custom distribution that contains your
+application and all its dependencies is build in this folder. You can
+use this custom distribution or install your app in a pre-existing
+distribution
+* *features*: At the Karaf container level, every app/plugin is a set of
+features that can be installed in the container. This folder contains
+definitions of your application’s Karaf features and their dependencies,
+i.e. features that must be installed in the container for your app to
+work. An example of a dependency is MD-SAL
+* *parent*: contains the pom.xml with project-wide definitions for the
+build (component versions, …). All other pom.xmls in the project inherit
+from the parent pom.xml; in a sense, the app/plugin build has to be
+“grafted" into the main controller build, and pom.xml in the parent
+directory basically provides a proxy for the overall ODL build parent.
+* *toaster-api*: contains public API definitions for your application.
+It’s basically one or more yang models that define your application's
+REST and Java APIs. The APIs define your application’s functionality.
+* *toaster-consumer*: an application can have either a provider of
+certain functionality, or a consumer of the functionality, or both. This
+directory contains code and configuration for the (optional) consumer
+part of your application.
+* *toaster-impl*: contains code and configuration for the provider part
+of your application
+* *toaster-it*:contains integration tests for your application; note
+that integration and unit tests should be implemented at the same time
+as the functionality that they are testing
+
+[[defining-a-karaf-feature]]
+= Defining a Karaf Feature
+
+[[what-is-karaf-and-what-is-a-karaf-feature-bundle]]
+== What is Karaf and What is a Karaf Feature Bundle
+
+Apache Karaf is an OSGi powered container that natively supports the
+deployment of OSGi applications. In OSGi, a bundle can depend on other
+bundles. So, it means that to deploy an OSGi application, most of the
+time, you have to first deploy a lot of other bundles required by the
+application.
+
+Apache Karaf provides a simple and flexible way to provision
+applications. In Apache Karaf, the application provisioning is an Apache
+Karaf "feature".
+
+A feature describes an application as:
+
+* a name
+* a version
+* a optional description (eventually with a long description)
+* a set of bundles
+* optionally a set configurations or configuration files
+* optionally a set of dependency features
+
+When you install a feature, Apache Karaf installs all resources
+described in the feature. It automatically resolves and installs all
+bundles, configurations, and dependency features described in the
+feature.
+
+In this simple application, we will perform the following steps to
+illustrate a karaf feature bundle -
+
+* Define a feature with dependency.
+* Add feature repo in karaf.
+* Deploy feature in karaf.
+
+[[the-feature-file]]
+== The Feature File
+
+The toaster feature bundle is defined in the features.xml file under the
+features directory.
+
+In the snippet below, we have added 3 features named *odl-toaster-api*,
+*odl-toaster-impl*, and *odl-toaster-consumer*. Each of these features
+may depend on other features so they are listed under each feature. At
+the time of feature installation, all dependent features are
+automatically installed by karaf, provided they are available in karaf.
+Don't worry too much at this point about the details of the features.xml
+file. `
+ <features name="odl-toaster-${project.version}" xmlns="http://karaf.apache.org/xmlns/features/v1.2.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://karaf.apache.org/xmlns/features/v1.2.0
+        http://karaf.apache.org/xmlns/features/v1.2.0">
+ 
+    <!-- TODO: for any repo dependencies, add an entry in the features/pom.xml dependency section -->
+    <repository>mvn:org.opendaylight.yangtools/features-yangtools/${yangtools.version}/xml/features</repository>
+    <repository>mvn:org.opendaylight.controller/features-mdsal/${controller.mdsal.version}/xml/features</repository>
+ 
+    <!-- TODO: for any feature dependencies, add an entry in the features/pom.xml dependency section -->
+    
+    '''<feature name='odl-toaster-api' version='${project.version}' description='OpenDaylight :: toaster :: API'>
+        <feature version='${yangtools.version}'>odl-yangtools-common</feature>
+        <feature version='${yangtools.version}'>odl-yangtools-binding</feature>
+        <bundle>mvn:org.opendaylight.toaster/toaster-api/${project.version}</bundle>
+     </feature>
+ 
+     '''<feature name='odl-toaster-impl' version='${project.version}' description='OpenDaylight :: toaster :: Impl'>
+         <feature version='${controller.mdsal.version}'>odl-mdsal-broker</feature>
+         <feature version='${project.version}'>odl-toaster-api</feature>
+         <bundle>mvn:org.opendaylight.toaster/toaster-impl/${project.version}</bundle>
+     </feature>
+ 
+    '''<feature name='odl-toaster-consumer' version='${project.version}' description='OpenDaylight :: toaster :: Consumer'>
+         <feature version='${controller.mdsal.version}'>odl-mdsal-broker</feature>
+         <feature version='${project.version}'>odl-toaster-api</feature>
+         <bundle>mvn:org.opendaylight.toaster/toaster-consumer/${project.version}</bundle>
+    </feature>
+ </features>
+`
+
+[[exploring-the-project]]
+= Exploring the Project
+
+[[my-first-build]]
+== My First Build
+
+To build the project, run _mvn clean install_ in the top level
+directory. This will build Chapter 0 artifacts and install them as a
+karaf feature into your local maven repository. You can find your
+features.xml file at
+
+----------------------------------------------------------------------------------------------------------------------
+~/.m2/repository/org/opendaylight/toaster/features-toaster/0.0.1-SNAPSHOT/features-toaster-0.0.1-SNAPSHOT-features.xml
+----------------------------------------------------------------------------------------------------------------------
+
+In the same step above, Maven will also build a custom OpenDaylight
+distribution that has our features already pre-installed and is ready to
+start & test. Go into the distribution directory and start karaf:
+
+-------------------------------------------
+> cd distribution-karaf/target/assembly/bin
+> ./karaf
+-------------------------------------------
+
+To see if your feature is available to install, run the following
+command on karaf console:
+
+--------------
+> feature:list
+--------------
+
+It will list all the features available in the karaf instance. You can
+use grep to reduce the list with command such as -
+
+-----------------------------
+> feature:list | grep toaster
+-----------------------------
+
+You should see all the toaster features in the list, and an 'x' should
+be display indicating the feature is installed. All our toaster features
+are pre-installed, along with other ODL features upon which the toaster
+features are dependent.
+
+To exit karaf, type the following, respond with yes, then hit a couple
+of times
+
+----------
+> shutdown
+----------
+
+[[lets-hack-make-our-new-app-to-be-installed-manually]]
+== Let's Hack: Make our New App to be Installed Manually
+
+Rather than pre-installing all toaster features at distribution build
+time, you may want to custom-install the toaster features after the
+distribution has been started. To achieve this, let's build a plain ODL
+karaf distribution where the toaster features are not pre-installed.
+This is achieved by modifying the pom.xml file in the distribution
+folder. Open the distribution-karaf/pom.xml file and comment out the
+toaster features in the boot features configuration stanza in the
+configuration of the karaf-maven-plugin build plugin:
+
+---------------------------------------------------------
+…
+          <bootFeatures>
+            <feature>standard</feature>
+              <!--
+                  <feature>odl-toaster-api</feature>
+                  <feature>odl-toaster-impl</feature>
+                  <feature>odl-toaster-consumer</feature>
+              -->
+          </bootFeatures>
+...
+---------------------------------------------------------
+
+This will instruct karaf-maven-plugin to only include the standard karaf
+features and not to include the toaster features in the boot feature
+set. The resulting ODL distribution will basically come up empty.
+Rebuild with _mvn clean install_ in the the top level project directory
+and start karaf as shown in the previous section.
+
+Make sure that toaster is not installed:
+
+-----------------
+> feature:list -i
+-----------------
+
+Install toaster in the Karaf container, and check that it indeed got
+installed:
+
+----------------------------------
+> feature:install odl-toaster-impl
+> feature:list -i
+----------------------------------
+
+[[installing-toaster-features-in-an-existing-distribution]]
+== Installing Toaster Features in an Existing Distribution
+
+You may want to install your feature in a pre-existing controller
+distribution (either a controller build from the controller repository
+or a pre-built image downloaded from an OpenDaylight integration project
+repository). To do so, you need to first add the repository that
+contains the toaster features to the target distribution’s repository
+list and then install the toaster features as described in Subsection 2.
+the repository that contains the toaster features is actually you local
+maven repository - they will be installed there with a successful _mvn
+install_ build.
+
+Download or build the target distribution
+
+List the installed features:
+
+-----------------
+> feature:list -i
+…
+-----------------
+
+List available features - make sure our toaster features are not
+present:
+
+----------------------------
+> feature:list |grep toaster
+...
+----------------------------
+
+Add the repo with our toaster features to the target repo:
+
+---------------------------------------------------------------------------------------------
+> feature:repo-add mvn:org.opendaylight.toaster/features-toaster/0.0.1-SNAPSHOT/xml/features 
+> feature:list |grep toaster
+…
+---------------------------------------------------------------------------------------------
+
+Finally, install the toaster-impl feature and verify that it is indeed
+installed.
+
+----------------------------------
+> feature:install odl-toaster-impl
+> feature:list -i
+…
+----------------------------------
+
+[[what-will-you-learn-in-the-rest-of-this-tutorial]]
+= What Will You Learn in the Rest of this Tutorial
+
+The point here is, don't worry about things like:
+
+* the config subsystem
+* what pom.XML files go where and do what?
+* what's an MD-SAL, YANG, YANGTOOLS?
+
+That's the very crux of this tutorial, for now, just remember, toaster's
+make toast for hungry people. You clearly have a more complex
+application in mind, so it pays to be thinking through THAT context when
+doing the tutorials, rather than some other orthogonal, overly complex
+example we could dream up here. Hence... the toaster.

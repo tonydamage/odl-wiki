@@ -1,0 +1,223 @@
+[[preface]]
+== Preface
+
+The L2Switch project provides Layer2 switch functionality.
+
+The L2Switch project can serve as a tutorial project for writing yang
+files & yangtools.
+
+[[check-out-the-project-using-git]]
+== Check out the project using git
+
+`git clone `https://git.opendaylight.org/gerrit/p/l2switch.git[`https://git.opendaylight.org/gerrit/p/l2switch.git`]
+
+The above command will create a directory called "l2switch" with the
+project.
+
+All the code samples will refer to classes in this repository.
+
+[[writing-yang-files]]
+== Writing yang files
+
+In the AddressTracker, we track addresses (MAC and IP).
+
+The file
+/l2switch/addresstracker/model/src/main/yang/address-tracker.yang has
+our yang model.
+
+`module address-tracker {` +
+` yang-version 1;` +
+` namespace "`urn:opendaylight:address-tracker[`urn:opendaylight:address-tracker`]`";` +
+` prefix address-tracker;` +
+` revision 2014-06-17 {` +
+`   description` +
+`     "Address Tracker module draft.";` +
+` }`
+
+* The name of the yang module is "address-tracker".
+* This section contains the namespace and the revision too, which will
+be translated to the package of the generated Java classes. One of the
+generated packages is
+"org.opendaylight.yang.gen.v1.urn.opendaylight.address.tracker.rev140617"
+
+` import yang-ext {` +
+`   prefix ext;` +
+`   revision-date "2013-07-09";` +
+` }` +
+` import ietf-inet-types {` +
+`   prefix inet;` +
+`   revision-date 2010-09-24;` +
+` }` +
+` import ietf-yang-types {` +
+`   prefix yang;` +
+`   revision-date 2010-09-24;` +
+` }` +
+` import opendaylight-inventory {` +
+`   prefix inv;` +
+`   revision-date 2013-08-19;` +
+` }`
+
+* This section contains the imports that this "address-tracker" module
+depends on.
+* You'll notice below "yang:mac-address" and this refers to
+"mac-address" definition in ietf-yang-types.yang
+* You'll notice below "inet:ip-address" and this refers to "ip-address"
+definition in ietf-inet-types.yang
+
+` grouping address-node-connector {` +
+`   list addresses {` +
+`     key id;` +
+`     leaf id {` +
+`       description "A 64-bit key for this observation. This is opaque and should not be interpreted.";` +
+`       type uint64;` +
+`     }` +
+`     leaf mac {` +
+`       type yang:mac-address;` +
+`       description "MAC address";` +
+`     }` +
+`     leaf ip {` +
+`       type inet:ip-address;` +
+`       description "IPv4 or IPv6 address";` +
+`     }` +
+`     leaf vlan {` +
+`       type ethernet:vlan-id;` +
+`       description "VLAN id";` +
+`     }` +
+`     leaf first-seen {` +
+`       type int64;` +
+`       description "Timestamp (number of ms since January 1, 1970, 00:00:00 GMT) of observing this address for the first time";` +
+`     }` +
+`     leaf last-seen {` +
+`       type int64;` +
+`       description "The most recent timestamp (tnumber of ms since January 1, 1970, 00:00:00 GMT) of observing this address";` +
+`     }` +
+`   }` +
+` }`
+
+* This is the model for our address tracker.
+
+` augment "/inv:nodes/inv:node/inv:node-connector" {` +
+`   ext:augment-identifier "address-capable-node-connector";` +
+`   uses address-node-connector;` +
+` }` +
+`}`
+
+* We augment the "node-connector" model of "inv", referring to
+opendaylight-inventory.yang
+* You have to specify the complete path to the node-connector, which is
+through nodes & node.
+* The augment identifier defines the generated class name --
+AddressCapableNodeConnector
+
+[[generated-java-classes]]
+== Generated Java classes
+
+You'll need to make sure the following is in your pom.xml in order for
+the generation to occur.
+
+`     ` +
+`       ``org.apache.felix` +
+`       ``maven-bundle-plugin` +
+`       ``true` +
+`       ` +
+`         ` +
+`           ``${project.groupId}.${project.artifactId}` +
+`           ``org.opendaylight.yangtools.yang.binding.annotations, *` +
+`           ``${project.basedir}/META-INF` +
+`         ` +
+`       ` +
+`     ` +
+`     ` +
+`       ``org.opendaylight.yangtools` +
+`       ``yang-maven-plugin` +
+`       ``${yangtools.version}` +
+`       ` +
+`         ` +
+`           ``org.opendaylight.yangtools` +
+`           ``maven-sal-api-gen-plugin` +
+`           ``${yangtools.version}` +
+`           ``jar` +
+`         ` +
+`         ` +
+`           ``org.opendaylight.yangtools` +
+`           ``yang-binding` +
+`           ``${yangtools.version}` +
+`           ``jar` +
+`         ` +
+`       ` +
+`       ` +
+`         ` +
+`           ` +
+`             ``generate-sources` +
+`           ` +
+`           ` +
+`             ``src/main/yang``   <-- This defines where the yang files will be read from` +
+`             ` +
+`               ` +
+`                 ``org.opendaylight.yangtools.maven.sal.api.gen.plugin.CodeGeneratorImpl` +
+`                 ``${codeGeneratorPath}``  <-- The variable codeGeneratorPath has the value "src/main/yang-gen-code"` +
+`               ` +
+`               ` +
+`                 ``org.opendaylight.yangtools.yang.unified.doc.generator.maven.DocumentationGeneratorImpl` +
+`                 ``target/site/models` +
+`               ` +
+`               ` +
+`                 ``org.opendaylight.yangtools.yang.wadl.generator.maven.WadlGenerator` +
+`                 ``target/site/models` +
+`               ` +
+`             ` +
+`             ``true` +
+`           ` +
+`         ` +
+`       ` +
+`     `
+
+If this is in your pom.xml then you can run "mvn clean install"
+
+This will create classes in src/main/yang-gen-code
+
+You'll notice that the yang keyword "uses" leads to inheritance in the
+Java code.
+
+* AddressCapableNodeConnector extends AddressNodeConnector
+
+[[creating-an-address-object-in-java]]
+== Creating an Address object in Java
+
+The file
+/l2switch/addresstracker/implementation/src/main/java/org/opendaylight/l2switch/addresstracker/addressobserver/AddressObservationWriter.java
+contains the real example of how we construct an Address object.
+
+`     long now = new Date().getTime();` +
+`     final AddressesBuilder addressBuilder = new AddressesBuilder()` +
+`         .setIp(ipAddress)` +
+`         .setMac(macAddress)` +
+`         .setFirstSeen(now)` +
+`         .setLastSeen(now);` +
+`     List`` addresses = new ArrayList<>();` +
+`     addresses.add(addressBuilder.build());`
+
+`     final AddressCapableNodeConnectorBuilder acncBuilder = new AddressCapableNodeConnectorBuilder();` +
+`     acncBuilder.setAddresses(addresses);`
+
+* Notice that an AddressCapableNodeConnectorBuilder had the setAddresses
+function. This corresponds to the yang model field "list addresses"
+* Notice that there is an AddressesBuilder class for the "list
+addresses" field. The AddressesBuilder class has setter methods
+corresponding to all its fields.
+
+[[inserting-into-the-datastore]]
+== Inserting into the datastore
+
+`     InstanceIdentifier`` addressCapableNcInstanceId =` +
+`         InstanceIdentifier.builder(Nodes.class)` +
+`         .child(Node.class, new NodeKey(new NodeId("node-id")))` +
+`         .child(NodeConnector.class, new NodeConnectorKey(new NodeConnectorId("node-connector-id")))` +
+`         .augmentation(AddressCapableNodeConnector.class);` +
+`     final WriteTransaction writeTransaction = dataService.newWriteOnlyTransaction();` +
+`     writeTransaction.merge(LogicalDatastoreType.OPERATIONAL, addressCapableNcInstanceId, acncBuilder.build());`
+
+* Notice that the InstanceIdentifier must have the compelte path to the
+AddressCapableNodeConnector, including the Keys of the relevant Node &
+NodeConnector.
+

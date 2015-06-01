@@ -1,0 +1,80 @@
+This guide is for developers or users that want to test out their own
+code in existing codebase without the need for actually pushing the code
+in the repository and waiting for the integration job to finish.
+
+*When should I use this approach?*
+
+* I am a developer, I implemented some code that might break some
+functionality not covered in unit tests, therefore I want to see if it
+works, before I push the changes upstream.
+
+* I am a tester, I added some logging to the code to help me debugging
+an issue.
+
+* I am a user, I created a vendor-specific prototype with ODL and want
+to see if it is working (my code changes cannot be pushed to public
+repository).
+
+[[step-by-step-guide]]
+== Step-by-step guide
+
+Let's say I want to make changes to project BGPCEP and test them
+locally.
+
+*1. Download latest SNAPSHOT Karaf release* Choose and download your
+latest distribution SNAPSHOT from integration Jenkins job here:
+https://jenkins.opendaylight.org/integration/view/Integration%20jobs/job/integration-helium-project-centralized-integration/lastSuccessfulBuild/artifact/distributions/extra/karaf/target/
+It is highly recommended to run OpenDaylight also BEFORE you make any
+change. That way you can verify that original behaviour is correct and
+bugfree, before you change it.
+
+*2. Pull existing codebase to create your own local copy* Guide how to
+do it:
+GettingStarted:Pulling,_Hacking,_and_Pushing_All_the_Code_from_the_CLI#Pull_code_via_git_CLI[Pull_code_via_git_CLI]
+
+_Note:_ You don't have to pull the code for all projects.
+
+I know I am going to change source code in BGPCEP project only, so I
+don't have to pull controller or yangtools. I pull only BGPCEP.
+
+*3. Build your local copy* Assuming this is the first time the code is
+on your local machine, you get a lot of errors in your IDE, because of
+missing source code, that is generated. Therefore, first step is to
+build the project to generate such files.
+
+I build BGPCEP using: _mvn clean install_
+
+*4. [Optional] Import the code in your IDE* Guide to Eclipse is here :
+GettingStarted: Eclipse[GettingStarted: Eclipse]
+
+*5. Make your own changes*
+
+*6. Build the project again* This step is crucial. When building the
+project, a jar file is created in /target directory for each module.
+Locate jar files of modules that you've changed with your code.
+
+For the purpose of our example, I've changed code in bgp-rib-impl and
+bgp-linkstate. So the two jars will be bgp-linkstate-SNAPSHOT.jar and
+bgp-rib-impl-SNAPSHOT.jar.
+
+After you've located the jar files, replace them in their respective
+folders in OpenDaylight directory (e.g.
+distribution-karaf-0.x.x-Helium/system/org/opendaylight/bgpcep/bgp-linkstate/0.x.x-Helium).
+
+'''7. Restart ODL with your changes and reinstall the feature '''
+
+You should be now able to detect your changes. If you added some log
+messages to the code, make sure, that the log level is set to the same
+level (to see log.debug(), it has to be on 'DEBUG').
+
+[[frequent-issues]]
+== Frequent issues
+
+[[missing-constraint-error-in-console]]
+=== "Missing constraint" error in console
+
+If you encounter this kind of error, there is at least one jar file that
+you modified but didn't copy to it's karaf directory. Recheck your
+changed files. This error can also occur, if downloaded distribution is
+older than your codebase. This can be fixed by moving to latest
+distribution.

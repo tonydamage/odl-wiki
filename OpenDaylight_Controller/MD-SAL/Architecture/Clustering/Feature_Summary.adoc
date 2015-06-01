@@ -1,0 +1,337 @@
+[[introduction]]
+== Introduction
+
+This page attempts to summarize the high-level clustering capabilities
+for each release starting with the Helium MD-SAL Akka-based clustering
+solution. The feature list is derived from the following clustering
+design wiki documents, code, and conversations with the engineers that
+implemented the design:
+
+OpenDaylight_Controller:MD-SAL:Architecture:Clustering[Clustering -
+General Design] +
+OpenDaylight_Controller:MD-SAL:Architecture:Clustering_Detailed_Design[Clustering
+- Detailed Design]
+
+[[clustering-feature-summary]]
+== Clustering Feature Summary
+
+[cols=",,,,",options="header",]
+|=======================================================================
+|Category |Feature |Description |Helium |Lithium
+|*Cluster Configuration* | | | |
+
+| |Member Discovery | |Static - Load Once on Startup |
+
+| |Member Change Notification | |Yes (Join, Leave, Unreachable) |
+
+| |Config API (Java/REST) | |No |
+
+| |Restrictions (# Members) | |Odd Number Only (RAFT Dependency) |
+
+| |Failure Detection | |Phi Accrual (Akka-Clustering) |
+
+|*Sharding* | | | |
+
+| |Default Strategy | |Per Top-Level Module
+(module-sharding-strategies.conf) - Load Once on Startup |
+
+| |Configurable Strategies | |No |
+
+| |Re-Sharding |Change in shard strategy/config will re-shard and
+redistribute data. |No |
+
+| |Primary Shard Designation | |RAFT Consensus Elected (RAFT Algorithm
+Per-Shard) |
+
+| |# Replica | |Static (modules.conf)- Load Once on Startup |
+
+| |Replica Placement | |Static (modules.conf)- Load Once on Startup |
+
+| |Dynamic Replication |On member failure(s) the cluster will
+re-replicate data to maintain desired replica configuration. |No
+(Failover till no backup replicas, then suspend) |
+
+| |Dynamic APP Deployment |Sharding for new APP/Service deployed in
+MD-SAL after startup. |No (Shard config loaded once on startup) |
+
+| |Load Balancing |System takes in to account how many primary shards
+are on controller and attempts to load balance in the cluster. |No (All
+RAFT Instances Run Independently) |
+
+|*Transactions* | | | |
+
+| |R/W Transactions | |Yes (3-Phase) |
+
+| |Chained Transactions | |Yes (3-Phase) |
+
+| |Multi-Shard Transactions | |No |
+
+|*Distributed Datastore API* | | | |
+
+| |Java (Asychronous) | |Yes (Yes) |
+
+| |REST | |Yes (MD-SAL Provided) |
+
+|*Persistence* | | | |
+
+| |Persistent Datastore | |Yes (Akka-Persistence w/LevelDB) |
+
+| |Alternative Persistence Implementation |Link in other database or
+persistence implementation (Akka-persistence is capable of this.) |No |
+
+| |Journaling | |Yes |
+
+| |Snapshot | |Yes??? (Fixed - Every 100k records) But Shard#Snapshot
+throws "UnsupportedOperationException" |
+
+| |Availability During Snapshot Recovery | |No (Requests Rejected) |
+
+|*Serialization* | | | |
+
+| |Custom Serialization | |No (Java Serialization) |
+
+|*Consistency* | | | |
+
+| |Write Consistency | |Fixed (Write Primary Shard +1 Replica) |
+
+| |Read Consistency | |Fixed (Always Read Primary Shard) |
+
+| |Data Aggregation |Multi-shard data returned as a single read request.
+|No |
+
+|*Security* | |Default Akka network transport (Netty - pluggable) | |
+
+| |Member Authentication | |No (Akka Capable - Netty Config) |
+
+| |Encryption (SSL) | |No (Akka Capable - Netty Config) |
+
+| |Access Control | |Yes (AAA Controls Access To MD-SAL) |
+
+|*Notifications* | |Use of RAFT consensus dictates this behavior. | |
+
+| |Data Change | |Yes (Subtree / Shard Change Only) |
+
+| |Remote Notifications | |No (Local Listener Notification Only) |
+
+|*Data Versioning* | | | |
+
+| |Versioned Messages | |Yes - (Google Protocol Buffers) |
+
+|*Network Partitioning* | |Use of RAFT consensus dictates this behavior.
+| |
+
+| |Detection Time | |Akka-Clustering Dependent (Phi Accrual) |
+
+| |Majority Partition R/W |Majority == Quorum of nodes in the team. |Yes
+|
+
+| |Minority Partition R/W | |No (Suspended) |
+
+| |Configurable Heartbeat (RAFT) | |Fixed (2 seconds?) |
+
+|*Validation And Monitoring* | | | |
+
+| |Data Validators | |Yes (Intercept Pre or Post write?) |
+
+| |Monitoring | |Yes (Basic - remote vs. local reads?) |
+
+| |Statistics | |Yes (Per Shard) |
+
+|*Querying & Indexing* | | | |
+
+| |Query Language | |No (XSQL prototype being evaluated) |
+
+| |Indexing |Official index scheme for tree datastore
+(nodes/levels/etc.). |No |
+
+|*Remote RPC* | | | |
+
+| |Remote RPCs | |Yes (MD-SAL Context Based Routing) |
+
+| |Registry Exchange Frequency | |Fixed (10sec Gossip) |
+
+| |Request Not Found In Registry? | |Dropped |
+
+|*Performance* | |Document test HW setup, data sizes, number nodes, etc.
+| |
+
+| |Read | |TBD (Transactions / second) |
+
+| |Write | |TBD (Transactions / second) |
+|=======================================================================
+
+[[potential-future-features-lithium]]
+== Potential Future Features (Lithium)
+
+Placeholder to list potential enhancements and new features for Lithium.
+This does *NOT* imply these features are officially planned for the
+Lithium release (just for Lithium planning and design summit
+discussion).
+
+[cols=",,,",options="header",]
+|=======================================================================
+|# |Category |Feature |Description
+| |*Sharding* | |
+
+|1 | |Finer-Grain Sharding |Ability to define module sharding at a lower
+level. E.g. Inventory shard broken down to Inventory X,Y,Z (3-node team)
+for primary shard ownership with the controllers responsible for those
+switches.
+
+|2 | |Alternative Sharding Strategies (e.g. Key Hashing?) |Useful or
+does finer-grain module sharding suffice?
+
+|3 | |Re-Sharding (Dynamic Team Formation) |When new members are
+dynamically added/removed from the team what is the impact to
+existing/future shards? For example if we support a replication level of
+"quorum" then definition of quorum can change.
+
+|4 | |Re-Sharding (New APP Install) |When a new application is deployed
+can its desired shard configuration be applied dynamically? Helium just
+reads the config files once on startup currently. (See Programmatic
+Shard Config below)
+
+|5 | |Re-Sharding (Change Strategy) |Would an application or system
+admin want to change the shard strategy on the fly and can the system
+re-shard existing data to match? (advanced feature)
+
+|6 | |Re-Sharding (Load Balancing) |Hooks to allow cluster to
+automatically balance how may primary shard owners there are on 1
+controller (influence RAFT election). With RAFT "may" be done easily by
+triggering a new election and influencing who are the candidates.
+
+|7 | |Data Aggregation (Transitions on Multiple Shards) |Especially when
+the system supports finer-grain sharding the ability to perform
+transactions across multiple shards is needed.
+
+|8 | |Control Primary Shard Ownership |Do we need hooks in to the shard
+election project to control where a primary shard may land on the
+cluster? (In the interest of keeping data owner and users together and
+avoid network traffic). Larger question of how APP operate in clustered
+environment.
+
+|9 | |Programmatic Shard Config |Convert existing shard configuration
+file (modules.conf, module-shard.conf) to programmatic calls to adjust
+shard configuration.
+
+| |*Persistence* | |
+
+|10 | |Configurable Persistence Level |Currently (Helium) persistence is
+enabled on a whole shard. Should that be configurable on: 1) write?, 2)
+on a level of the data tree?, 3) pattern matched?, 4) other?
+
+| |*Network Partitioning (Split-Brain)* | |
+
+|11 | |Alternative Network Partition Behavior |Current (Helium) behavior
+is prevent datastore access when there is loss of quorum in the team. We
+may want to have different behavior (programmable) such as: 1) allow
+reads and/or writes even when in the quorum minority (availability over
+consistency), or 2) when #1 is allowed allow predefined/custom merge
+strategy instead of RAFT leader overwriting behaviors of the minority
+cluster, 3) others?
+
+| |*Data-Change Notifications* | |
+
+|12 | |Routed Notifications |Unclear if the on-data change notification
+is delivered to all subscribers as intended. (Long mailing list thread
+on this - TBD)
+
+|13 | |Enhanced Data-Tree Listeners (One, Base)
+|[https://wiki.opendaylight.org/view/OpenDaylight_Controller:MD-SAL:Architecture:DOM_DataStore[|
+Already a stated goal] to support not just Subtree notification but also
+One and Base. Is it still an issue that changes on Config or Production
+datastore triggers notifications on the other?
+
+| |*Scalability* | |
+
+|14 | |Maintain Replication Levels on Failure |If overall team is larger
+than the stated shard configuration as failures in shard owners occur
+should the system continue replication to other available nodes to
+maintain the desired replication level.
+
+|15 | |Configurable Write Consistency |Note: May not be negotiable with
+RAFT to maintain the integrity of that algorithm. Maybe the discussion
+is to allow pluggable consensus algorithms? (Discussion needed)
+
+|16 | |Configurable Read Consistency |For APPs that do not require
+strict consistency can they read their local shard (if available) for
+faster data access.
+
+|17 | |Even # Cluster Size Support |Can we support even number clusters,
+particularly 2-Node case. (Discussion needed)
+
+| |*Cluster Services* | |
+
+|18 | |Programmatic Team Config |Convert Akka configuration file
+(akka.conf) to programmatic calls to Akka cluster so we can
+create/destroy/change teams dynamically.
+
+|19 | |Dynamic Team Formation |Ability to add/remove 1+ members to the
+cluster.
+
+|20 | |Team-Wide APP Deployment |To install a Application on a whole
+team by just installing it on one cluster member (perhaps the leader).
+
+| |*Security* | |
+
+|21 | |Authenticate Cluster Members |Control who is a trusted
+Akka-cluster member to share data with.
+
+|22 | |Encrypt Cluster Member Traffic |Encrypt Akka-cluster member
+traffic (Netty SSL)
+
+| |*Performance (Profiling & Tuning)* | |
+
+|23 | |Network |Measure and tune: Akka-cluster network performance
+(Netty)
+
+|24 | |In-Memory |Measure and tune: distributed datastore in-memory
+performance. (R/W performance for a variety of cluster sizes, object
+sizes, and clients)
+
+|25 | |Persistence |Measure and tune: distributed datastore persistence
+performance. Make journal-->snapshot interval configurable?
+
+|26 | |Remote RPC Registry |Adjust Gossip protocol settings and behavior
+when remote RPC is ready but not seen in a controller's remote registry
+just yet.
+
+| |*Misc.* | |
+
+|27 | |Simple API |Provide APPs with a simple store that maps on the
+data tree?
+
+|28 | |Indexing/Caching |Minimize data tree traversal and allow indexing
+of data based on some criteria.
+
+|29 | |Query Support |Continued development and support of XSQL.
+
+|30 | |Validators |Add validation rules for data written in to some
+level of the datastore, e.g. field X should not be null, etc.
+
+|31 | |Enhanced Monitoring/Statistics |Continue with posted
+OpenDaylight_Controller:MD-SAL:Architecture:Clustering[Helium goal] of
+providing detailed performance monitoring for the datastore
+
+|32 | |Election Service |Provide an election service for applications to
+elect a leader? (when running in active-standby config). Can get this
+implicitly with RAFT election of a shard leader?
+
+| |*Helium Code Testing* | |
+
+|33 | |Unit |General unit testing improvements (as needed).
+
+|34 | |System |General system testing improvements (as needed).
+
+| |*Datastore / Remote RPC* | |
+
+|35 | |Ephemeral Data Nodes |Is Operational tree data removed
+automatically by the system if owner is uninstalled/unavailable or is it
+up to the APP's code to do so?
+
+|36 | |Remote Multicast RPC |Do we want to support Remote RPCs that say
+have wildcards for the routing content? (See
+https://lists.opendaylight.org/pipermail/controller-dev/2014-September/006670.html[controller-dev]
+thread)
+|=======================================================================
+

@@ -1,0 +1,121 @@
+[[general-remarks]]
+= General remarks
+
+[[how-disable-port-in-mininet]]
+== How disable port in mininet
+
+After start of mininet via command
+
+`sudo mn --topo tree,3 --mac --controller 'remote,ip=192.168.1.100,port=6653' --switch ovsk,protocols=OpenFlow13`
+
+the tree topology of *OVS switches* is created
+
+`         s1` +
+`       /    \` +
+`     s2      s5    ` +
+`    /  \     /  \` +
+`  s3   s4   s6   s7`
+
+If you run *openflowplugin karaf distribution* with feature
+_odl-openflowplugin-app-new-lldp-speaker_ and then *resty* command
+
+`./topologyDumper.sh | sed -rn '/LINKS/,$ p;' | nl`
+
+you should see output like this (openflow:n = s:n)
+
+2 openflow:3:3 <--> openflow:2:1
+
+3 openflow:2:3 <--> openflow:1:1
+
+4 openflow:2:2 <--> openflow:4:3
+
+5 openflow:2:1 <--> openflow:3:3
+
+6 openflow:1:2 <--> openflow:5:3
+
+7 openflow:5:2 <--> openflow:7:3
+
+8 openflow:5:3 <--> openflow:1:2
+
+9 openflow:6:3 <--> openflow:5:1
+
+10 openflow:1:1 <--> openflow:2:3
+
+11 openflow:7:3 <--> openflow:5:2
+
+12 openflow:5:1 <--> openflow:6:3
+
+13 openflow:4:3 <--> openflow:2:2
+
+Every link is here twice (for every direction).
+
+From mininet it isn't possible to shutdown link but it is possible to do
+for ovs switch. To see current status you should use command
+
+`sudo ovs-vsctl show | less`
+
+and then you will see
+
+`   Bridge "s1"` +
+`       Controller "tcp:192.168.1.100:6653"` +
+`           is_connected: true` +
+`       Controller "ptcp:6634"` +
+`       fail_mode: secure` +
+`       Port "s1-eth2"` +
+`           Interface "s1-eth2"` +
+`       Port "s1-eth1"` +
+`           Interface "s1-eth1"` +
+`       Port "s1"` +
+`           Interface "s1"` +
+`               type: internal` +
+`   ovs_version: "2.3.1"`
+
+It means that switch *s1* has two port *s1-eth1, s1-eth2*.
+
+To shutdown ports use command
+
+`sudo ovs-vsctl del-port s1 s1-eth1` +
+`sudo ovs-vsctl del-port s1 s1-eth2`
+
+and there output will be
+
+`   Bridge "s1"` +
+`       Controller "tcp:192.168.1.100:6653"` +
+`           is_connected: true` +
+`       Controller "ptcp:6634"` +
+`       fail_mode: secure` +
+`       Port "s1"` +
+`           Interface "s1"` +
+`               type: internal` +
+`   ovs_version: "2.3.1"`
+
+Finally end output of resty will be
+
+`    2  openflow:5:2 <--> openflow:7:3` +
+`    3  openflow:3:3 <--> openflow:2:1` +
+`    4  openflow:6:3 <--> openflow:5:1` +
+`    5  openflow:2:2 <--> openflow:4:3` +
+`    6  openflow:7:3 <--> openflow:5:2` +
+`    7  openflow:2:1 <--> openflow:3:3` +
+`    8  openflow:5:1 <--> openflow:6:3` +
+`    9  openflow:4:3 <--> openflow:2:2`
+
+You can see that openflow:1 links are missing there.
+
+[[how-disable-node-switch-in-mininet]]
+== How disable node (switch) in mininet
+
+Switch disabling can be simulated via removing controller configuration
+(IP) in switch. It can be done via command
+
+`sudo ovs-vsctl del-controller device_identifier`
+
+Similarly, disconnected device (or completely new device) can be
+reconnected (or connected) via command
+
+`sudo ovs-vsctl set-controller device_identifier tcp:ip:port`
+
+In my case it was:
+
+`sudo ovs-vsctl del-controller s3` +
+`sudo ovs-vsctl set-controller s3 tcp:192.168.1.100:6653`

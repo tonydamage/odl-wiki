@@ -1,0 +1,190 @@
+[[introduction]]
+= Introduction
+
+This is a quick tutorial on how to install and use the SNMP Plugin.
+
+[[getting-the-code]]
+= Getting the code
+
+Clone the repository (https://git.opendaylight.org/gerrit/snmp) :
+
+`
+git clone https://git.opendaylight.org/gerrit/snmp
+`
+
+[[build]]
+= Build
+
+From the root of the repository, build using maven
+
+`
+mvn clean install 
+`
+
+[[run]]
+= Run
+
+To run the SNMP plugin, first start up opendaylight through karaf.
+
+Install the feature repository:
+
+`
+feature:repo-add mvn:org.opendaylight.snmp/features-snmp/1.0-SNAPSHOT/xml/features
+`
+
+Install the snmp plugin:
+
+`
+opendaylight-user@root>feature:install odl-snmp-plugin
+`
+
+To expose the northbound rest API, install the restconf feature:
+
+`
+opendaylight-user@root>feature:install odl-restconf-all
+`
+
+[[northbound-api]]
+= Northbound API
+
+There are two exposed northbound APIs: snmp-get and snmp-set
+
+Note: ODL expects basic authentication credentials in the HTTP Header of
+the request, the default user/pass is admin/admin.
+
+[[snmp-get]]
+=== SNMP GET
+
+Default URL: *http://localhost:8181/restconf/operations/snmp:snmp-get*
+
+[[post-input]]
+==== POST Input
+
+[cols=",,,,",options="header",]
+|=======================================================================
+|Field Name |Type |Description |Example |Required?
+|ip-address |IPv4 Address |The IPv4 address of the desired network node
+|10.86.3.13 |Yes
+
+|oid |String |The Object Identifier of the desired MIB table/object
+|1.3.6.1.2.1.1.1 |Yes
+
+|get-type |ENUM. One of GET, GET-NEXT, GET-BULK, GET-WALK |The type of
+get request to send |GET-BULK |Yes
+
+|community |String |The community string to use for the SNMP request
+|private |No (default: public)
+|=======================================================================
+
+Example:
+
+`
+    {
+        "input": {
+            "ip-address": "10.86.3.13",
+            "oid" : "1.3.6.1.2.1.1.1",
+            "get-type" : "GET-BULK",
+            "community" : "private"
+        }
+    }
+`
+
+[[post-output]]
+==== POST Output
+
+[cols=",,,,",options="header",]
+|=======================================================================
+|Field Name |Type |Description |Example |
+|results |List of ` { "value" : String, "oid" : String } ` |The results
+of the SNMP query
+|` { "value": "Cisco IOS", "oid": "1.3.6.1.2.1.1.1.0" } `
+|=======================================================================
+
+Example:
+
+`
+    {
+        "snmp:results": [
+            {
+                "value": "Ethernet0/0/0",
+                "oid": "1.3.6.1.2.1.2.2.1.2.1"
+            },
+            {
+                "value": "FastEthernet0/0/0",
+                "oid": "1.3.6.1.2.1.2.2.1.2.2"
+            },
+            {
+                "value": "GigabitEthernet0/0/0",
+                "oid": "1.3.6.1.2.1.2.2.1.2.3"
+            }
+        ]
+    }
+`
+
+[[snmp-set]]
+=== SNMP SET
+
+Default URL: *http://localhost:8181/restconf/operations/snmp:snmp-set*
+
+[[post-input-1]]
+==== POST Input
+
+[cols=",,,,",options="header",]
+|=======================================================================
+|Field Name |Type |Description |Example |Required?
+|ip-address |IPv4 Address |The IPv4 address of the desired network node
+|10.86.3.13 |Yes
+
+|oid |String |The Object Identifier of the desired MIB table/object
+|1.3.6.1.2.1.1.1 |Yes
+
+|value |String |The value to set on the network device |"Hello World"
+|Yes
+
+|community |String |The community string to use for the SNMP request
+|private |No (default: public)
+|=======================================================================
+
+Example:
+
+`
+    {
+        "input": {
+            "ip-address": "10.86.3.13",
+            "oid" : "1.3.6.1.2.1.1.1.0",
+            "value" : "Sample description",
+            "community" : "private"
+        }
+    }
+`
+
+[[post-output-1]]
+==== POST Output
+
+On a successful SNMP-SET, no output is presented, just a HTTP status of
+200.
+
+[[errors]]
+==== Errors
+
+If any errors happen in the set request, you will be presented with an
+error message in the output.
+
+For example, on a failed set request you may see an error like:
+
+`
+    {
+        "errors": {
+            "error": [
+                {
+                    "error-type": "application",
+                    "error-tag": "operation-failed",
+                    "error-message": "SnmpSET failed with error status: 17, error index: 1. StatusText: Not writable"
+                }
+            ]
+        }
+    }
+`
+
+which corresponds to Error status 17 in the SNMPv2 RFC:
+https://tools.ietf.org/html/rfc1905

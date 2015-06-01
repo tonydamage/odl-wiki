@@ -1,0 +1,346 @@
+[[prepare-the-environment]]
+== Prepare the Environment
+
+[[run-opendaylight-controller-with-the-topoprocessing-plugin]]
+=== Run OpenDaylight controller with the topoprocessing plugin
+
+1.  Download or clone the *topoprocessing* project
++
+::
+  GettingStarted:Pulling, Hacking, and Pushing All the Code from the CLI[GettingStarted:Pulling,
+  Hacking, and Pushing All the Code from the CLI]
+
+1.  Build the project
++
+::
+  `cd topoprocessing`
+  +
+  `mvn clean install`
+
+1.  Extract the build
++
+::
+  You can find the archive here:
+  +
+  *
+  `topoprocessing/distribution-karaf/target/distribution-karaf-0.0.1-SNAPSHOT.zip`
+  *
+  `topoprocessing/distribution-karaf/target/distribution-karaf-0.0.1-SNAPSHOT.tar.gz`
+
+#: Or download the latest one here:
+
+#:*
+https://nexus.opendaylight.org/content/repositories/opendaylight.snapshot/org/opendaylight/topoprocessing/distribution-karaf/0.0.1-SNAPSHOT/
+
+1.  Run it
++
+::
+  `cd <extracted directory>/bin`
+  +
+  `./karaf` or use `karaf.bat`
+
+[[enable-the-restconf-feature]]
+=== Enable the Restconf feature
+
+Check if `odl-restconf` feature is installed. You can use the command
+for listing all installed features.
+
+---------------
+feature:list -i
+---------------
+
+If not then install it:
+
+----------------------------
+feature:install odl-restconf
+----------------------------
+
+[[debug]]
+=== Debug
+
+1.  Set debug
++
+::
+---------------------
+log:set LEVEL PACKAGE
+---------------------
+  +
+  eg.:
+  +
+--------------------------------------------------
+log:set DEBUG org.opendaylight.topoprocessing.impl
+--------------------------------------------------
+
+1.  Show log
++
+::
+--------
+log:list
+--------
+  +
+--------
+log:tail
+--------
+
+[[comunicating-with-the-restconf]]
+=== Comunicating with the RestConf
+
+https://chrome.google.com/webstore/detail/postman-rest-client/fdmmgilgnpjigdojojpjoooidkmcomcm?hl=en[Install
+Postman for Chrome]
+
+Set headers:
+
+Content-Type::
+  application/xml
+Accept: application/xml +
+username::
+  admin
+password::
+  admin
+
+[[underlay-topologies]]
+== Underlay Topologies
+
+[[common-functions]]
+=== Common functions
+
+[[show-all-topologies]]
+==== Show all Topologies
+
+URL::
+  http://127.0.0.1:8181/restconf/operational/network-topology:network-topology
+method::
+  GET
+
+[[delete-all-topologies]]
+==== Delete all Topologies
+
+URL::
+  http://127.0.0.1:8181/restconf/operational/network-topology:network-topology
+method::
+  DELETE
+
+[[pcep]]
+=== PCEP
+
+[[addedit-topology]]
+==== Add/Edit Topology
+
+URL::
+  http://127.0.0.1:8181/restconf/config/network-topology:network-topology/topology/pcep-topology:1
+method::
+  PUT
+
+-----------------------------------------------------------------------
+<topology
+        xmlns="urn:TBD:params:xml:ns:yang:network-topology"
+        xmlns:pcep="urn:opendaylight:params:xml:ns:yang:topology:pcep">
+    <topology-id>pcep-topology:1</topology-id>
+    <topology-types>
+        <pcep:topology-pcep></pcep:topology-pcep>
+    </topology-types>
+</topology>
+-----------------------------------------------------------------------
+
+[[addedit-node]]
+==== Add/Edit node
+
+URL::
+  http://127.0.0.1:8181/restconf/config/network-topology:network-topology/topology/pcep-topology:1/node/pcep:11
+method::
+  PUT
+
+-------------------------------------------------------------------
+<node
+    xmlns="urn:TBD:params:xml:ns:yang:network-topology"
+    xmlns:pcep="urn:opendaylight:params:xml:ns:yang:topology:pcep">
+    <node-id>pcep:11</node-id>
+    <pcep:path-computation-client>
+        <pcep:ip-address>192.168.1.1</pcep:ip-address>
+    </pcep:path-computation-client>
+</node>
+-------------------------------------------------------------------
+
+[[addedit-node-with-termination-point]]
+==== Add/Edit node with termination point
+
+URL::
+  http://127.0.0.1:8181/restconf/config/network-topology:network-topology/topology/pcep-topology:1/node/pcep:11
+method::
+  PUT
+
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+<node>
+    <node-id>pcep:11</node-id>
+    <termination-point>
+        <tp-id>pcep:1:1</tp-id>
+        <tp-ref>/(urn:TBD:params:xml:ns:yang:network-topology?revision=2013-10-21)network-topology/topology/topology[{(urn:TBD:params:xml:ns:yang:network-topology?revision=2013-10-21)topology-id=pcep-topology:1}]/node/node[{(urn:TBD:params:xml:ns:yang:network-topology?revision=2013-10-21)node-id=pcep:11}]/termination-point/termination-point[{(urn:TBD:params:xml:ns:yang:network-topology?revision=2013-10-21)tp-id=pcep:1:1}]</tp-ref>
+    </termination-point>
+    <pcep:path-computation-client>
+        <pcep:ip-address>192.168.1.1</pcep:ip-address>
+    </pcep:path-computation-client>
+</node>
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+[[addedit-topology-with-nodes]]
+==== Add/Edit topology with node(s)
+
+URL::
+  http://127.0.0.1:8181/restconf/config/network-topology:network-topology/topology/pcep-topology:1
+method::
+  PUT
+
+-----------------------------------------------------------------------
+<topology
+        xmlns="urn:TBD:params:xml:ns:yang:network-topology"
+        xmlns:pcep="urn:opendaylight:params:xml:ns:yang:topology:pcep">
+    <topology-id>pcep-topology:1</topology-id>
+    <topology-types>
+        <pcep:topology-pcep></pcep:topology-pcep>
+    </topology-types>
+    <node>
+        <node-id>pcep:11</node-id>
+        <pcep:path-computation-client>
+            <pcep:ip-address>192.168.1.1</pcep:ip-address>
+        </pcep:path-computation-client>
+    </node>
+</topology>
+-----------------------------------------------------------------------
+
+[[delete-node]]
+==== Delete Node
+
+URL::
+  http://127.0.0.1:8181/restconf/config/network-topology:network-topology/topology/pcep-topology:1/node/pcep:11
+method::
+  DELETE
+
+[[delete-topology]]
+==== Delete Topology
+
+URL::
+  http://127.0.0.1:8181/restconf/config/network-topology:network-topology/topology/pcep-topology:1
+method::
+  DELETE
+
+[[overlay-topologies]]
+== Overlay Topologies
+
+[[equality-correlation]]
+=== Equality Correlation
+
+URL::
+  http://127.0.0.1:8181/restconf/config/network-topology:network-topology/topology/mytopo:1
+method::
+  PUT
+
+-------------------------------------------------------------------------------------------------------------------------------
+<topology xmlns="urn:TBD:params:xml:ns:yang:network-topology">
+    <topology-id>mytopo:1</topology-id>
+    <correlations
+            xmlns="urn:opendaylight:topology:correlation">
+        <correlation>
+            <name>equality</name>
+            <equality>
+                <mapping>
+                    <underlay-topology>pcep-topology:1</underlay-topology>
+                    <target-field>network-topology-pcep:path-computation-client/network-topology-pcep:ip-address</target-field>
+                    <aggregate-inside>true</aggregate-inside>
+                </mapping>
+                <mapping>
+                    <underlay-topology>pcep-topology:2</underlay-topology>
+                    <target-field>network-topology-pcep:path-computation-client/network-topology-pcep:ip-address</target-field>
+                    <aggregate-inside>false</aggregate-inside>
+                </mapping>
+                <mapping>
+                    <underlay-topology>pcep-topology:3</underlay-topology>
+                    <target-field>network-topology-pcep:path-computation-client/network-topology-pcep:ip-address</target-field>
+                    <aggregate-inside>false</aggregate-inside>
+                </mapping>
+            </equality>
+            <correlation-item>node</correlation-item>
+        </correlation>
+    </correlations>
+</topology>
+-------------------------------------------------------------------------------------------------------------------------------
+
+[[test-case]]
+==== Test Case
+
+https://wiki.opendaylight.org/view/Topology_Processing_Framework:Equality_Test_Case
+
+[[unification-correlation]]
+=== Unification Correlation
+
+URL::
+  http://127.0.0.1:8181/restconf/config/network-topology:network-topology/topology/mytopo:1
+method::
+  PUT
+
+-------------------------------------------------------------------------------------------------------------------------------
+<topology xmlns="urn:TBD:params:xml:ns:yang:network-topology">
+    <topology-id>mytopo:1</topology-id>
+    <topology-types>
+        <pcep:topology-pcep 
+            xmlns:pcep="urn:opendaylight:params:xml:ns:yang:topology:pcep">
+        </pcep:topology-pcep>
+    </topology-types>
+    <correlations xmlns="urn:opendaylight:topology:correlation">
+        <correlation>
+            <name>unification</name>
+            <unification>
+                <mapping>
+                    <underlay-topology>pcep-topology:1</underlay-topology>
+                    <target-field>network-topology-pcep:path-computation-client/network-topology-pcep:ip-address</target-field>
+                </mapping>
+                <mapping>
+                    <underlay-topology>pcep-topology:2</underlay-topology>
+                    <target-field>network-topology-pcep:path-computation-client/network-topology-pcep:ip-address</target-field>
+                </mapping>
+                <mapping>
+                    <underlay-topology>pcep-topology:3</underlay-topology>
+                    <target-field>network-topology-pcep:path-computation-client/network-topology-pcep:ip-address</target-field>
+                </mapping>
+            </unification>
+            <correlation-item>node</correlation-item>
+        </correlation>
+    </correlations>
+</topology>
+-------------------------------------------------------------------------------------------------------------------------------
+
+[[test-case-1]]
+==== Test Case
+
+https://wiki.opendaylight.org/view/Topology_Processing_Framework:Unification_Test_Case
+
+[[filtration-correlation]]
+=== Filtration Correlation
+
+URL::
+  http://127.0.0.1:8181/restconf/config/network-topology:network-topology/topology/mytopo:1
+method::
+  PUT
+
+-------------------------------------------------------------------------------------------------------------------------------
+<topology xmlns="urn:TBD:params:xml:ns:yang:network-topology">
+    <topology-id>mytopo:1</topology-id>
+    <correlations xmlns="urn:opendaylight:topology:correlation">
+        <correlation>
+            <name>node-ip-filtration</name>
+            <node-ip-filtration>
+                <filter>
+                    <underlay-topology>pcep-topology:1</underlay-topology>
+                    <target-field>network-topology-pcep:path-computation-client/network-topology-pcep:ip-address</target-field>
+                  <value>192.168.1.1/24</value>
+                </filter>
+            </node-ip-filtration>
+            <correlation-item>node</correlation-item>
+        </correlation>
+    </correlations>
+</topology>
+-------------------------------------------------------------------------------------------------------------------------------
+
+[[test-case-2]]
+==== Test Case
+
+https://wiki.opendaylight.org/view/Topology_Processing_Framework:Filtration_Test_Case

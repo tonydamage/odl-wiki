@@ -1,0 +1,135 @@
+[[introduction]]
+== Introduction
+
+The OVSDB database is exposed through a northbound REST interface.
+Through this interface you can query the database, get the schemas, get
+data from the various tables and add data to the tables. This page
+covers using the V3 version of the northbound interface.
+
+[[karaf-feature]]
+== Karaf Feature
+
+Install the following feature to use the northbound:
+
+------------------------------------
+feature:install odl-ovsdb-northbound
+------------------------------------
+
+[[using-the-northbound]]
+== Using the Northbound
+
+Using the northbound is as simple as creating a properly formatted REST
+request. Examples using Postman and curl are shown below.
+
+Notice that the port used in Lithium is 8282. Helium and it's service
+releases still use the 8080 port.
+
+The APIs for the V3 Northbound can be found here:
+https://docs.google.com/spreadsheets/d/11Rp5KSNTcrvOD4HadCnXDCUdJq_TZ5RgoQ6qSHf_xkw/edit#gid=0%20OVSDB%20v3%5D[OVSDB
+V3 Northbound]
+
+[[postman-rest-client]]
+=== Postman REST Client
+
+http://www.getpostman.com/[Postman] is easy to use to create and send
+REST calls that exercise the API. There are pre-made collections
+available in the OVSDB git repository in
+resources/commons/OVSDB_Northbound_v3_APIs.json.postman_collection.
+Import the collection into the Postman application and REST away. You
+will see text of the form "\{\{node}}" in the requests. These are
+environment variables. Select the "Manage environments" link at the top
+of the Postman client and create an environment. Add the environment
+variables such as node or Open_vSwitch_uuid and add values.
+
+In most cases you will need to execute some of the northbound REST APIs
+to retrieve the necessary data to set the values. For instance, to get
+the "\{\{node}}" you would need to execute the "GET all nodes" REST API
+which will return the list of nodes. Then copy that value into the node
+environment variable.
+
+[[curl]]
+=== curl
+
+curl is similar to Postman but uses the cli instead. Notice the "$node"
+value used for variables instead of the form used by Postman.
+
+Below are the steps to add a bridge:
+
+\1. Get all nodes:
+
+-----------------------------------------------------------------
+curl -v -u admin:admin http://192.168.120.1:8282/ovsdb/nb/v3/node
+export node="OVS%7C192.168.120.31:52540"
+-----------------------------------------------------------------
+
+Notice the `%7C` in the export command above. This is needed to add the
+| character, otherwise the curl command sees the | as a pipe. The GET
+request actually returns `OVS|192.168.120.31:52540` as the node value.
+
+\2. Get the uuid for the Open_vSwitch row. Recall that the
+http://openvswitch.org/support/dist-docs/ovs-vswitchd.conf.db.5.pdf[ovs-vswitchd.conf.db.5.pdf]
+OVSDB schema requires the Open_vSwitch table bridges row to include a
+reference to the Bridge table uuid row for the newly created bridge. The
+first line returned in the below request is the uuid.
+
+------------------------------------------------------------------------------------------
+curl -v -u admin:admin -H "Content-Type: application/json" -H "Accept: application/json" \
+http://192.168.120.1:8282/ovsdb/nb/v3/node/$node/database/
+
+export Open_vSwitch_uuid="bf3e1682-70a3-4dcb-b9c9-09c8c19e0616"
+------------------------------------------------------------------------------------------
+
+\3. Create the bridge:
+
+----------------------------------------------------------------------------------------------------------------
+curl -X POST -v -u admin:admin -H "Content-Type: application/json" -H "Accept: application/json" \
+http://192.168.120.1:8282/ovsdb/nb/v3/node/$node/database/Open_vSwitch/table/Bridge/row \
+-d '{"parent_uuid":"'$Open_vSwitch_uuid'", "row":{ "Bridge":{ "name":"brtest", "datapath_type":"OPENFLOW" } } }'
+----------------------------------------------------------------------------------------------------------------
+
+[[json-content-examples]]
+=== JSON Content Examples
+
+Below are examples of the JSON data to be included in the Postman or
+curl commands. Notice that the first example is what was used in the
+curl example above. The below examples are just pretty-printed for
+better readability. Refer to the Postman collections listed above to see
+more examples.
+
+[[create-bridge]]
+==== Create Bridge
+
+----------------------------------------
+{
+  "parent_uuid":"{{Open_vSwitch_uuid}}",
+    "row":{
+      "Bridge":{
+        "name":"brtest",
+        "datapath_type":"OPENFLOW"
+      }
+    }
+}
+----------------------------------------
+
+[[create-bridge-with-port-interface-and-qos]]
+==== Create Bridge with Port, Interface and QoS
+
+----------------------------------------
+{
+  "parent_uuid":"{{Open_vSwitch_uuid}}",
+  "row":{
+    "Bridge":{
+      "name":"testBridge14",
+      "ports":{
+        "name":"testPort14",
+        "interfaces":{
+          "name":"testPort14"
+        },
+    "qos":{
+          "type": "linux-htb",
+        }
+      }
+    }
+  }
+}
+----------------------------------------

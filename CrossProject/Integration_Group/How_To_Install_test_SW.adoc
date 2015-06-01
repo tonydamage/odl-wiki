@@ -1,0 +1,95 @@
+[[introduction]]
+= Introduction
+
+Since Lithium release and more precisely since introduction of dynamic
+CI infrastructure (releng/builder project), developers in OpenDaylight
+can install any SW in the pre-defined VMs described in this
+link:RelEng/Builder/Jenkins[ wiki ]. This guide aims to help integration
+people and developers to install the tools they need for their system
+test.
+
+[[installing-methods]]
+= Installing methods
+
+[[relengbuilder-vagrant-bootstrap.sh-scripts]]
+=== 1) releng/builder vagrant bootstrap.sh scripts
+
+* Link:
+https://git.opendaylight.org/gerrit/gitweb?p=releng/builder.git;a=tree;f=vagrant;h=01758fc4237fb913c5418e7c57568739eb9b3859;hb=HEAD
+* These runs only once when the vagrant image is created is by LF
+people.
+* The resultant image is deployed everytime Jenkins calls the VM.
+* We cannot change these scripts very often as they are deployed by
+manual methods.
+* Any fix SW installation that takes time to download and install and it
+can be shared across several system tests SHOULD end up here.
+
+[[relengbuilder-jenkins-scripts]]
+=== 2) releng/builder jenkins-scripts
+
+* Link:
+https://git.opendaylight.org/gerrit/gitweb?p=releng/builder.git;a=tree;f=jenkins-scripts;h=057aec44a2569c011a21c08eaf4054e9706577f5;hb=HEAD
+* These run every time we invoke a VM in Jenkins (note the VMs are
+always destroyed after the Jenkins job is done).
+* SW Installation scripts are normally placed here, before they are
+moved to 1) by LF people.
+* Any fix SW installation that takes time to download and install and it
+can be shared across several system tests SHOULD be submitted here.
+* Before submitting it is recommended to test in the
+link:RelEng/Builder/Jenkins#Jenkins_Sandbox[ sandbox] adding the
+following in a Jenkins shell window (example of mininet VM
+installation):
+
+---------------------------------------------------
+cat > ${WORKSPACE}/mininet-script.sh <<EOF
+
+<<put your install shell script here>>
+
+EOF
+scp ${WORKSPACE}/mininet-script.sh ${MININET0}:/tmp
+ssh ${MININET0} 'sudo bash /tmp/mininet-script.sh'
+---------------------------------------------------
+
+[[integration-shell-scripts]]
+=== 3) Integration shell scripts
+
+* Link:
+https://git.opendaylight.org/gerrit/gitweb?p=integration.git;a=tree;f=test/csit/scriptplans;h=9337a316136d6c2e2cd3da4e2fb374ec17052785;hb=refs/heads/master
+* These run just before the controller is deployed for a system test.
+* The scripts are stored in the project folders in the integration
+repository under test/csit/suites/$project/scripts.
+* The scripts are executed in the order specified in
+test/csit/scriptplans/$project-$functionality.txt (note this filename
+has to match the testplan filename described in this
+CrossProject:Integration_Group:System_Test:Step_by_Step_Guide[ wiki]).
+* Any dynamic or very specific project SW installation MAY be installed
+this way but we encourage 4) for flexibility and portability reasons.
+* This scripts can be easily debugged in the
+link:RelEng/Builder/Jenkins#Jenkins_Sandbox[ sandbox].
+
+[[integration-robot-shell-keywords]]
+=== 4) integration robot shell keywords
+
+* Link:
+https://git.opendaylight.org/gerrit/gitweb?p=integration.git;a=blob;f=test/csit/libraries/Utils.txt;h=38f284c334c3ced0e6d84eccf3b12055a4d95e2a;hb=refs/heads/master
+* We currently have Robot libraries and Keywords to login to remote
+systems and execute any shell command.
+* These can run several time during a csit job as many times as needed.
+* It is very recommended to use Robot to install small dynamic pieces of
+SW for the flexiblity and the portability of this method (developers run
+a robot suite that has all they need).
+* Any dynamic or very specific project SW installation is ENCOURAGED to
+be installed this way.
+* This scripts can be easily debugged in the
+link:RelEng/Builder/Jenkins#Jenkins_Sandbox[ sandbox].
+
+[[support]]
+= Support
+
+Integration people are happy to support with questions and
+recommendations:
+
+* Integration IRC: OpenDaylight channel *opendaylight-integration*
+* Integration Mail: OpenDaylight list
+*integration-dev@lists.opendaylight.org*
+

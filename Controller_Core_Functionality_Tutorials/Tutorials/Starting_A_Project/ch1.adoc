@@ -1,0 +1,373 @@
+[[introduction]]
+= Introduction
+
+The purpose of this chapter is to show the bootstrap & initialize an
+application after it's been loaded into the ODL Karaf container. To show
+this, we will implement a simple toaster provider that prints "Hello
+World" into the log after it is loaded into the ODL container and
+initialized. In this chapter, we will:
+
+* Write the configuration that will "wire" our provider into the
+controller's infrastructure.
+* Write the initialization code for our provider that will print "Hello
+World" into the log.
+
+In this section, we will looking at the following highlighted files: `
+ ├── artifacts
+ ├── distribution-karaf
+ ├── features
+ ├── parent
+ ├── toaster-api
+ ├── toaster-consumer
+ ├── toaster-impl
+ │   ├── pom.xml
+ │   └── src
+ │       └── main
+ │           ├── java
+ │           │   └── org
+ │           │       └── opendaylight
+ │           │           ├── toaster
+ │           │           │   └── '''ToasterImpl.java
+ │           │           └── yang/gen/v1/urn/opendaylight/params/xml/ns/yang/toaster/impl/config/rev141210
+ │           │               ├── '''ToasterImplModule.java
+ │           │               └── ToasterImplModuleFactory.java
+ │           ├── resources
+ │           │   └── '''toaster-impl-config.xml
+ │           └── yang
+ │               └── '''toaster-impl-config.yang
+ └── toaster-it
+`
+
+[[wiring-the-provider-into-the-system-infrastructure]]
+= Wiring the Provider into the System Infrastructure
+
+To "wire" a component into the system infrastructure, we will use the
+config subsystem which provides service lifecycle management and also
+provides configuration access through JMX and NETCONF. The config
+subsystem is separate from MD-SAL and is used to instantiate and wire
+the toaster service to MD-SAL.
+
+The "wiring" involves three steps: First, we define the semantics and
+syntax of the wiring configuration in a configuration yang model;
+second, we provide the initial wiring configuration file that will be
+loaded into the controller and used by the system to configure our
+provider's dependencies at system startup. Finally, we have to implement
+some Java code that will help to instantiate our provider object.
+
+[[the-yang-model]]
+== The Yang Model
+
+The wiring configuration yang file is in
+_toaster-impl/src/main/yang/toaster-impl-config.yang_: `
+ module toaster-impl-config {
+    yang-version 1;
+    namespace "urn:opendaylight:params:xml:ns:yang:toaster:impl:config";
+    prefix "toaster-impl-config";
+    
+    import config { prefix config; revision-date 2013-04-05; }
+    import opendaylight-md-sal-binding { prefix md-sal-binding; revision-date 2013-10-28;}
+    description
+        "Service definition for toaster project";
+    revision "2014-12-10" {
+        description
+            "Initial revision";
+    }
+    
+    '''identity toaster-impl-config {
+        base config:module-type;
+        config:java-name-prefix ToasterImpl;
+    }'''
+    
+    '''augment "/config:modules/config:module/config:configuration" {
+        case toaster-impl-config {
+            when "/config:modules/config:module/config:type = 'toaster-impl-config'";
+            container binding-aware-broker {
+                uses config:service-ref {
+                    refine type {
+                        mandatory true;
+                        config:required-identity md-sal-binding:binding-broker-osgi-registry;
+                    }
+                }
+            }
+        }
+    }
+ }'''
+` There are two interesting statements in the above yang file:
+
+* The *identity* defines a _module-type_ identity "toaster-impl-config".
+This is a global identifier for the toaster-provider service, which
+uniquely identifies our component to the ODL configuration subsystem.
+* The *augment* statement extends (augments) the base ODL's
+configuration syntax. It extends the _modules/module/configuration_
+hierarchy choice-type node with nodes that are specific to the
+_toaster-provider-impl_ module identity type (as indicated by the 'when'
+cause). to. with an element that defines the dependency of our component
+on an MD-SAL component of type _binding-aware-broker_. Syntactically, it
+defines a reference (of type service-ref) to the particular service
+instance referred to by the binding _binding-broker-osgi-registry_
+service identity. The service instance is set at runtime by the MD-SAL
+(as directed by the configuration file, see below).
+
+The above yang file, when loaded into the controller, will allow the
+controller's configuration subsystem to understand our component's
+configuration files.
+
+[[the-initial-xml-configuration-file]]
+== The Initial XML Configuration File
+
+Note that the MD-SAL provides multiple services, one of which is the
+binding-aware-broker service. Also note that there may be multiple
+implementations of the binding-aware-broker service, and we need to tell
+our component which one to use. This is done in the initial wiring
+configuration file that is in
+_toaster-impl/src/main/resources/toaster-impl-config.xml_: `
+ <?xml version="1.0" encoding="UTF-8"?>
+ <!-- vi: set et smarttab sw=4 tabstop=4: -->
+ <!--
+ Copyright (c) 2014 Cisco Systems, Inc. and others.  All rights reserved.
+     
+ This program and the accompanying materials are made available under the
+ terms of the Eclipse Public License v1.0 which accompanies this distribution,
+ and is available at http://www.eclipse.org/legal/epl-v10.html
+ -->
+ <snapshot>
+     <!-- see https://wiki.opendaylight.org/view/OpenDaylight_Controller:Config:Main -->
+     <!-- if there are config-pusher exceptions in the karaf log, you may need to fix the required capabilities section -->
+     <required-capabilities>
+         <capability>urn:opendaylight:params:xml:ns:yang:toaster:impl:config?module=toaster-impl-config&amp;revision=2014-12-10</capability>
+         <capability>urn:opendaylight:params:xml:ns:yang:controller:md:sal:binding?module=opendaylight-md-sal-binding&amp;revision=2013-10-28</capability>
+     </required-capabilities>
+     <configuration>
+          <data xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+             <modules xmlns="urn:opendaylight:params:xml:ns:yang:controller:config">
+                 <module>
+                     <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:toaster:impl:config">prefix:toaster-impl-config</type>
+                     <name>toaster-impl</name>
+                     <binding-aware-broker>
+                         <type xmlns:binding="urn:opendaylight:params:xml:ns:yang:controller:md:sal:binding">binding:binding-broker-osgi-registry</type>
+                         '''<name>binding-osgi-broker</name>'''
+                     </binding-aware-broker>
+                 </module>
+             </modules>
+         </data>
+     </configuration>
+ </snapshot>
+` The above file will tell the configuration subsystem to use the
+binding-osgi-broker implementation of the binding-aware-broker service
+to satisfy our component's dependency on the binding-aware-broker
+service.
+
+Note that the configuration file for a component can, in addition to the
+wiring configuration, can contain any configuration that your component
+may need for its operation. For example, a BGP component can have peer
+configuration defined in its yang file and stored in its configuration
+xml file. We will show how to define component-specific configuration in
+Chapter XX.
+
+[[the-java-code]]
+== The Java Code
+
+The skeleton for the Java configuration code is generated by
+OpenDaylight's Yang Tools during the Maven's generate-sources build
+phase.
+
+[[generating-the-configuration-skeleton]]
+=== Generating the Configuration Skeleton
+
+The code generation is directed by the yang tools plugin configuration
+file in _toaster.impl/pom.xml_: `
+ ...
+ <plugin>
+     <groupId>org.opendaylight.yangtools</groupId>
+     <artifactId>yang-maven-plugin</artifactId>
+     <dependencies>
+         <dependency>
+             <groupId>org.opendaylight.controller</groupId>
+             <artifactId>yang-jmx-generator-plugin</artifactId>
+             <version>${controller.config.version}</version>
+          </dependency>
+      </dependencies>
+      <executions>
+      <execution>
+          <id>config</id>
+          <goals>
+              <goal>generate-sources</goal>
+          </goals>
+          <configuration>
+              <codeGenerators>
+                  <generator>
+ '''                     <codeGeneratorClass>org.opendaylight.controller.config.yangjmxgenerator.plugin.JMXGenerator</codeGeneratorClass>
+                      <outputBaseDir>${jmxGeneratorPath}</outputBaseDir>
+                      <additionalConfiguration>
+                          <namespaceToPackage1>urn:opendaylight:params:xml:ns:yang:controller==org.opendaylight.controller.config.yang</namespaceToPackage1>
+                      </additionalConfiguration>
+                  </generator>
+                  <generator>
+ '''                     <codeGeneratorClass>org.opendaylight.yangtools.maven.sal.api.gen.plugin.CodeGeneratorImpl</codeGeneratorClass>
+                      <outputBaseDir>${salGeneratorPath}</outputBaseDir>
+                  </generator>
+              </codeGenerators>
+              <inspectDependencies>true</inspectDependencies>
+          </configuration>
+      </execution>
+  </executions>
+ </plugin>
+ ...
+`
+
+The Yang Tools plugin's configuration specifies two code generators: the
+regular code generator (CodeGeneratorImpl) that generates APIs and Java
+DTOs and the JmxGenerator that generates the skeleton for the
+configuration code.
+
+After running _mvn clean generate-sources_ you should see two files
+generated:
+
+* *ToasterImplModule* - concrete class whose createInstance() method
+provides the ToasterImpl instance.
+* *ToasterImplModuleFactory* - concrete class instantiated internally by
+MD-SAL that creates *ToasterimplModule* instances.
+
+Note: these 2 classes are generated under _src/main/java_ and are
+intended to be checked into Git as they will contain manually written
+code.
+
+In this tutorial, these two files are already generated. but you can try
+to remove them and re-run mvn clean generate-sources, you will see them
+appearing again (Save ToasterProviderModule.java before, as it also
+contains the code that needs to be hand-filled into the pre-generated
+skeleton)
+
+[[implementing-the-toaster-initialization-code]]
+=== Implementing the Toaster Initialization Code
+
+Only the _ToasterImplModule.createInstance()_ method needs to be
+implemented to instantiate and wire the ToasterImpl: `
+    @Override
+    '''public java.lang.AutoCloseable createInstance() {
+        ToasterImpl provider = new ToasterImpl();
+        getBindingAwareBrokerDependency().registerProvider(provider, null);
+        return provider;
+    }
+`
+
+In the above code, the *BindingAwareBrokerDependency* dependency has
+already been injected by the MD-SAL and is available via the
+_getDataBrokerDependency()_ method defined in the generated base class.
+The automatic injection is facilitated by the dependency augmentation
+that we had defined in the _toaster-impl-config.yang_ file.
+
+The return type of _createInstance()_ is *AutoCloseable*. We have to
+return an AutoCloseable object so MD-SAL can inform our logic when it is
+time to shutdown.
+
+We don't need to modify or implement anything in
+*ToasterImplModuleFactory* for this example.
+
+_Note 1: A future enhancement in this area may be to simplify the
+registration process here by performing more of the registrations etc
+automatically. Today this is how you need to perform these
+registrations._
+
+[[implementing-the-provider]]
+= Implementing the Provider
+
+We'll create a class *ToasterImpl*. In this chapter, it won't do much:
+on initialization, it will write "Hello World" into the log. We will add
+more functionality to it in the subsequent chapters.
+
+`package org.opendaylight.toaster;
+ 
+ import org.opendaylight.controller.sal.binding.api.BindingAwareBroker.ProviderContext;
+ import org.opendaylight.controller.sal.binding.api.BindingAwareProvider;
+ import org.slf4j.Logger;
+ import org.slf4j.LoggerFactory;
+ 
+ public class ToasterImpl implements BindingAwareProvider, AutoCloseable {
+     private static final Logger LOG = LoggerFactory.getLogger(ToasterImpl.class);
+ 
+     @Override
+     public void close() throws Exception {
+         // TODO Auto-generated method stub
+     }
+ 
+     '''@Override
+     '''public void onSessionInitiated(ProviderContext arg0) {
+         '''LOG.info("Hello World!");
+     '''}
+ 
+ }
+`
+
+[[building-and-running-the-provider]]
+= Building and Running the Provider
+
+Type _mvn clean install_ from the chapter's top level directory.
+
+In the same step above, Maven will also build a custom OpenDaylight
+distribution that has our features already pre-installed and is ready to
+start & test. Go into the distribution directory and start karaf:
+
+-------------------------------------------
+> cd distribution-karaf/target/assembly/bin
+> ./karaf
+-------------------------------------------
+
+To see if your feature is available to install, run the following
+command on karaf console:
+
+--------------
+> feature:list
+--------------
+
+Display the log: To see if your feature is available to install, run the
+following command on karaf console:
+
+---------
+> display
+---------
+
+You should see something like:
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+...
+2015-01-16 18:14:27,487 | INFO  | config-pusher    | RootBindingAwareBroker           | 151 - org.opendaylight.controller.sal-binding-broker-impl - 1.2.0.SNAPSHOT | Starting Binding Aware Broker: binding-broker-impl
+2015-01-16 18:14:27,557 | INFO  | config-pusher    | ToasterImpl                      | 165 - org.opendaylight.toaster.impl - 0.0.1.SNAPSHOT | Hello World!
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+[[under-the-hood]]
+= Under the Hood
+
+If you're interested in the gory details of some of the mechanisms
+described above, read on. If not, skip to the next Chapter.
+
+[[how-does-md-sal-know-about-my-provider]]
+== How Does MD-SAL Know about my Provider?
+
+The sample-toaster bundle only defines a yang file and has no bundle
+Activator and has no code other than the generated source files. If you
+are wondering how MD-SAL becomes aware of the toaster yang data model
+then read on.
+
+The magic is done via some files that are generated by the
+yang-maven-plugin under _target/classes/META-INF_ that get inserted into
+the sample-toaster bundle.
+
+* The _src/main/yang/toaster.yang_ file is copied to
+_target/classes/META-INF/yang/toaster.yang_.
+* The _org.opendaylight.yangtools.yang.binding.YangModelBindingProvider_
+file is generated in _target/classes/META-INF/services_ and contains the
+fully-qualfied name of the toaster's generated
+*$YangModelBindingProvider* class. The MD-SAL's
+*ModuleInfoBundleTracker* class in the config subsystem scrapes the
+_META-INF/services/org.opendaylight.yangtools.yang.binding.YangModelBindingProvider_
+resource from bundles on startup and reads the class name(s) defined in
+the file. For each YangModelBindingProvider class specified, the MD-SAL
+creates an instance and calls _getModuleInfo()_ to return the singleton
+*$YangModuleInfoImpl* instance. This class has methods to obtain static
+configuration information about the yang module, e.g. name, revision,
+imports etc, as well as a _getModuleSourceStream()_ method that provides
+an input stream to the _META-INF/yang/toaster.yang_ file. Once the
+MD-SAL knows about a yang module and its definitions, it can wire it up
+to RestConf and other parts of the system.
+

@@ -1,0 +1,83 @@
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------
+10:05 AM <armax> edwarnicke: I am working on it…it’s probably gonna be a couple of days without distractions before I can claim that I haven’t broken anything ;)
+10:05 AM <edwarnicke> armax: So how do I get SG and SGR calls now? :)
+10:05 AM → yapeng joined (~yapeng@CPE085b0e2f79eb-CM788df7e1d920.cpe.net.cable.rogers.com)
+10:06 AM <edwarnicke> armax: Ah.. cool... so sometime next week you will have something we can try out in our ML2 driver, correct?
+10:06 AM ⇐ colindixon quit (~ckd@12.199.206.2) Quit: colindixon
+10:06 AM <armax> edwarnicke: ok let me give you an instance
+10:06 AM <edwarnicke> armax: :)
+10:06 AM <armax> edwarnicke: we had a project called L2GW
+10:06 AM <armax> mestery: you listen?
+10:06 AM — edwarnicke listens
+10:06 AM — mestery lurks and listens
+10:06 AM <armax> edwarnicke: that needed to ‘know’ whenever actions on ports occurred
+10:06 AM — edwarnicke pops popcorn
+10:07 AM <armax> edwarnicke: now ML2 knows nothing about L2GW
+10:07 AM — edwarnicke passes mestery a brownie
+10:07 AM — edwarnicke recommends mestery not ask to many questions about the brownie
+10:07 AM <armax> edwarnicke: see here:
+10:07 AM <armax> https://github.com/stackforge/networking-l2gw/blob/master/networking_l2gw/services/l2gateway/plugin.py#L142
+10:07 AM <mestery> lol
+10:07 AM <armax> this is a method that, from L2GW, handles the processing of that port event and talks to the backend
+10:08 AM <armax> edwarnicke: now change L2GW with ODL, and keep listening
+10:08 AM <armax> edwarnicke: all you need to know is that someone is going to give you a port object
+10:08 AM <armax> edwarnicke: that contains what you need
+10:08 AM <edwarnicke> armax: So that jump has me a bit confused
+10:08 AM <armax> edwarnicke: ok, what is it?
+10:09 AM <armax> what jump?
+10:09 AM <edwarnicke> From L2GW to ODL
+10:09 AM <edwarnicke> Give me a moment to go look at something
+10:09 AM → snackewm joined (~snackewm@134.134.139.76)
+10:09 AM <edwarnicke> armax: OK
+10:09 AM <armax> L2GW is a party interested in port events
+10:09 AM <armax> edwarnicke: the same way ODL is interested in SG events
+10:09 AM <edwarnicke> So it looks like you are using the context to backdoor to additional info, correct?
+10:10 AM <armax> edwarnicke: hang on, I’ll get to that in a sec
+10:10 AM <edwarnicke> armax: OK :)
+10:10 AM <edwarnicke> So you have "def add_port_mac(self, context, port_dict):"
+10:10 AM <armax> now L2GW wants to know about ports events
+10:10 AM <edwarnicke> How does that get hooked up to port events
+10:10 AM <armax> and that add_port_mac is what you want to be doing in your backend on the event
+10:11 AM <armax> the same way you’d have a ODL’s ‘add_secgroup_whatever’
+10:11 AM <armax> edwarnicke: in order for that method to be called though
+10:11 AM <armax> edwarnicke: you need to express interest in that event
+10:11 AM <armax> and you do so with a subsribe call
+10:11 AM <edwarnicke> armax: Now you are getting the interesting bit :)
+10:11 AM <armax> https://github.com/stackforge/networking-l2gw/blob/master/networking_l2gw/services/l2gateway/plugin.py#L127
+10:12 AM <armax> https://github.com/stackforge/networking-l2gw/blob/master/networking_l2gw/db/l2gateway/l2gateway_db.py#L431
+10:12 AM <edwarnicke> armax: So I need l2gateway_db.L2GatewayMixin as a mixin
+10:12 AM <armax> edwarnicke: yes, but that’s irrelevant for the sake of this discussion
+10:12 AM <edwarnicke> armax: And I presume l2gateway_db.L2GatewayMixin has the methods I can override to get my events?
+10:13 AM <armax> edwarnicke: no
+10:13 AM <edwarnicke> armax: OK :) Correction is good :)
+10:13 AM — edwarnicke listens
+10:13 AM <armax> edwarnicke: look like 431 of the module l2gateway_db
+10:13 AM — edwarnicke is really tempted to make Spanning Tree Protocol jokes right now
+10:13 AM <armax> that is the method you’d need to write on the ODL end to ask the registry to tell you about secgroup events
+10:14 AM <armax> the callback is what is going to call your handler
+10:15 AM <edwarnicke> armax: Bingo :)
+10:15 AM <edwarnicke> armax: I follow that :)
+10:15 AM <edwarnicke> armax: Many thanks :)_
+10:15 AM <armax> edwarnicke: now in ML2 we have https://github.com/openstack/neutron/blob/master/neutron/plugins/ml2/plugin.py#L992
+10:15 AM <edwarnicke> armax: Now I am truly dangerous to myself and others :)
+10:15 AM <armax> edwarnicke: that’s the bit that does the notification
+10:15 AM <armax> edwarnicke: now...
+10:15 AM <armax> edwarnicke: there’s no such type of integration for security groups
+10:16 AM <armax> edwarnicke: https://github.com/openstack/neutron/blob/master/neutron/callbacks/resources.py
+10:16 AM <armax> these are the current resources we support
+10:16 AM <armax> edwarnicke: however adding secgroup support should be pretty trivial
+10:16 AM <armax> edwarnicke: and that’s what I am planning to work on
+10:16 AM <edwarnicke> armax: And from what you've showed me
+10:16 AM <edwarnicke> armax: I should be able to get SGs going *now*
+10:16 AM <armax> edwarnicke: so to your point, you’re unblocked
+10:17 AM <edwarnicke> armax: Many many many thanks
+10:17 AM <edwarnicke> armax: Now its just a matter of work
+10:17 AM <edwarnicke> and debugging :)
+10:17 AM <armax> edwarnicke: with the caveat that there might be tiny integration issues that can be ironed out once both parts are done
+10:17 AM <armax> edwarnicke: because for instance, you’d like an extra param that the notifying part is not giving you
+10:17 AM <armax> as a matter of fact I am blocked by you :)
+10:18 AM <armax> edwarnicke: because I’d love to see what you’re interested in
+10:18 AM ⇐ yapeng quit (~yapeng@CPE085b0e2f79eb-CM788df7e1d920.cpe.net.cable.rogers.com) Remote host closed the connection
+
+10:18 AM <armax> edwarnicke: in the simplest case I can pass the security data as it comes through the system
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------

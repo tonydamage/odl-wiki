@@ -1,0 +1,301 @@
+[[design-document]]
+== Design Document
+
+Note: This is a draft version and work in progress
+
+[[components]]
+=== Components
+
+ODL VPN service is achieved with following main Features. These features
+can function independently.
+
+[[vpn-service]]
+==== VPN Service
+
+[[vpn-instances]]
+===== VPN Instances
+
+Interface : odl-vpn.yang (imports base model l3vpn.yang)
+
+\i. Vpn-instances
+
+`1. Vpn-instance` +
+` a. Vpn-instance-name          ` +
+` b. Route-distinguisher          ` +
+` c. Import-route-policy          ` +
+` d. Export-route-policy          ` +
+` e. Vpn-id          ` +
+` f. Vpn-route-list          ` +
+`   -Route-entry-id`
+
+ii Vpn-interfaces
+
+`1.  Vpn-interfaces` +
+` a. Interface-name` +
+` b. Vpn-instance-name` +
+` c. Adjacency-list` +
+`   - IP-address` +
+`   - label` +
+`   - MAC-address`
+
+iii BGP-Routing
+
+`1. BGP-router` +
+` a. Local-as-number` +
+` b. Router-id` +
+`2. BGP-neighbors` +
+` a. BGP-neighbor` +
+`  - Peer-address` +
+`  - Remote-as`
+
+[[interface-service]]
+===== Interface Service
+
+Interface : odl-interface.yang (imports base model
+ietf-interfaces.yang) +
+ i. Interfaces
+
+` 1. Interface` +
+`  a. Interface-name` +
+`  b. Type` +
+`  c. Enabled` +
+`  d. Tunnel-type` +
+`  e. Local-ip` +
+`  f. Remote-ip` +
+`  g. Port` +
+`  h. Vlan-id`
+
+[[fib-service]]
+===== FIB service
+
+Interface : odl-fib.yang (new model) +
+ i. Fib-entries
+
+` 1. Fib-entry` +
+`  a. Destination-prefix` +
+`  b. Route-distinguisher` +
+`  c. Label (route-entry-id)` +
+`  d. Next-hop-Ip` +
+`  e. origin`
+
+Above services works on standard YANG models and can function
+independently.
+
+These services will require services from following core infrastructure
+services –
+
+\1. ID Manager
+
+\2. Switch Manager
+
+\3. Dynamic Cache Manager
+
+Data Stores and references
+
+image:VPNService tables.gif[Data Stores,title="Data Stores"]
+
+image:Architecturediag.JPG[Architecture
+Diagram,title="Architecture Diagram"]
+
+[[assumptions]]
+==== Assumptions
+
+This implementation currently is not looking into following features –
+
+\1. Cluster Support
+
+\2. Re-Sync
+
+\3. Transaction Support (Rollback & Recovery)
+
+[[pre-configurations]]
+==== Pre-Configurations
+
+\1. Create IODT tunnels manually between the OVS
+
+\2. Create tunnel to DC-Gateway Manually
+
+[[modules-interactions]]
+==== Modules interactions
+
+VPN Service modules will communicate in following different ways
+
+Using REST RPCs (TBD) Update/Access MD-SAL DataStore
+
+Modules shall register to Data Change Notifications of different MD-SAL
+data stores. When the data-store is updated those modules shall get
+notified about the change and they take appropriate actions.
+
+\1. VPN Manager module will listen to following DCNs
+
+` a. Vpn-instances Data Store` +
+` b. Vpn-interfaces Data store` +
+` c. Interfaces Data Store`
+
+\2. Interface Manager Module will Listen to following DCNs
+
+` a. Interface Data Store`
+
+\3. FIB Manager Module will Listen to following DCNs
+
+` a. FIB Data Store`
+
+Apart from listening to DCNs some modules will internally update
+specific MD-SAL data stores as well. Following are such instances
+
+\1. BGP Manager shall update the FIB Data Store when it received Route
+Updates form routing instance (QBGP) on thrift-interface. 2. VPN Manager
+module shall populate vpn_id in vpn_instances DS 3. VPN Manager module
+shall populate adjacency_label in vpn_interfaces DS 4. Interface manager
+module shall populate if-index(lport_id) in interfaces DS 5. Interface
+manager module shall populate operational_state in interfaces DS
+
+[[using-java-api-calls]]
+==== Using Java API calls
+
+Internal modules expose a set of Java API methods to provide services to
+other modules. Other modules shall import these interfaces and make
+direct API call to access those functions. Following are the examples –
+
+\1. ID_Manager Module shall provide APIs to create an ID pool and to get
+unique ID Values from specified id pool, which is used by –
+
+` a. VPN Manager ` +
+`   i. To get vpn_id corresponding to RD of a particular VPN` +
+`  ii. To get adjacency_lebel corresponding to a particular adjacency IP Address` +
+` b. Interface Manager` +
+`   i. To get if-index (lport_id) corresponding to specific adjacency IPAddress and the port` +
+` c. NextHop Manager Module ` +
+`   i. To get next-hop-id (egress Group ID) for specific NextHop IP address`
+
+\2. MD-SAL(SB) Manager shall expose APIs to update Southbound Flows and
+Groups Data stores used by various components
+
+[[provisioning-sequence-and-tasks-done-by-different-nsfs]]
+==== Provisioning sequence and tasks done by different NSFs
+
+Step 1: Update vpn-instances MD-SAL Data Store
+
+` /l3vpn:vpn-instances/vpn-instance/vpn-instance-name    <--- TestVpn_1` +
+` ` +
+` /l3vpn:vpn-instances/vpn-instance/ipv4-family/route-distinguisher  <--- 4000:1` +
+` ` +
+` /l3vpn:vpn-instances/vpn-instance/ipv4-family/import-route-policy <--- "4000:1,5000:1"` +
+` ` +
+` /l3vpn:vpn-instances/vpn-instance/ipv4-family/export-route-policy <--- "4000:1,5000:1"` +
+` ` +
+` /l3vpn:vpn-instances/vpn-instance/ipv4-family/apply-label/apply-label-per-route <- true` +
+` ` +
+` VPN_manager module listens to this data change and does following --` +
+` ` +
+` 1. Generate VPN_Id` +
+` 2. Sync with vpn-interfaces` +
+` 3. get RD, iRT and eRT from Data Store` +
+` 4. call BgpManager.addVrf(RD,iRT, eRT)`
+
+Step 2 : OS Create Neutron Port and attach VM
+
+Step 3 : Populate ietf-interface MD-SAL Data Store
+
+` /if:interfaces/interface/name <--- same as node-connector-id/unique name` +
+` ` +
+` /if:interfaces-state/interface/node-connector-id <-- dpn: portname` +
+` ` +
+` /if:interfaces/interface/type <--- untagged VLAN/OF port` +
+` ` +
+` /if:interfaces/interface/enabled <--- true` +
+` ` +
+` Interface_manager/Lport_Manager listens to this change and does following --` +
+` ` +
+` 1. populate operational DS` +
+` ` +
+` /if:interfaces-state/interface/admin-status <- as enabled` +
+` ` +
+` /if:interfaces-state/interface/oper-status <-- Down` +
+` ` +
+` /if:interfaces-state/interface/if-index <--- get lportId from id manager` +
+` ` +
+` VPN manager listens to change in Interface DS for any update in tunnel interface         ` +
+` ` +
+` 1. Add flow to ingress table ` +
+`   a. Match tunnel port` +
+`   b. Goto LFIB table` +
+` `
+
+Step 4 : add local adjacency on vpn-interface
+
+` This can be done in two steps as well`
+
+` /l3vpn:vpn-interfaces/vpn-interface/name <--- same as interface name` +
+` ` +
+` /l3vpn:vpn-interfaces/vpn-interface/vpn-instance-name <--- TEst_vpn_name` +
+` ` +
+` /l3vpn:vpn-interfaces/vpn-interface/{name}/adjacency/{ip_address}/ <--- of VM` +
+` ` +
+` /l3vpn:vpn-interfaces/vpn-interface/{name}/adjacency/{mac_address}/ <--- of VM` +
+` ` +
+` local-remote ??? need to add here`
+
+` VPN Manager listens to change in vpn-interfaces/next-hop and does following --`
+
+` 2. Populate following config --`
+
+` /l3vpn:vpn-interfaces/vpn-interface/{name}/adjacency/{label}/  <--- get from Id manager ` +
+` ` +
+` /l3vpn:vpn-interfaces/vpn-interface/{name}/adjacency/{nextHopId}/ <--- create with vpn_name+Ip_address` +
+` ` +
+` 3. get nextHop IP Address from local trunk interface (port->dpn) ` +
+` ` +
+` 4. get RD from vpn_instance from vpn-interface` +
+` ` +
+` 5. Add ingress table flow and Egress Group ` +
+` ` +
+` 6. Write vpn_id to metadata` +
+` ` +
+` 7. Goto FIB table` +
+` ` +
+` 8. Add prefix to Bgp, call BgpManager.addPrefix (RD, ipaddress/prefixlen, label, nextHop)` +
+` `
+
+Step 5 : BGP pushes route update to FIB YANG Interface
+
+` /odl-l3vpn:fib-list/odl-l3vpn:fib-entry/odl-l3vpn:dst_prefix` +
+` ` +
+` /odl-l3vpn:fib-list/odl-l3vpn:fib-entry/odl-l3vpn:route_distinguisher ` +
+` ` +
+` /odl-l3vpn:fib-list/odl-l3vpn:fib-entry/odl-l3vpn:label (route_entry_id key)` +
+` ` +
+` /odl-l3vpn:fib-list/odl-l3vpn:fib-entry/odl-l3vpn:next-hop-ip` +
+` ` +
+` /odl-l3vpn:fib-list/odl-l3vpn:fib-entry/odl-l3vpn:Origin` +
+` ` +
+` FIB Manager listens to this change in FIB Data Store and does following –` +
+` ` +
+` 2. Get nextHop pointer (groupId) from nextHop` +
+` 3. Installs the FIB/LFIB entry on all DPNs` +
+`   a. If NextHop belongs to this DPN` +
+`     i. Add LFIB Table flow ` +
+`         - Match on label` +
+`         - Goto group_id` +
+`   b. If NextHop belongs to other DPN` +
+`     i. Add FIB Table flow` +
+`         - Match on VPN_id (get from vpn_instance using RD) and IP_prefix` +
+`         - Goto Group_Id` +
+`           VPN Manager listens to change in FIB Data Store and does following –` +
+`         - Find vpn-instance corresponding to RD` +
+`         - Add rout-entry-id to vpn-route-list` +
+` ` +
+`  Next Hop Manager Task ` +
+`    i. On CreateLocalAdjacency request (from VPN Manager)` +
+`        - Get GroupId from ID manager (key IP address) ` +
+`        - Install egress group on all DPNs` +
+`        - Update local (MD-SAL?) NH DS with IP_adderss, Group_id, type=local` +
+`   ii.      On NextHop pointer request (From FIB Manager)` +
+`        - Create if new (in case of remote NH only)` +
+`           a. Get GroupId from ID manager (key IP address) ` +
+`           b. Install egress group on all DPNs` +
+`           c. Install ingress (table 0) flow entry` +
+`                i. Match Port=tunnel_port` +
+`               ii. Goto LFIB` +
+`            d. Update local (MD-SAL?) NH DS with IP_adderss, Group_id, type=remote` +
+`         - Return GroupId for NH IP Address`

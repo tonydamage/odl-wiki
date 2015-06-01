@@ -1,0 +1,379 @@
+ +
+= Overview = This page documents the various Failover (FO) and Failback
+(FB) scenarios for
+OpenDaylight_Controller:MD-SAL:Architecture:Clustering:2-Node[2-Node]
+(Active-Active and Active-Passive)
+OpenDaylight_Controller:MD-SAL:Architecture:Clustering:2-Node#Deployment_Modes[cluster
+deployments].
+
+[[guidelines]]
+== Guidelines
+
+The test scenarios below follow these guidelines:
+
+* Diagrams are based on recommended
+OpenDaylight_Controller:MD-SAL:Architecture:Clustering:2-Node#recommended_Topology[Recommended
+2-Node Cluster Topology].
+* The Healthy 2-Node cluster diagram is the condition of the cluster
+before each Failover scenario.
+* Only failures that result in a change in Role: _\{Primary,
+Secondary}_, Raft State: _\{Candidate, Follower, Leader}_, or denied
+operation are shown.
+* Failover Diagrams show the resulting state of the cluster for a given
+scenario.
+* Failback scenarios start with the corresponding numbered Failover
+condition and describe the ways the cluster can recover.
+
+[[references]]
+== References
+
+:*OpenDaylight_Controller:MD-SAL:Architecture:Clustering:2-Node[2-Node
+Clustering Design] - Architecture and intent of 2-Node Clustering
+including definition for terms used on this page,
+*_configurationOptions_*, recommended topology, etc.
+
+[[diagrams]]
+== Diagrams
+
+Key to the symbols used in the test scenarios diagrams: +
+file:2NodeClustering FailureModes ActiveActive Symbols.png[|x150px]
+
+ +
+A healthy 2-Node Cluster's state: +
+file:2NodeClustering FailureModes ActiveActive HealthyCluster.png[|x300px]
+
+ +
+= Deployment Modes = The conventions used below are:
+
+`  `*`)`*` ``(``) ` +
+`  :`*`Result:`*`  Role/Raft State/other result for ``.` +
+
+ +
+== Active-Active ==
+
+ +
+=== Config Changes ===
+
+ +
+*AA_CFG-1a)* (No Failures Occurring) Change *configuredPrimary* to
+Controller B.  +
+:*Result:* Controller B is the Full Primary of the network.
+
+ +
+*AA_CFG-1b)* (Network Partition) Changing *configuredPrimary* to
+Controller B.  +
+:*Result:* Deny config change. Each controller is still a Partial
+Primary of its network segment.
+
+ +
+*AA_CFG-1c)* (Controller B Fail-Stopped) Changing *configuredPrimary* to
+Controller B.  +
+:*Result:* Deny config change. Controller A is the Full Primary of the
+network.
+
+ +
+*AA_CFG-2a)* (No Failures Occurring) Controller B is Current Full
+Primary - Changing _*failbackToPrimary*_ to TRUE.  +
+:*Result:* Controller A is the Full Primary of the network.
+
+ +
+*AA_CFG-2b)* (Network Partition) Controller B is Current Full Primary -
+Changing _*failbackToPrimary*_ to TRUE.  +
+:*Result:* Deny config change. Each controller is still a Partial
+Primary of its network segment.
+
+ +
+*AA_CFG-2c)* (Controller A Fail-Stopped) Controller B is Current Full
+Primary - Changing _*failbackToPrimary*_ to TRUE.  +
+:*Result:* Deny config change. Controller B is still the Full Primary of
+the network.
+
+ +
+=== Failover ===
+
+ +
+*AA_FO-1)* Network Partition +
+:*Result:* Each controller is a Partial Primary of its network segment.
+file:2NodeClustering FailureModes ActiveActive Failover 1.png[|x300px]
+
+ +
+*AA_FO-2)* Controller A (Links Failed) +
+:*Result:* Controller B is the Full Primary of the network.
+file:2NodeClustering FailureModes ActiveActive Failover 2.png[|x300px]
+
+ +
+*AA_FO-3)* Controller B (Links Failed) +
+:*Result:* Controller A is the Full Primary of the network.
+file:2NodeClustering FailureModes ActiveActive Failover 3.png[|x300px]
+
+ +
+*AA_FO-4)* Controller A (Fail-Stop) +
+:*Result:* Controller B is the Full Primary of the network.
+file:2NodeClustering FailureModes ActiveActive Failover 4.png[|x300px]
+
+ +
+*AA_FO-5)* Controller B (Fail-Stop) +
+:*Result:* Controller A is the Full Primary of the network.
+file:2NodeClustering FailureModes ActiveActive Failover 5.png[|x300px]
+
+ +
+*AA_FO-6)* Controller A (Fail-Stop) & Network Partition +
+:*Result:* Controller B is the Partial Primary of its segment of the
+network. (Switch X segment devices are unmanaged.)
+file:2NodeClustering FailureModes ActiveActive Failover 6.png[|x300px]
+
+ +
+*AA_FO-7)* Controller B (Fail-Stop) & Network Partition +
+:*Result:* Controller A is the Partial Primary of its segment of the
+network. (Switch Y segment devices are unmanaged.)
+file:2NodeClustering FailureModes ActiveActive Failover 7.png[|x300px]
+
+ +
+*AA_FO-8)* Controller A (Fail-Stop) & Controller B (Links Failed) +
+:*Result:* (All devices are unmanaged.)
+file:2NodeClustering FailureModes ActiveActive Failover 8.png[|x300px]
+
+ +
+*AA_FO-9)* Controller B (Fail-Stop) & Controller A (Links Failed) +
+:*Result:* (All devices are unmanaged.)
+file:2NodeClustering FailureModes ActiveActive Failover 9.png[|x300px]
+
+[[failback]]
+=== Failback
+
+ +
+*AA_FB-1)* Network Partition Healed
+
+::
+  *Result:* Controller A is Full Primary of the network. (Controller A's
+  overrides datastore state of Controller B.)
+
+ +
+*AA_FB-2)* Failed Controller A Links Restored
+
+::
+  *(_failbackToPrimary_ == TRUE)*
+  +
+  ;;
+    *Result:* Controller A is Full Primary of the network. (Controller B
+    is the datastore state of the cluster.)
+  +
+  *(_failbackToPrimary_ == FALSE)*
+  +
+  ;;
+    *Result:* Controller B is Full Primary of the network. (Controller B
+    is the datastore state of the cluster.)
+
+ +
+*AA_FB-3)* Failed Controller B Links Restored
+
+::
+  *Result:* Controller A is Full Primary of the network. (Controller A
+  is the datastore state of the cluster.)
+
+ +
+*AA_FB-4)* Fail-Stopped Controller A Restarted
+
+::
+  *(_failbackToPrimary_ == TRUE)*
+  +
+  ;;
+    *Result:* Controller A is Full Primary of the network. (Controller B
+    is the datastore state of the cluster.)
+  +
+  *(_failbackToPrimary_ == FALSE)*
+  +
+  ;;
+    *Result:* Controller B is Full Primary of the network. (Controller B
+    is the datastore state of the cluster.)
+
+ +
+*AA_FB-5)* Fail-Stopped Controller B Restarted
+
+::
+  *Result:* Controller A is Full Primary of the network. (Controller A
+  is the datastore state of the cluster.)
+
+ +
+*AA_FB-6a)* Fail-Stopped Controller A Restarted But Network Partition
+
+::
+  *Result:* Each controller is a Partial Primary of its network segment.
+
+ +
+*AA_FB-6b)* Network Partition Healed But Controller A (Fail-Stop)
+
+::
+  *Result:* Controller B is the Full Primary of the network. (Controller
+  B is the datastore state of the cluster.)
+
+ +
+*AA_FB-6c)* Fail-Stopped Controller A Restarted and Network Partition
+Healed
+
+::
+  *(_failbackToPrimary_ == TRUE)*
+  +
+  ;;
+    *Result:* Controller A is Full Primary of the network. (Controller B
+    is the datastore state of the cluster.)
+  +
+  *(_failbackToPrimary_ == FALSE)*
+  +
+  ;;
+    *Result:* Controller B is Full Primary of the network. (Controller B
+    is the datastore state of the cluster.)
+
+ +
+*AA_FB-7a)* Fail-Stopped Controller B Restarted But Network Partition
+
+::
+  *Result:* Each controller is a Partial Primary of its network segment.
+
+ +
+*AA_FB-7b)* Network Partition Healed But Controller B (Fail-Stop)
+
+::
+  *Result:* Controller A is the Full Primary of the network.
+
+ +
+*AA_FB-7c)* Fail-Stopped Controller B Restarted and Network Partition
+Healed
+
+::
+  *Result:* Controller A is Full Primary of the network. (Controller A
+  is the datastore state of the cluster.)
+
+ +
+*AA_FB-8a)* Fail-Stopped Controller A Restarted But Controller B (Links
+Failed)
+
+::
+  *Result:* Controller A is the Full Primary of the network.
+
+ +
+*AA_FB-8b)* Failed Controller B Links Restored But Controller A
+(Fail-Stop)
+
+::
+  *Result:* Controller B is the Full Primary of the network.
+
+ +
+*AA_FB-8c)* Fail-Stopped Controller A Restarted and Failed Controller B
+Links Restored
+
+::
+  *(_failbackToPrimary_ == TRUE)*
+  +
+  ;;
+    *Result:* Controller A is Full Primary of the network. (Controller B
+    is the datastore state of the cluster.)
+  +
+  *(_failbackToPrimary_ == FALSE)*
+  +
+  ;;
+    *Result:* Controller B is Full Primary of the network. (Controller B
+    is the datastore state of the cluster.)
+
+ +
+*AA_FB-9a)* Fail-Stopped Controller B Restarted But Controller A (Links
+Failed)
+
+::
+  *Result:* Controller B is the Full Primary of the network.
+
+ +
+*AA_FB-9b)* Failed Controller A Links Restored But Controller B
+(Fail-Stop)
+
+::
+  *Result:* Controller A is the Full Primary of the network.
+
+ +
+*AA_FB-9c)* Fail-Stopped Controller B Restarted and Failed Controller A
+Links Restored
+
+::
+  *Result:* Controller A is Full Primary of the network. (Controller A
+  is the datastore state of the cluster.)
+
+ +
+ +
+== Active-Passive == Behavior is similar to Active-Active except for
+Network Partition detection cases.
+
+ +
+*AP_CFG-1b)* (Network Partition) Changing *configuredPrimary* to
+Controller B.
+
+::
+  *Result:* Deny config change. Controller A is the Partial Primary of
+  the network. (Switch Y segment devices are unmanaged.)
+
+ +
+*AP_CFG-1c)* (Controller B Fail-Stopped) Changing *configuredPrimary* to
+Controller B.
+
+::
+  *Result:* Deny config change. Controller A is the Full Primary of the
+  network.
+
+ +
+=== Configuration Changes === *Note:* Only differences from
+Active-Active Config Change cases (AA_CFG-<#>) shown.
+
+ +
+*AP_CFG-1b)* (Network Partition) Change *configuredPrimary* to
+Controller B.
+
+::
+  *Result:* Deny config change. Controller A is the Partial Primary of
+  the network. (Switch Y segment devices are unmanaged.)
+
+ +
+*AP_CFG-1c)* (Controller B Fail-Stopped) Change *configuredPrimary* to
+Controller B.
+
+::
+  *Result:* Deny config change. Controller A is the Partial Primary of
+  the network. (Switch Y segment devices are unmanaged.)
+
+ +
+=== Failover === *Note:* Only differences from Active-Active Failover
+cases (FO-<#>) shown.
+
+ +
+*AP_FO-1)* Network Partition +
+:*Result:* Controller A is the Partial Primary of the network. Switch Y
+segment devices are unmanaged.
+file:2NodeClustering FailureModes ActivePassive Failover 1.png[|x300px]
+
+ +
+*AP_FO-6)* Controller A (Fail-Stop) & Network Partition +
+:*Result:* All devices are unmanaged.
+file:2NodeClustering FailureModes ActivePassive Failover 6.png[|x300px]
+
+ +
+=== Failback === *Note:* Only differences from Active-Active Failover
+cases (AA_FB-<#>) shown.
+
+ +
+*AP_FB-6a)* Fail-Stopped Controller A Restarted But Network Partition
+
+::
+  *Result:* Controller A is the Partial Primary of the network. Switch Y
+  segment devices are unmanaged.
+
+ +
+*AP_FB-6b)* Network Partition Healed But Controller A (Fail-Stop)
+
+::
+  *Result:* Controller B is the Full Primary of the network.
+
+*AP_FB-6c)* Fail-Stopped Controller A Restarted and Network Partition
+Healed
+
+::
+  *Result:* Controller A is Full Primary of the network. (Controller A
+  is the datastore state of the cluster.)
+

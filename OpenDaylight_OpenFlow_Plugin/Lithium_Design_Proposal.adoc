@@ -1,0 +1,364 @@
+This document identifies the current problems present in the OpenFlow
+plugin (OFP), analyzes their root causes and proposes a course of action
+to remedy them.
+
+[[the-problems]]
+== The problems
+
+[[openflow-plugin-api]]
+=== OpenFlow plugin API
+
+The API to the rest of the system is defined in terms of RPCs and
+notifications. RPCs model requests packets, which can be sent to a
+switch, while notifications model the packets which may be sent by the
+switch to the controller. The general contract is that the RPC will
+return success once the packet has entered the OS queue on the
+controller side, reporting request ID (XID) to the caller. When a switch
+emits a response to that request, it will contain the same XID and
+applications are expected to subscribe to notifications, perform
+cross-relation and act accordingly. There are RPCs which do not work
+this way – specifically the ones that require a switch to respond –
+pairing of which occurs at OpenFlowJava (OFJ) level. Not only is this
+approach slightly inconsistent, it also puts a non-trivial hurdle to
+users attempting to correctly use this API, which comes from the way the
+stimulus to complete the RPC comes from. Essentially it fires sometime
+after the packet may have left the sender, but it is not guaranteed to
+occur before the corresponding notification fires. This means that the
+user has to be already subscribed to notifications before it attempts to
+send the request. All of this needs to be done in a thread-safe manner,
+since notifications are delivered concurrently by MD-SAL threads. There
+are two distinct classes of packets coming from the switch: control
+plane and data plane. While the control plane packets are critical to
+maintaining the proper state model of the switch, the data plane packets
+can be freely dropped. Routing these towards the users unfortunately
+crosses a shared queue in the MD-SAL, which does not expose enough
+functionality to properly separate these two. The final problem with
+notifications is that are delivered to all subscribers – which means
+that the responses to requests need to be processed not only by the
+initiating users, but all of the users attached to a particular
+instance.
+
+[[multiple-queueing-inside-ofp]]
+=== Multiple queueing inside OFP
+
+OFP internally uses multiple queues and dispatch threads and thread
+pools. The first level of queueing is on the OFJ/OFP boundary, where
+packets distributed into *two (per-device) queues* according to
+priority. Control packets are put on the high-priority queue and
+PacketIns are put on a low-priority queue. If a queue is full, the
+offending packet is put into a receive slot and OFJ is told to stop
+receiving packets. If a queue becomes non-full, the packet from receive
+slot is moved into the queue and OFJ is told to resume receiving. These
+queues are consumed by a single thread (*QueueHarverster*), which polls
+the devices in a round-robin fashion and drains high-priority queues
+first. Consumed messages are *queued for translation* from OFJ model to
+the OFP model to a ticketQueue – this is *processed by a thread pool*
+and then forwarded to a *single finisher thread*, which publishes them
+into MD-SAL notification broker.
+
+This complexity exists to maintain the ability to provide concurrent
+OFJ/OFP translation, all the while providing a solution to two problems:
+
+* the problem of MD-SAL potentially blocking Netty threads, which are
+needed to flush outgoing requests, so doing that would end up creating a
+deadlock in the reactive programming scenario,
+* the problem of confining a misbehaving switch so it does not
+monopolize resource leading to starvation.
+
+On the egress side we have a *global RPC queue*, which acts as a
+hand-off point from incoming MD-SAL threads. The queue is *dispatched by
+a threadpool*, which pushes the RPCs into OFJ, where the resulting
+packets are enqueued and their flush out is initiated. This is
+unfortunate, as a single misbehaving switch has the potential to block
+processing of RPCs on other switches.
+
+[[multiple-writers-to-the-same-datastore-subtree]]
+=== Multiple writers to the same datastore subtree
+
+There are two entities composing the OF inventory subtree: the Inventory
+Manager (IM) maintains the presence of switches, ports and tables, while
+the Statistics Manager (SM) performs flow discovery and populates
+statistics for all the objects. This is split is a bit problematic,
+since in order to populate statistics for a particular port, the switch
+has to exist, which means both these components need to share a single
+datastore context to prevent data race conditions.
+
+The current solution to the problem sees SM queueing up its updates to
+be then performed in IM context, which leads to entanglement and poor
+control over data being populated – essentially the SM task needs to
+check presence of the port before writing the statistics, which forces a
+datastore read before each such write.
+
+[[multiple-ways-of-acquiring-switch-port-state-and-similar]]
+=== Multiple ways of acquiring switch port state (and similar)
+
+The current APIs essentially expose two ways of gleaning switch state:
+taking a look at the datastore or listening to the notifications. We do
+not provide any guidance for users to actually to the inventory, which
+has more information with richer query capabilities.
+
+[[proposed-solution]]
+== Proposed solution
+
+The proposed solution attempts to address the highlighted problems by
+providing key pieces of infrastructure, evolving the user-facing API
+definition, integrating IM/SM functionality and reworking how the plugin
+works internally.
+
+[[non-blocking-notification-api]]
+=== Non-blocking notification API
+
+The first ingredient is an evolution of the MD-SAL notification API. New
+methods are exposed, which mimic BlockingQueue.offer() methods. These
+will allow the user to perform a local decision as to what to do when
+the notification queue is congested: be it to block indefinitely, block
+for a set period of time or drop the notification. This improvement
+solves the Netty thread blocking problem, and so allow us to hijack them
+to do useful work – charging the proper device connection for the work
+it generates. This way we can forego queueing and associated overheads.
+This tracked as
+https://bugs.opendaylight.org/show_bug.cgi?id=2288[BUG-2288]. Initial of
+the Binding-Independent API is already in
+https://git.opendaylight.org/gerrit/11484/[Gerrit], with Binding-Aware
+API to follow.
+
+[[evolve-the-ofp-api-definition]]
+=== Evolve the OFP API definition
+
+The proposal here is to reorganize how the individual aspects of the
+plugin are mapped onto MD-SAL services and remove ambiguities. We should
+take a different modeling approach, where instead of modeling individual
+protocol messages we model the state transitions. The plugin will then
+take care of translating those transitions to protocol interactions and
+maintain state synchronization between the switch and the controller.
+
+The concrete impact of this change is that
+_flow-capable-transaction.yang_, _flow-errors.yang_,
+_flow-topology-discovery.yang_ will be removed. Notifications from
+_sal-flow.yang_, _sal-group.yang_, _sal-meter.yang_, _sal-port.yang_,
+_sal-queue.yang_ and _sal-table.yang_ models will be removed and their
+RPCs will be modeled so that their output is the logical result of the
+operation, incorporating the contents of _node-error.yang_.
+
+While this looks problematic for asynchronous requests (flowAdd and
+similar), for which the switch is not required to emit an answer, this
+proposal includes a solution to that particular problem. All the other
+information will be available through the equivalent of the inventory
+model, just as it is available now, with the twist that it will be
+rebased on top of the
+http://tools.ietf.org/html/draft-clemm-i2rs-yang-network-topo[latest
+IETF network topology draft].
+
+*API compatibility* will be realized via a shim layer, which will
+provide the translation to the legacy inventory model, as well as
+provide RPC and notification implementations. The RPC, while waiting for
+completion will result in a notification being emitted after the RPC
+returns. This changes slightly the timing of RPCs, but it actually makes
+better guarantees than we make for underlying network behavior. That is
+to say and underlying network/OS conditions can cause us to have similar
+behavior, so any application, which works correctly now will continue to
+do so.
+
+Experimenter messages and their handling will require writing a specific
+plugin, which will plug into the OFP proper and provide the proper state
+change abstractions into MD-SAL.
+
+[[introduce-logical-functional-blocks]]
+=== Introduce logical functional blocks
+
+The OpenFlow Plugin functionality can be cleanly divided into four
+areas, which have cleanly-defined interactions. In the interest of
+providing naming continuity, we refer to them as Managers. The four
+managers are:
+
+1.  *Connection Manager*, responsible for early session negotiation
+including determining switch features and identity.
+2.  *Device Manager*, responsible for handling low-level interactions
+with the switch. This includes ensuring fair access to the switch,
+populating inventory with physical properties (like port status),
+tracking outstanding requests and performing response dispatch to the
+proper requesting entity.
+3.  *Statistics Manager*, responsible for maintaining synchronization
+between the on-switch counters and their representation in MD-SAL
+datastore. This process is asynchronous to the normal processing, such
+that it can back off if the network cannot keep up the data rate needed
+to maintain polling frequencies requested by applications.
+4.  *RPC Manager*, responsible for routing application requests from
+MD-SAL towards the device. It performs translation between high-level
+semantic requests to low-level protocol messages, both in terms of data
+and in terms of lifecycle.
+
+image:OFP-Lithium-blocks.png[OpenFlow Plugin functional
+blocks,title="OpenFlow Plugin functional blocks"]
+
+These functional blocks interact with each other using a well-defined
+set of interfaces. The central entity is the Device Context, which
+encapsulate the logical state of a switch as seen by the controller.
+Each OpenFlow session is tracked by a Connection Context. These attach
+to a particular Device Context in such a way, that there is at most one
+primary session associated with a Device Context. Whenever the
+controller needs to interact with a particular switch, it will do so in
+the context of the calling thread, obtaining a lock on the corresponding
+Device Context – thus the Device Context becomes the fine-grained point
+of synchronization. The only two entities allowed to send requests
+towards the switch are Statistics Manager and RPC Manager. Each of them
+allocates a Request Context for interacting with a particular Device
+Context. The Request Contexts are the basic units of fairness, which is
+enforced by keeping a cap on the number of outstanding requests a
+particular Request Context can have at any point in time. Should this
+quota be exceeded, any further attempt to make a request to the switch
+will fail immediately, with proper error indication.
+
+Each Device Context instance will contain an MD-SAL TransactionChain,
+which pertains to that particular switch. While the chain will not be
+used for reading, and it will be used to manipulate only the inventory
+subtree for that particular device, it is still critical component, as
+it ensures that the datastore modifications mirror how the system has
+interacted with the device. No modifications to the device subtree
+should ever be done outside of this chain, but should such a
+modification be detected (by the chain detecting a conflicting
+modification), OFJ will easily recover by terminating all sessions to
+the switch and wiping the subtree. Note that this will result only in
+temporary loss of control for a switch. From the switch’s perspective
+this will look like a controller failure (which it really is).
+
+The RPC Manager will maintain an RPC Context for each online switch.
+This context is registered with MD-SAL as a routed RPC provider for the
+inventory node backed by this switch and tracks the state of any user
+requests and how they map onto protocol requests. When the Request
+Context quota is exceeded, incoming RPCs fail immediately, with a
+well-defined error.
+
+The Statistics Manager is a background collection task. Unlike the
+current implementation, it has access to the internal OpenFlow plugin
+state, understanding the internal transitions enough to understand when
+a particular flow is about to be deleted and hence it does not make
+sense to collect statistics for it. A Statistics Context is associated
+with each Device Context and tracks the progress of each collection
+loop, so that the amount of transferred information between the switch
+and the controller does not interfere with the controller’s ability to
+push state into the switch. In order to achieve this property, the SM
+needs to have different collection strategies based on the number of
+flows present in the switch as well as measured response latency.
+
+[[completely-integrate-inventory-manager]]
+=== Completely integrate Inventory Manager
+
+This part is obvious from the definition of APIs. The base IM
+functionality is simplistic and can be implemented in a non-blocking way
+on top of the datastore – which has the end result that we can
+completely inline packet processing in the Netty thread – improving the
+latency we incur in synchronizing the switch state. Device Manager will
+implement this functionality using internal dispatch when unsolicited
+messages arrive from the switch.
+
+[[soft-state-capping]]
+=== Soft state capping
+
+The OpenFlow protocol provides no feedback for successful state
+modification requests, it only emits errors. Responses can also be
+reordered unless an explicit barrier request is issued. This poses a
+slight challenge for the proposed RPC model, since at some point we need
+to declare the RPC as done. Fortunately OF defines the barrier request,
+which can be used to perform a synchronizing checkpoint, as the barrier
+has to be responded after all the preceding requests have been
+satisfied. A correctly behaving application should not make assumptions
+about switch state (e.g. what is in the network) unless it uses
+barriers. We propose to insert an automatic barrier injection logic,
+which will ensure that a barrier request is issued at configured
+intervals requests – by default every 2000 operations or 200
+milliseconds). This logic will notice any barriers issued by the
+application, thus this mechanism will act only as the backup if no other
+application issues a barrier. When a barrier request is sent to the
+switch, the plugin will note all outstanding RPC requests and associate
+them with the barrier. It will continue processing switch responses –
+potentially failing some of them. Once it receives the barrier response,
+it knows that all the outstanding RPCs have succeeded, so it can
+complete them at that time. There is one notable interaction of this
+approach with the SM: the barrier explicitly synchronizes also
+statistics reporting, so a bulk-request for all flow statistics for a
+large number of flows has the potential to cause a stall in programming
+until all statistics have been reported by the switch. This means that
+SM will need to switch to a polling walk once the flow tables grow
+sufficiently large.
+
+[[resulting-threading-model]]
+=== Resulting threading model
+
+The overall result of the proposed changes is a shift towards the
+threading model originally proposed
+OpenDaylight_OpenFlow_Plugin:Backlog:Threading_Model_and_Packet_Handling_Priority[for
+Helium]. There are three major distinctions:
+
+1.  switch state changes are delivered to NSFs via the MD-SAL data store
+2.  MD-SAL notification threadpool is used only for PacketIns
+3.  OFP does not need to perform PacketIn inspection to assign priority
+
+The separation between IO and business threads is kept as optional, as
+it incurs additional queueing while not charging the originator of work.
+
+[[interactions-with-clustering]]
+=== Interactions with clustering
+
+Once all the above changes are implemented, OFP will be efficiently
+handling state synchronization between the switch and the controller at
+the device granularity. The
+OpenDaylight_OpenFlow_Plugin:Backlog:MultiControllerAndArbiterDesign[Arbiter
+Design] is directly applicable, with the additional ability to hand off
+control over MD-SAL state cleanly between the two instances. The current
+master would stop processing messages, then shutdown its
+TransactionChain (thus flushing state into Clustered Datastore). After
+that happens, the new master will instantiate a TransactionChain and
+resume processing.
+
+The basic unit of scalability is a single DeviceContext, which naturally
+lends itself for a sharding strategy. While this may not practical due
+to a large number of shards, it means that OFP should not be the
+bottleneck for scale out. To keep a proper balance between the number of
+shards, the number of remote transactions and the number of forced
+failovers, an efficient strategy for assigning switches to failover
+groups is needed.
+
+As a further evolution, we can see OFP interacting more with the
+clustering infrastructure, so that it can affect where a particular
+shard migrates, for example to mitigate performance impacts of a
+partially-available switch, where the surviving connections is located
+on a shard follower. This has further impact on cluster-wide efficiency,
+as migrating the primary session may incur serialization overhead in the
+RPC and PacketIn paths. A proper implementation here will need to have
+some mechanism for exerting some force which would pull the application
+and the primary session towards each other.
+
+[[example-sequence-diagrams]]
+=== Example sequence diagrams
+
+This section contains a few sequence diagrams for typical cases. These
+are not completely fleshed-out, but should illustrate the basic
+interactions.
+
+File:OFP-Lithium-session.png|Session establishment
+File:OFP-Lithium-rpc-failure.png|Failed user RPC
+File:OFP-Lithium-rpc-success.png|Successful user RPC
+
+[[other-considerations]]
+== Other considerations
+
+[[frm-changes]]
+=== FRM changes
+
+If we cannot map 1.3 to 1.0 flow (because the switch is 1.0), the
+attempt to program the flow will fail. This is the only predictable
+action, which we can take aside from pushing partial flows, which could
+wreak havoc into the network. FRM will need to handle these failures, to
+understand that the mapping will not succeed until the switch reconnects
+(as a 1.3 device). A further complication arises with users of FRM --
+they need to have a way of being notified if this sort of failure
+occurs.
+
+[[openflowjava-changes]]
+=== OpenFlowJava changes
+
+The API between OpenFlow Plugin and OpenFlow Java needs to be reworked
+slightly. Most important change is that OFJ should no longer keep a
+cache of XIDs for pairing, so from this perspective it will maintain a
+lot less state.

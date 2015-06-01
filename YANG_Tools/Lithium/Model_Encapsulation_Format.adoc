@@ -1,0 +1,122 @@
+[[introduction]]
+== Introduction
+
+Hydrogen and Helium releases have assumed strong relationship between
+the YANG model and the Java binding. This was a pre-Hydrogen decision,
+which lowers the number of bundles in the system, but also limits
+deployment flexibility, as models and bindings cannot be introduced into
+the system independently. In Lithium timeframe, we need to consider the
+fact the interest in having Scala bindings, as well as needing a
+migration strategy for an evolution of the Java bindings.
+
+[[requirements]]
+== Requirements
+
+* natural integration with both OSGi R5 and ServiceLoader environments
+* upgrade path from current combined model + binding format without
+impacting bundle users
+* no changes to yang-maven-plugin infrastructure
+* minimal code changes
+
+[[proposal]]
+== Proposal
+
+[[file-format]]
+=== File format
+
+The unit of deployment will remain a single
+https://docs.oracle.com/javase/7/docs/technotes/guides/jar/jar.html[jar
+file], containing one or more models. These models will be stored in the
+*META-INF/yang* directory. Their file names MUST match their module name
+as declared inside the file, as specified by
+https://tools.ietf.org/html/rfc6020#section-5.2[RFC 6020 Section 5.2].
+This specification overrides the "SHOULD" word in that section of
+RFC6020 with the "MUST" word.
+
+[[generated-glue-code]]
+=== Generated glue code
+
+In order to support life of models within the JVM, it is necessary to
+generate some glue code, which will provide programmatic access to the
+models. For each delivered model, a class implementing a subclass
+*org.opendaylight.yangtools.model.repo.api.SchemaSourceRepresentation*
+needs to be generated. Since these classes need to be unique on any
+classpath, their name shall differ in their package name. This package
+name MUST be generated in the following manner:
+
+* Start with "org.opendaylight.yangtools.model.repo.gen."
+* Append the module's namespace, replacing each occurrence of characters
+'/', ':', '-', '@', '$', '#', '\'', '*', '+', ',', ';', '=' with single
+a period '.'. Any adjacent periods need to be compressed, such that the
+end result is a valid Java package name.
+* Append ".rev"
+* Append the argument of the first
+https://tools.ietf.org/html/rfc6020#section-7.1.9[revision] statement
+within the model, with all dashes removed, such that "2014-12-15"
+becomes "20141215"
+
+For YANG models, the class needs to implement
+*org.opendaylight.yangtools.yang.model.repo.api.YangTextSchemaSource*.
+For YIN models, the class needs to implement
+*org.opendaylight.yangtools.yang.model.repo.api.YinSchemaSource*. Here
+is an example of the code for YANG:
+
+`package org.opendaylight.yangtools.model.repo.gen.urn.example.rev20141215;` +
+ +
+`import com.google.common.base.Objects.ToStringHelper;` +
+`import com.google.common.base.Optional;` +
+`import com.google.common.base.Preconditions;` +
+`import java.io.IOException;` +
+`import java.io.InputStream;` +
+ +
+`public final class ExampleModuleYangTextSchemaSource extends YangTextSchemaSource {` +
+`    private static final SourceIdentifier IDENTIFIER = SourceIdentifier.create("example", Optional.of("2014-12-15"));` +
+`    private static final String MODEL_FILE = "/META-INF/yang/example@2014-12-15.yang";` +
+ +
+`    public TestModule() {` +
+`        super(IDENTIFIER);` +
+`    }` +
+ +
+`    @Override` +
+`    protected ToStringHelper addToStringAttributes(final ToStringHelper toStringHelper) {` +
+`        return toStringHelper;` +
+`    }` +
+ +
+`    @Override` +
+`    public InputStream openStream() throws IOException {` +
+`        final InputStream stream = TestModule.class.getResourceAsStream(MODEL_FILE);` +
+`        Preconditions.checkState(stream != null, "Failed to open resource %s", MODEL_FILE);` +
+`        return stream;` +
+`    }` +
+`}`
+
+[[serviceloader-hooks]]
+=== ServiceLoader hooks
+
+The
+https://docs.oracle.com/javase/7/docs/api/java/util/ServiceLoader.html[ServiceLoader]
+activation hooks MUST include
+*org.opendaylight.yangtools.model.repo.api.SchemaSourceRepresentation*
+as well as the more-specific subclasses which are implemented
+(*YangTextSchemaSource* and *YinSchemaSource*), such that users can
+locate the modules either the generic or specific enumerations.
+
+[[osgi-integration]]
+=== OSGi integration
+
+The file MUST include proper OSGified *META-INF/MANIFEST.MF*, which MUST
+NOT export any packages and MUST include a Bundle-Activator statement,
+which points to a generated implementation of
+https://www.osgi.org/javadoc/r5/core/org/osgi/framework/BundleActivator.html[BundleActivator].
+
+On activation, the activator MUST instantiate a single instance of each
+generated SchemaSourceRepresentation class and register it with both
+*SchemaSourceRepresentation* and *YangTextSchemaSource* or
+*YinSchemaSource* types. The activator does not need to retain the
+ServiceRegistration objects it receives from the framework, but can
+assume the framework will perform the unregistration.
+
+Since a bundle may have only a single such activator, which needs to
+have a package name, the implementation MUST choose one of the package
+names generated for the ServiceLoader integration above and host the
+Activator in that package.

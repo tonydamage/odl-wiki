@@ -1,0 +1,272 @@
+*YANG 1.1 maintenance release*
+
+This release defines version 1.1 of the YANG language and addresses
+ambiguities and defects in original specification RFC6020. Backward
+compatibility must be retained.
+
+*1. Yang version:*
+
+In version 1, existing grammar delivers string as an argument and
+version string constant is checked in Java code:
+
+`   BasicValidations.checkPresentYangVersion();`
+
+If version statement is missing, YangValidationException is caught and
+logged.
+
+We're going to support both 1 and 1.1 and yang-version-stmt must be
+mandatory. +
+1.0
+
+`   module-header-stmts = ;; these stmts can appear in any order` +
+`     [yang-version-stmt stmtsep]` +
+`     namespace-stmt stmtsep` +
+`     prefix-stmt stmtsep`
+
+`   submodule-header-stmts = ;; these stmts can appear in any order` +
+`     [yang-version-stmt stmtsep]` +
+`     belongs-to-stmt stmtsep`
+
+as opposed to 1.1
+
+`   module-header-stmts = ;; these stmts can appear in any order` +
+`     `*`yang-version-stmt` `stmtsep`* +
+`     namespace-stmt stmtsep` +
+`     prefix-stmt stmtsep`
+
+`   submodule-header-stmts = ;; these stmts can appear in any order` +
+`     `*`yang-version-stmt` `stmtsep`* +
+`     belongs-to-stmt stmtsep`
+
+In version 1.1, we need to change
+
+`   BasicValidations.checkPresentYangVersion();`
+
+in order to throw YangParseException if version statement is missing.
+
+We might need to state all combinations of statements within
+module-header-stmts and submodule-header-stmts in order to express
+mandatory and any order appearance:
+
+`    module_header_stmts : yang_version_stmt stmtsep` +
+`                          namespace_stmt stmtsep` +
+`                          prefix_stmt stmtsep` +
+`                        |` +
+`                          yang_version_stmt stmtsep` +
+`                          prefix_stmt stmtsep` +
+`                          namespace_stmt stmtsep` +
+`                        |` +
+`                          prefix_stmt stmtsep` +
+`                          yang_version_stmt stmtsep` +
+`                          namespace_stmt stmtsep` +
+`                        |` +
+`                          prefix_stmt stmtsep` +
+`                          namespace_stmt stmtsep` +
+`                          yang_version_stmt stmtsep` +
+`                        |` +
+`                          namespace_stmt stmtsep` +
+`                          prefix_stmt stmtsep` +
+`                          yang_version_stmt stmtsep` +
+`                        |` +
+`                          namespace_stmt stmtsep` +
+`                          yang_version_stmt stmtsep` +
+`                          prefix_stmt stmtsep` +
+`                        ;`
+
+`    submodule_header_stmts : yang_version_stmt stmtsep` +
+`                              belongs_to_stmt stmtsep` +
+`                            |` +
+`                              belongs_to_stmt stmtsep` +
+`                              yang_version_stmt stmtsep` +
+`                            ;`
+
+*2. Allow "if-feature" in "refine"* +
+1.0
+
+`    refine-stmt = refine-keyword sep refine-arg-str optsep` +
+`    (";" /` +
+`     "{" stmtsep` +
+`         (refine-container-stmts /` +
+`          refine-leaf-stmts /` +
+`          refine-leaf-list-stmts /` +
+`          refine-list-stmts /` +
+`          refine-choice-stmts /` +
+`          refine-case-stmts /` +
+`          refine-anyxml-stmts)` +
+`     "}")`
+
+as opposed to 1.1
+
+`    refine-stmt = refine-keyword sep refine-arg-str optsep` +
+`     "{" stmtsep` +
+`         ;; these stmts can appear in any order` +
+`         `*`*(if-feature-stmt` `stmtsep)`* +
+`         *(must-stmt stmtsep)` +
+`         [presence-stmt stmtsep]` +
+`         [default-stmt stmtsep]` +
+`         [config-stmt stmtsep]` +
+`         [mandatory-stmt stmtsep]` +
+`         [min-elements-stmt stmtsep]` +
+`         [max-elements-stmt stmtsep]` +
+`         [description-stmt stmtsep]` +
+`         [reference-stmt stmtsep]` +
+`     "}"`
+
+Refine statement was cleaned up in version 1.1, there are no
+refine-container-stmts, refine-leaf-stmts, etc... as one can see in
+paragraph above. +
+This requires bit of cleaning in our new grammar too.
+
+_TODO: Let's see about Java code changes, if any, later_
+
+*3. Extended the "if-feature" syntax to be a boolean expression over
+feature names.* +
+1.0 +
+The "if-feature" statement makes its parent statement conditional. The
+argument is the name of a feature, as defined by a "feature" statement.
+The parent statement is implemented by servers that support this
+feature.
+
+`    if-feature-stmt = if-feature-keyword sep identifier-ref-arg-str optsep stmtend`
+
+as opposed to 1.1 +
+The "if-feature" statement makes its parent statement conditional. The
+argument is a boolean expression over feature names. In this expression,
+a feature name evaluates to "true" if and only if the feature is
+implemented by the server. The parent statement is implemented by
+servers where the boolean expression evaluates to "true".
+
+`    if-feature-stmt = if-feature-keyword sep if-feature-expr-str optsep stmtend` +
+`   ` +
+`    if-feature-expr-str = < a string that matches the rule if-feature-expr >` +
+`    ` +
+`    if-feature-expr = ’(’ if-feature-expr ’)’ /` +
+`                       if-feature-expr sep boolean-operator sep` +
+`                         if-feature-expr / ` +
+`                       ’not’ sep if-feature-expr /` +
+`                       identifier-ref-arg` +
+`    ` +
+`    boolean-operator = ’and’ / ’or’`
+
+We need to change new grammar in order to support this.
+
+_TODO: Let's see about Java code changes, if any, later_
+
+*4. Added a new substatement "modifier" to pattern* +
+1.0 +
+ pattern-stmt = pattern-keyword sep string optsep
+
+`                   (";" /` +
+`                    "{" stmtsep ` +
+`                        ;; these stmts can appear in any order` +
+`                        [error-message-stmt stmtsep]` +
+`                        [error-app-tag-stmt stmtsep]` +
+`                        [description-stmt stmtsep]` +
+`                        [reference-stmt stmtsep]` +
+`                    "}")`
+
+as opposed to 1.1
+
+`    pattern-stmt = pattern-keyword sep string optsep` +
+`                   (";" /` +
+`                    "{" stmtsep` +
+`                        ;; these stmts can appear in any order` +
+`                       `*`[modifier-stmt` `stmtsep]`* +
+`                       [error-message-stmt stmtsep]` +
+`                       [error-app-tag-stmt stmtsep]` +
+`                       [description-stmt stmtsep]` +
+`                       [reference-stmt stmtsep]` +
+`                    "}")` +
+ +
+`    modifier-stmt = modifier-keyword sep modifier-arg-str stmtend` +
+`    ` +
+`    modifier-arg-str = < a string that matches the rule modifier-arg >` +
+`   ` +
+`    modifier-arg = invert-match-keyword`
+
+`    invert-match-keyword = ’invert-match’`
+
+For some reason, chapter _9.4.6. The modifier Statement_ is empty, but
+modifier 'invert-match' adds option to invert result.
+
+We need to change new grammar in order to support this.
+
+_TODO: Let's see about Java code changes, if any, later_
+
+*5. Allow 'choice' as a shorthand case statement* +
+Not sure why this is mentioned as a change in version 1.1, it's been
+already part of version 1.0
+
+*6. Added a set of new XPath functions* +
+This section in version 1.1 defines two generic XPath functions and four
+YANG type-specific XPath functions.
+
+`    node-set current()`
+
+The function current() takes no input parameters, and returns a node set
+with the initial context node.
+
+`    boolean re-match(string subject, string pattern)`
+
+The re-match() function returns true if the "subject" string matches the
+regular expression "pattern"; otherwise it returns false.
+
+`    node-set deref(node-set nodes)`
+
+The deref() function follows the reference defined by the first node in
+document order in the argument "nodes", and returns the nodes it refers
+to.
+
+`    boolean derived-from(node-set nodes, string module-name, string identity-name)`
+
+The derived-from() function returns true if the first node in document
+order in the argument "nodes" is a node of type identityref, and its
+value is an identity that is derived from the identity "identity-name"
+defined in the YANG module "module-name"; otherwise it returns false
+
+`    number enum-value(node-set nodes)`
+
+The enum-value() function checks if the first node in document order in
+the argument "nodes" is a node of type enumeration, and returns the
+enum’s integer value. If the "nodes" node set is empty, or if the first
+node in "nodes" is not of type enumeration, it returns NaN.
+
+`    boolean bit-is-set(node-set nodes, string bit-name)`
+
+The bit-is-set() function returns true if the first node in document
+order in the argument "nodes" is a node of type bits, and its value has
+the bit "’bit-name" set; otherwise it returns false
+
+As far as I was able to find out and check existing code, we don't
+support any XPath functions yet, therefore there will be need to
+implement this.
+
+_TODO: Propose solution in Java code_
+
+'''7. Defined the string value of an identityref in XPath expressions
+''' +
+The string value of a node of type identityref in a "must" or "when"
+XPath expression is the referred identity’s qualified name with the
+prefix always present.
+
+`   container aes-parameters {` +
+`       when "../crypto = ’mc:aes’";` +
+`       ...` +
+`   }`
+
+This is supported in existing grammar.
+
+_TODO: Let's see about Java code changes, if any, later_
+
+*8. Changed the rules for the interpretation of escaped characters in
+double quoted strings* +
+ This is an backwards incompatible change from YANG 1.0. A module that
+uses a character sequence that is now illegal must change the string to
+match the new rules.
+
+`    \n new line` +
+`    \t a tab character` +
+`    \" a double quote` +
+`    \\ a single backslash`
+
+It is an error if any other character follows the backslash character.

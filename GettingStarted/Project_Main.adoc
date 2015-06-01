@@ -1,6 +1,85 @@
 [[introduction]]
 == Introduction
 
+Getting started in OpenDaylight can be a bit intimidating, but most of
+the infrastructure vanishes into the background pretty quickly as you
+get things set up and used to the workflow.
+
+[[new-project-checklist]]
+== New Project Checklist
+
+Here are the tasks you're going to want to do
+
+1.  make sure you have a git repository (visible in gerrit)
+1.  Go to https://git.opendaylight.org/[https://git.opendaylight.org/]
+2.  Click "Projects" on the left under the OpenDaylight logo
+3.  Click "List" under projects
+4.  Verify your project is listed with the right repo name
+2.  make sure your project has a jenkins jobs configured via Jenkins Job
+Builder (JJB)
+* To see if you have JJB jobs:
+1.  Go to the
+`[https://git.opendaylight.org/gerrit/gitweb?p=releng/builder.git;a=tree;f=jjb;hb=HEAD jjb folder]`
+in the releng/builder project.
+2.  Look for your project's repo name as a folder and click on it.
+3.  Make sure there is a single yaml file in the folder.
+4.  If you are missing JJB refer to Step 7 on how to get setup
+3.  make sure you have a bugzilla entry for your project
+1.  Go to https://bugs.opendaylight.org/[https://bugs.opendaylight.org/]
+2.  Click "File a Bug"
+3.  Make sure your project appears in the list
+4.  make sure you have a mailing list, usually just -dev
+1.  Go to
+https://lists.opendaylight.org/[https://lists.opendaylight.org/]
+2.  Make sure there is a list named `'''<repo-name>'''-dev`
+3.  Subscribe to the list with an e-mail you actually check
+5.  make a main wiki page using the Project Facts template
+1.  The normal title for this page is :Main, e.g., BGP LS PCEP:Main[BGP
+LS PCEP:Main]
+2.  You should use the Template:Project Facts[Project Facts Template].
+Again a good example is BGP LS PCEP:Main[BGP LS PCEP:Main]
+6.  make sure you're subscribed to:
+* your mailing list (described above) so you get mail about your project
+* your gerrit so you can tell when people push patches to your project
+(see Communication:Gerrit for how to subscribe to events from your
+project)
+* at least one representative from your project should either (i) attend
+the TSC:Main[TSC calls], (ii) subscribe to the
+https://lists.opendaylight.org/mailman/listinfo/tsc[TSC mailing list],
+or (iii) read the TSC:Main#Meeting_Minutes[TSC meeting minutes].
+** Ideally, a project representative should do all three.
+7.  set up your jenkins jobs
+* If you are using the JJB central Jenkins silo
+1.  Go to
+https://jenkins.opendaylight.org/releng/[https://jenkins.opendaylight.org/releng/]
+2.  Look for a tab at the top for your project and click on it
+3.  Make sure you have at least -verify-master, -merge-master, and
+-daily-master jobs
+4.  For more information on using the RelEng/Builder JJB setup see the
+RelEng:Main[RelEng project page] or the
+https://github.com/opendaylight/releng-builder[RelEng/Builder README]
+8.  Verify that your jenkins jobs work
+* Test verify by pushing a patch and seeing that the verify job runs and
+successfully posts a "verified +1" to the gerrit.
+* Then merge the patch and make sure that the merge job runs
+successfully and pushes artifacts in Nexus.
+** After the job runs, go to
+http://nexus.opendaylight.org/[http://nexus.opendaylight.org/]
+** Search for your project's name and see if the artifacts you expect
+are there.
+* Optionally, test your integration jobs by manually triggering them.
+9.  Set up your pom file structure according to
+CrossProject:HouseKeeping_Best_Practices_Group:Project_layout[ project
+layout best practice]
+* Your project should have a parent pom file that should be the root of
+your 'pom tree'
+* It's parent should be the odlparent pom file
+* All versions/dependencies should be put into one of these two pom
+files
+10. Set up your JaCoCo code coverage reporting
+* see link:#Jacoco_plugin_Setup[Jacoco plugin Setup] below
+* currently, this only works for Java
+
 [[taking-advantage-of-project-infrastructure]]
 == Taking Advantage of Project Infrastructure
 
@@ -9,30 +88,9 @@ OpenDaylight_Controller:Development_Infrastructure_Overview[ Development
 Infrastructure] that will give you a good conceptual framework. Most of
 what is written here is about concrete getting things done stuff :)
 
-[[jenkins-setup]]
-=== Jenkins Setup
+[[jacoco-plugin-setup]]
+=== Jacoco plugin Setup
 
-Each project in OpenDaylight has it's own Jenkins instance which can be
-found at http://jenkins.opendaylight.org/repo name/ (where repo_name is
-the name of your repo, for example controller, or vtn, or ovsdb). or
-linked off of http://jenkins.opendaylight.org
-
-Each project can decide for itself how it wants to structure its
-Continuous Integration with Jenkins, but a useful pattern is to have the
-following Jobs:
-
-1.  *-verify :* - A Job to run against each patch submitted to Gerrit to
-automatically 'Verify' that patch prior to code review and consideration
-for submission. This Job runs the build and tests to make sure the patch
-can build and pass existing tests.
-GettingStarted:Jenkins Verify Job Setup[Jenkins Verify Job Setup]
-2.  *-merge:* - A Job to run against master (or some other repo branch)
-just after a new patch is merged. This Job reruns the build and tests
-and publishes artifacts to Nexus.
-GettingStarted:Jenkins Merge Job Setup[Jenkins Merge Job Setup]
-3.  *--integration* - A Job to run whenever a project you depend on
-updates its artifacts (ie, it merged a change). For example, controller
-depends on yangtools, and so has a controller-yangtools-intergration
-Job. GettingStarted:Jenkins Integration Job Setup[Jenkins Integration
-Job Setup]
-
+Please follow these simple steps to
+CrossProject:Integration_Group:Code_Coverage_using_Jacoco[report code
+coverage to Sonar]

@@ -1,0 +1,216 @@
+[[singlefeature-test]]
+= SingleFeature Test
+
+[[testing]]
+== Testing
+
+To enable testing of your existing features files:
+
+1.  Change your from pom to jar
+2.  Make sure none of your dependencies on other features have scope
+runtime
+3.  Add a dependency on mvn:org.opendaylight.odlparent/features-test
+4.  Add dependency on
+mvn:org.opendaylight.controller/opendaylight-karaf-empty/
+5.  Add a surefire directive to run the test
+6.  mvn clean install
+
+[[make-sure-none-of-your-dependencies-on-other-features-have-scope-runtime]]
+=== Make sure none of your dependencies on other features have scope
+runtime
+
+If you have any dependencies like:
+
+--------------------------------------------------------
+    <dependency>
+      <groupId>org.opendaylight.controller</groupId>
+      <artifactId>features-config-persister</artifactId>
+      <classifier>features</classifier>
+      <type>xml</type>
+      <scope>runtime</scope>
+    </dependency>
+--------------------------------------------------------
+
+change them to be like:
+
+--------------------------------------------------------
+    <dependency>
+      <groupId>org.opendaylight.controller</groupId>
+      <artifactId>features-config-persister</artifactId>
+      <classifier>features</classifier>
+      <type>xml</type>
+    </dependency>
+--------------------------------------------------------
+
+[[change-your-from-pom-to-jar]]
+=== Change your from pom to jar
+
+Towards the top of your existing in your features/pom.xml project you
+will likely have:
+
+--------------------------
+<packaging>pom</packaging>
+--------------------------
+
+Change it to
+
+--------------------------
+<packaging>jar</packaging>
+--------------------------
+
+We do this because surefire tests will not run on packaging pom.
+
+[[add-a-dependency-on-mvnorg.opendaylight.odlparentfeatures-test]]
+=== Add a dependency on mvn:org.opendaylight.odlparent/features-test
+
+At the bottom of your features/pom.xml section add
+
+---------------------------------------------------
+    <!-- test to validate features.xml -->
+    <dependency>
+      <groupId>org.opendaylight.odlparent</groupId>
+      <artifactId>features-test</artifactId>
+    </dependency>
+---------------------------------------------------
+
+If you need to set the version, it is currently 0.6.2-SNAPSHOT. It is
+recommended you do this in your parent pom.xml section.
+
+[[add-dependency-on-mvnorg.opendaylight.controlleropendaylight-karaf-empty]]
+=== Add dependency on
+mvn:org.opendaylight.controller/opendaylight-karaf-empty/
+
+-----------------------------------------------------------------------
+    <!-- dependency for opendaylight-karaf-empty for use by testing -->
+    <dependency>
+      <groupId>org.opendaylight.controller</groupId>
+      <artifactId>opendaylight-karaf-empty</artifactId>
+      <version>1.4.2-SNAPSHOT</version>
+      <type>zip</type>
+    </dependency>
+-----------------------------------------------------------------------
+
+[[add-a-surefire-directive-to-run-the-test]]
+=== Add a surefire directive to run the test
+
+In your features/pom.xml at the bottom of the section add:
+
+----------------------------------------------------------------------------------------
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <systemPropertyVariables>
+            <karaf.distro.groupId>org.opendaylight.controller</karaf.distro.groupId>
+            <karaf.distro.artifactId>opendaylight-karaf-empty</karaf.distro.artifactId>
+            <karaf.distro.version>${commons.opendaylight.version}</karaf.distro.version>
+          </systemPropertyVariables>
+          <dependenciesToScan>
+           <dependency>org.opendaylight.odlparent:features-test</dependency>
+          </dependenciesToScan>
+        </configuration>
+      </plugin>
+----------------------------------------------------------------------------------------
+
+This will cause the features-test to be run as part of your build. Note:
+currently:
+
+---------------------------------------------------------------------------
+<commons.opendaylight.version>1.4.2-SNAPSHOT</commons.opendaylight.version>
+---------------------------------------------------------------------------
+
+*WARNING*: This only works with surefire versions since 2.15. odlparent
+is currently on 2.16, but that is set as a variable, not a dependency in
+dependency managment. Insufficent care in specifying this version can
+cause the random selection of version 2.12.4 which *will* break.
+
+[[mvn-clean-install]]
+=== mvn clean install
+
+The tests for your feature will now run at every build.
+
+[[starting-from-scratch]]
+= Starting from scratch
+
+Warning, this section is being done as live notes right now.. and is so
+incomplete.
+
+[[stuff-that-can-go-wrong]]
+= Stuff that can go wrong
+
+[[it-doesnt-run-the-tests]]
+== It doesn't run the tests
+
+I'm seeing "SingleFeatureTest.initializationError » Unmarshal unexpected
+element (uri:"", ..." when i build. This is caused by not having all of
+the schemas in your features element.
+
+---------------------------------------------------------------------------------------------------------------------------
+<features name="odl-bgpcep-${project.version}" xmlns="http://karaf.apache.org/xmlns/features/v1.2.0"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://karaf.apache.org/xmlns/features/v1.2.0 http://karaf.apache.org/xmlns/features/v1.2.0">
+---------------------------------------------------------------------------------------------------------------------------
+
+Your features element should look something like above.
+
+[[structure-of-karaf-so-far]]
+= Structure of Karaf so far
+
+[[karaf-distribution-folder-file-guide]]
+== Karaf Distribution Folder / File Guide
+
+The link:Karaf Distribution Folder and File Guide[Karaf Distribution
+Folder and File Guide] attempts to explain what files / folders exist in
+the karaf distributions that are built and where you can find common
+files etc.
+
+[[the-things-where-they-are-and-why]]
+== The things, where they are, and why
+
+[[tests]]
+=== Tests
+
+There is a test available to test whether all of the features in a
+feature.xml file load at the osgi level. It is in yangtools because:
+
+1.  The autorelease requires there be no dependency cycles between
+projects
+2.  Yangtools needs the tests to check its own features
+3.  We want everyone to be able to use the test
+4.  The only other project that could house it would be odlparent pom,
+and it is outside of its very narrow
+https://wiki.opendaylight.org/view/Project_Proposals:ODL_Root_Parent[
+scope ].
+
+[[opendaylight-karaf-empty]]
+=== opendaylight-karaf-empty
+
+In order for the tests to be valid, there needs to be a completely empty
+karaf distro, that contains no features, but does contains some
+necessary config resources. This distro lives in controller, as that's
+the first place its used, and should never ever have any 'features' in
+it.
+
+[[per-project-distros]]
+=== Per project distros
+
+Each project may (and probably will want to) have a local distribution
+for itself that imports its own local features. (see for example:
+https://git.opendaylight.org/gerrit/#/c/10114/ )
+
+[[integration-features.xml-repo]]
+=== Integration features.xml repo
+
+In the integration project, a simple registry of existing features of
+other projects. Only features that are known to load at the OSGI level,
+and which have passes the OSGI load test should be listed here. (see
+https://git.opendaylight.org/gerrit/#/c/10118/ )
+
+[[integration-karaf-distribution]]
+=== Integration karaf distribution
+
+In the integration project, a simple distribution which *only* depends
+on the integration features.xml (the registry). No features should be
+loaded at default. Features should be loaded on demands as desired.
+
+(see https://git.opendaylight.org/gerrit/#/c/10118/ )

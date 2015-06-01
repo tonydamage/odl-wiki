@@ -1,0 +1,245 @@
+[[introduction]]
+= Introduction
+
+This page is a helper page for those working on the MD-SAL OVSDB SB
+Plugin.
+
+[[preperation]]
+= Preperation
+
+Make sure you
+https://wiki.opendaylight.org/view/GettingStarted:Development_Environment_Setup#Edit_your_.7E.2F.m2.2Fsettings.xml[set
+up your settings.xml file correctly].
+
+[[getting-the-patches]]
+= Getting the patches
+
+This presumes you have already cloned the ovsdb project, set up git
+review, and are in the ovsdb/ directory:
+
+-------------------
+git review -d 14261
+-------------------
+
+[[building-the-patches]]
+= Building the patches
+
+-----------------
+cd ovsdb/
+cd library/
+mvn clean install
+cd ../southbound
+mvn clean install
+-----------------
+
+[[trying-out-the-sb-plugin]]
+= Trying out the SB plugin
+
+[[starting-karaf]]
+== Starting Karaf
+
+From the southbound directory:
+
+---------------------------------------
+cd southbound-karaf/target/assembly/bin
+./karaf
+---------------------------------------
+
+Wait to see SouthBoundProvider initialize in the karaf logs by running
+
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+opendaylight-user@root>log:display  | grep SouthboundProvider
+2015-01-30 12:10:41,329 | INFO  | config-pusher    | SouthboundProvider               | 164 - org.opendaylight.ovsdb.southbound-impl - 1.1.0.SNAPSHOT | SouthboundProvider Session Initiated
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+[[use-case-connecting-an-ovs-instance]]
+== Use Case: Connecting an OVS instance
+
+On whatever system you are running ovs,
+
+------------------------------------------------------
+sudo ovs-vsctl set-manager tcp:<yourcontrollerip>:6640
+------------------------------------------------------
+
+then you should be able to see from the ovs side that it connected by
+looking for:
+
+-----------------------------------------
+sudo ovs-vsctl show
+b8fbf5b1-4887-4c7f-91e3-5c4971be2e61
+    Manager "tcp:<yourControllerIp>:6640"
+        is_connected: true
+    ovs_version: "2.0.2"
+-----------------------------------------
+
+and you can check it in RESTCONF with
+
+-------------------------------------------------------------------------------------------------
+curl -u admin:admin http://localhost:8181/restconf/operational/network-topology:network-topology/
+-------------------------------------------------------------------------------------------------
+
+and see that you see it connected there, it will look something like:
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------
+{"network-topology":{"topology":[{"topology-id":"ovsdb:1","node":[{"node-id":"ovsdb:/127.0.0.1:59833","ovsdb:port":59833,"ovsdb:ip":"127.0.0.1"}]}]}}
+-----------------------------------------------------------------------------------------------------------------------------------------------------
+
+(note: this is going to be much nicer looking if you use the
+http://localhost:8181/apidoc/explorer/index.html[APIDOCs] to do it :) )
+
+[[use-case-disconnecting-the-ovs-instance]]
+== Use Case: Disconnecting the OVS Instance
+
+After completing the Connect the OVSDB Instance use case, on the host
+running ovs type:
+
+--------------------------
+sudo ovs-vsctl del-manager
+--------------------------
+
+Which should result in the ovs disconnecting. You can verify its gone
+from the operational data store with:
+
+-------------------------------------------------------------------------------------------------
+curl -u admin:admin http://localhost:8181/restconf/operational/network-topology:network-topology/
+-------------------------------------------------------------------------------------------------
+
+and see that you see it connected there, it will look something like:
+
+-------------------------------------------------------------
+{"network-topology":{"topology":[{"topology-id":"ovsdb:1"}]}}
+-------------------------------------------------------------
+
+[[use-case-initiating-ovsdb-connection-from-controller]]
+== Use Case: Initiating OVSDB Connection from Controller
+
+After Starting Karaf, configure your ovsdb server to be in passive mode
+with:
+
+------------------------------------
+sudo ovs-vsctl set-manager ptcp:6640
+------------------------------------
+
+This tells ovsdb to listen for incoming connections from a 'manager' on
+port 6640.
+
+To tell ODL to connect to this listening ovsdb instance:
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+curl -X POST -d '{"network-topology:topology":[{"topology-id":"ovsdb:1","node":[{"node-id":"ovsdb:/127.0.0.1: 16640","ovsdb:port":16640,"ovsdb:ip":"127.0.0.1"}]}]}' -u admin:admin -H "Content-Type:application/json" http://localhost:8181/restconf/config/network-topology:network-topology/
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Note: In this example, my Vagrant is mapping 6640 on the guest to 16440
+on the host.
+
+To confirm:
+
+--------------------------------------------------------
+vagrant@vagrant-ubuntu-trusty-64:~\> sudo ovs-vsctl show
+b8fbf5b1-4887-4c7f-91e3-5c4971be2e61
+    Manager "ptcp:6640"
+        is_connected: true
+    ovs_version: "2.0.2"
+--------------------------------------------------------
+
+[[how-to-confirm-it-works]]
+=== How to confirm it works
+
+Prior to starting the controller, on the system hosting ovs:
+
+--------------------------
+sudo ovs-vsctl add-br br01
+--------------------------
+
+confirm you have the bridge on ovs:
+
+------------------------------------
+sudo ovs-vsctl show
+b8fbf5b1-4887-4c7f-91e3-5c4971be2e61
+    Manager "ptcp:6640"
+    Bridge "br01"
+        Port "br01"
+            Interface "br01"
+                type: internal
+    ovs_version: "2.0.2"
+------------------------------------
+
+confirm you see it in the operational store:
+
+curl -u admin:admin
+http://localhost:8181/restconf/operational/network-topology:network-topology/
+
+[[use-case-reporting-new-bridge-to-operational-store]]
+== Use Case: Reporting new bridge to operational store
+
+[[how-to-confirm]]
+=== How to Confirm
+
+After the controller has started, confirm that ovsdb is connected to the
+controller using:
+
+-------------------
+sudo ovs-vsctl show
+-------------------
+
+Then on the system hosting ovs:
+
+--------------------------
+sudo ovs-vsctl add-br br02
+--------------------------
+
+confirm you have the bridge on ovs:
+
+------------------------------------
+sudo ovs-vsctl show
+b8fbf5b1-4887-4c7f-91e3-5c4971be2e61
+    Manager "ptcp:6640"
+    Bridge "br02"
+        Port "br02"
+            Interface "br02"
+                type: internal
+    ovs_version: "2.0.2"
+------------------------------------
+
+confirm you see it in the operational store:
+
+curl -u admin:admin
+http://localhost:8181/restconf/operational/network-topology:network-topology/
+
+[[use-case-removing-all-bridges-controlled-by-a-particular-ovs-instance-from-operational-store-on-disconnect]]
+== Use Case: Removing all bridges controlled by a particular ovs
+instance from operational store on disconnect
+
+[[how-to-confirm-1]]
+=== How to confirm
+
+With ovsdb connected to the controller and some number of bridges being
+reported in topology for an ovsdb node,
+
+--------------------------
+sudo ovs-vsctl del-manager
+--------------------------
+
+and confirm that all bridges managed by that ovsdb-node are deleted from
+the operational store:
+
+curl -u admin:admin
+http://localhost:8181/restconf/operational/network-topology:network-topology/
+
+[[use-cases-to-be-done]]
+= Use Cases to be done
+
+[[use-case-operational-information-about-portsinterfaces]]
+== Use Case: Operational information about Ports/Interfaces
+
+[[use-case-crud-bridge-from-config-store]]
+== Use Case: CRUD Bridge from config store
+
+[[use-case-crud-portinterface-from-config-store]]
+== Use Case: CRUD Port/Interface from config store
+
+[[use-case-tunnels]]
+=== Use Case: Tunnels
+
+[[use-case-add-open-ports]]
+=== Use Case: Add Open Ports

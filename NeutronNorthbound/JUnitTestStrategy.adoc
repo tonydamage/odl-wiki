@@ -1,0 +1,119 @@
+[[junit-test-strategy]]
+= JUnit Test Strategy
+
+This page discusses the JUnit Test Strategy and test cases for Neutron
+Northbound.
+
+[[approach]]
+== Approach
+
+Most of the methods within Neutron Northbound data classes are either
+
+1.  simple gettor/settor patterns with logic that can be verified by
+simple inspection
+2.  extractFields() for extracting a subset of parameters from an
+instance of an bject into a new instance of the same object.
+3.  toString() for dumping the object instance as part of
+logging/debugging
+
+All of the above can be covered via simple system test cases. Therefore,
+the first pass of JUnit testing will focus on the other methods in each
+class, presenting the planned test cases for each method.
+
+[[classesmethodstests]]
+== Classes/Methods/Tests
+
+[[neutronsubnet_ipallocationpool.java]]
+=== NeutronSubnet_IPAllocationPool.java
+
+* convert() [IPv4]
+1.  Test return of 0 on null argument
+2.  Test return value given 32.20.10.0
+3.  Test return value given 192.168.2.140
+* covert_V6() [IPv6]
+1.  Test return of 0 on null argument
+2.  Test return value given 2003::1
+* contains() [IPv4]
+** Allocate pool of size 3
+1.  Test against one less than pool bottom
+2.  Test against one more than pool bottom
+3.  Test against each member of pool
+* contains_V6() [IPv6]
+** Allocate pool of size 3
+1.  Test against one less than pool bottom
+2.  Test against one more than pool bottom
+3.  Test against each member of pool
+* longToIP() [IPv4]
+1.  Test return value of convert test 2 to see if 32.20.10.0 is
+recovered
+2.  Test return value of convert test 3 to see if 192.168.2.140 is
+recovered
+* bigIntegerToIP [IPv6]
+1.  Test return value of convert_V6 test 2 to see if 2003::1 is
+recovered
+* splitPool() [IPv4]
+** Allocate pool of size 5
+1.  Test "split" on pool bottom and top (single pool of size 4)
+2.  Test split on address above bottom (pool of 1 and pool of 3)
+3.  Test split on middle address (2 pools of 2)
+4.  Test split on address below top (pool of 3 and pool of 1)
+* splitPool_V6() [IPv6]
+** Allocate pool of size 5
+1.  Test "split" on pool bottom and top (single pool of size 4)
+2.  Test split on address above bottom (pool of 1 and pool of 3)
+3.  Test split on middle address (2 pools of 2)
+4.  Test split on address below top (pool of 3 and pool of 1)
+
+[[neutronsubnet.java]]
+=== NeutronSubnet.java
+
+* isValidCIDR()
+1.  Test against 10.18.0.0/24 (valid IPv4)
+2.  Test against 10.18.0.0/16 (valid IPv4)
+3.  Test against 10.18.0.0/8 (not valid IPv4)
+4.  Test against 2015:0:0:0:0:0:0:0/24 (valid IPv6)
+5.  Test against 2015:0:0:0:0:0:0:1/24 (not valid IPv6)
+* gatewayIP_Pool_overlap()
+** IPv4
+*** create allocation pool of size 5
+1.  create subnet with gateway in pool and call (should return true)
+2.  create subnet with gateway outside of pool an call (should return
+false)
+** IPv6
+*** repeat above cases using IPv6 addresses
+* isValidIP()
+** IPv4
+*** create subnet
+1.  test with address in subnet (should return true)
+2.  test with address outside of subnet (should return false)
+** IPv6
+*** repeat above cases using IPv6 addresses
+* isIPInUse()
+** IPv4
+*** create subnet with partial allocation pool
+1.  test gateway address (should return false)
+2.  test address in allocation pool (should return false)
+3.  test address outside allocation pool (should return true)
+4.  test address outside of subnet (should return true)
+** IPv6
+*** repeat above cases using IPv6 addresses
+* getLowAddr()
+** IPv4
+*** create subnet with multiple allocation pools
+1.  call should return lowest address
+** IPv6
+*** repeat above case using IPv6 addresses
+* allocateIP()
+** IPv4
+*** create subnet with multiple allocation pools
+1.  call should return lowest address. After call, check allocation
+pools for proper modification
+** IPv6
+*** repeat above case using IPv6 addresses
+* releaseIP()
+** IPv4
+1.  release address after allocateIP test. Result should be a new
+allocation pool with a single address
+** IPv6
+*** repeat above case using IPv6 addresses
+

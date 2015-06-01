@@ -1,0 +1,102 @@
+Changeset https://git.opendaylight.org/gerrit/#/c/10901/ introduces
+models and application specifically crafted only for MD-SAL benchmarking
+and testing purposes.
+
+Application itself is MD-SAL application which uses both Binding-Aware
+and Binding-Independent APIs.
+
+[[building-installing]]
+== Building & Installing
+
+[[building]]
+=== Building
+
+You need to checkout patchset (if application is still not part of the
+master) and build it locally.
+
+You need to build only sal-test-model and sal-test-app
+
+`    mvn clean install -pl :sal-test-model,:sal-test-app`
+
+This will built only test application, builded JAR files for controller
+are located in
+
+`   opendaylight/md-sal/sal-test-model/target/sal-test-model-1.1-SNAPSHOT.jar`
+
+and
+
+`   opendaylight/md-sal/sal-test-app/target/sal-test-app-1.1-SNAPSHOT.jar`
+
+[[installing]]
+=== Installing
+
+You need to copy builded jars into your opendaylight/plugins folder and
+start controller.
+
+[[executing-tests]]
+== Executing tests
+
+[[md-sal-data-broker-benchmark-test]]
+=== MD-SAL Data Broker Benchmark test
+
+Application comes with bundled parameterized benchmark test for MD-SAL
+Data Broker. It is possible to test Binding Data Broker or DOM Data
+Broker performance.
+
+Collected statistics:
+
+* data-construction - How long it took for application to construct one
+DTO
+* write-to-transaction - Duration statitics of invoking one write on
+transaction
+* transaction-construction - Duration statistics for constructing one
+bulked transaction
+* successful-commits - Duration statistics for user visible duration of
+commit (since application invoked submit and got successful future
+callback for submit).
+* failed-commits - DUration statistics for user visible duration of
+commit (since application invoked submit and got failed future callback
+for submit).
+
+[[invoking-test-suite-via-restconf]]
+==== Invoking test suite via Restconf
+
+Test suite is normal MD-SAL application and is available via all MD-SAL
+APIs, for user based testing we encourage using Postman and Restconf.
+
+`   `http://localhost:8080/restconf/operations/opendaylight-mdsal-test-benchmark:data-broker-performance[`http://localhost:8080/restconf/operations/opendaylight-mdsal-test-benchmark:data-broker-performance`] +
+`   Content-Type: application/json` +
+`   Accept-Type: application/json` +
+`   ` +
+`   ` +
+`   {` +
+`     "input":{` +
+`       "data-format":"opendaylight-mdsal-test-base:binding-v1",` +
+`       "write-operation":"PUT",` +
+`       "outer-list-items": 10,` +
+`       "inner-list-items": 10,` +
+`       "outer-writes-per-transaction":1` +
+`     }` +
+`   }`
+
+Where:
+
+* *data-format* - Data format (APIs) which should be used. Valid values
+are:
+
+:* opendaylight-mdsal-test-base:binding-v1 - Binding Broker APIs
+
+:* opendaylight-mdsal-test-base:normalized-node - DOM (Normalized Node)
+APIs
+
+* *write-operation* - Type of write operation to be used. Valid ones are
+PUT or MERGE.
+* *outer-list-items* - Number of list items, which should be written,
+this items are written to one top level list.
+* *inner-list-items* - Inner list items, each outer list item contains
+specified number of inner list items here.
+* *outer-writes-per-transaction* - Number of outer list items, which
+should be written in bulk in one transaction.
+
+Once you submit request you will get back RPC result when test completed
+with statistics as described in previous section.

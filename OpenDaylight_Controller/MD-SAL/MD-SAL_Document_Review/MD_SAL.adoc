@@ -1,0 +1,253 @@
+[[contacts]]
+== Contacts
+
+* Owner: Tony Tkacik
+
+* Team:
+
+[[objective]]
+== Objective
+
+The Model-Driven SAL (MD-SAL) is an infrastructure component that
+provides messaging and data storage functionality based on data and
+interface models defined by application developers (i.e. user-defined
+models).
+
+MD-SAL has two main objectives:
+
+* Define a *common-layer*, *concepts*, *data model building blocks* and
+*patterns* that provide an infrastructure/framework for applications and
+inter-application communication.
+* Provide support for user-defined transport and payload formats,
+including payload serialization and adaptation (e.g. binary, XML or
+JSON).
+
+To achieve the above objectives, MD-SAL uses YANG as the modeling
+language for both interface and data definitions, and provides a
+messaging and data-centric runtime for such services based on YANG
+modeling.
+
+MD-SAL extends the YANGTools project (which provides a YANG parser, data
+structures, and data supporting functionality) with messaging patterns
+and the concept of data stores / data brokers.
+
+[[what-is-it]]
+== What is it
+
+MD-SAL is a home-grown message-bus inspired extensible middleware, which
+uses YANG modeling language to describe data and messaging patterns
+between applications.
+
+Model-driven nature of MD-SAL allows for behind-the-scene API and
+payload type mediation and transformation to facilitate seamless
+communication between applications. It also allows for other
+applications to provide connectors / expose different set of APIs and
+derive most of its functionality purely from YANG Model, which all
+existing code without modification could benefit from (one such example
+is RESTCONF Connector), which is application built on top of MD-SAL and
+exposes YANG-modeled application APIs transparently via HTTP and adds
+support for XML and JSON payload type.)
+
+[[basic-concepts]]
+=== Basic concepts
+
+Basic concepts are building blocks which are used by applications, and
+from which MD-SAL derives its services and behaviour based on mapping of
+basic concepts to developer-supplied YANG models.
+
+* *Data Tree* - All state-related data are modeled and represented as
+data tree, with possibility to address any element / subtree
+
+:* *Operational Data Tree* - Reported state of the system, published by
+the providers using MD-SAL. Represents a feedback loop for applications
+to observe state of the network / system.
+
+:* *Configuration Data Tree* - Intended state of the system or network,
+populated by consumers, which expreses their intention.
+
+* *Instance Identifier* - Unique identifier of node / subtree in data
+tree, which provides unambiguous information, how to retrieve node /
+subtree from conceptual data trees.
+* *Notification* - Asynchronous transient event (from perspective of
+provider) which may be consumed by consumers and they may act upon it
+* *RPC* - asynchronous request-reply message pair, when request is
+triggered by consumer, send to the provider, which in future replies
+with reply message.
+
+[[messaging-patterns]]
+=== Messaging Patterns
+
+MD-SAL provides several messaging patterns, which are intended to
+transfer YANG modeled data between applications to provide data-centric
+integration between applications instead of API-centric integration.
+
+* *Unicast communication*
+
+:*
+*OpenDaylight Controller:MD-SAL:Explained:Messaging_Patterns#RPCs[RPC]*
+- unicast between consumer and provider, where consumer sends *request*
+message to provider, which asynchronously responds with *reply* message
+
+* *Publish / Subscribe*
+
+:*
+*OpenDaylight Controller:MD-SAL:Explained:Messaging_Patterns#Notifications[Notifications]*
+- multicast message which is send by provider and is delivered to
+subscribed consumers
+
+:*
+*OpenDaylight Controller:MD-SAL:Explained:Messaging_Patterns#Data_Change_Events[Data
+Change Events]* - multicast asynchronous event, which is sent by data
+broker if there is change in conceptual data tree, and is delivered to
+subsribed consumers
+
+*
+*OpenDaylight Controller:MD-SAL:Explained:Messaging Patterns#Transactions[Data
+access patterns]*
+
+:* Transactional *reads* from conceptual *data tree* - read-only
+transactions
+
+:* Transactional *modification* to conceptual *data tree* - write
+transactions
+
+:* *Transaction Chaining*
+
+:*
+*OpenDaylight Controller:MD-SAL:Explained:Messaging_Patterns#Data_Change_Events[Data
+Change Events]*
+
+[[payload-types]]
+=== Payload Types
+
+Currently core of MD-SAL exposes two Java API / payload types:
+
+* ** *** YANG Java Binding APIs** (binding) - Java interfaces and
+transfer objects generated in compile-time from YANG model, which allows
+for easy development of application tailored to specific models.
+* DOM APIs (dom) - XML DOM inspired payload format, which is more
+suitable for components, which interprets model and could provide
+functionality from any valid YANG model (e.g. RESTCONF, data store,
+Netconf).
+
+By extension MD-SAL (via use of RESTCONF Connector) also provides REST
+APIs for any YANG-modeled application. See RESTCONF for more
+information.
+
+[[additional-components]]
+=== Additional components
+
+In addition to core MD-SAL which provides implementation of core
+functionality for intra-process communication and API and payload format
+translation projects provides additional components:
+
+* RESTCONF Connector - model-driven HTTP APIs to MD-SAL and applications
+integrated with MD-SAL, based on draft-bierman-netconf-restconf-02.
+
+[[assumed-knowledge]]
+=== Assumed knowledge
+
+:* Java programming
+
+:* Maven
+
+:* YANG Modelling language
+
+[[assumed-environment]]
+=== Assumed Environment
+
+* Java 7
+
+[[why-do-we-have-it]]
+=== WHY DO WE HAVE IT?
+
+* pain points addressed
+* problems solved
+
+[[painpoints]]
+=== PAINPOINTS
+
+[[how-does-it-work]]
+=== HOW DOES IT WORK?
+
+[[md-sal-design]]
+==== MD-SAL Design
+
+The data handling functionality is separated into two distinct brokers:
+a binding-independent DOM Broker that interprets YANG models at runtime
+and is the core component of the MD-SAL runtime, and a Binding-Aware
+Broker that exposes Java APIs for plugins using binding-aware
+representation of data (Java DTOs). These brokers, along with their
+supporting components are shown in the following figure:
+image:Arch-Fig4.jpg[Arch-Fig4.jpg,title="fig:Arch-Fig4.jpg"] The DOM
+Broker uses YANG data APIs to describe data and Instance Identifiers
+specific to YANG to describe paths to data in the system. Data
+structures in the Binding-Aware Broker that are visible to applications
+are generated from YANG models in YANG tools. The DOM Broker relies on
+presence of YANG schemas, which are interpreted at runtime for
+functionality-specific purposes, such as RPC routing, data store
+organization, and validation of paths.
+
+The Binding-Aware Broker relies on Java APIs, which are generated from
+YANG models, and on common properties of Java DTOs, which are enforced
+by code generation. Therefore data transfer optimizations (zero-copy)
+are possible when a data Consumer and a data Provider are both
+Binding-Aware.
+
+The Binding-Aware Broker connects to the DOM Broker through the BA-BI
+Connector, so that Binding-Aware Consumer/Provider applications/plugins
+can communicate with their respective binding-independent counterparts.
+The BA-BI Connector, together with the Mapping Service, the Schema
+Service, the Codec Registry and the Codec Generator implement dynamic
+late binding: the codecs that translate YANG data representations
+between a binding-independent (DOM) format and DTOs, which are specific
+to Java bindings, are auto-generated on demand.
+
+The physical Data Store is pluggable – MD-SAL provides an SPI through
+which different data store implementations can be plugged in.
+
+The Mount concept and the support for APIs generated from models allow
+for applications talking to NETCONF devices to be compiled directly
+against device models – there is no need for controller-level models
+that represent devices. Device models are loaded into the controller
+from a NETCONF device when the controller connects to the device, and
+apps can work directly with them.
+
+[[how-does-it-fit-into-the-controller-architecture]]
+==== HOW DOES IT FIT INTO THE CONTROLLER ARCHITECTURE?
+
+MD-SAL is core integration layer, which provides inter-application
+communication.
+
+image:Arch-Fig3.jpg[MD-SAL in controller
+architecture,title="MD-SAL in controller architecture"]
+
+[[who-should-use-it]]
+=== Who should use it?
+
+MD-SAL is targeted for developers, which develops applications /
+protocol plugins to be run in JVM in same process as rest of the system.
+
+[[which-projects-dodont-use-it]]
+==== WHICH PROJECTS DO/DON'T USE IT?
+
+* Almost every Opendaylight project except Yangtools
+
+[[education]]
+== EDUCATION
+
+[[learning-resources]]
+=== Learning Resources
+
+[[alternatives-investigated-or-possible]]
+=== ALTERNATIVES (INVESTIGATED OR POSSIBLE)
+
+* Alternatives to current approach
+
+[[examplestutorials]]
+== EXAMPLES/TUTORIALS
+
+* See learning resources section
+
+[[meetingsaction-itemsprogress]]
+== Meetings/Action Items/Progress

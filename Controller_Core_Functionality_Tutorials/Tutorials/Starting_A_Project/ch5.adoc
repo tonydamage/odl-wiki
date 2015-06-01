@@ -1,0 +1,142 @@
+[[introduction]]
+= Introduction
+
+This chapter implements the RPC methods in ToasterImpl which were
+defined in toaster.yang
+
+[[implementing-the-rpcs]]
+= Implementing the RPCs
+
+ToasterImpl.java - more additions to the code developed in chapter 4.
+
+`public class ToasterImpl implements ..., ToasterService, ... {` +
+`   private BindingAwareBroker.RpcRegistration`` rpcReg;` +
+`    /**************************************************************************` +
+`    * AutoCloseable Method` +
+`    *************************************************************************/` +
+`   /**` +
+`    * Called when MD-SAL closes the active session. Cleanup is performed, i.e.` +
+`    * all active registrations with MD-SAL are closed,` +
+`    */` +
+`   @Override` +
+`   public void close() throws Exception {` +
+`       ....` +
+`       rpcReg.close();` +
+`       ....` +
+`   }` +
+`   /**************************************************************************` +
+`    * BindingAwareProvider Methods` +
+`    *************************************************************************/` +
+`   @Override` +
+`   public void onSessionInitiated(ProviderContext session) {` +
+`       ...` +
+`       // Register the RPC Service` +
+`       rpcReg = session.addRpcImplementation(ToasterService.class, this);` +
+`       ...` +
+`   }` +
+`   /**************************************************************************` +
+`    * ToasterService Methods` +
+`    *************************************************************************/` +
+`   /**` +
+`    * Restconf RPC call implemented from the ToasterService interface.` +
+`    * Cancels the current toast.` +
+`    * Implementation to be filled in a later chapter.` +
+`    * in postman, `http://localhost:8181/restconf/operations/toaster:cancel-toast[`http://localhost:8181/restconf/operations/toaster:cancel-toast`] +
+`    */` +
+`   @Override` +
+`   public Future``> cancelToast() {` +
+`       LOG.info("cancelToast");` +
+`       // Always return success from the cancel toast call.` +
+`       return Futures.immediateFuture( RpcResultBuilder.`` success().build() );` +
+`   }` +
+`   /**` +
+`    * RestConf RPC call implemented from the ToasterService interface.` +
+`    * Attempts to make toast.` +
+`    * Implementation to be filled in a later chapter.` +
+`    * in postman, `http://localhost:8181/restconf/operations/toaster:make-toast[`http://localhost:8181/restconf/operations/toaster:make-toast`] +
+`    * { "input" : { "toaster:toasterDoneness" : "10", "toaster:toasterToastType":"wheat-bread" } }` +
+`    */` +
+`   @Override` +
+`   public Future``> makeToast(final MakeToastInput input) {` +
+`       LOG.info("makeToast: {}", input);` +
+`       return Futures.immediateFuture( RpcResultBuilder.`` success().build() );` +
+`   }` +
+`   /**` +
+`    * RestConf RPC call implemented from the ToasterService interface.` +
+`    * Restocks the bread for the toaster` +
+`    * Implementation to be filled in a later chapter.` +
+`    * in postman, `http://localhost:8181/restconf/operations/toaster:restock-toaster[`http://localhost:8181/restconf/operations/toaster:restock-toaster`] +
+`    * { "input" : { "toaster:amountOfBreadToStock" : "3" } }` +
+`    */` +
+`   @Override` +
+`   public Future``> restockToaster(final RestockToasterInput input) {` +
+`       LOG.info( "restockToaster: {}", input );` +
+`       return Futures.immediateFuture( RpcResultBuilder.`` success().build() );` +
+`   }`
+
+[[building-and-testing]]
+= Building and Testing
+
+We build the Toaster Provider and the Service API just like we did in
+the previous two chapters. In Chapter 5 top directory, run:
+
+`mvn clean install`
+
+Start the built Karaf distribution:
+
+`> cd distribution-karaf/target/assembly/bin` +
+`> ./karaf`
+
+The system will initialize, and the toaster will too! To observe changes
+to the karaf log file without having to type *> display* each time, use
+the following command:
+
+`> log:tail`
+
+You should see messages similar to the following in the karaf log:
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+...
+2015-01-21 21:03:02,949 | INFO  | config-pusher    | ToasterImplModule                | 222 - org.opendaylight.toaster.impl - 0.0.1.SNAPSHOT | Performing custom validation
+2015-01-21 21:03:02,960 | INFO  | config-pusher    | ToasterImplModule                | 222 - org.opendaylight.toaster.impl - 0.0.1.SNAPSHOT | Creating a new Toaster instance
+2015-01-21 21:03:02,964 | INFO  | config-pusher    | ToasterImplModule                | 222 - org.opendaylight.toaster.impl - 0.0.1.SNAPSHOT | Provider: org.opendaylight.toaster.ToasterImpl@9d61d65
+2015-01-21 21:03:03,045 | INFO  | config-pusher    | ToasterImpl                      | 222 - org.opendaylight.toaster.impl - 0.0.1.SNAPSHOT | initToasterOperational: operational status populated: Toaster [_toasterManufacturer=DisplayString [_value=Opendaylight], _toasterModelNumber=DisplayString [_value=Model 1 - Binding Aware], _toasterStatus=Up, augmentation=[]]
+2015-01-21 21:03:03,046 | INFO  | config-pusher    | ToasterImpl                      | 222 - org.opendaylight.toaster.impl - 0.0.1.SNAPSHOT | initToasterConfiguration: default config populated: Toaster [_darknessFactor=1000, augmentation=[]]
+2015-01-21 21:03:03,046 | INFO  | config-pusher    | ToasterImpl                      | 222 - org.opendaylight.toaster.impl - 0.0.1.SNAPSHOT | onSessionInitiated: initialization done
+2015-01-21 21:03:03,056 | INFO  | CommitFutures-0  | ToasterImpl                      | 222 - org.opendaylight.toaster.impl - 0.0.1.SNAPSHOT | initToasterOperational: transaction succeeded
+2015-01-21 21:03:03,058 | INFO  | CommitFutures-0  | ToasterImpl                      | 222 - org.opendaylight.toaster.impl - 0.0.1.SNAPSHOT | initToasterConfiguration: transaction succeeded
+2015-01-21 21:03:03,064 | INFO  | DOM-CFG-DCL-0    | ToasterImpl                      | 222 - org.opendaylight.toaster.impl - 0.0.1.SNAPSHOT | onDataChanged - new Toaster config: Toaster{getDarknessFactor=1000, augmentations={}}
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+In the log, these are the same messages as in the previous chapter but
+included here so that you can see that the system initialized properly.
+
+Try issuing an RPC service request:
+
+`HTTP Method => POST` +
+`URL => `http://localhost:8181/restconf/operations/toaster:make-toast[`http://localhost:8181/restconf/operations/toaster:make-toast`]` ` +
+`Header =>   Content-Type: application/yang.data+json  ` +
+`Body =>  ` +
+`{` +
+`  "input" :` +
+`  {` +
+`     "toaster:toasterDoneness" : "10",` +
+`     "toaster:toasterToastType":"wheat-bread"` +
+`  }` +
+`}`
+
+Using cURL, you should see a 200 response:
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+curl -H 'Content-Type: application/json' -X POST -d '{"input" : {"toaster:toasterDoneness" : "10","toaster:toasterToastType":"wheat-bread"}}' --verbose -u admin:admin http://localhost:8181/restconf/operations/toaster:make-toast
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+You should see the following in the karaf log:
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+...
+2015-01-21 22:46:56,726 | INFO  | qtp498892864-62  | ToasterImpl                      | 222 - org.opendaylight.toaster.impl - 0.0.1.SNAPSHOT | makeToast: MakeToastInput [_toasterDoneness=5, _toasterToastType=class org.opendaylight.yang.gen.v1.http.netconfcentral.org.ns.toaster.rev091120.WheatBread, augmentation=[]]
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+[[under-the-hood]]
+= Under the Hood

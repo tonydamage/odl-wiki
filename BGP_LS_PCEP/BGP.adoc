@@ -1,0 +1,373 @@
+[[bgp-overall-architecture]]
+== BGP overall architecture
+
+image:BGP-overall.png [ center | BGP
+dependencies,title=" center | BGP dependencies"]
+
+BGP elements: message, attribute, capability, nlri, parameter, address
+family, subsequent address family.
+
+[[bgp-concepts]]
+=== BGP concepts
+
+This module contains the base BGP concepts contained in
+http://tools.ietf.org/html/rfc4271[RFC4271],
+http://tools.ietf.org/html/rfc4760[RFC4760],
+http://tools.ietf.org/html/rfc4456[RFC4456],
+http://tools.ietf.org/html/rfc1997[RFC1997] and
+http://tools.ietf.org/html/rfc4360[RFC4360].
+
+All the concepts are described in one yang model :
+https://git.opendaylight.org/gerrit/gitweb?p=bgpcep.git;a=blob;f=bgp/concepts/src/main/yang/bgp-types.yang;hb=HEAD[bgp-types.yang]
+.
+
+Outside generated classes, there is just one class
+_https://git.opendaylight.org/gerrit/gitweb?p=bgpcep.git;a=blob;f=bgp/concepts/src/main/java/org/opendaylight/bgp/concepts/NextHopUtil.java;hb=HEAD[NextHopUtill]_
+that contains methods for serializing and parsing NextHop.
+
+[[bgp-parser]]
+=== BGP parser
+
+The following picture summarizes the dependencies of BGP parser modules.
+
+image:Bgp-parser.png [ center | BGP parser
+dependencies,title=" center | BGP parser dependencies"]
+
+Before you start reading any further, make sure you read first the
+general parsing/serializing overview described in
+BGP LS PCEP:Developer Guide#Serialization_and_deserialization_of_protocol_messages[Developer
+Guide]. Base BGP parser includes messages and attributes from
+http://tools.ietf.org/html/rfc4271[RFC4271],
+http://tools.ietf.org/html/rfc4760[RFC4760],
+http://tools.ietf.org/html/rfc1997[RFC1997] and
+http://tools.ietf.org/html/rfc4360[RFC4360].
+
+_API_ module defines BGP messages in YANG.
+
+_IMPL_ module contains actual parsers and serializers for BGP messages
+and
+_https://git.opendaylight.org/gerrit/gitweb?p=bgpcep.git;a=blob;f=bgp/parser-impl/src/main/java/org/opendaylight/protocol/bgp/parser/impl/BGPActivator.java;hb=HEADl[Activator]_
+class
+
+_SPI_ module contains helper classes needed for registering parsers into
+activators
+
+[[registration]]
+==== Registration
+
+As mentioned before, all parsers and serializers need to be registered
+into _Extension provider_. This _Extension provider_ is configured in
+initial configuration of the parser-spi module (_31-bgp.xml_).
+
+code,xml,numberLines----------------------------------------------------------------------------------------------------------------------
+code,xml,numberLines
+ <module>
+  <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:bgp:parser:spi">prefix:bgp-extensions-impl</type>
+  <name>global-bgp-extensions</name>
+  <extension>
+   <type xmlns:bgpspi="urn:opendaylight:params:xml:ns:yang:controller:bgp:parser:spi">bgpspi:extension</type>
+   <name>base-bgp-parser</name>
+  </extension>
+  <extension>
+   <type xmlns:bgpspi="urn:opendaylight:params:xml:ns:yang:controller:bgp:parser:spi">bgpspi:extension</type>
+   <name>bgp-linkstate</name>
+  </extension>
+ </module>
+----------------------------------------------------------------------------------------------------------------------
+
+* 6: _base-bgp-parser_ - will register parsers and serializers
+implemented in bgp-parser-impl module
+
+* 10: _bgp-linkstate_ - will register parsers and serializers
+implemented in bgp-linkstate module
+
+How to register your own extension to BGP parser, is described in this
+BGP_LS_PCEP:Developer_Guide#Writing_an_extension_to_BGP[tutorial].
+Bgp-linkstate module is a good example of a BGP parser extension.
+
+Configuration of bgp-parser-spi specifies one implementation of
+_Extension provider_ that will take care of registering mentioned parser
+extensions:
+https://git.opendaylight.org/gerrit/gitweb?p=bgpcep.git;a=blob;f=bgp/parser-spi/src/main/java/org/opendaylight/protocol/bgp/parser/spi/pojo/SimpleBGPExtensionProviderContext.java;hb=refs/heads/master[SimpleBGPExtensionProviderContext].
+All registries are implemented in package
+https://git.opendaylight.org/gerrit/gitweb?p=bgpcep.git;a=tree;f=bgp/parser-spi/src/main/java/org/opendaylight/protocol/bgp/parser/spi;hb=refs/heads/master[bgp-parser-spi].
+
+[[parsing]]
+==== Parsing
+
+Parsing follows patterns described in
+BGP LS PCEP:Developer Guide#Parsing[Developer Guide].
+
+[[serializing]]
+==== Serializing
+
+Serializing of BGP elements is mostly done as described in
+BGP LS PCEP:Developer Guide#Serialization[Developer Guide], the only
+exception is the serialization of Path Attributes, that is described
+here. Path Attributes are different from any other BGP element, as
+PathAttributes don't implement PathAttributes interface, but this
+interface contains getters for individual Path Attributes (this
+structure is because Update message can contain exactly one instance of
+each Path Attribute). This means, that given _PathAttributes_ object,
+you can only get to the specific type of the Path Attribute through
+checking its presence. Therefore method _serialize()_ in
+AttributeRegistry, won't look up the registered class, instead it will
+go through the registrations and offer this object to the each
+registered parser. This way the object will be passed also to
+serializers unknown to module bgp-parser, for example to
+LinkstateAttributeParser. RFC4271 recommends to order Path Attributes,
+hence the serializers are ordered in a list as they are registered in
+the _Activator_. In other words, this is the only case, where
+registration ordering matters.
+
+image:PathAttributesSerialization.png[
+PathAttributesSerialization,title=" PathAttributesSerialization"]
+
+_serialize()_ method in each Path Attribute parser contains check for
+presence of its attribute in the PathAttributes object, which simply
+ends the method, if the attribute is not there:
+
+code,java--------------------------------------------------- code,java
+ if (pathAttributes.getAtomicAggregate() == null) {
+     return;
+ }
+ //continue with serialization of Atomic Aggregate
+---------------------------------------------------
+
+[[bgp-rib]]
+=== BGP RIB
+
+image:Bgp-rib.png [ center | BGP RIB
+dependencies,title=" center | BGP RIB dependencies"]
+
+BGP RIB module can be divided into two semantic parts. BGP listener and
+speaker session handling and RIB (Route information base) handling.
+
+[[session-handling]]
+==== Session handling
+
+Session handling for both speaker and listener is described in general
+BGP_LS_PCEP:Developer_Guide#Channel_handlers[here].
+
+_31-bgp.xml_ defines only bgp-dispatcher and the parser it should be
+using (global-bgp-extensions).
+
+code,xml---------------------------------------- code,xml
+ <module>
+ <type>prefix:bgp-dispatcher-impl</type>
+ <name>global-bgp-dispatcher</name>
+ <bgp-extensions>
+  <type>bgpspi:extensions</type>
+  <name>global-bgp-extensions</name>
+ </bgp-extensions>
+ <boss-group>
+  <type>netty:netty-threadgroup</type>
+  <name>global-boss-group</name>
+ </boss-group>
+ <worker-group>
+  <type>netty:netty-threadgroup</type>
+  <name>global-worker-group</name>
+ </worker-group>
+ </module>
+----------------------------------------
+
+For user configuration of BGP, check BGP LS PCEP:User Guide#BGP[this
+site].
+
+[[synchronization]]
+==== Synchronization
+
+Synchronization is a phase, where upon connection, BGP speaker sends all
+available data about topology to its new client. After the whole
+topology has been advertized, the synchronization is over. For the
+listener, the synchronization is over when the RIB receives End-of-RIB
+(EOR) messages. There is a special EOR message for each AFI.
+
+* IPv4 EOR is an empty Update message
+* Ipv6 EOR is an Update message with empty MP_UNREACH attribute where
+AFI and SAFI are set to Ipv6. ODL also supports EOR for IPv4 in this
+format
+* Linkstate EOR is an Update message with empty MP_UNREACH attribute
+where AFI and SAFI are set to Linkstate
+
+For BGP connection, where both peers support graceful restart, the EORs
+are sent by BGP speaker and are redirected to RIB, where the specific
+AFI/SAFI table is set to _true_. Without graceful restart, the messages
+are generated by ODL itself and sent after second keepalive for each
+AFI/SAFI. This is done in
+_https://git.opendaylight.org/gerrit/gitweb?p=bgpcep.git;a=blob;f=bgp/rib-impl/src/main/java/org/opendaylight/protocol/bgp/rib/impl/BGPSynchronization.java;hb=refs/heads/master[BGPSynchronization]_
+
+*Peers*
+
+_https://git.opendaylight.org/gerrit/gitweb?p=bgpcep.git;a=blob;f=bgp/rib-impl/src/main/java/org/opendaylight/protocol/bgp/rib/impl/BGPPeer.java;hb=refs/heads/master[BGPPeer]_
+has various meanings. If you configure BGP listener, _BGPPeer_
+represents the BGP listener itself. If you are configuring BGP speaker,
+you need to provide a list of peers, that are allowed to connect to this
+speaker. Connections from unknown peers will be refused. _BGPPeer_
+represents in this case peer, that is supposed to connect to your
+speaker. _BGPPeer_ is stored in
+_https://git.opendaylight.org/gerrit/gitweb?p=bgpcep.git;a=blob;f=bgp/rib-impl/src/main/java/org/opendaylight/protocol/bgp/rib/impl/StrictBGPPeerRegistry.java;hb=refs/heads/masterl[BGPPeerRegistry]_.
+This registry controls the number of sessions. Strict implementation
+limits sessions to one per peer.
+
+_https://git.opendaylight.org/gerrit/gitweb?p=bgpcep.git;a=blob;f=bgp/rib-impl/src/main/java/org/opendaylight/protocol/bgp/rib/impl/ApplicationPeer.java;hb=refs/heads/master[ApplicationPeer]_
+is a special case of peer, that has it's own RIB. This RIB is populated
+from RESTCONF. The RIB is synchronized with default BGP RIB. Incoming
+routes to default RIB are treated in the same way as they were from a
+BGP peer (speaker or listener) in the network.
+
+[[rib-handling]]
+==== RIB handling
+
+RIB (Route Information Base) is defined as a concept in
+http://tools.ietf.org/html/rfc4271#section-3.2[RFC4271]. RFC does not
+define how the implementation should look like. In our implementation,
+the routes are stored in MD-SALs data-store. There are four supported
+routes - _Ipv4Routes_, _Ipv6Routes_, _LinkstateRoutes_ and
+_FlowspecRoutes_.
+
+Each route type needs to provide a
+https://git.opendaylight.org/gerrit/gitweb?p=bgpcep.git;a=blob;f=bgp/rib-spi/src/main/java/org/opendaylight/protocol/bgp/rib/spi/RIBSupport.java;hb=HEAD[RIBSupport.java]
+implementation. _RIBSupport_ tells RIB how to parse binding-aware data
+(BGP Update message) to binding-independent (datastore format).
+
+Following picture describes the data flow from BGP message that is sent
+to _BGPPeer_ to datastore and various types of RIB.
+
+image:RIB.png[RIB,title="RIB"]
+
+*https://git.opendaylight.org/gerrit/gitweb?p=bgpcep.git;a=blob;f=bgp/rib-impl/src/main/java/org/opendaylight/protocol/bgp/rib/impl/AdjRibInWriter.java;hb=refs/heads/master[AdjRibInWriter]*
+- represents the first step in putting data to datastore. This writer is
+notified whenever a peer receives an Update message. The message is
+transformed into binding-independent format and pushed into datastore to
+_adj-rib-in_. This RIB is associated with a peer.
+
+*https://git.opendaylight.org/gerrit/gitweb?p=bgpcep.git;a=blob;f=bgp/rib-impl/src/main/java/org/opendaylight/protocol/bgp/rib/impl/EffectiveRibInWriter.java;hb=refs/heads/master[EffectiveRibInWriter]*
+- this writer is notified whenever _adj-rib-in_ is updated. It applies
+all configured import policies to the routes and stores them in
+_effective-rib-in_. This RIB is also associated with a peer.
+
+*https://git.opendaylight.org/gerrit/gitweb?p=bgpcep.git;a=blob;f=bgp/rib-impl/src/main/java/org/opendaylight/protocol/bgp/rib/impl/LocRibWriter.java;hb=refs/heads/master[LocRibWriter]*
+- this writer is notified whenever *any* _effective-rib-in_ is updated
+(in any peer). Performs best path selection filtering and stores the
+routes in _loc-rib_. It also determines which routes need to be
+advertised and fills in _adj-rib-out_ that is per peer as well.
+
+*https://git.opendaylight.org/gerrit/gitweb?p=bgpcep.git;a=blob;f=bgp/rib-impl/src/main/java/org/opendaylight/protocol/bgp/rib/impl/AdjRibOutListener.java;h=a14fd54a29ea613b381a36248f67491d968963b8;hb=refs/heads/master[AdjRibOutListener]*
+- listens for changes in _adj-rib-out_, transforms the routes into
+BGPUpdate messages and sends them to its associated peer.
+
+[[configuration]]
+===== Configuration
+
+code,xml--------------------------------------------- code,xml
+ <module>
+  <type>prefix:bgp-rib-extensions-impl</type>
+  <name>global-rib-extensions</name>
+  <extension>
+   <type>ribspi:extension</type>
+   <name>base-bgp-rib</name>
+  </extension><extension>
+   <type>ribspi:extension</type>
+   <name>bgp-linkstate</name>
+  </extension>
+ </module>
+---------------------------------------------
+
+[[bgp-inet]]
+=== BGP inet
+
+This module contains only one YANG model
+https://git.opendaylight.org/gerrit/gitweb?p=bgpcep.git;a=blob;f=bgp/inet/src/main/yang/bgp-inet.yang;hb=refs/heads/master[bgp-inet.yang]
+that summarizes the ipv4 and ipv6 extensions to RIB routes and BGP
+messages.
+
+[[bgp-flowspec]]
+=== BGP flowspec
+
+BGP flowspec is a module that implements
+http://tools.ietf.org/html/rfc5575[RFC5575]. The RFC defines an
+extension to BGP in form of a new subsequent address family, nlri and
+extended communities. All of those are defined in
+https://git.opendaylight.org/gerrit/gitweb?p=bgpcep.git;a=blob;f=bgp/flowspec/src/main/yang/bgp-flowspec.yang;hb=refs/heads/master[bgp-flowspec.yang]
+model. In addition to generated sources, the module contains parsers for
+newly defined elements and RIBSupport for flowspec-routes. Route key of
+flowspec routes is a string representing human-readable flowspec
+request.
+
+[[bgp-linkstate]]
+=== BGP linkstate
+
+BGP linkstate is a module that implements
+http://tools.ietf.org/html/draft-ietf-idr-ls-distribution-04[draft-ietf-idr-ls-distribution]
+in version 04. The draft defines an extension to BGP in form of a new
+address family, subsequent address family, nlri and path attribute. All
+of those are defined in
+https://git.opendaylight.org/gerrit/gitweb?p=bgpcep.git;a=blob;f=bgp/linkstate/src/main/yang/bgp-linkstate.yang;hb=refs/heads/master[bgp-linkstate.yang]
+model. In addition to generated sources, the module contains
+https://git.opendaylight.org/gerrit/gitweb?p=bgpcep.git;a=blob;f=bgp/linkstate/src/main/java/org/opendaylight/protocol/bgp/linkstate/attribute/LinkstateAttributeParser.java;hb=refs/heads/master[LinkstateAttributeParser],
+https://git.opendaylight.org/gerrit/gitweb?p=bgpcep.git;a=blob;f=bgp/linkstate/src/main/java/org/opendaylight/protocol/bgp/linkstate/nlri/LinkstateNlriParser.java;hb=refs/heads/master[LinkstateNlriParser],
+activators for both, parser and RIB, and RIBSupport handler for
+linkstate address family. As each route needs a key, in case of
+linkstate, the route key is defined as a binary string, containing all
+the nlri serialized to byte format.
+
+[[configuration-1]]
+==== Configuration
+
+Configuration of bgp-linkstate module is very simple. Since initial
+implementation of version 03, IANA has already approved a type for
+Linkstate path attribute. Early value was *99*, allocated value is *29*.
+The configuration default is to keep it at *99*. Depending on your BGP
+peer, you can turn on the usage of new value by editing following lines
+in _31-bgp.xml_:
+
+code,xml------------------------------------------------------------------------------------------------------------------------------------
+code,xml
+<module>
+  <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:bgp:linkstate">prefix:bgp-linkstate</type>
+  <name>bgp-linkstate</name>
+  <!-- IANA has issued an early allocation for the BGP Linkstate path attribute (=29).
+   To preserve (TYPE = 99) set value bellow to false; to use IANA assigned type set the value to true or remove (true by default)-->
+   <iana-linkstate-attribute-type>false</iana-linkstate-attribute-type>
+ </module>
+------------------------------------------------------------------------------------------------------------------------------------
+
+[[bgp-topology-provider]]
+=== BGP topology provider
+
+BGP data is besides RIB, also stored in network-topology view. The
+format of how the data is displayed there conforms
+https://tools.ietf.org/html/draft-clemm-netmod-yang-network-topo-01[draft-clemm-netmod-yang-network-topo].
+
+[[bgp-util]]
+=== BGP util
+
+This module is an util class that is used in bgp-rib-mock. It's purpose
+is very straightforward, converting binary or hex BGP message dumps into
+Java BGP message objects.
+
+https://git.opendaylight.org/gerrit/gitweb?p=bgpcep.git;a=blob;f=bgp/util/src/main/java/org/opendaylight/protocol/bgp/util/BinaryBGPDumpFileParser.java;hb=HEAD[BinaryDump
+parser] converts binary dump file that can contain various BGP messages
+in binary format with no extra characters.
+
+https://git.opendaylight.org/gerrit/gitweb?p=bgpcep.git;a=blob;f=bgp/util/src/main/java/org/opendaylight/protocol/bgp/util/HexDumpBGPFileParser.java;hb=HEAD[HexDump
+parser] converts hex dump in following template:
+
+`Received BGP Open message. Length:61` +
+ +
+`ff ff ff ff ff ff ff ff  ff ff ff ff ff ff ff ff` +
+`00 3d 01 04 00 48 00 b4  28 28 28 28 20 02 06 01 ` +
+`04 00 01 00 01 02 06 01  04 40 04 00 47 02 02 80 ` +
+`00 02 02 02 00 02 06 41  04 00 00 00 48 ` +
+ +
+`Received BGP Update message. Length:81` +
+ +
+`ff ff ff ff ff ff ff ff  ff ff ff ff ff ff ff ff` +
+`00 51 02 00 00 00 1c 40  01 01 00 40 02 00 40 03 ` +
+`04 0a 19 02 1b 80 04 04  00 00 00 00 40 05 04 00 ` +
+`00 00 64 20 cb 14 a0 28  20 c9 14 a0 28 20 c7 14 ` +
+`a0 28 20 c5 14 a0 28 20  c3 14 a0 28 20 28 28 28 ` +
+`28`
+
+You can find examples for each input in testing folder in this module.

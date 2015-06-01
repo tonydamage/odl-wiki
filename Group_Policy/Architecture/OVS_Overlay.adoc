@@ -540,8 +540,12 @@ inserts a new DNAT flow to translate subsequent ARP requests for the
 same transport address directly in the vSwitch:
 
 `` +
-`priority=20, arp, arp_op=1, dl_dst=ff:ff:ff:ff:ff:ff,` +
-`  actions=mod_dl_dst:$MAC, output:$OFPORT`
+` priority=15, table=DEPG_FILTER,` +
+` arp, arp_op=1, dl_dst=ff:ff:ff:ff:ff:ff,` +
+` actions=mod_dl_dst:$MAC,` +
+`         load:${DEPG}->NXM_NX_REG3[],` +
+`         load:${OFPORT}->NXM_NX_REG4[],` +
+`         goto_table:$ENFORCER_TABLE`
 
 The _OFPORT_ is either a local port or the tunnel port. The latter case
 requires to additional set the tunnel ID as described in previous

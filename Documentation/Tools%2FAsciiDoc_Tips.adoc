@@ -1,0 +1,297 @@
+[[asciidoc-references]]
+== Asciidoc references
+
+* Cheat sheet: http://powerman.name/doc/asciidoc
+* Full manual: http://www.methods.co.nz/asciidoc/userguide.html
+
+[[common-errors]]
+== Common Errors
+
+For each common Error you will find:
+
+1.  Examples of the wrong way and right way to do something
+2.  If they break the build, what they look like when they break the
+build, so you can figure out which one you have
+3.  How to fix them
+
+[[you-cant-have-a-bare-image]]
+=== You can't have a bare image
+
+So, this is broken:
+
+----------------
+image::foo.png[]
+image::bar.png[]
+----------------
+
+but this is fine
+
+----------------------------
+.a title for the image
+image::foo.png[]
+
+.a title for the other image
+image::bar.png[]
+----------------------------
+
+[[build-error-looks-like]]
+==== Build Error Looks Like
+
+-----------------------------------------------------------------------------------------------------------------------------
+file:/Users/ckd/git-reps/docs/manuals/developers-guide/target//target/generated-docs/bk-developers-guide.xml-invalid.xml
+
+to see all the errors in context. 
+You must correct the errors in the original 
+source DocBook or wadl files however.
+
+You can control whether build fails or not by 
+setting failOnValidationError to no in your pom. 
+
+lineNumber:  3945; columnNumber: 16; element "mediaobject" not allowed yet; expected element "info", "title" or "titleabbrev"
+-----------------------------------------------------------------------------------------------------------------------------
+
+[[fixing-it]]
+==== Fixing it
+
+You can open the file (in this case
+`/Users/ckd/git-reps/docs/manuals/developers-guide/target//target/generated-docs/bk-developers-guide.xml-invalid.xml`)
+and go to the line and column to see what reference needs to be fixed.
+You can also just search for all instances of image:: and see if you see
+one that looks wrong, i.e., doesn't have a title right above it.
+
+[[watch-widths-and-heights-on-big-images]]
+=== Watch widths and heights on big images
+
+A page is about 500 wide and 750 tall, so you might have to do things
+like this:
+
+---------------------------
+.title for wide image
+image::wide.png[width=500]
+
+.title for tall image
+image::tall.png[height=750]
+---------------------------
+
+If you also want to have alt text, you need to make sure to put in
+double quotes. So, this is wrong:
+
+----------------------------------------
+.title for wide image
+image::wide.png[Alt text here,width=500]
+----------------------------------------
+
+This is right:
+
+-------------------------------------------
+.title for tall image
+image::tall.png["Alt text here",height=750]
+-------------------------------------------
+
+[[fixing-it-1]]
+==== Fixing It
+
+Add a `width=` to the square brackets after the image.
+
+[[referencing-sections-is-annoying]]
+=== Referencing sections is annoying
+
+The thing you reference is gotten by taking the title, making it all
+lowercase, replacing non-alphanumeric characters with _ and adding a
+leading _. See the
+http://www.methods.co.nz/asciidoc/userguide.html#_section_ids[actual
+reference] on this behavior for more info.
+
+So, if you have section called "OpenFlow Plugin:Mininet", you reference
+it like:
+
+----------------------------
+<<_openflow_plugin_mininet>>
+----------------------------
+
+You can have different text for the link like this:
+
+------------------------------------
+<<_openflow_plugin_mininet,Mininet>>
+------------------------------------
+
+[[referencing-sections-in-the-same-doc-using-anchor-notation]]
+==== Referencing sections in the same doc using anchor notation
+
+To mark a location the doc, so it can be referred by another section of
+the document, to this
+
+* Mark Place by adding anchor using notation
++
+---------
+[[label]]
+---------
+* Refer to anchor at any place in the doc
++
+--------------
+<<label,text>>
+--------------
+
+Example:
+
+------------------------------------------------------
+[[blabla]]
+This is a place in the doc you want to refer to later.
+
+text
+...
+text
+Click <<blabla,here to go back to marked>> location.
+------------------------------------------------------
+
+[[build-error-looks-like-1]]
+==== Build Error Looks Like
+
+------------------------------------------------------------------------------------------------------------------------
+file:/Users/ckd/git-reps/docs/manuals/developers-guide/target//target/generated-docs/bk-developers-guide.xml-invalid.xml
+
+to see all the errors in context. 
+You must correct the errors in the original 
+source DocBook or wadl files however.
+
+You can control whether build fails or not by 
+setting failOnValidationError to no in your pom. 
+
+lineNumber:  3912; columnNumber: 159; value of attribute "linkend" is invalid; must be an XML name without colons
+------------------------------------------------------------------------------------------------------------------------
+
+or
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+file:/opt/jenkins/workspace/docs-verify-master/jdk/openjdk7/nodes/dynamic_verify/manuals/install-guide/target//target/generated-docs/bk-install-guide.xml-invalid-idrefs.xml
+
+to see all the errors in context. 
+You must correct the errors in the original 
+source DocBook or wadl files however.
+
+You can control whether build fails or not by 
+setting failOnValidationError to no in your pom. 
+
+lineNumber:  49; columnNumber: 146; IDREF "_installing_components" without matching ID
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+[[fixing-it-2]]
+==== Fixing It
+
+You can open the file (in this case
+`/Users/ckd/git-reps/docs/manuals/developers-guide/target//target/generated-docs/bk-developers-guide.xml-invalid.xml`)
+and go to the line and column to see what reference needs to be fixed.
+You can also just search for all things in double angle brackets
+(<<...>>) to see if you can find it.
+
+[[complicated-table-stuff-seems-to-fail]]
+=== Complicated table stuff seems to fail
+
+For example this formats the text in a single, really tight column:
+
+-----------------------------------------------------------------------------------------------------------------------------
+[cols=*3,^,options="header",width="75%"]
+|===
+| Artifact ID | Component | Description
+| openflowplugin | openflowplugin | Main implementation of OFPlugin
+| openflowplugin-it test-provider drop-test test-scripts | test | Support for end-to-end, integration, and regression testing
+| openflowplugin-controller-config | configSubsystem | Default configuration files for config subsystem
+| distributions-openflowplugin-base | distribution | OFPlugin distribution, based on  the distribution of the controller,
+but the old (OF-1.0 only) plugin is replaced with the new plugin(OF-1.0+1.3)
+| learning-switch sample-consumer | sample | Sample  projects demonstrating MD-SAL usage
+| vagrant | util | Materialize testing virtual machine containing mininet+ovs
+|===
+-----------------------------------------------------------------------------------------------------------------------------
+
+But this works fine:
+
+-----------------------------------------------------------------------------------------------------------------------------
+[options="header"]
+|===
+| Artifact ID | Component | Description
+| openflowplugin | openflowplugin | Main implementation of OFPlugin
+| openflowplugin-it test-provider drop-test test-scripts | test | Support for end-to-end, integration, and regression testing
+| openflowplugin-controller-config | configSubsystem | Default configuration files for config subsystem
+| distributions-openflowplugin-base | distribution | OFPlugin distribution, based on  the distribution of the controller,
+but the old (OF-1.0 only) plugin is replaced with the new plugin(OF-1.0+1.3)
+| learning-switch sample-consumer | sample | Sample  projects demonstrating MD-SAL usage
+| vagrant | util | Materialize testing virtual machine containing mininet+ovs
+|===
+-----------------------------------------------------------------------------------------------------------------------------
+
+[[fixing-it-3]]
+==== Fixing It
+
+Just remove all the things in but `options="header"` in the square
+brackets above the table.
+
+[[missing-images]]
+=== Missing Images
+
+If you don't put your images in the `src/main/resources/images`
+directory in the right manual things won't build. For the developer's
+guide, that would be
+`manuals/developers-guide/src/main/resources/images/`.
+
+[[build-error-looks-like-2]]
+==== Build Error Looks Like
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+[error] File not found: '/Users/ckd/git-reps/docs/manuals/developers-guide/target/generated-docs/images/L3FwdSample.png'. File is referred in '/Users/ckd/git-reps/docs/manuals/developers-guide/target/generated-docs/bk-developers-guide.xml' fileRef='./images/L3FwdSample.png'.
+[error] One or more images refered in the docbook were not found. Please see log for details.
+[error] One or more images refered in the docbook were not found. Please see log for details.
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+[[fixing-it-4]]
+==== Fixing It
+
+Either:
+
+1.  the file name is wrong in the asciidoc
+* look if there is a similar file in the `src/main/resources/images`
+directory and see if it seems like the right file
+* sometimes it's as simple as having .png instead of .jpg or the other
+way around
+2.  the file is missing
+* find the file and include it, often this involves reaching out to the
+person who wrote the docs or the docs contact for the project in
+question
+
+[[you-cant-have-empty-sections]]
+=== You can't have empty sections
+
+You can't have an empty section.
+
+This is fine:
+
+---------------------
+== Section One Header
+Some text here.
+
+== Section Two Header
+More text here.
+---------------------
+
+This is not:
+
+---------------------
+== Section One Header
+// no text here
+
+== Section Two Header
+More text here.
+---------------------
+
+[[build-error-looks-like-3]]
+==== Build Error Looks Like
+
+-------------------------------------------------------------------------------------------------------------------------
+lineNumber:  12243; columnNumber: 11; element "section" incomplete; expected element "address", "anchor", "annotation"...
+-------------------------------------------------------------------------------------------------------------------------
+
+[[fixing-it-5]]
+==== Fixing It
+
+Simply add some content to the section. Typically this happens while
+writing outlines and just adding "TBD" or "TODO: Add text describing..."
+is the right approach.

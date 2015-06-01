@@ -1,0 +1,282 @@
+[[introduction]]
+= Introduction
+
+Since Lithium release, projects are responsible for their own features
+integration and system test. For more information check
+CrossProject:Integration_Group:Lithium_Project_Integration_Requirements[
+Integration requirements for Lithium release].
+
+This step by step guide aims to help projects with the task of creating
+a System Test job running in CI.
+
+[[requirements]]
+= Requirements
+
+Before starting with this guide it is important projects are familiar
+with the CrossProject:Integration_Group:CI_Test_Infrastructure[ CI Test
+infrastructure]
+
+System Test requires a distribution, therefore this guide will cover
+both Distribution and System Test jobs.
+
+[[step-by-step-guide]]
+= Step by Step Guide
+
+[[distribution-job]]
+== Distribution Job
+
+A Distribution job will build the integration code and therefore will
+create a new OpenDaylight distribution based on the latest artifacts
+stored in Nexus. This job runs every time there is a code change (merge)
+in a project so new artifacts are available in Nexus for testing.
+
+Distribution job will be used to:
+
+* Verify project changes do not impact integration build
+* Make sure project changes are immediately included in the integration
+distribution
+* Trigger system test (in your and other projects in downstream) after a
+code change
+
+*NOTE:* The distribution job is now created automatically by
+releng/builder templates. No further maintenance is needed by the
+projects.
+
+[[system-test-job]]
+== System Test Job
+
+A System Test job will install a distribution in a controller VM and
+will run a functionality test using some test tools (e.g. mininet). This
+job will run every time there is a new distribution (code merge) in the
+own project and upstream projects, this way we guarantee new code in
+OpenDaylight pass relevant project tests.
+
+All projects defining user-facing features (essential functionality) and
+that have decided to use the OpenDaylight CI for system test must create
+system test jobs.
+
+In addition we recommend all projects having to do system test the use
+Robot Framework, the reason is Robot FW provides:
+
+* Structure for test creation and execution (e.g. test suites, test
+cases that PASS/FAIL)
+* Very easy test debug (real time logs, etc...)
+* Test reports in Jenkins
+
+For projects choosing Robot FW, Integration group will provide:
+
+* Robot Framework support and assistance
+* Review of system test code. The code will be pushed to integration git
+(test/csit/suites/$project)
+* JJB templates to install controller and execute a robot test to verify
+a project functionality (test/csit/testplans/$project-$functionality)
+
+For projects wanting to use their own test scripts/framework, we
+recommend to:
+
+* Store the test code in your own git repository
+* Check Creating Jenkins Job in the RelEng:Jenkins[ RelEng wiki] as well
+as some of the integration job templates in the releng/builder repo
+before creating your own system test jobs in JJB
+
+Please make sure your project has the distribution job explained in
+previous section.
+
+Next steps are for projects choosing Robot FW and interested in trying
+integration JJB templates deploying controller VM and mininet (tools)
+VM.
+
+[[download-integration-repository]]
+=== Download Integration repository
+
+--------------------------------------------------------------------------
+git clone ssh://${ODL_USERNAME}@git.opendaylight.org:29418/integration.git
+cd integration
+--------------------------------------------------------------------------
+
+Follow the instructions in this
+GettingStarted:Pulling,_Hacking,_and_Pushing_All_the_Code_from_the_CLI[
+wiki] to get the repository properly setup.
+
+[[create-a-folder-for-your-project-robot-test]]
+=== Create a folder for your project robot test
+
+-----------------------------------
+mkdir test/csit/suites/$yourproject
+cd test/csit/suites/$yourproject
+-----------------------------------
+
+Replace $yourproject with your project name
+
+[[move-your-robot-suites-test-folders-into-the-project-folder]]
+=== Move your robot suites (test folders) into the project folder
+
+If you do not have any robot test yet, copy integration basic suite into
+your folder. You can later replace this suite by your own suites.
+
+----------------------------------------------
+cp -R test/csit/suites/integration/basic basic
+----------------------------------------------
+
+This suite will verify Restconf is operational
+
+[[create-a-test-plan]]
+=== Create a test plan
+
+A test plan is a text file indicating which robot test suites (including
+integration repo path) will be executed to test a project functionality
+
+-------------------------------------------------------
+vim test/csit/testplans/$yourproject-$functionality.txt
+-------------------------------------------------------
+
+Replace $yourproject with your project name and $functionality with the
+functionality you want to test.
+
+If you took the basic test from integration, the test plan file should
+look like:
+
+-----------------------------------------------
+# Place the suites in run order:
+integration/test/csit/suites/$yourproject/basic
+-----------------------------------------------
+
+Save the changes and exit editor
+
+[[add-the-changes-and-push-them-in-the-integration-repo]]
+=== Add the changes and push them in the integration repo
+
+-------------
+git add -A
+git commit -s
+git push
+-------------
+
+Wait until integration devs approves and merges your changes
+
+[[download-releng-builder-repository]]
+=== Download RelEng Builder repository
+
+-------------------------------------------------------------------------
+git clone ssh://${ODL_USERNAME}@git.opendaylight.org:29418/releng/builder
+cd builder
+-------------------------------------------------------------------------
+
+Follow the instructions in this
+GettingStarted:Pulling,_Hacking,_and_Pushing_All_the_Code_from_the_CLI[
+wiki] to get the repository properly setup.
+
+[[copy-controller-system-test-csit-jjb-file-to-your-project-folder]]
+=== Copy controller System Test (CSIT) JJB file to your project folder
+
+Copy the controller System Test (CSIT) JJB file to your project folder
+chaging the project and the functionality under test in the filename.
+
+-----------------------------------------------------------------------------------------------------
+cp jjb/integration/integration-csit-basic.yaml jjb/$yourproject/$yourproject-csit-$functionality.yaml
+-----------------------------------------------------------------------------------------------------
+
+Replace $yourproject with your project name and $functionality with the
+functionality you want to test
+
+[[edit-the-new-file-and-modify-the-values-according-to-your-project]]
+=== Edit the new file and modify the values according to your project
+
+----------------------------------------------------------
+vim jjb/$yourproject/$yourproject-csit-$functionality.yaml
+----------------------------------------------------------
+
+-----------------------------------------------------------------------
+- project:
+    name: $project-csit-$functionality
+    jobs:
+        - '{project}-csit-1node-cds-{functionality}-{install}-{stream}'
+        - '{project}-csit-verify-{functionality}-{stream}'
+
+    # The project name
+    project: '$project'
+
+    # The functionality under test
+    functionality: '$functionality'
+
+    # Project branches
+    stream:
+        - master:
+            branch: 'master'
+        - stable-lithium:
+            branch: 'stable/lithium'
+ 
+    install:
+        - only:
+            scope: 'only'
+        - all:
+            scope: 'all'
+
+    # Features to install
+    install-features: '$featuresinstall'
+
+    # Robot custom options
+    robot-options: '$robotoptions'
+
+    # Trigger jobs (upstream dependencies)
+    trigger-jobs: '$triggerjobs'
+-----------------------------------------------------------------------
+
+Replace:
+
+* $yourproject with your project name
+* $functionality with the functionality you want to test. This has also
+to match the robot test plan name: $project-$functionality.txt you
+defined in earlier section
+* List the project branches you are going to generate system test
+* $featuresinstall with features you want to install in controller
+separated by comma, e.g.
+'odl-openflowplugin-flow-services-ui,odl-netconf-connector-ssh'
+* $robotoptions with any robot option you want to pass to the test
+separated by space, e.g. '-v TOPO_TREE_DEPTH:5'. Leave it blank ' ' if
+you do not have any
+* $triggerjobs with a list of upstream distribution jobs + own
+distribution job separated by comma, e.g.
+'yangtools-distribution-\{stream},controller-distribution-\{stream},controller-distribution-\{stream}'
+
+Save the changes and exit editor
+
+[[optional---verify-distribution-job-in-the-sandbox]]
+=== Optional - Verify distribution job in the Sandbox
+
+It is possible to verify jobs before they are submitted using the
+Sandbox. For more information check RelEng:Jenkins[ Releng wiki]
+
+[[add-the-changes-and-push-them-in-the-releng-builder-repo]]
+=== Add the changes and push them in the releng builder repo
+
+-------------
+git add -A
+git commit -s
+git push
+-------------
+
+Wait until releng devs approves and merges your changes
+
+[[check-new-jobs-in-releng-jenkins]]
+=== Check new jobs in Releng Jenkins
+
+Once your changes are approved, check new jobs in
+https://jenkins.opendaylight.org/releng/[Releng Jenkins]:
+
+* $project-csit-1node-cds-$functionality-only-$branch -> The
+feature-only test with 1 instance cluster datastore
+* $project-csit-1node-cds-$functionality-all-$branch -> The feature-all
+test with 1 instance cluster datastore
+* $project-csit-verify-$functionality-$branch -> Verifies any change in
+the system test code
+
+Also check the system test jobs kick off the next time there is a new
+distribution your project depends on.
+
+[[write-system-test-in-robot]]
+=== Write System Test in Robot
+
+Go to the next wiki:
+CrossProject:Integration_Group:Getting_Started_with_Robot[ Getting
+Started with Robot]

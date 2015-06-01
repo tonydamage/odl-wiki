@@ -1,0 +1,148 @@
+[[providers-and-consumers]]
+== Providers and Consumers
+
+A provider is a module that implements RPCs and fires notifications
+using the MD-SAL framework. A provider has all the capabilities of a
+consumer as well (it can make an RPC call and it can register to receive
+notifications)
+
+[[how-to-create-providers-and-consumers-and-access-rpcnotification-apis]]
+== How to create Providers and Consumers and access RPC/notification
+APIs
+
+You need to create an Activator class that will implement a set of
+functions that get called when a module starts and stops. Add the
+following dependency in your POM file:
+
+`  ` +
+`      ``org.opendaylight.controller` +
+`      ``sal-binding-api` +
+`      ``1.0-SNAPSHOT` +
+`  `
+
+[[providers]]
+=== Providers
+
+For Providers, derive from `AbstractBindingAwareProvider` class:
+`org.opendaylight.controller.sal.binding.api.AbstractBindingAwareProvider`
+Implement the `onSessionInitiated(ProviderContext)` function. The
+`ProviderContext` is defined in
+`org.opendaylight.controller.sal.binding.api.BindingAwareBroker.ProviderContext`.
+The `ProviderContext` is the central MD-SAL API to:
+
+* Get
+`DataBroker (org.opendaylight.contorller.md.sal.binding.api.DataBroker)`.
+DataBroker is used to access the MD-SAL datastores
+**
+`DataBroker db = providerContextInstance.getSALService(DataBroker.class);`
+* To register implementations for RPCs
+**
+`providerContextInstance.addRpcImplementation(''<yang-generated service interface for rpc>, <instance of class that provides implementation of the interface>'');`
+* To get interfaces to make RPC calls
+**
+`''<ServiceName>'' serviceName = providerContextInstance.getRpcService(''<ServiceName>''.class);`
+** Then make the function call using
+`serviceName.functionName(FunctionInput)`
+** The function call returns a futures output that can be monitored for
+the completion of RPC and getting response back if the RPC has a return
+value
+* To register for notifications
+** Create a class (XxxServiceImpl) implementing the java interface class
+(usually named XxxService.java) that was auto-generated from yang file
+in which notification was defined
+** Create instance of the class (xxxServiceImplInstance)
+** In onSessionInitiated:
+***
+`NotificationService notificationService = providerContextImplementation.getSALService(NotificationService.class);`
+***
+`ListenerRegistration<NotificationListener> listenerReg = notificationService.registerNotificationListener(xxxServiceImplInstance);`
+** In close() function, close the registration: `listenerReg.close();`
+* To get the API to send notifications
+** Get instance of NotificationServiceProvider:
+`NotificationProviderService notificationProvider = providerContextImplementation.getSALService(NotificationProviderService.class);`
+** Then call `notificationProvider.publish(<DataClassForNotification>);`
+
+[[consumers]]
+=== Consumers
+
+For Consumers, derive from AbstractBindingAwareConsumer class:
+`org.opendaylight.controller.sal.binding.api.AbstractBindingAwareConsumer.`
+Implement the onSessionInitiated(ConsumerContext) function.
+TheConsumerContext defined in
+`org.opendaylight.controller.sal.binding.api.BindingAwareBroker.ConsumerContext`.
+
+* To get interfaces to make RPC calls
+**
+`''<ServiceName>'' serviceName = providerContextInstance.getRpcService(''<ServiceName>''.class);`
+** Then make the function call using
+`serviceName.functionName(FunctionInput);`
+** The function call returns a futures output that can be monitored for
+the completion of RPC and getting response back if the RPC has a return
+value
+* To register for notifications
+** Create a class (XxxServiceImpl) implementing the java interface class
+(usually named XxxService.java) that was auto-generated from yang file
+in which notification was defined
+** Create instance of the class (xxxServiceImplInstance)
+** In onSessionInitiated:
+***
+`NotificationService notificationService = providerContextImplementation.getSALService(NotificationService.class);`
+***
+`ListenerRegistration<NotificationListener> listenerReg = notificationService.registerNotificationListener(xxxServiceImplInstance);`
+** In close() function, close the registration: `listenerReg.close();`
+
+[[using-the-databroker-to-access-the-md-sal-datastore]]
+== Using the DataBroker to access the MD-SAL datastore
+
+[[listening-for-datachanges-on-the-datastore]]
+=== Listening for DataChanges on the DataStore
+
+* Create a class that implements the DataChangeListener class:
+`org.opendaylight.controller.md.sal.binding.api.DataChangeListener` and
+an instance of that class.
+* Register for data changes in MD-SAL using the instance of DataBroker
+obtained in onSessionInitiated
+**
+dataBroker.registerDataChangeListener(_LogicalDataStoreType_,_InstanceIdentifierToDataThatNeedsToBeMonitored_,dataChangeListener,_DataChangeScope_);
+** LogicalDataStoreType is an enum and can be CONFIGURATION or
+OPERATIONAL
+** DataChangeScope: Can be BASE (change in node only)/ONE (change in
+node or direct children)/SUBTREE(change in node or direct children or
+nested children). Refer to
+`sal-common-api/src/main/java/org/opendaylight/controller/md/sal/common/api/data/AsyncDataBroker.java`
+for detailed explanation.
+** Implement the
+`onDataChanged (final AsyncDataChangeEvent<InstanceIdentifier<?>,DataObject> change)`
+function declared in the DataChangeListener.
+** AsyncDataChangeEvent has 4 APIs:
+`getCreatedData, getUpdatedData, getOriginalData, getRemovedPaths` that
+are useful in determining what information has changed in the datastore.
+
+[[readingwriting-data-from-the-datastore]]
+=== Reading/writing data from the Datastore
+
+* Using the DataBroker instance get the appropriate API:
+** `ReadTransaction readTx = dataBroker.newReadOnlyTransaction();`
+**
+`ReadWriteTransaction readWriteTx = dataBroker.newReadWriteTransaction();`
+** `WriteTransaction writeTx = dataBroker.newWriteTransaction();`
+* Reading from datastore:
+** Create instance identifier to the data that needs to be read (if
+container no need for key, if not a container then key of object needs
+to be provided). Limitation is that you cannot get all objects of a
+particular class.
+**
+`Optional<DataToBeReadClass> data = readTx.read(''LogicalDataStoreType'', ''Instanceidentifier'');`
+** `if(data.isPresent) { DataToBeReadClass obj = data.get(); }`
+* Writing to datastore:
+** Create InstanceIdentifier and an object of the data that needs to be
+added/updated in the datastore
+***
+`writeTx.put(''LogicalDataStoreType'', ''InstanceidentfierBuilt'', ''DataObjectBuilt'');`
+*** Within a try/catch block: `tx.submit();`
+*** Submit again returns a future that you can wait for in a blocking
+fashion or a non-blocking fashion
+** Note: If you need to update an object just provide the key and the
+properties to be updated. You don’t have to provide all the data in the
+object.
+

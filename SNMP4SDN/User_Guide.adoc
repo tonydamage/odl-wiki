@@ -21,52 +21,36 @@ image:SNMP4SDN_in_ODL_Architecture.jpg[SNMP4SDN_in_ODL_Architecture.jpg,title="S
 === Architecture
 
 The modules in the plugin are depicted as the following figure, their
-features exposed to users includes flow configuration, topology
-discovery, proprietary configurations, statistic retrieving, and
-switch/port property retrieving. Brief guide is as follows,
-comprehensive guide could be found
+features exposed to users includes flow configuration, VLAN
+configuration, topology discovery, proprietary configurations, statistic
+retrieving, and switch/port property retrieving. Brief guide is as
+follows, comprehensive guide could be found
 SNMP4SDN:Developer_Guide#Architecture[ here].
 
 image:snmp4sdn_modules.jpg[snmp4sdn_modules.jpg,title="snmp4sdn_modules.jpg"]
 
 *Figure. Modules in the SNMP4SDN plugin*
 
-* FlowProgrammerService: to add/modify/remove flows on the switches.
-* ReadService: to acquire the flow's or switch's or port's statistics.
-* InventoryService: to acquire the switches’ and their ports’
-properties.
-* DiscoveryService: to probe and resolve the underlying switches as well
-as the port pairs connecting the switches. The probing is realized by
-SNMP queries. The updates from discovery will also be reflected to the
-TopologyService.
-* TopologyService: to query and acquire the switches' topology.
-* ConfigService: to do kinds of vendor-specific proprietary settings on
-switches
-** Supported vendor-specific proprietary settings, such as: to disable
-kind of flooding (BPDU flooding, broadcast flooding, multicast flooding,
-and unknown flooding), disabling source mac check and source learning,
-and setting SNMP host and community.
-
-For the services above, when they need to read or configure the
-underlying switches via SNMP or CLI, these queries are dealt with the
-modules SNMPHandler and CLIHandler which directly talk with the
-switches.
-
 [[installation-guide]]
 == Installation Guide
 
 SNMP4SDN:Installation_Guide[ Installation Guide]
 
-[[installation-troubleshooting]]
-== Installation Troubleshooting
+[[troubleshooting]]
+== Troubleshooting
 
-The plugin will throw an exception during startup if the controller is
-run without privileges to bind the SNMP port
+[[installation-troubleshooting]]
+=== Installation Troubleshooting
+
+[[runtime-troubleshooting]]
+=== Runtime Troubleshooting
 
 [[problem-starting-snmp-trap-interface]]
-=== Problem starting SNMP Trap Interface
+==== Problem starting SNMP Trap Interface
 
-It is possible to get the following exception during controller startup:
+It is possible to get the following exception during controller startup.
+(The error would not be printed in Karaf console, one may see it in
+/data/log/karaf.log)
 
 `2014-01-31 15:00:44.688 CET [fileinstall-./plugins] WARN  o.o.snmp4sdn.internal.SNMPListener - Problem starting SNMP Trap Interface: {}` +
 `java.net.BindException: Permission denied` +
@@ -119,128 +103,167 @@ have sufficient OS privileges to bind the SNMPTRAP port (162/UDP)
 [[configuration]]
 == Configuration
 
-\1. Edit the switch list database file, a sample is :File:SwitchDB.txt[
-here]. Note that the first line is title and should not be removed.
+* For OSGi environtment (see Hydrogen release's
+SNMP4SDN:Hydrogen_User_Guide#Configuration[guide])
+* For Karaf environment
 
-\2. After Hydrogen is launched, in OSGi console, use the command
-_s4sReadDB_ to read the switch list database file into SNMP4SDN plugin.
+\1. Enable related features:
 
---------------------------------------------------
-s4sReadDB <filepath>
-For example: s4sReadDB /home/sdnadmin/SwitchDB.txt
---------------------------------------------------
+------------------------------------
+feature:install odl-adsal-all
+feature:install odl-adsal-northbound
+------------------------------------
 
-\3. If one’d like to confirm whether the switch list database file is
-read correctly, use the command _s4sPrintDB_ to show the database
-content
+\2. Edit the switch list database file, a sample is :File:SwitchDB.txt[
+here]. Note that the first line is title and should not be removed. And
+note to list "real" switches.
 
-----------
-s4sPrintDB
-----------
+\3. Load the switch list in console After Karaf is launched, in the
+console, use the command _snmp4sdn:ReadDB_ to read the switch list
+database file into SNMP4SDN plugin.
 
-\4. Initial topology discovery: use the command _s4sTopoDiscover_ so
-that the SNMP4SDN plugin will search and resolve the switches’ topology
+--------------------------------------------------------
+snmp4sdn:ReadDB <filepath>
+For example: snmp4sdn:ReadDB /home/sdnadmin/SwitchDB.txt
+--------------------------------------------------------
 
----------------
-s4sTopoDiscover
----------------
+\4. Show the switch list Just read the switch list again, it will also
+print the list.
+
+------------------------------------
+snmp4sdn:ReadDB <filepath><filepath>
+------------------------------------
+
+\5. Initial topology discovery Use the command _snmp4sdn:TopoDiscover_
+so that the SNMP4SDN plugin will search and resolve the switches’
+topology
+
+---------------------
+snmp4sdn:TopoDiscover
+---------------------
 
 [[tutorial-how-to]]
 == Tutorial / How-To
 
+* For OSGi environment, see Hydrogen release's
+SNMP4SDN:Hydrogen_User_Guide#Tutorial_.2F_How-To[guide].
+* For Karaf environment, as follows
+
+[[install-snmp4sdn-plugin]]
+=== Install SNMP4SDN plugin
+
+Refer to
+SNMP4SDN:Installation_Guide#Install.2FUninstall_the_feature_in_Karaf[installation
+guide].
+
+[[plugin-initialization]]
+=== Plugin initialization
+
+For initialization, we need to feed SNMP4SDN plugin the switch list. In
+Karaf console, execute:
+
+----------------------------------
+snmp4sdn:ReadDB <switch_list_path>
+----------------------------------
+
+For example, snmp4sdn:ReadDB /home/mark/swdb.csv (in Windows OS, For
+example, snmp4sdn:ReadDB D://home//mark//swdb.csv)
+
+A sample of switch list: :File:SwitchDB.txt[switch_login_db.csv] (it is
+also located at snmp4sdn/snmp4sdn/src/test). Note that the first line is
+title and should not be removed.
+
 [[topology-discovery]]
 === Topology Discovery
 
-Step 1 is required only once, Step 2 is also required only once or when
-one’d like to refresh the topology.
+Trigger SNMP4SDN plugin for topology discovery:
 
-1.  In OSGi console, execute: s4sReadDB (show it: s4sPrintDB)
-2.  In OSGi console, execute: s4sTopoDiscover
-3.  Then one may see the topology in Web GUI, pressing the OpenDaylight
-icon at the left-top corner
+---------------------
+snmp4sdn:TopoDiscover
+---------------------
+
+[[show-the-topology]]
+==== Show the topology
+
+Show the topology maintained in Topology Manager (this manager is a
+controller layer bundle).
+
+* Note that some dependent features (see
+SNMP4SDN:Helium_User_Guide#Configuration[here]) should have been
+installed first.
+
+------------------------------
+topologymanager:printNodeEdges
+------------------------------
 
 [[flow-configurations]]
 === Flow configurations
 
-Refer to the Web/Graphical Interface below
+In Helium release, SNMP4SDN supports to add flow on (1) forwarding table
+(FDB), for which the flow to be configured on FDB should be given VLAN
+ID, distination MAC address, and output port. (2) VLAN, for which the
+parameters include VLAN ID, VLAN name, and VLAN ports.
+
+[[add-flow-on-switch]]
+==== Add flow on switch
+
+Karaf console command:
+
+---------------------------------------------------------------------------------------
+snmp4sdn:AddFlow <switch_mac_address> <vlan_id> <dest_mac_address> <output_port_number>
+---------------------------------------------------------------------------------------
+
+For example, snmp4sdn:AddFlow 00:13:F1:3A:D9:84 100 01:34:9C:4E:A9:59 5,
+will add an entry on switch 00:13:F1:3A:D9:84's forwarding table for
+destination 01:34:9C:4E:A9:59 with output port 5.
+
+[[remove-flow-on-switch]]
+==== Remove flow on switch
+
+Karaf console command:
+
+------------------------------------------------------------------------------------------
+snmp4sdn:DeleteFlow <switch_mac_address> <vlan_id> <dest_mac_address> <output_port_number>
+------------------------------------------------------------------------------------------
+
+For example, snmp4sdn:DeleteFlow 00:13:F1:3A:D9:84 100 01:34:9C:4E:A9:59
+5, will delete the entry on switch 00:13:F1:3A:D9:84's forwarding table
+for destination 01:34:9C:4E:A9:59 with output port 5.
+
+[[vlan-configuration-on-switch]]
+==== VLAN configuration on switch
+
+* Create a VLAN on a switch and set the VLAN ports
+
+------------------------------------------------------------------------------------
+snmp4sdn:AddVLANSetPorts <switch_mac_address> <vlan_id> <vlan_name> <vlan_port_list>
+------------------------------------------------------------------------------------
+
+For example, snmp4sdn:AddVLANSetPorts 00:13:F1:3A:D9:84 100 v100
+11,13,15 , will add an VLAN configuration on switch 00:13:F1:3A:D9:84
+that VLAN ID is 100, VLAN name is "v100", and the VLAN ports are \{11,
+13, 15}.
+
+* Remove a VLAN from a switch
+
+--------------------------------------------------
+snmp4sdn:DeleteVlan <switch_mac_address> <vlan_id>
+--------------------------------------------------
+
+For example, snmp4sdn:AddVLANSetPorts 00:13:F1:3A:D9:84 100, will remove
+the VLAN of ID 100 from the switch 00:13:F1:3A:D9:84.
 
 [[web-graphical-interface]]
 == Web / Graphical Interface
 
-Web GUI: http://:8080 (default username/password: admin/admin)
+* For OSGi environment, see Hydrogen release's
+SNMP4SDN:Hydrogen_User_Guide#Web_.2F_Graphical_Interface[guide].
+* For Karaf environment, as follows.
 
-[[showrefresh-the-switch-topology]]
-=== Show/Refresh the switch topology
+Web GUI: http://:8181/dlux/index.html (default username/password:
+admin/admin)
 
-\1. Press the OpenDaylight icon at the left-top corner, one can see the
-switches’ topology.
-
-* *In initialization*: The topology may grow from zero to complete when
-every time pressing the icon, if s4sTopoDiscover was just executed for
-the first time in OSGi console, it takes a little time to collect the
-topology completely
-* *New switch join*: if a switch is newly connected to the subnet, it
-will be detected by the plugin, then users can press the icon again and
-see the new switch
-* *Switch's label*: The switches are listed with Node ID as
-“SNMP|xxxxxx” (xxxxxx is the switch’s MAC address, as specified in the
-switch list database file. But it is not shown in hexadecimal string due
-to controller’s limitation. This will be resolved in later)
-* *Unmanaged switches*: If a switch exists in the subnet but is not
-listed in the switch list database file, then the switch would not be
-shown here
-
-image:snmp4sdn_topology_init.jpg[snmp4sdn_topology_init.jpg,title="snmp4sdn_topology_init.jpg"]
-
-\2. If the topology are not shown as expected, please do:
-
-* Switch list database file is already read? In OSGi console, execute
-the command _s4sReadDB _ (if would like to show it: use the command
-_s4sPrintDB_)
-* Execute the command _s4sTopoDiscover_ in OSGi console again
-
-[[add-flow-to-switch]]
-=== Add flow to switch
-
-* *Currently only configurations with SNMP are supported* (i.e.
-add/remove entries on switch’s forwarding table).
-** *That is, the effective fields are: Node(switch)/VLAN ID/Destination
-Mac Address/Action(add output port) [These four items must be given
-together].* Other fields are ineffective now.
-
-\1. Add flow entry
-
-image:snmp4sdn_add_flow.jpg[snmp4sdn_add_flow.jpg,title="snmp4sdn_add_flow.jpg"]
-
-\2. Specify the flow’s name and target node
-
-image:snmp4sdn_add_flow_name_node.jpg[snmp4sdn_add_flow_name_node.jpg,title="snmp4sdn_add_flow_name_node.jpg"]
-
-\3. Specify the VLAN ID and Destination MAC Address
-
-image:snmp4sdn_add_flow_vlan_mac.jpg[snmp4sdn_add_flow_vlan_mac.jpg,title="snmp4sdn_add_flow_vlan_mac.jpg"]
-
-\4. Specify the Action – Add Output Port, and assign the output port
-
-image:snmp4sdn_add_flow_action_outport.jpg[snmp4sdn_add_flow_action_outport.jpg,title="snmp4sdn_add_flow_action_outport.jpg"]
-
-\5. One can see the log of the flow adding, in the OSGi console
-
-image:snmp4sdn_add_flow_log.jpg[snmp4sdn_add_flow_log.jpg,title="snmp4sdn_add_flow_log.jpg"]
-
-[[remove-flow-on-switch]]
-=== Remove flow on switch
-
-* *Currently only configurations with SNMP are supported* (i.e.
-add/remove entries on switch’s forwarding table)
-
-\1. Select the flow to be removed
-
-image:snmp4sdn_remove_flow.jpg[snmp4sdn_remove_flow.jpg,title="snmp4sdn_remove_flow.jpg"]
-
-\2. You can see the log of the flow removing, in the OSGi console
-
-image:snmp4sdn_remove_flow_log.jpg[snmp4sdn_remove_flow_log.jpg,title="snmp4sdn_remove_flow_log.jpg"]
+(TBD)
 
 [[command-line-interface]]
 == Command Line Interface

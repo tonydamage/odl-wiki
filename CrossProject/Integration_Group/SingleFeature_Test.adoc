@@ -1,0 +1,187 @@
+[[singlefeature-test]]
+= SingleFeature Test
+
+[[testing]]
+== Testing
+
+To enable testing of your existing features files:
+
+1.  Change your from pom to jar
+2.  Make sure none of your dependencies on other features have scope
+runtime
+3.  Add a dependency on mvn:org.opendaylight.odlparent/features-test
+4.  Add dependency on
+mvn:org.opendaylight.controller/opendaylight-karaf-empty/
+5.  Add a surefire directive to run the test
+6.  mvn clean install
+
+[[make-sure-none-of-your-dependencies-on-other-features-have-scope-runtime]]
+=== Make sure none of your dependencies on other features have scope
+runtime
+
+If you have any dependencies like:
+
+--------------------------------------------------------
+    <dependency>
+      <groupId>org.opendaylight.controller</groupId>
+      <artifactId>features-config-persister</artifactId>
+      <classifier>features</classifier>
+      <type>xml</type>
+      <scope>runtime</scope>
+    </dependency>
+--------------------------------------------------------
+
+change them to be like:
+
+--------------------------------------------------------
+    <dependency>
+      <groupId>org.opendaylight.controller</groupId>
+      <artifactId>features-config-persister</artifactId>
+      <classifier>features</classifier>
+      <type>xml</type>
+    </dependency>
+--------------------------------------------------------
+
+[[change-your-from-pom-to-jar]]
+=== Change your from pom to jar
+
+Towards the top of your existing in your features/pom.xml project you
+will likely have:
+
+--------------------------
+<packaging>pom</packaging>
+--------------------------
+
+Change it to
+
+--------------------------
+<packaging>jar</packaging>
+--------------------------
+
+We do this because surefire tests will not run on packaging pom.
+
+[[add-a-dependency-on-mvnorg.opendaylight.odlparentfeatures-test]]
+=== Add a dependency on mvn:org.opendaylight.odlparent/features-test
+
+At the bottom of your features/pom.xml section add
+
+---------------------------------------------------
+    <!-- test to validate features.xml -->
+    <dependency>
+      <groupId>org.opendaylight.odlparent</groupId>
+      <artifactId>features-test</artifactId>
+    </dependency>
+---------------------------------------------------
+
+If you need to set the version, it is currently 0.6.2-SNAPSHOT. It is
+recommended you do this in your parent pom.xml section.
+
+[[add-dependency-on-mvnorg.opendaylight.controlleropendaylight-karaf-empty]]
+=== Add dependency on
+mvn:org.opendaylight.controller/opendaylight-karaf-empty/
+
+-----------------------------------------------------------------------
+    <!-- dependency for opendaylight-karaf-empty for use by testing -->
+    <dependency>
+      <groupId>org.opendaylight.controller</groupId>
+      <artifactId>opendaylight-karaf-empty</artifactId>
+      <version>1.4.2-SNAPSHOT</version>
+      <type>zip</type>
+    </dependency>
+-----------------------------------------------------------------------
+
+[[add-a-surefire-directive-to-run-the-test]]
+=== Add a surefire directive to run the test
+
+In your features/pom.xml at the bottom of the section add:
+
+----------------------------------------------------------------------------------------
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <systemPropertyVariables>
+            <karaf.distro.groupId>org.opendaylight.controller</karaf.distro.groupId>
+            <karaf.distro.artifactId>opendaylight-karaf-empty</karaf.distro.artifactId>
+            <karaf.distro.version>${commons.opendaylight.version}</karaf.distro.version>
+          </systemPropertyVariables>
+          <dependenciesToScan>
+           <dependency>org.opendaylight.odlparent:features-test</dependency>
+          </dependenciesToScan>
+        </configuration>
+      </plugin>
+----------------------------------------------------------------------------------------
+
+This will cause the features-test to be run as part of your build. Note:
+currently:
+
+---------------------------------------------------------------------------
+<commons.opendaylight.version>1.4.2-SNAPSHOT</commons.opendaylight.version>
+---------------------------------------------------------------------------
+
+*WARNING*: This only works with surefire versions since 2.15. odlparent
+is currently on 2.16, but that is set as a variable, not a dependency in
+dependency managment. Insufficent care in specifying this version can
+cause the random selection of version 2.12.4 which *will* break.
+
+[[mvn-clean-install]]
+=== mvn clean install
+
+The tests for your feature will now run at every build.
+
+[[stuff-that-can-go-wrong]]
+= Stuff that can go wrong
+
+[[it-doesnt-start-the-tests]]
+== It doesn't start the tests
+
+I'm seeing:
+
+-------------------------------------------------------------------------------------------------------------------
+FAILURE! - in org.opendaylight.odlparent.featuretest.SingleFeatureTest
+initializationError0(org.opendaylight.odlparent.featuretest.SingleFeatureTest)  Time elapsed: 0.009 sec  <<< ERROR!
+java.lang.NoSuchFieldError: NULL
+    at org.junit.runners.ParentRunner.<init>(ParentRunner.java:57)
+    at org.opendaylight.odlparent.featuretest.PerRepoTestRunner.<init>(PerRepoTestRunner.java:41)
+    at sun.reflect.NativeConstructorAccessorImpl.newInstance0(Native Method)
+    at sun.reflect.NativeConstructorAccessorImpl.newInstance(NativeConstructorAccessorImpl.java:57)
+    at sun.reflect.DelegatingConstructorAccessorImpl.newInstance(DelegatingConstructorAccessorImpl.java:45)
+    at java.lang.reflect.Constructor.newInstance(Constructor.java:526)
+    at org.junit.internal.requests.ClassRequest.buildRunner(ClassRequest.java:33)
+    at org.junit.internal.requests.ClassRequest.getRunner(ClassRequest.java:28)
+    at org.apache.maven.surefire.junit4.JUnit4Provider.execute(JUnit4Provider.java:262)
+    at org.apache.maven.surefire.junit4.JUnit4Provider.executeTestSet(JUnit4Provider.java:153)
+    at org.apache.maven.surefire.junit4.JUnit4Provider.invoke(JUnit4Provider.java:124)
+    at org.apache.maven.surefire.booter.ForkedBooter.invokeProviderInSameClassLoader(ForkedBooter.java:200)
+    at org.apache.maven.surefire.booter.ForkedBooter.runSuitesInProcess(ForkedBooter.java:153)
+    at org.apache.maven.surefire.booter.ForkedBooter.main(ForkedBooter.java:103)
+
+Results :
+
+Tests in error: 
+  SingleFeatureTest.initializationError0 » NoSuchField NULL
+-------------------------------------------------------------------------------------------------------------------
+
+Add the following dependency in the feature pom.xml file:
+
+-----------------------------------------
+    <dependency>
+      <groupId>junit</groupId>
+      <artifactId>junit-dep</artifactId>
+      <version>${junit.version}</version>
+      <scope>test</scope>
+    </dependency>
+-----------------------------------------
+
+[[it-doesnt-run-the-tests]]
+== It doesn't run the tests
+
+I'm seeing "SingleFeatureTest.initializationError » Unmarshal unexpected
+element (uri:"", ..." when i build. This is caused by not having all of
+the schemas in your features element.
+
+---------------------------------------------------------------------------------------------------------------------------
+<features name="odl-bgpcep-${project.version}" xmlns="http://karaf.apache.org/xmlns/features/v1.2.0"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://karaf.apache.org/xmlns/features/v1.2.0 http://karaf.apache.org/xmlns/features/v1.2.0">
+---------------------------------------------------------------------------------------------------------------------------

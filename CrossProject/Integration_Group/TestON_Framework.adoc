@@ -9,7 +9,7 @@ Raghu Varma (raghuvarma@paxterrasolutions.com )
 
 Sudheer (sudheer@paxterrasolutions.com)
 
-Swaraj Vinjapuri (swarajv@outlook.com)
+Swaraj Vinjapuri (swaraj@cisco.com)
 
 [[introduction]]
 == Introduction
@@ -71,130 +71,195 @@ configured and ping that IP address to achieve its end goal.
 [[teston-test-scripts]]
 == TestON Test Scripts
 
-In TestON frame work each test must be composed of 3 files as mentioned
-below(Name should be same for all files in the test folder as for
-testname).
+In the TestON framework each test is composed of the three files listed
+below. Note that should be same for all thee files in the
+https://github.com/Paxterra/TestON/tree/TestON-2.0.0/tests/Odl[tests
+directory].
 
-* testname.ospk
-* testname.params
-* testname.topo
+* .ospk
+* .params
+* .topo
 
-OpenSpeak formated script is translated to python script in the course
-of test execution in TestON Frame work. The basic Openspeak script for
-opendaylight test is as shown below
+A basic OpenSpeak script for OpenDaylight is as shown below.
 
-* Odl.ospk
+[[odl.ospk]]
+=== Odl.ospk
 
-CASE 1:
-
+`CASE 1:` +
 `    NAME "Get list of containers"` +
 `    STEP "Getting list of containers"` +
-`    # ODL1 is the instance for Opendaylight driver` +
-`    STORE ON ODL1 DO list_containers IN result` +
-`    ASSERT result EQUALS 200 ONPASS "Getting containers list" ONFAIL "Not getting any containers list"`
-
-CASE 2:
-
-`    NAME "Remove existing containers"` +
-`    STEP "Removing container"` +
-`    STORE ON ODL1 DO remove_container USING CONTAINER AS 'cont1' IN result` +
-`    ASSERT result EQUALS 204 ONPASS "Container removed successfully" ONFAIL "Container not removed"`
-
-CASE 3:
-
+`    STORE ON ODL1 DO get USING URL AS CASE['get_url'] IN result` +
+`    ASSERT result EQUALS 200 ONPASS "Getting containers list" ONFAIL "Not getting any containers list"` +
+`CASE 2:` +
 `    NAME "Create a container"` +
 `    STEP "Creating a new container"` +
-`    STORE ON ODL1 DO create_container USING CONTAINER AS 'cont1',INPUT AS {"container" : "cont1","nodeConnectors" : ["OF|1@OF|00:00:00:00:00:00:00:01","OF|2@OF|00:00:00:00:00:00:00:02"],"staticVlan" : "1"} IN result` +
-`    ASSERT result EQUALS 201 ONPASS "Container getting added" ONFAIL "Container not added"`
+`    STORE ON ODL1 DO put USING URL AS CASE['put_url'],BODY AS CASE['put_body'] IN result` +
+`    ASSERT result EQUALS 201 ONPASS "Container getting added" ONFAIL "Container not added"` +
+`CASE 3:` +
+`    NAME "Get topology"` +
+`    STEP "Getting topology"` +
+`    STORE ON ODL1 DO get USING CASE['get_url'] IN result ` +
+`    ASSERT result EQUALS 200 ONPASS "Topology getting successfully" ONFAIL "Topology not getting successfully"` +
+`CASE 4:` +
+`    NAME "Get flow statistics"` +
+`    STEP "Getting flow Statistics from topology"` +
+`    STORE ON ODL1 DO get USING CASE['get_url'] IN result ` +
+`    ASSERT result EQUALS 200 ONPASS "Getting all flow statistics" ONFAIL "Not getting flow statistics"` +
+`CASE 5:` +
+`   NAME "Remove static route"` +
+`   STEP "Removing static route"` +
+`   STORE ON ODL1 DO delete USING CASE['delete_url'] IN result` +
+`   ASSERT result EQUALS 204 ONPASS "User link removed" ONFAIL "User link not removed"`
 
-CASE 4:
+When a test is executed, if the test is written in OpenSpeak, a compiler
+converts it to Python. TestON driver script will access the Python file
+for execution of the test. The drivers will call the functions specified
+in the Python file.
 
-`    NAME "Get container flows"` +
-`    STEP "Getting container flows"` +
-`    STORE ON ODL1 DO flow_stats USING CONTAINER AS 'cont1' IN result ` +
-`    ASSERT result EQUALS 200 ONPASS "Container flows getting" ONFAIL "Container flows not getting"`
+The derived Python script for the above OpenSpeak script is included
+below.
 
-TestOn driver Script will access the python file(derived from the Test
-Description Language[OpenSpeak]) for execution of test. The drivers
-would call the functions specified in the python file. The derived
-python script for the above ospk script is as follows -
+[[odl.py]]
+=== Odl.py
 
-* Odl.py
-
-class Odl :
-
-`   def __init__(self) :` +
-`       self.default = ''`
-
-`   def CASE1(self,main) :` +
-`       main.case("Get list of containers")` +
-`       main.step("Getting list of containers")` +
-`       result = main.ODL1.list_containers()` +
-`       utilities.assert_equals(expect=200,actual=result,onpass="Getting containers list",onfail="Not getting any containers list")`
-
+`class Odl :` +
+ +
+`    def __init__(self) :` +
+`        self.default = ‘‘` +
+ +
+`    def CASE1(self,main) :` +
+`        main.case("Get list of containers")` +
+`        main.step("Getting list of containers")` +
+`        result = main.ODL1.get(URL=main.params['CASE1']['get_url'])` +
+`        utilities.assert_equals(expect=200,actual=result,onpass="Getting containers list",onfail="Not getting any containers list")` +
+ +
 `   def CASE2(self,main) :` +
-`       main.case("Remove existing containers")` +
-`       main.step("Removing container")` +
-`       result = main.ODL1.remove_container(CONTAINER='cont1')` +
-`       utilities.assert_equals(expect=204,actual=result,onpass="Container removed successfully",onfail="Container not removed")`
-
-`   def CASE3(self,main) :` +
-`       main.case("Create a container")` +
-`       main.step("Creating a new container")` +
-`       result = main.ODL1.create_container(CONTAINER='cont1',INPUT={"container" : "cont1","nodeConnectors" : ["OF|1@OF|00:00:00:00:00:00:00:01","OF|2@OF|00:00:00:00:00:00:00:02"],"staticVlan" : "1"})` +
-`       utilities.assert_equals(expect=201,actual=result,onpass="Container getting added",onfail="Container not added")` +
-`   ` +
-`   def CASE4(self,main) :` +
-`       main.case("Get container flows")` +
-`       main.step("Getting container flows")` +
-`       result  = main.ODL1.flow_stats(CONTAINER='cont1')` +
-`       utilities.assert_equals(expect=200,actual=result,onpass="Container flows getting",onfail="Container flows not getting")` +
-`   ` +
-`   def CASE5(self,main) :` +
-`       main.case("Get topology")` +
-`       main.step("Getting topology ")` +
-`       result = main.ODL1.get_topology(CONTAINER='default')` +
-`       utilities.assert_equals(expect=200,actual=result,onpass="Topology getting successfully",onfail="Topology not getting successfully")`
-
-TestON framework makes use of params file to execute the custom test
-cases as per test requirement. The basic params file for Opendaylight
-test is as mentioned below -
-
-* Odl.params
-
-`   ``[1,2,3,4]`` `
+`        main.case("Create a container")` +
+`        main.step("Creating a new container")` +
+`        result = main.ODL1.put(URL=main.params['CASE2']['put_url'],BODY=main.params['CASE2']['put_body'])` +
+`        utilities.assert_equals(expect=201,actual=result,onpass="Container getting added",onfail="Container not added")` +
+ +
+`    def CASE3(self,main) :` +
+`        main.case("Get topology")` +
+`        main.step("Getting topology ")` +
+`        result  = main.ODL1.get(main.params['CASE3']['get_url'])` +
+`        utilities.assert_equals(expect=200,actual=result,onpass="Topology getting successfully",onfail="Topology not getting successfully")` +
+ +
+`    def CASE4(self,main) :` +
+`        main.case("Get flow statistics")` +
+`        main.step("Getting flow Statistics from topology")` +
+`        result  = main.ODL1.get(main.params['CASE4']['get_url'])` +
+`        utilities.assert_equals(expect=200,actual=result,onpass="Getting all flow statistics",onfail="Not getting flow statistics")` +
+ +
+`    def CASE5(self,main) :` +
+`        main.case("Remove static route")` +
+`        main.step("Removing static route")` +
+`        result = main.ODL1.delete(main.params['CASE5']['delete_url'])` +
+`        utilities.assert_equals(expect=204,actual=result,onpass="User link removed",onfail="User link not removed")`
 
 Topology file plays the key role by defining the components for a test
 in TestON framework. The basic topology file for Opendaylight test is as
-mentioned below
+mentioned below: (Note that Mininet, or OpenDaylight controller can be
+run in a VM or in your host machine. Make sure there is IP connectivity
+between the two machine.)
 
 * Odl.topo
 
 `   ` +
 `       ` +
-`           ``"mininet host ip address"` +
-`           ``"minine host username"` +
-`           ``"minine host password"` +
+`           ``"mininet machine IP address"` +
+`           ``"minine machine username"` +
+`           ``"minine machine password"` +
 `           ``MininetCliDriver` +
 `           ` +
 `               # Specify the Option for mininet` +
 `               ``tree` +
-`               ``2` +
-`               ``127.0.0.1` +
+`               ``3` +
+`               ``ovsk` +
 `               ``remote` +
+`               ``"OpenDaylight controller machine IP address"` +
 `               ``6633` +
 `            ``   ` +
 `       ``        ` +
 `       ` +
-`           ``"Opendaylight controller host ip address"` +
-`           ``"Opendaylight controller host username"` +
-`           ``"Opendaylight controller host password" ` +
+`           ``"OpenDaylight controller machine IP address"` +
+`           ``"OpenDaylight controller machine username"` +
+`           ``"Opendaylight controller machine password"` +
 `           `` OdlDriver ` +
 `           `` 1 ` +
+`           `
+
+\{'Content-type': 'application/json', 'Accept': 'application/json'}
+
 `           ` +
-`               ` +
+`              `http://localhost:8080[`http://localhost:8080`] +
+`              ``OpenDaylight controller machine hostname` +
+`              ``admin` +
+`              ``admin`` ` +
 `           ` +
 `       ` +
 `   `
+
+TestON framework makes use of params file to execute the custom test
+cases as per test requirement. In this file, determine which test cases
+should be executed. The basic params file for Opendaylight test is as
+mentioned below:
+
+* Odl.params
+
+`   ``[1,2,3,4,5]` +
+`   `` ` +
+`       `http://localhost:8080/controller/nb/v2/containermanager/containers[`http://localhost:8080/controller/nb/v2/containermanager/containers`]`   ` +
+`   ` +
+`   `
+
+`   ` +
+`       `http://localhost:8080/controller/nb/v2/containermanager/container/cont1[`http://localhost:8080/controller/nb/v2/containermanager/container/cont1`]` ` +
+`       ``{ "container" : "cont1", "nodeConnectors" : ["OF|1@OF|00:00:00:00:00:00:00:02", "OF|1@OF|00:00:00:00:00:00:00:03"], "staticVlan" : "10" }` +
+`      ` +
+`   `
+
+`   `` ` +
+`       `http://localhost:8080/controller/nb/v2/topology/default[`http://localhost:8080/controller/nb/v2/topology/default`] +
+`   ` +
+`  `
+
+`   `` ` +
+`       `http://localhost:8080/controller/nb/v2/statistics/default/flow[`http://localhost:8080/controller/nb/v2/statistics/default/flow`] +
+`   `` ` +
+
+`   `` ` +
+`       `http://localhost:8080/controller/nb/v2/staticroute/cont1/route/route1[`http://localhost:8080/controller/nb/v2/staticroute/cont1/route/route1`]` ` +
+`   ``  `
+
+*Notes:* In case you are running Mininet in a VM and OpenDaylight
+controller in your host machine, in the OdlDriver comment the following
+lines:
+
+`main.log.info("Clearing any residual state or processes")` +
+`           result = self.execute(cmd="sudo mn -c",timeout=30,prompt="password")` +
+`           pattern = '[sudo]'` +
+`           if utilities.assert_matches(expect=pattern,actual=result,onpass="password is being asked",onfail="password is not being asked"):` +
+`               self.execute(cmd=self.pwd,prompt="\$",timeout=30) ` +
+`           else :` +
+`               main.log.info("password is not being asked")` +
+`               pass`
+
+In the new version of TestON codebase, under tests/Odl/ there are 33
+test cases developed for OpenDaylight. However, there is some changes
+required to get it running depending on different Mininet and ODL
+controller configuration. First off, the running of Mininet and ODL
+controller is automated. In addition, under some conditions the
+OdlDriver (drivers/common/restapi/odldriver.py) has to be modified
+accordingly. For instance, the following line will be set accroding to
+the path for running the opendaylight controller (run.sh):
+
+self.execute(cmd="cd
+controller/opendaylight/distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight",timeout=10,prompt="\$")
+
+In addition, modifying the MininetCliDriver (mininetclidriver.py) might
+be required specifically in terms of the paths, as it is commented out
+in line 56 of that script. Also note that increasing the timeout may be
+needed.
 
 Category:Integration Group[Category:Integration Group]

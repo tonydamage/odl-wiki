@@ -1,0 +1,200 @@
+image:L3FwdSample.png[L3FwdSample.png,title="L3FwdSample.png"]
+
+[[note]]
+= NOTE
+
+*This page is being deprecated.* With the introduction of
+https://review.openstack.org/gitweb?p=stackforge/networking-odl.git;a=summary[stackforge/networking-odl]
+the way L3 forwarding feature is exposed is changed. For the latest on
+using devstack with opendaylight for this functionality,
+https://lists.opendaylight.org/pipermail/ovsdb-dev/2015-February/001132.html[look
+here] and change the local.conf file accordingly.
+
+[[description]]
+= Description
+
+As of Helium, it is possible to use an odl-neutron-driver and have OVSDB
+configure OF 1.3 rules to route IPv4 packets. This eliminates the need
+for the L3 Agent's router. NAT -- aka floating IPs -- is also supported.
+
+The L3 forwarding implementation does the routing at the ingress node,
+which is distributed. Thus, the node where the tenant instance is
+located will respond to arps and take care of routing packets that are
+destined outside the tenant's subnet.
+
+[[steps-for-starting-ovsdb-and-openstack]]
+= Steps for starting OVSDB and OpenStack
+
+[[pre-reqs]]
+== Pre-reqs
+
+See:
+https://wiki.opendaylight.org/view/OVSDB:Installation_Guide[Installation_Guide]
+
+[[download]]
+=== download
+
+[[osgi-method]]
+==== osgi method
+
+` `http://docs.vagrantup.com/v2/installation/index.html[`install`
+`vagrant`] +
+` grab latest osgi ovsdb distr from `http://nexus.opendaylight.org/content/repositories/opendaylight.snapshot/org/opendaylight/ovsdb/distribution.ovsdb/1.2.0-SNAPSHOT/[`Helium`
+`ovsdb` `build`] +
+` unzip distribution.ovsdb-1.*-osgipackage.zip > /dev/null` +
+` ` +
+` # enable l3 fwd feature` +
+` `*`echo` `'ovsdb.l3.fwd.enabled=yes'` `>>`
+`./opendaylight/configuration/config.ini`* +
+` `*`echo` `'ovsdb.l3gateway.mac=${GATEWAY_MAC}'` `>>`
+`./configuration/config.ini`*
+
+[[karaf-method]]
+==== karaf method
+
+` grab latest Karaf ovsdb distr from `http://nexus.opendaylight.org/content/repositories/opendaylight.snapshot/org/opendaylight/integration/distribution-karaf/0.2.0-SNAPSHOT/[`Helium`
+`ovsdb` `build`] +
+` unzip distribution-karaf-*.zip > /dev/null` +
+` cd distribution-karaf-*-SNAPSHOT/` +
+` ` +
+` # enable l3 fwd feature` +
+` `*`echo` `'ovsdb.l3.fwd.enabled=yes'` `>>`
+`./etc/custom.properties`* +
+` `*`echo` `'ovsdb.l3gateway.mac=${GATEWAY_MAC}'` `>>`
+`./etc/custom.properties`*
+
+Download odl neutron drivers
+
+` git clone `https://github.com/flavio-fernandes/odl-neutron-drivers[`https://github.com/flavio-fernandes/odl-neutron-drivers`] +
+` cd odl-neutron-drivers` +
+` vagrant up devstack-control devstack-compute-1`
+
+[[ssh-into-control-node]]
+=== ssh into control node
+
+` vagrant ssh devstack-control` +
+` *leave this shell open*`
+
+[[start-odl]]
+== start odl
+
+[[karaf-method-1]]
+=== Karaf method
+
+Ref: https://gist.github.com/24baef49714d3840dfb6[OVSDB Karaf]
+
+Build distribution
+
+` cd distribution-karaf-*-SNAPSHOT ` +
+` bin/karaf` +
+` feature:install odl-ovsdb-openstack odl-ovsdb-northbound` +
+` ` +
+` # To see processing of neutron event related to L3, do this from prompt in controller:` +
+` log:set debug org.opendaylight.ovsdb.openstack.netvirt.impl.NeutronL3Adapter` +
+` log:tail` +
+` ** To return to Karaf prompt: ``+c` +
+` ` +
+` ** To stop: ``+d`
+
+[[osgi-method-1]]
+=== OSGI Method
+
+` cd opendaylight/` +
+` ./run.sh -Xmx1024m -XX:MaxPermSize=1024m -virt ovsdb`
+
+` # To see processing of neutron event related to L3, do this from prompt in controller:` +
+` setLogLevel org.opendaylight.ovsdb.openstack.netvirt.impl.NeutronL3Adapter debug`
+
+[[stack-using-devstack]]
+== stack using devstack
+
+[[stack-control]]
+=== stack control
+
+` `` -or- vagrant ssh devstack-control` +
+` cd ~/devstack && ./stack.sh`
+
+[[stack-compute-1]]
+=== stack compute-1
+
+` ` +
+` cd odl-neutron-drivers` +
+` vagrant ssh devstack-compute-1` +
+` cd ~/devstack && ./stack.sh`
+
+[[openstack-workflow]]
+== OpenStack workflow
+
+The example below is a simple list of steps that would create the
+network show in
+https://wiki.opendaylight.org/view/File:L3FwdSample.png[picture above].
+Note that besides configuring openstack with odl-neutron-drivers, there
+is nothing different than if you were using neutron's L3 Agent.
+
+[[setup-authentication]]
+=== Setup authentication
+
+` `` -or- vagrant ssh devstack-control` +
+` source openrc admin admin`
+
+` rm -f id_rsa_demo* ; ssh-keygen -t rsa -b 2048 -N '' -f id_rsa_demo` +
+` nova keypair-add --pub-key  id_rsa_demo.pub  demo_key` +
+` # nova keypair-list`
+
+[[create-2-networks-and-2-subnets]]
+=== Create 2 networks and 2 subnets
+
+` neutron net-create net1 --tenant-id $(keystone tenant-list | grep '\s'admin'' | awk '{print $2}') \` +
+` --provider:network_type gre --provider:segmentation_id 555`
+
+` neutron subnet-create --tenant-id $(keystone tenant-list | grep '\s'admin'' | awk '{print $2}') \` +
+` net1 10.0.0.0/16 --name subnet1 --dns-nameserver 8.8.8.8`
+
+` neutron net-create net2 --tenant-id $(keystone tenant-list | grep '\s'admin'' | awk '{print $2}') \` +
+` --provider:network_type gre --provider:segmentation_id 556`
+
+` neutron subnet-create --tenant-id $(keystone tenant-list | grep '\s'admin'' | awk '{print $2}') \` +
+` net2 20.0.0.0/16 --name subnet2 --dns-nameserver 8.8.8.8`
+
+[[create-router-and-add-an-interface-to-each-of-the-2-subnets]]
+=== Create Router and add an interface to each of the 2 subnets
+
+` neutron router-create demorouter --tenant-id $(keystone tenant-list | grep '\s'admin'' | awk '{print $2}')` +
+` neutron router-interface-add demorouter subnet1` +
+` neutron router-interface-add demorouter subnet2` +
+` # neutron router-port-list demorouter`
+
+[[create-2-tenant-instances]]
+=== Create 2 tenant instances
+
+` nova boot --poll --flavor m1.nano --image $(nova image-list | grep 'cirros-0.3.2-x86_64-uec\s' | awk '{print $2}') \` +
+` --nic net-id=$(neutron net-list | grep -w net1 | awk '{print $2}'),v4-fixed-ip=10.0.0.10 \` +
+` --availability-zone nova:devstack-control \` +
+` --key-name demo_key host10`
+
+` nova boot --poll --flavor m1.nano --image $(nova image-list | grep 'cirros-0.3.2-x86_64-uec\s' | awk '{print $2}') \` +
+` --nic net-id=$(neutron net-list | grep -w net2 | awk '{print $2}'),v4-fixed-ip=20.0.0.20 \` +
+` --availability-zone nova:devstack-compute-1 \` +
+` --key-name demo_key host20`
+
+[[limitations]]
+= Limitations
+
+* OVS 2.1 or newer is required for using this feature ;
+
+* Due to OF limitations, icmp responses due to routing failures -- like
+ttl expired or host unreacheable -- are not generated ;
+
+* The mac address of the default route is not automatically mapped. In
+order to route to L3 destinations outside the tenant's networks, manual
+configuration of the default route is necessary. To provide the mac
+address of the default route, use *ovsdb.l3gateway.mac* in file
+_etc/custom.properties_ (if using osgi: _configuration/config.ini_) ;
+
+* This feature is Tech preview, which depends on later versions of
+OpenStack to be used without the
+https://github.com/dave-tucker/odl-neutron-drivers.git[provided
+neutron-driver].
+
+* No IPv6 support is provided.
+

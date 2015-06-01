@@ -1,0 +1,595 @@
+[[group-based-policy-base]]
+= Group Based Policy Base
+
+[[code-name]]
+== Code Name
+
+odl-groupbasedpolicy-base
+
+[[description]]
+== Description
+
+Overview
+
+* The Group Based Policy base feature provides the base functionality
+needed in OpenDaylight
+
+Design Architecture
+
+* https://wiki.opendaylight.org/view/Group_Policy:Architecture[Overall
+Architecture]
+*
+https://wiki.opendaylight.org/view/Group_Policy:Architecture/Policy_Model[Policy
+Model]
+
+Configuration
+
+* The base feature requires the following configuration:
+** Global Configuration
+** Policy Configuration
+** Endpoint Configuration
+
+[[bundles]]
+== Bundles
+
+* org.opendaylight.groupbasedpolicy/groupbasedpolicy/
+* com.fasterxml.jackson.core/jackson-annotations/
+* com.fasterxml.jackson.core/jackson-core/
+* com.fasterxml.jackson.core/jackson-databind/
+
+[[upstream-dependencies]]
+== Upstream Dependencies
+
+* feature: odl-mdsal-broker
+* feature: odl-yangtools-binding
+* feature: odl-yangtools-models
+
+[[downstream-dependents]]
+== Downstream Dependents
+
+None.
+
+[[incompatibilities]]
+== Incompatibilities
+
+None.
+
+[[network-intrusiveness]]
+== Network Intrusiveness
+
+No.
+
+[[recommended-karaf-features]]
+== Recommended Karaf features
+
+* odl-restconf
+
+[[how-to-test]]
+== How to test
+
+Tests:
+
+* Policy Configuration
+* Endpoint Registration/De-registration
+* Exception Repository Query
+* Status Repository Query
+
+These tests can be found in the Integration project, under
+groupbasedpolicy/Base_Policy directory. For all the tests, Install the
+following features:
+
+* odl-groupbasedpolicy-base
+* odl-restconf
+
+All the test can be executed via RIDE by clicking "Only run tests with
+these tags" box, using the tag of "GBP_BASE"
+
+* Policy Configuration Test
+** Covered by "Create Policy" test in Integration
+** Purpose of the test: exercise REST calls to CRUD each policy element
+** Pre-conditions for the test:
+*** start controller using ./karaf clean
+*** from the karaf console, do: feature:install
+odl-groupbasedpolicy-base odl-restconf
+** Test can be executed via RIDE by clicking "Only run tests with these
+tags" box, using the tag of "GBP_POLICY_REST"
+** Tests should pass
+
+* Endpoint Registration/De-registration Test
+** Covered by "Create Endpoints" test in Integration
+** Purpose of the test: exercise REST calls to CRUD endpoints
+** Pre-conditions for the test:
+*** start controller using ./karaf clean
+*** from the karaf console, do: feature:install
+odl-groupbasedpolicy-base odl-restconf
+** Test can be executed via RIDE by clicking "Only run tests with these
+tags" box, using the tag of "GBP_ENDPOINT_REST"
+** Tests should pass
+
+* Exception Repository Query
+** Covered by "Exception Repo" test in Integration
+** Purpose of the test: exercise REST calls to CRUD endpoints
+** Pre-conditions for the test:
+*** start controller using ./karaf clean
+*** from the karaf console, do: feature:install
+odl-groupbasedpolicy-base odl-restconf
+** Test can be executed via RIDE by clicking "Only run tests with these
+tags" box, using the tag of "GBP_EXCEPTION_REST"
+** Tests should pass
+
+* Status Repository Query
+** Covered by "Status Repo" test in Integration
+** Purpose of the test: exercise REST calls to CRUD endpoints
+** Pre-conditions for the test:
+*** start controller using ./karaf clean
+*** from the karaf console, do: feature:install
+odl-groupbasedpolicy-base odl-restconf
+** Test can be executed via RIDE by clicking "Only run tests with these
+tags" box, using the tag of "GBP_STATUS_REST"
+** Tests should pass
+
+To run the robot commands: pybot -v CONTROLLER:192.168.194.1 -v
+USER_HOME:$HOME
+$HOME/integration/test/csit/suites/groupbasedpolicy/Base_Policy/Restconf_Policy.txt
+
+[[performancescalability-concerns]]
+== Performance/Scalability Concerns
+
+None.
+
+[[openflow-overlay-renderer]]
+= OpenFlow Overlay Renderer
+
+[[code-name-1]]
+== Code Name
+
+odl-groupbasedpolicy-ofoverlay
+
+[[description-1]]
+== Description
+
+Overview
+
+* The OpenFlow Overlay renderer is used to create a network
+virtualization overlay using OpenFlow flows.
+
+Design Architecture
+
+*
+https://wiki.opendaylight.org/view/Group_Policy:Architecture/OpenFlow_Renderer[OpenFlow
+Renderer]
+*
+https://wiki.opendaylight.org/view/Group_Policy:Architecture/OVS_Overlay[OpenFlow
+Overlay Architecture]
+
+Configuration
+
+* The OpenFlow overlay renderer requires the following configuration:
+** Global Configuration
+*** encapsulation-format: The encapsulation format to use for tunnels
+**** vxlan: Use VXLAN encapsulation
+*** learning-mode: Selects how and whether we learn endpoints
+**** orchestrated: An external orchestration system will provide
+information about all endpoints, and no direct learning will occur.
+** Endpoint Configuration
+*** location-type: internal or external
+**** internal: The endpoint is located on a port that is part of the
+overlay network. You must include the node ID and port number for this
+endpoint.
+**** external: This endpoint is not inside the overlay.
+*** node-id: The OpenFlow switch for the endpoint. Must be included for
+all internal endpoints. The format is openflow:[dpid] where the dpid is
+the value of the switch DPID cast to a long.
+*** node-connector-id: The node connector for the endpoint's OpenFlow
+port. The format is openflow:[dpid]:[port] where the dpid is the value
+of the switch DPID cast to a long, and port is the openflow port number
+of the interface where the endpoint is connected.
+** Inventory Configuration
+*** tunnel-ip: The IP address used for tunnel termination on this switch
+*** ovsdb-config:ip: The IP address used to connect to OVSDB on this
+switch
+*** ovsdb-config:port The port number used to connect to OVSDB on this
+switch (default 6640)
+*** external-interfaces The names of the OpenFlow interfaces that are
+external and lead to the underlay network. Can be specified as a regular
+expression.
+
+[[bundles-1]]
+== Bundles
+
+* org.opendaylight.groupbasedpolicy/ofoverlay-renderer/
+* org.opendaylight.groupbasedpolicy/groupbasedpolicy-ofoverlay-config/
+
+[[upstream-dependencies-1]]
+== Upstream Dependencies
+
+* feature: odl-openflowplugin-flow-services
+* feature: odl-openflowplugin-nxm-extensions
+
+[[downstream-dependents-1]]
+== Downstream Dependents
+
+No dependencies.
+
+[[incompatibilities-1]]
+== Incompatibilities
+
+This renderer is potentially incompatible with any other application
+that writes to flow tables. This includes:
+
+* OVSDB Network Virtualization
+* VTN
+* OpenDOVE
+* Service Function Chaining OpenFlow Renderer
+
+Since each of these provides similar functionality, they are not
+anticipated to operate simultaneously with the OpenFlow Overlay
+Renderer.
+
+[[network-intrusiveness-1]]
+== Network Intrusiveness
+
+The OpenFlow Overlay renderer doesn't program flows without registration
+of endpoints, and therefore is non-intrusive to the network.
+
+[[recommended-karaf-features-1]]
+== Recommended Karaf features
+
+* odl-groupbasedpolicy-base
+* odl-restconf
+
+[[how-to-test-1]]
+== How to test
+
+Tests:
+
+* Endpoint Registration/De-registration (with augmentations)
+* Policy Resolution
+
+These tests can be found in the Integration project, under
+groupbasedpolicy/Openflow_Overlay directory. For all the tests, Install
+the following features:
+
+* odl-groupbasedpolicy-base
+* odl-groupbasedpolicy-ofoverlay
+* odl-restconf
+
+All the test can be executed via RIDE by clicking "Only run tests with
+these tags" box, using the tag of "GBP_OFOVERLAY"
+
+* Endpoint Registration/De-registration (with augmentations) Test
+** Covered by "Create OfOverlay Endpoints" test in Integration
+** Purpose of the test: exercise REST calls to CRUD OpenFlow Overlay
+Endpoints
+** Pre-conditions for the test:
+*** start controller using ./karaf clean
+*** from the karaf console, do: feature:install
+odl-groupbasedpolicy-base odl-groupbasedpolicy-ofoverlay odl-restconf
+** Test can be executed via RIDE by clicking "Only run tests with these
+tags" box, using the tag of "GBP_OFOVERLAY_EPS"
+** Tests should pass
+
+* Policy Resolution
+** Covered by "Ofoverlay Resolve" test in Integration
+** Purpose of the test: test ability of OpenFlow Overlay renderer to
+resolve policy
+** Pre-conditions for the test:
+*** start controller using ./karaf clean
+*** from the karaf console, do: feature:install
+odl-groupbasedpolicy-base odl-groupbasedpolicy-ofoverlay odl-restconf
+** Test can be executed via RIDE by clicking "Only run tests with these
+tags" box, using the tag of "GBP_OFOVERLAY_RESOLVE"
+** Tests should pass
+
+To run the robot commands: pybot -v CONTROLLER:192.168.194.1 -v
+MININET:192.168.194.138 -v MININET_USER:$USER -v USER_HOME:$HOME
+$HOME/integration/test/csit/suites/groupbasedpolicy/Openflow_Overlay/OfOverlay_Renderer.txt
+
+[[performancescalability-concerns-1]]
+== Performance/Scalability Concerns
+
+Scaling is as-per existing switch scaling for the OpenFlow plugin (i.e.
+nothing new/added by this feature).
+
+[[opflex-renderer]]
+= OpFlex Renderer
+
+[[code-name-2]]
+== Code Name
+
+odl-groupbasedpolicy-opflex
+
+[[description-2]]
+== Description
+
+Overview
+
+* The OpFlex renderer is used to integrate with the OpFlex agent project
+in OpenDaylight.
+
+Design Architecture
+
+*
+https://wiki.opendaylight.org/view/Group_Policy:Architecture/OpFlex_Renderer[OpFlex
+Renderer]
+*
+https://wiki.opendaylight.org/view/Group_Policy:Architecture/OVS_Overlay[OpenFlow
+Overlay Architecture]
+
+Configuration
+
+* The OpFlex renderer requires the following configuration:
+** discovery-definitions: the configuration of the Policy Repository,
+Endpoint Registry, and Observer servers
+*** policy-repository:
+**** id: The IP address of the server
+**** port: the TCP or UDP port to connect to
+**** serialization-type: json, xml, or binary (currently json only)
+*** endpoint-registry:
+**** id: The IP address of the server
+**** port: the TCP or UDP port to connect to
+**** serialization-type: json, xml, or binary (currently json only)
+*** observer:
+**** id: The IP address of the server
+**** port: the TCP or UDP port to connect to
+**** serialization-type: json, xml, or binary (currently json only)
+
+[[bundles-2]]
+== Bundles
+
+* org.opendaylight.groupbasedpolicy/opflex-renderer/
+* org.opendaylight.groupbasedpolicy/groupbasedpolicy-opflex-config/
+
+[[upstream-dependencies-2]]
+== Upstream Dependencies
+
+* feature: odl-openflowplugin-flow-services
+* feature: odl-openflowplugin-nxm-extensions
+
+[[downstream-dependents-2]]
+== Downstream Dependents
+
+None.
+
+[[incompatibilities-2]]
+== Incompatibilities
+
+None.
+
+[[network-intrusiveness-2]]
+== Network Intrusiveness
+
+The OpFlex renderer is not intrusive.
+
+[[recommended-karaf-features-2]]
+== Recommended Karaf features
+
+* odl-groupbasedpolicy-base
+* odl-restconf
+
+[[how-to-test-2]]
+== How to test
+
+Tests:
+
+* Server Configuration REST
+* Identity Exchange
+* Endpoint Declaration
+* Policy Resolution
+
+These tests can be found in the Integration project, under
+groupbasedpolicy/Opflex directory. For all the tests, Install the
+following features:
+
+* odl-groupbasedpolicy-base
+* odl-groupbasedpolicy-opflex
+* odl-restconf
+
+All the test can be executed via RIDE by clicking "Only run tests with
+these tags" box, using the tag of "GBP_OPFLEX"
+
+* Server Configuration REST Test
+** Covered by "Server REST" test in Integration
+** Purpose of the test: exercise REST calls to configure OpFlex servers
+** Pre-conditions for the test:
+*** start controller using ./karaf clean
+*** from the karaf console, do: feature:install
+odl-groupbasedpolicy-base odl-groupbasedpolicy-opflex odl-restconf
+** Test can be executed via RIDE by clicking "Only run tests with these
+tags" box, using the tag of "GBP_OPFLEX_SRV"
+** Tests should pass
+
+* Identity Exchange
+** Covered by "Opflex Identity" test in Integration
+** Purpose of the test: test exchange of OpFlex Identity messages
+** Pre-conditions for the test:
+*** start controller using ./karaf clean
+*** from the karaf console, do: feature:install
+odl-groupbasedpolicy-base odl-groupbasedpolicy-opflex odl-restconf
+** Test can be executed via RIDE by clicking "Only run tests with these
+tags" box, using the tag of "GBP_OPFLEX_ID"
+** Tests should pass
+
+* Endpoint Declaration
+** Covered by "Opflex EP Declare" test in Integration
+** Purpose of the test: test exchange of OpFlex Endpoint messsages
+** Pre-conditions for the test:
+*** start controller using ./karaf clean
+*** from the karaf console, do: feature:install
+odl-groupbasedpolicy-base odl-groupbasedpolicy-opflex odl-restconf
+** Test can be executed via RIDE by clicking "Only run tests with these
+tags" box, using the tag of "GBP_OPFLEX_EP"
+** Tests should pass
+
+* Policy Resolution
+** Covered by "Opflex Resolve" test in Integration
+** Purpose of the test: test ability of OpFlex renderer to resolve
+policy
+** Pre-conditions for the test:
+*** start controller using ./karaf clean
+*** from the karaf console, do: feature:install
+odl-groupbasedpolicy-base odl-groupbasedpolicy-opflex odl-restconf
+** Test can be executed via RIDE by clicking "Only run tests with these
+tags" box, using the tag of "GBP_OPFLEX_RESOLVE"
+** Tests should pass
+
+To run the robot commands: pybot -v CONTROLLER:192.168.194.1 -v
+MININET:192.168.194.138 -v MININET_USER:$USER -v USER_HOME:$HOME
+$HOME/integration/test/csit/suites/groupbasedpolicy/Opflex/Opflex_Renderer.txt
+
+[[performancescalability-concerns-2]]
+== Performance/Scalability Concerns
+
+None.
+
+[[neutron-providermapper]]
+= Neutron Provider/Mapper
+
+[[code-name-3]]
+== Code Name
+
+odl-groupbasedpolicy-neutronmapper
+
+[[description-3]]
+== Description
+
+Overview
+
+* The Neutron Provider is used to create a network virtualization
+overlay using the OpenFlow Overlay renderer.
+
+Design Architecture
+
+*
+https://docs.google.com/presentation/d/1AO47EYrDMuTAypcpYbL3XOKFggZXu9x00XpGVwJLr9o/edit#slide=id.g612a6349b_0205[Mapping
+Document]
+
+Configuration
+
+* Global Configuration
+
+[[bundles-3]]
+== Bundles
+
+* org.opendaylight.groupbasedpolicy/ofoverlay-renderer/
+* org.opendaylight.groupbasedpolicy/groupbasedpolicy-ofoverlay-config/
+
+[[upstream-dependencies-3]]
+== Upstream Dependencies
+
+* feature: odl-openflowplugin-flow-services
+* feature: odl-openflowplugin-nxm-extensions
+
+[[downstream-dependents-3]]
+== Downstream Dependents
+
+OpenStack Neutron ML2 OpenDaylight Mechanism Driver
+
+[[incompatibilities-3]]
+== Incompatibilities
+
+This renderer is potentially incompatible with any other application
+that writes to flow tables. This includes:
+
+* OVSDB Network Virtualization
+* VTN
+* OpenDOVE
+* Service Function Chaining OpenFlow Renderer
+
+Since each of these provides similar functionality, they are not
+anticipated to operate simultaneously with the OpenFlow Overlay
+Renderer.
+
+[[network-intrusiveness-3]]
+== Network Intrusiveness
+
+The Neutron Mapper is not intrusive.
+
+[[recommended-karaf-features-3]]
+== Recommended Karaf features
+
+* odl-groupbasedpolicy-base
+* odl-groupbasedpolicy-ofoverlay
+* odl-restconf
+
+[[how-to-test-3]]
+== How to test
+
+Tests:
+
+* Network CRUD Test
+* Subnet CRUD Test
+* Port CRUD Test
+* Security Group CRUD Test
+
+These tests can be found in the Integration project, under
+groupbasedpolicy/Opflex directory. For all the tests, Install the
+following features:
+
+* odl-groupbasedpolicy-base
+* odl-groupbasedpolicy-ofoverlay
+* odl-groupbasedpolicy-neutronmapper
+* odl-restconf
+
+All the test can be executed via RIDE by clicking "Only run tests with
+these tags" box, using the tag of "GBP_OPFLEX"
+
+* Network CRUD Test
+** Covered by "CRUD Neutron Network" test in Integration
+** Purpose of the test: exercise REST calls to CRUD Neutron Networks
+** Pre-conditions for the test:
+*** start controller using ./karaf clean
+*** from the karaf console, do: feature:install
+odl-groupbasedpolicy-base odl-groupbasedpolicy-ofoverlay
+odl-groupbasedpolicy-neutronmapper odl-restconf
+** Test can be executed via RIDE by clicking "Only run tests with these
+tags" box, using the tag of "GBP_NEUTRON_NETWORKS"
+** Tests should pass
+
+* Subnet CRUD Test
+** Covered by "CRUD Neutron Subnet" test in Integration
+** Purpose of the test: exercise REST calls to CRUD Neutron Subnets
+** Pre-conditions for the test:
+*** start controller using ./karaf clean
+*** from the karaf console, do: feature:install
+odl-groupbasedpolicy-base odl-groupbasedpolicy-ofoverlay
+odl-groupbasedpolicy-neutronmapper odl-restconf
+** Test can be executed via RIDE by clicking "Only run tests with these
+tags" box, using the tag of "GBP_NEUTRON_SUBNETS"
+** Tests should pass
+
+* Port CRUD Test
+** Covered by "CRUD Neutron Port" test in Integration
+** Purpose of the test: exercise REST calls to CRUD Neutron Ports
+** Pre-conditions for the test:
+*** start controller using ./karaf clean
+*** from the karaf console, do: feature:install
+odl-groupbasedpolicy-base odl-groupbasedpolicy-ofoverlay
+odl-groupbasedpolicy-neutronmapper odl-restconf
+** Test can be executed via RIDE by clicking "Only run tests with these
+tags" box, using the tag of "GBP_NEUTRON_PORTS"
+** Tests should pass
+
+* Security Group CRUD Test
+** Covered by "CRUD Neutron Security Group" test in Integration
+** Purpose of the test: exercise REST calls to CRUD Neutron Security
+Groups
+** Pre-conditions for the test:
+*** start controller using ./karaf clean
+*** from the karaf console, do: feature:install
+odl-groupbasedpolicy-base odl-groupbasedpolicy-ofoverlay
+odl-groupbasedpolicy-neutronmapper odl-restconf
+** Test can be executed via RIDE by clicking "Only run tests with these
+tags" box, using the tag of "GBP_NEUTRON_SECGROUPS"
+** Tests should pass
+
+To run the robot commands: pybot -v CONTROLLER:192.168.194.1 -v
+MININET:192.168.194.138 -v MININET_USER:$USER -v USER_HOME:$HOME
+$HOME/integration/test/csit/suites/groupbasedpolicy/Neutron/Neutron_Mapper.txt
+
+[[performancescalability-concerns-3]]
+== Performance/Scalability Concerns
+
+None
+
+Category:Integration Group[Category:Integration Group]

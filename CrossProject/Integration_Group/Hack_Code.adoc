@@ -48,8 +48,8 @@ You have two choices for your method of engagement, you can use:
 1.  ssh on port 29418 (blocked by some firewalls)
 2.  https
 
-[[pull-code-via-ssh]]
-=== 1. Pull code via ssh
+[[pull-master-code-via-ssh]]
+=== 1. Pull master code via ssh
 
 ---------------------------------------------------------------------------------
 git clone ssh://${ODL_USERNAME}@git.opendaylight.org:29418/integration.git
@@ -57,10 +57,12 @@ cd integration
 scp -p -P 29418 ${ODL_USERNAME}@git.opendaylight.org:hooks/commit-msg .git/hooks/
 chmod 755 .git/hooks/commit-msg
 git config remote.origin.push HEAD:refs/for/master
+git config --global user.name "John Doe"
+git config --global user.email johndoe@example.com
 ---------------------------------------------------------------------------------
 
-[[pull-code-with-https]]
-=== 2. Pull code with https
+[[pull-master-code-with-https]]
+=== 2. Pull master code with https
 
 ----------------------------------------------------------------------------------------
 git clone https://git.opendaylight.org/gerrit/p/integration.git
@@ -68,10 +70,20 @@ cd integration
 curl -o .git/hooks/commit-msg https://git.opendaylight.org/gerrit/tools/hooks/commit-msg
 chmod 755 .git/hooks/commit-msg
 git config remote.origin.push HEAD:refs/for/master
+git config --global user.name "John Doe"
+git config --global user.email johndoe@example.com
 ----------------------------------------------------------------------------------------
 
-[[pull-the-code-changes]]
-=== Pull the code changes
+[[checkout-stable-branch-if-needed]]
+=== 3. Checkout stable branch if needed
+
+--------------------------
+cd integration
+git checkout stable/helium
+--------------------------
+
+[[pull-the-latest-code-changes]]
+=== 4. Pull the latest code changes
 
 Use git pull to get the latest changes from the remote repository
 
@@ -82,19 +94,19 @@ git pull
 [[hack-the-code]]
 == Hack the Code
 
+It is highly recommended to make your changes in a local branch so that
+master is always in sync with remote:
+
+-------------------------------
+git checkout -b test
+Switched to a new branch 'test'
+-------------------------------
+
 Integration repo is made of 3 folders:
 
 * distributions: release vehicles generation code
-* packaging: Linux package generation code (rpm)
+* packaging: Linux package generation code (rpm, docker)
 * test: this is where we store the test code
-
-First make sure your credentials (name, email) are configured properly
-in git. They can be configured by adding the following settings:
-
---------------------------------------------------
-git config --global user.name "John Doe"
-git config --global user.email johndoe@example.com
---------------------------------------------------
 
 To check the changes you are doing
 
@@ -159,12 +171,20 @@ Signed-off-by: Ed Warnicke <eaw@cisco.com>
 == Push the code via git CLI
 
 Use git push to push your changes back to the remote repository. Also it
-is good idea to update your local repository before you push, especially
-if some time passed since last git pull.
+is good idea to rebase your local repository before you push, especially
+if some time passed since last git pull. Check this
+link:GIT_Cheat_Sheet#Download_the_Latest_Source_to_your_Branch[ link] to
+learn how to do it.
 
 --------
 git push
 --------
+
+In case you want to push to stable branch:
+
+-------------------------------------------
+git push origin HEAD:refs/for/stable/helium
+-------------------------------------------
 
 You will get a message pointing you to your gerrit request like:
 
@@ -196,23 +216,32 @@ merged into the authoritative repo, which would look like this:
 
 image:Gerrit Merged.jpg[Gerrit Merged.jpg,title="Gerrit Merged.jpg"]
 
-[[unstage-your-changes]]
-=== Unstage your changes
+[[undo-commit-keeping-changes]]
+=== Undo commit keeping changes
 
-If you wish to 'reset' your last commit use:
+If you wish to 'undo' your last commit use:
 
 ------------------------
 git reset --soft 'HEAD^'
+------------------------
+
+[[undo-commit-and-changes]]
+=== Undo commit and changes
+
+If you wish to 'reset' to the commit just before your last commit use:
+
+------------------------
+git reset --hard 'HEAD^'
 ------------------------
 
 [[amending-your-commit]]
 === Amending your Commit
 
 If you wish to 'amend' your commit and push a new PatchSet to your
-existing Gerrit, you can make your changes, add them, and run:
+existing Gerrit, you can make your changes and do:
 
 ------------------
-git add
+git add -A
 git commit --amend
 git push
 ------------------

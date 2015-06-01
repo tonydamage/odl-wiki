@@ -28,26 +28,25 @@ using OVS in some form or shape. +
 http://openvswitch.org/ has all the information you might need with
 regards to OVS. +
  +
-In the SDN space, Controllers & Applications can interact with the
-OpenVSwitch via 2 different channels : OpenFlow & OVSDB. +
-The much-talked about protocol, OpenFlow, addresses the forwarding-side
-of the OVS Functionality. OVSDB on the other hand, addresses the
-management-plane. +
+In the SDN space, controllers and applications can interact with the
+OpenVSwitch by means of two different channels : OpenFlow and OVSDB. +
+While the protocol OpenFlow addresses the forwarding-side of the OVS
+functionality, OVSDB addresses the management-plane. +
 A simple and concise overview of OVSDB can be found at
 http://networkstatic.net/getting-started-ovsdb/ (Thanks to Brent's
 tireless efforts). +
  This document covers the architecture and design of OVSDB plugin in the
 OpenDaylight project. +
 
-[[birds-eye-view-on-opendaylight-controller-architecture]]
-== Bird's eye view on OpenDaylight Controller Architecture
+[[birds-eye-view-of-opendaylight-controller-architecture]]
+== Bird's eye view of OpenDaylight Controller Architecture
 
-OpenDaylight controller platform is designed as a highly modular and
-plugin based middleware that serves various network applications on
-variety of use-cases. The modularity is achieved through Java OSGi
-framework. The controller is made up of many Java OSGi bundles that work
+The OpenDaylight controller platform is designed as a highly modular and
+plugin based middleware that serves various network applications on a
+variety of use-cases. The modularity is achieved through the Java OSGi
+framework. The controller comprises many Java OSGi bundles that work
 together to provide the needed controller functionalities. +
-The bundles are categorized into roughly : +
+The bundles are placed in the following broad categories: +
 # Network Service Functional Modules (such as Topology Manager,
 Inventory Manager, Forwarding Rules Manager,...)
 
@@ -99,18 +98,18 @@ Plugin,...)
               +-----------------------------------------+
 ---------------------------------------------------------
 
-Each layer of the Controller architecture perform specified tasks and
+Each layer of the Controller architecture performs specified tasks and
 hence aids in modularity. +
-While Northbound API layer addresses all the REST-Based Application
-needs, SAL layer takes care of abstracting the SouthBound plugin
+While the Northbound API layer addresses all the REST-Based application
+needs, the SAL layer takes care of abstracting the SouthBound plugin
 Protocol Specifics from the Network Service Functions. +
  +
-Each of the SouthBound Plugins would serve different purposes (some may
-overlap). +
-For example, OpenFlow plugin might serve the Data-Plane needs of a OVS
-element while the OVSDB plugin can serve the management plane needs of
-the same OVS element. +
-As the Openflow Plugin talk OpenFlow protocol with the OVS element, the
+Each of the SouthBound Plugins serves a different purpose, with some
+overlapping. +
+For example, the OpenFlow plugin might serve the Data-Plane needs of an
+OVS element while the OVSDB plugin can serve the management plane needs
+of the same OVS element. +
+As the Openflow Plugin talks OpenFlow protocol with the OVS element, the
 OVSDB plugin will use OVSDB schema over JSON-RPC transport. +
  +
 The rest of the document will cover the OVSDB SouthBound plugin design
@@ -140,8 +139,8 @@ It is nothing like your traditional Protocols that networking engineers
 are used to. Again, http://networkstatic.net/getting-started-ovsdb/
 gives a more practical look at the protocol structure. +
  +
-The OpenDaylight's OVSDB Southbound plugin is made up of one or more
-OSGi bundles addressing these services / functionalities : +
+The OpenDaylight OVSDB southbound plugin consists of one or more OSGi
+bundles addressing the following services or functionalities : +
 
 1.  Connection Service - Based on Netty
 2.  Network Configuration Service
@@ -154,30 +153,30 @@ OSGi bundles addressing these services / functionalities : +
 [[connection-service]]
 === Connection Service
 
-One of the primary services that most of the southbound plugins provide
-to Opendaylight's SAL and NSF is Connection Service. It provides the
-protocol specific connectivity to network element and supports the
-connectivity management services as specified by OpenDaylight Connection
-Manager. This includes : +
-# Connect to a specified element given IP-address, L4-port and other
+One of the primary services that most southbound plugins provide to SAL
+in Opendaylight and NSF is Connection Service. The service provides
+protocol specific connectivity to network elements, and supports the
+connectivity management services as specified by the OpenDaylight
+Connection Manager. This includes : +
+# Connection to a specified element given IP-address, L4-port, and other
 connectivity options (such as authentication,...)
 
-1.  Disconnect from an element
-2.  Handle Cluster Mode change notifications to support in
-OpenDaylight's Clustering/High-Availability feature
+1.  Disconnection from an element
+2.  Handling Cluster Mode change notifications to support the
+OpenDaylight Clustering/High-Availability feature
 
  +
 By default, the ovsdb-server process running on the hypervisor listens
 on TCP port 6632 (ofcourse this is configurable). The Connection Service
 takes in the connectivity parameters from the connection manager
-including the IP-address and TCP-Port to connect with. Due to the many
-benefits it provides, Connection Service will use Netty framework
+including the IP-address and TCP-Port for connections. Owing to the many
+benefits it provides, Connection Service will use the Netty framework
 (http://netty.io/) for connectivity purposes.
 
 Every succesful connection to a network element will result in a Node
-object (Refer to OpenDaylight's SAL Node.java) with the type = "OVSDB"
-and value = User-Readable Name of the Connection as specified by the
-Connection Manager. This Node object is returned to OpenDaylight
+object (Refer to OpenDaylight SAL Node.java) with the type = "OVSDB" and
+value = User-Readable Name of the Connection as specified by the
+Connection Manager. This Node object is returned to the OpenDaylight
 Connection Manager and the application that invoked the Connect()
 functionality.
 
@@ -298,8 +297,8 @@ operational relationship with other OVSDB Components* +
 [[bidirectional-json-rpc-library]]
 === Bidirectional JSON-RPC Library
 
-After various attempts with existing & available json-rpc libraries, the
-OpenDaylight OVSDB project decided to design and implement a
+After various attempts with existing and available json-rpc libraries,
+the OpenDaylight OVSDB project decided to design and implement a
 Bidirectional JSON-RPC library (mainly due to the various limitations in
 the existing open-source alternatives). Due to the nature of the
 library, it is very easy to design it as a module that manages the Netty
@@ -310,12 +309,15 @@ instantiated by the Connection Service. This provides the ability for
 connection Service to keep control of the pipeline and perform various
 OVSDB wire-protocol operations effectively.
 
-The main responsibility of this Library is to demarshal & marshal JSON
-Strings to JSON objects & ViceVersa from & to the Network Element. This
-library will abstract all the wire-protocol headaches such as
-application level fragmentation and reassembly, Encoding formats, etc...
-and provide a simple and cleaner objects for others in the pipeline to
-work on.
+The main responsibilities are of this Library are:
+
+* Demarshal and marshal JSON Strings to JSON objects
+* Demarshal and marshal JSON Strings from and to the Network Element.
+
+This library will abstract all the wire-protocol headaches such as
+application level fragmentation and reassembly, Encoding formats, and
+others, and provides simple and clean objects for others in the pipeline
+to work on.
 
 At the time of this writing, we have a better understanding on the
 demarshaling piece of the puzzle. Our understanding on the marshaling is

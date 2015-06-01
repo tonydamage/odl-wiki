@@ -1,0 +1,320 @@
+[[overview]]
+== Overview
+
+This guide explains how to install VTN Coordinator and VTN Manager to
+use VTN API.
+
+VTN Manager is a set of OSGi bundles running in OpenDaylight controller,
+and VTN Coordinator is an application running outside the controller.
+
+It is recommended to install VTN Coordinator and OpenDaylight controller
+on different machines, since their supported platforms and prerequisites
+are different.
+
+[[supported-platforms]]
+== Supported Platforms
+
+[cols=",",]
+|===========================================================
+|*Software* |*Supported Platforms*
+|VTN Manager |All Java Platform
+|VTN Coordinator |(64-bit version of below Linux variants) +
+Fedora 20 +
+CentOS 6 +
+RHEL 6 +
+RHEL 7 +
+CentOS 7
+|===========================================================
+
+[[downloading-lithium]]
+== Downloading Lithium
+
+::
+  1. Go to the download page of opendaylight.org.
+  +
+  ;;
+    http://www.opendaylight.org/software/downloads
+  +
+  2. Download the *Pre-Built Zip File* or *Pre-Built Tar File* of the
+  latest Lithium.
+  +
+  3. Extract files from the downloaded file.
+  +
+  ;;
+    e.g.)
+    +
+    ::
+----------------------------------------------
+unzip distribution-karaf-0.2.1-Lithium-SR1.zip
+----------------------------------------------
+      +
+      ;;
+        or
+      +
+----------------------------------------------------
+tar zxvf distribution-karaf-0.2.1-Lithium-SR1.tar.gz
+----------------------------------------------------
+
+[[setting-up-vtn-coordinator]]
+== Setting up VTN Coordinator
+
+Arrange a physical/virtual server with any one of the supported 64-bit
+OS environment.
+
+* Fedora 19/20
+* RHEL 6 / 7
+* CentOS 6 / 7
+
+[[installing-the-java]]
+=== Installing the Java
+
+* For RHEL/CentOS 6.1 (x86_64)
+
+::
+  Download Oracle JDK 7 and install it.
+  +
+  http://www.oracle.com/technetwork/java/javase/downloads/index.html
+
+* For RHEL/CentOS 6.4 (x86_64)
+
+::
+  ;;
+    Install OpenJDK 7.
+    +
+------------------------------------
+yum install java-1.7.0-openjdk-devel
+------------------------------------
+
+* For Fedora 19/20
+
+::
+  ;;
+    Install OpenJDK 7.
+    +
+------------------------------------
+yum install java-1.7.0-openjdk-devel
+------------------------------------
+
+[[installing-prerequisites]]
+=== Installing prerequisites
+
+* For RHEL 6
+
+----------------------------------------------------------------------------
+yum install perl-Digest-SHA uuid libxslt libcurl unixODBC
+wget http://dl.fedoraproject.org/pub/epel/6/i386/epel-release-6-8.noarch.rpm
+rpm -Uvh epel-release-6-8.noarch.rpm
+yum install json-c
+----------------------------------------------------------------------------
+
+* For CentOS6 and Fedora 20
+
+----------------------------------------------------------------
+yum install perl-Digest-SHA uuid libxslt libcurl unixODBC json-c
+----------------------------------------------------------------
+
+[[installing-postgresql-database]]
+=== Installing PostgreSQL Database
+
+::
+  1. Configure Yum repository to download the latest rpms for PostgreSQL
+  9.1
+  +
+  ;;
+------------------------------------------------------------------------------------------
+rpm -ivh http://yum.postgresql.org/9.1/redhat/rhel-6-x86_64/pgdg-redhat91-9.1-5.noarch.rpm
+------------------------------------------------------------------------------------------
+  +
+  2. Install the required PostgreSQL packages
+  +
+  ;;
+-----------------------------------------------------------------------------------------------------
+yum install postgresql91-libs postgresql91 postgresql91-server postgresql91-contrib postgresql91-odbc
+-----------------------------------------------------------------------------------------------------
+
+or
+
+::
+  1. Configure Yum repository to download the latest rpms for PostgreSQL
+  9.3
+  +
+  ;;
+------------------------------------------------------------------------------------------
+rpm -ivh http://yum.postgresql.org/9.3/redhat/rhel-6-x86_64/pgdg-redhat93-9.3-1.noarch.rpm
+------------------------------------------------------------------------------------------
+  +
+  2. Install the required PostgreSQL packages
+  +
+  ;;
+-----------------------------------------------------------------------------------------------------
+yum install postgresql93-libs postgresql93 postgresql93-server postgresql93-contrib postgresql93-odbc
+-----------------------------------------------------------------------------------------------------
+
+::
+  *Note*:
+  +
+  * If you are facing any problems while installing postgreSQL rpm,
+  Please refer to
+  OpenDaylight_Virtual_Tenant_Network_(VTN):Installation:Troubleshooting#Problems_while_Installing_PostgreSQL_due_to_openssl[openssl_problems]
+  query in troubleshooting FAQ.
+  * The above procedures indicate the rpms for RHEL 6 only, please visit
+  the http://yum.postgresql.org/ for the rpm for the other linux distros
+  * VTN Coordinator support PostgreSQL version greater than 9.1 only and
+  currently tested with 9.1 and 9.3. Please ensure the PostgreSQL
+  version>=9.1 is installed.
+
+[[installing-the-vtn-coordinator]]
+=== Installing the VTN Coordinator
+
+::
+  1. Enter into the *externalapps* directory in the top directory of
+  Lithium.
+  +
+  ;;
+    e.g.)
+    +
+----------------------------------------------------
+cd distribution-karaf-0.2.1-Lithium-SR1/externalapps
+----------------------------------------------------
+  +
+  2. Run the below command to extract VTN Coordinator from the tar.bz2
+  file in the *externalapps* directory.
+  +
+  ;;
+--------------------------------------------------------------------------
+tar –C/ -jxvf distribution.vtn-coordinator-6.0.0.1-Lithium-SR1-bin.tar.bz2
+--------------------------------------------------------------------------
+    +
+    This will install VTN Coordinator to */usr/local/vtn* directory.
+    +
+    The name of the tar.bz2 file name varies depending on the version.
+    Please give the same tar.bz2 file name which is there in your
+    directory.
+
+::
+  Note:
+  +
+  ;;
+    VTN Coordinator runs on port 8083 (TCP) for REST API by default. If
+    you want to run it on different port other than the default, change
+    the port number in the below file:
+    +
+    ::
+----------------------------------------
+/usr/local/vtn/tomcat/conf/tomcat-env.sh
+----------------------------------------
+
+[[configuring-database-for-vtn-coordinator]]
+=== Configuring database for VTN Coordinator
+
+Execute the below command.
+
+::
+----------------------------
+/usr/local/vtn/sbin/db_setup
+----------------------------
+
+[[setting-up-vtn-manager]]
+== Setting up VTN Manager
+
+VTN Manager runs in OpenDaylight controller. In order to run VTN
+Manager, run the controller and install VTN Manager features.
+
+::
+  1. Ensure Java Runtime Environment 7 is installed, else install it.
+  +
+  ;;
+------------------------------
+yum install java-1.7.0-openjdk
+------------------------------
+    +
+    ::
+      or
+    +
+------------------
+yum list *openjdk*
+------------------
+    +
+    ::
+      (then install the version available in the distro)
+
+::
+  2. Enter into the top directory of Lithium.
+  +
+  ;;
+    e.g.)
+    +
+---------------------------------------
+cd distribution-karaf-0.2.1-Lithium-SR1
+---------------------------------------
+
+::
+  3. Run the below command to run the controller.
+  +
+  ;;
+-----------
+./bin/karaf
+-----------
+
+::
+  4. Once the console is up, type as below to install VTN Manager and
+  other necessary features.
+  +
+  ;;
+-----------------------------------
+feature:install odl-vtn-manager-all
+-----------------------------------
+
+::
+  5. For logs, please look into the below file
+  +
+  ;;
+------------------
+data/log/karaf.log
+------------------
+
+[[basic-usage-of-vtn]]
+== Basic usage of VTN
+
+[[launching-the-vtn-coordinator]]
+=== Launching the VTN Coordinator
+
+----------------------------
+/usr/local/vtn/bin/vtn_start
+----------------------------
+
+[[using-vtn-rest-api]]
+=== Using VTN REST API
+
+:* Get the version of VTN REST API using the below command, and make
+sure the setup is working.
+
+::
+  ;;
+-------------------------------------------------------------------------------------------------------------------------------------------
+curl --user admin:adminpass -H 'content-type: application/json' -X GET http://<VTN_COORDINATOR_IP_ADDRESS>:8083/vtn-webapi/api_version.json
+-------------------------------------------------------------------------------------------------------------------------------------------
+    +
+    The response should be like this:
+    +
+----------------------------------
+{"api_version":{"version":"V1.2"}}
+----------------------------------
+
+:* Create and use VTN
+
+::
+  ;;
+    Please refer to link:Release/Lithium/VTN/User Guide[User Guide] and
+    OpenDaylight_Virtual_Tenant_Network_(VTN):VTN_Coordinator:RestApi#VTNCoordinator_RestApi_Contents[Web
+    API reference].
+
+[[terminating-vtn-coordinator]]
+=== Terminating VTN Coordinator
+
+---------------------------
+/usr/local/vtn/bin/vtn_stop
+---------------------------
+
+Category:OpenDaylight Virtual Tenant Network[Category:OpenDaylight
+Virtual Tenant Network]

@@ -1,0 +1,165 @@
+[[code-name]]
+== Code Name
+
+odl-didm-identification-api
+
+odl-didm-identification
+
+odl-didm-drivers-api
+
+[[description]]
+== Description
+
+Application need to know the device’s capabilities to create flow mods
+that best utilize the capabilities of the device. Controller doesn’t
+provide a common/consistent device specific way of handling CRUD
+operations for functions such as vlan configuration. DIDM (Device
+Identification and Driver Manager) is a framework for providing device
+identity and vendor specific drivers to support device features,
+includes manual discovery and synchronization.
+
+[[bundles]]
+== Bundles
+
+[[upstream-dependencies]]
+== Upstream Dependencies
+
+[[downstream-dependents]]
+== Downstream Dependents
+
+SNMP Plugin
+
+[[incompatibilities]]
+== Incompatibilities
+
+None
+
+[[network-intrusiveness]]
+== Network Intrusiveness
+
+None.
+
+[[recommended-karaf-features]]
+== Recommended Karaf features
+
+odl-didm-mininet
+
+odl-hp3800
+
+odl-snmp-plugin
+
+[[how-to-test]]
+== How to test
+
+[cols=",,,",options="header",]
+|=======================================================================
+|Purpose |Pre-conditions or Pre-requisites |Test Steps |Expected Results
+|Verify that Device Identification is working appropriately when device
+drivers are installed (check for mininet devices with mininet driver
+installed) a|
+* Fresh installation of the controller
+
+ a|
+* Install didm code(mentioned in the code section)
+* Install mininet driver (odl-didm-mininet)
+* Connect mininet switches to controller
+* Connect mininet switches to controller
+* Through Restconf Execute following curl:
+
+` curl -u"admin:admin"`http://172.17.8.180:8181/restconf/operational/opendaylight-inventory:nodes/[`http://172.17.8.180:8181/restconf/operational/opendaylight-inventory:nodes/`]` | python -mjson.too`
+
+ a|
+* Connected device type should be identified.
+
+` Following output should be the part of the executed curl output: ` +
+` "didm-identification:device-type": "Mininet-device-type",` +
+` "flow-node-inventory:manufacturer": "Nicera",` +
+` "flow-node-inventory:hardware": "ovs Switch"`
+
+|Verify that Device Identification is working appropriately when device
+drivers are installed (check for hp3800 devices with hp3800 drivers
+installed) a|
+* Fresh installation of the controller
+
+ a|
+* Install didm code(mentioned in the code section)
+* Install hp300 driver (odl-hp3800)
+* Connect 3800 switch to controller
+* Through Restconf Execute following curl:
+
+` curl -u"admin:admin"`http://172.17.8.180:8181/restconf/operational/opendaylight-inventory:nodes/[`http://172.17.8.180:8181/restconf/operational/opendaylight-inventory:nodes/`]` | python -mjson.too`
+
+ a|
+* Connected device type should be identified.
+* Following output should be the part of the executed curl output:
+
+` "didm-identification:device-type": "hp-3800:hp-3800-device-type",` +
+` "flow-node-inventory:manufacturer": "HP",` +
+` "flow-node-inventory:hardware": "3800-48G-4SFP+ Switch"`
+
+|Verify that DIDM declares that device type is unknown when device
+driver is not available and does not crash or does not display some
+unexpected information a|
+* Fresh installation of the controller
+
+ a|
+* Install didm code(mentioned in the code section)
+* Connect a device to controller(example: hp2920 which does not have
+driver installed)
+* Through Restconf Execute following curl:
+
+` curl -u"admin:admin"`http://172.17.8.180:8181/restconf/operational/opendaylight-inventory:nodes/[`http://172.17.8.180:8181/restconf/operational/opendaylight-inventory:nodes/`]` | python -mjson.too`
+
+ a|
+* Connected device type should be displayed as unknown.
+
+` Following output should be the part of  the executed curl output: ` +
+` "didm-identification:device-type": "unknown",`
+
+|Verify that when device discovery fails to get information through
+Openflow, it tries to get through SNMP a|
+* Fresh installation of the controller
+
+ a|
+* Install didm code(mentioned in the code section)
+* Connect a device to controller(example: hp3800)
+* Note: request from development for Test driver for 3800 which will
+make device discovery to fail through Open flow and forces to try to
+fetch the information through SNMP
+* Through Restconf Execute following curl:
+
+` curl -u"admin:admin"`http://172.17.8.180:8181/restconf/operational/opendaylight-inventory:nodes/[`http://172.17.8.180:8181/restconf/operational/opendaylight-inventory:nodes/`]` | python -mjson.too`
+
+ a|
+* Connected device type should be identified.
+* Following output should be the part of the executed curl output:
+
+` "didm-identification:device-type": "hp-3800:hp-3800-device-type",` +
+` "flow-node-inventory:manufacturer": "HP",` +
+` "flow-node-inventory:hardware": "3800-48G-4SFP+ Switch"`
+
+|Verify the scenario where device(say mininet) is already connected to
+controller and drivers are installed later a|
+* Fresh installation of the controller
+
+ a|
+* Install didm code(mentioned in the code section)
+* Connect a device to the controller
+* Now install that particular device drivers.
+
+` Through Restconf Execute following curl:  ` +
+` curl -u"admin:admin"`http://172.17.8.180:8181/restconf/operational/opendaylight-inventory:nodes/[`http://172.17.8.180:8181/restconf/operational/opendaylight-inventory:nodes/`]` | python -mjson.too`
+
+ a|
+* Connected device type will not show up in the curl output as device
+was discovered and connected to the controller before drivers were
+installed, there should be no disruption to the device – controller
+connection when drivers are installed later. Device type should be
+discovered when device is rediscovered with drivers already installed.
+
+|=======================================================================
+
+[[performancescalability-concerns]]
+== Performance/Scalability Concerns
+
+None

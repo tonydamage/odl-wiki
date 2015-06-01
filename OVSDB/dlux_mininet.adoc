@@ -1,0 +1,68 @@
+This page is a place to capture notes on running the Helium release with
+mininet.
+
+\1. Download and unzip the latest [Helium] release:
+
+http://www.opendaylight.org/software/downloads
+
+\2. Start karaf:
+
+cd into unzip dir +
+bin/karaf +
+ 3. Install the required features:
+
+feature:install odl-base-all odl-aaa-authn odl-restconf odl-nsf-all
+odl-adsal-northbound odl-mdsal-apidocs odl-l2switch-switch odl-dlux-core
+
+\4. Build mininet to ensure we have OpenFlow13 support:
+
+- To use the OpenFlow13 version I downloaded the latest code for mininet
+from 08/21/14. Anything later should be fine. +
+- There were previous comments that required patching mininet to gain
+OpenFlow13 but that was not necessary with the latest code. +
+ git clone git://github.com/mininet/mininet +
+git checkout -b 2.1.0p1 2.1.0p1 +
+sudo ./mininet/util/install.sh -n +
+ These were the previous instructions for modifying mininet to support
+OpenFlow13: +
+ Look in '/opt/mininet/mininet/node.py' for something like "set bridge
+%s protocols=%s' % ( self, self.protocols )" +
+ After I edit that file I copy it: sudo cp /opt/mininet/mininet/node.py
+/opt/mininet/build/lib/mininet/node.py +
+ Then build via ./install.sh -n. +
+ Probably don't need the cp to the build lib since I think the install
+does that but it doesn't hurt.
+
+More details on this step can be obtained here:
+https://lists.opendaylight.org/pipermail/ovsdb-dev/2014-June/000490.html
+and here
+https://github.com/dave-tucker/mininet/commit/21323c27347f98fbb416e6310296cea9339fc945
+
+\5. Start mininet: sudo mn --mac --switch=ovsk,protocols=OpenFlow13
+--controller=remote,ip=$\{ODL_IP},port=6653 --test pingall - runs a ping
+sanity
+
+sudo mn --mac --switch=ovsk,protocols=OpenFlow13
+--controller=remote,ip=$\{ODL_IP},port=6653 --topo=tree,3 +
+ - creates a three layered topology of 7 switches and two attached
+hosts.
+
+*Note 1:* Substitute $\{ODL_IP} with the IP address or where ODL (from
+Karaf) is running.
+
+*Note 2:* To in order for the above commands to work under Fedora 20, I
+had to first install and start openvswitch with the commands:
+
+sudo yum install openvswitch
+
+sudo systemctl start openvswtich.service
+
+\6. Verify topology in DLUX: +
+ http://$\{ODL_IP}:8181/dlux/index.html
+
+If ODL is running on localhost, you can use this:
+http://localhost:8181/dlux/index.html
+
+The default user/pass is admin/admin.
+
+At this point you should see the topology in the gui.

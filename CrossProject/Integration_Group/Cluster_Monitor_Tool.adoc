@@ -1,0 +1,93 @@
+[[cluster-monitor-tool]]
+== Cluster Monitor Tool
+
+This tool provides real-time visualization of the cluster member roles
+for all shards in the config datastore. This is useful in understanding
+clustering behavior of controllers when they are in different roles and
+states such as leader/follower, isolated, shutdown or rebooted. The tool
+assumes that all cluster members have the same shards.
+
+image:Cluster03.png[Cluster Monitor Screen
+Capture,title="Cluster Monitor Screen Capture"]
+
+A file named 'cluster.json' contains a list of the IP addresses of the
+controllers. It resides in the same directory as monitor.py. The login
+credentials "user" and "pass" are not required for monitor.py, but they
+may be needed for other apps in this directory. Since this file contains
+configuration information unique to your environment, it may be a good
+idea to stash it before performing git operations.
+
+The 'cluster.json' file should look like this:
+
+`   {` +
+`       "cluster": {` +
+`           "controllers": [` +
+`               "172.17.10.93",` +
+`               "172.17.10.94",` +
+`               "172.17.10.95"` +
+`           ],` +
+`           "user": "username",` +
+`           "pass": "password"` +
+`       }` +
+`   }`
+
+[[usage]]
+===== Usage
+
+The file is located in test/tools/clustering/cluster-monitor/
+
+$python monitor.py
+
+[[starting]]
+===== Starting
+
+Before using, start and configure all controllers in the cluster. Usage
+of the cluster deployer script is recommended. All controllers must
+initially be running so that the tool can retrieve the controller and
+shard names. Once the tool is started and the controller and cluster
+shard names are retrieved, controllers can be isolated, shut down,
+rebooted, etc.
+
+[[user-interface]]
+===== User Interface
+
+Controller member names (not host names) are displayed across the top.
+Shard names are displayed to the left.
+
+In the upper left is a heart emoticon "<3" which toggles between yellow
+and black backgrounds with each update. If a controller is down, the
+http timeout comes in to play and updating becomes much slower. If the
+heart is not blinking, some of the data may be stale.
+
+The central matrix displays controller roles. When ReST queries fail,
+the error type is displayed. Leader, Follower, and Candidate roles are
+color-coded.
+
+[[other-scripts]]
+===== Other Scripts
+
+isolate.py uses IPtables to isolate an indicated controller from the
+cluster. The tool takes a single integer argument corresponding to the
+number of a controller in the json file's ordered list of controllers.
+This is the controller to be isolated. The 'cluster.json' file
+containing a list of the IP addresses and credentials of the controllers
+is required.
+
+rejoin.py rejoins any isolated controllers to the cluster by flushing
+the IPtables of all controllers. The 'cluster.json' file containing a
+list of the IP addresses and credentials of the controllers is required.
+
+timed_isolation.py isolates an indicated controller for a specified
+duration. The tool's first integer argument corresponds to the number of
+a controller in the json file's ordered list of controllers. This is the
+controller to be isolated. The second argument is the duration of
+isolation in seconds. The 'cluster.json' file containing a list of the
+IP addresses and credentials of the controllers is required.
+
+[[future-enhancements]]
+===== Future Enhancements
+
+* Add operational shards.
+* Add a longer cURL time-out for initial retrieval of shard and member
+names.
+

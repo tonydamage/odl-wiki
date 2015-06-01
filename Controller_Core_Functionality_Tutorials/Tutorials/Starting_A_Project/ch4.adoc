@@ -1,0 +1,172 @@
+[[introduction]]
+= Introduction
+
+This chapter introduces how to put data into the MD-SAL Data Store using
+write transactions.
+
+[[putting-data-into-md-sal-data-store---write-transactions]]
+= Putting Data into MD-SAL Data Store - Write Transactions
+
+The code to implement the write transactions involves the following
+files ...
+
+`   toaster-impl/src/main/java/org/opendaylight/toaster/ToasterImpl.java: the following has been added to the code developed in chapter 3.`
+
+`   public static final InstanceIdentifier`` TOASTER_IID = InstanceIdentifier.builder(Toaster.class).build();` +
+`   private static final DisplayString TOASTER_MANUFACTURER = new DisplayString("Opendaylight");` +
+`   private static final DisplayString TOASTER_MODEL_NUMBER = new DisplayString("Model 1 - Binding Aware");`
+
+`   /**************************************************************************` +
+`    * BindingAwareProvider Methods` +
+`    *************************************************************************/` +
+`   @Override` +
+`   public void onSessionInitiated(ProviderContext session) {` +
+`       this.providerContext = session;` +
+`       this.dataService = session.getSALService(DataBroker.class);` +
+`       // Register the DataChangeListener for Toaster's configuration subtree` +
+`       dcReg = dataService.registerDataChangeListener( LogicalDatastoreType.CONFIGURATION,` +
+`                                               TOASTER_IID,` +
+`                                               this,` +
+`                                               DataChangeScope.SUBTREE );` +
+`       // Initialize operational and default config data in MD-SAL data store` +
+`       initToasterOperational();` +
+`       initToasterConfiguration();` +
+`       LOG.info("onSessionInitiated: initialization done");` +
+`   }`
+
+`   /**************************************************************************` +
+`    * ToasterImpl Private Methods` +
+`    *************************************************************************/` +
+`   /**` +
+`    * Populates toaster's initial operational data into the MD-SAL operational` +
+`    * data store.` +
+`    * Note - we are simulating a device whose manufacture and model are fixed` +
+`    * (embedded) into the hardware. / This is why the manufacture and model` +
+`    * number are hardcoded.` +
+`    */` +
+`   private void initToasterOperational() {` +
+`       // Build the initial toaster operational data` +
+`       Toaster toaster = new ToasterBuilder().setToasterManufacturer( TOASTER_MANUFACTURER )` +
+`               .setToasterModelNumber( TOASTER_MODEL_NUMBER )` +
+`               .setToasterStatus( ToasterStatus.Up )` +
+`               .build();` +
+`       // Put the toaster operational data into the MD-SAL data store` +
+`       WriteTransaction tx = dataService.newWriteOnlyTransaction();` +
+`       tx.put(LogicalDatastoreType.OPERATIONAL, TOASTER_IID, toaster);` +
+`       // Perform the tx.submit asynchronously` +
+`       Futures.addCallback(tx.submit(), new FutureCallback``() {` +
+`           @Override` +
+`           public void onSuccess(final Void result) {` +
+`               LOG.info("initToasterOperational: transaction succeeded");` +
+`           }` +
+`           @Override` +
+`           public void onFailure(final Throwable t) {` +
+`               LOG.error("initToasterOperational: transaction failed");` +
+`           }` +
+`       });` +
+`       LOG.info("initToasterOperational: operational status populated: {}", toaster);` +
+`   }`
+
+`   /**` +
+`    * Populates toaster's default config data into the MD-SAL configuration` +
+`    * data store.  Note the database write to the tree are done in a synchronous fashion` +
+`    */` +
+`   private void initToasterConfiguration() {` +
+`       // Build the default toaster config data` +
+`       Toaster toaster = new ToasterBuilder().setDarknessFactor((long)1000)` +
+`               .build();` +
+`       // Place default config data in data store tree` +
+`       WriteTransaction tx = dataService.newWriteOnlyTransaction();` +
+`       tx.put(LogicalDatastoreType.CONFIGURATION, TOASTER_IID, toaster);` +
+`       // Perform the tx.submit synchronously` +
+`       tx.submit();` +
+`       LOG.info("initToasterConfiguration: default config populated: {}", toaster);` +
+`   }`
+
+[[building-and-testing]]
+= Building and Testing
+
+We build the Toaster Provider and the Service API just like we did in
+the previous two chapters. In Chapter 4 top directory, run:
+
+`mvn clean install`
+
+Start the built Karaf distribution:
+
+`> cd distribution-karaf/target/assembly/bin` +
+`> ./karaf`
+
+The system will initialize, and the toaster will too! To observe changes
+to the karaf log file without having to type *> display* each time, use
+the following command:
+
+`> log:tail`
+
+You should see messages similar to the following in the karaf log:
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+...
+2015-01-21 21:03:02,949 | INFO  | config-pusher    | ToasterImplModule                | 222 - org.opendaylight.toaster.impl - 0.0.1.SNAPSHOT | Performing custom validation
+2015-01-21 21:03:02,960 | INFO  | config-pusher    | ToasterImplModule                | 222 - org.opendaylight.toaster.impl - 0.0.1.SNAPSHOT | Creating a new Toaster instance
+2015-01-21 21:03:02,964 | INFO  | config-pusher    | ToasterImplModule                | 222 - org.opendaylight.toaster.impl - 0.0.1.SNAPSHOT | Provider: org.opendaylight.toaster.ToasterImpl@9d61d65
+2015-01-21 21:03:03,045 | INFO  | config-pusher    | ToasterImpl                      | 222 - org.opendaylight.toaster.impl - 0.0.1.SNAPSHOT | initToasterOperational: operational status populated: Toaster [_toasterManufacturer=DisplayString [_value=Opendaylight], _toasterModelNumber=DisplayString [_value=Model 1 - Binding Aware], _toasterStatus=Up, augmentation=[]]
+2015-01-21 21:03:03,046 | INFO  | config-pusher    | ToasterImpl                      | 222 - org.opendaylight.toaster.impl - 0.0.1.SNAPSHOT | initToasterConfiguration: default config populated: Toaster [_darknessFactor=1000, augmentation=[]]
+2015-01-21 21:03:03,046 | INFO  | config-pusher    | ToasterImpl                      | 222 - org.opendaylight.toaster.impl - 0.0.1.SNAPSHOT | onSessionInitiated: initialization done
+2015-01-21 21:03:03,056 | INFO  | CommitFutures-0  | ToasterImpl                      | 222 - org.opendaylight.toaster.impl - 0.0.1.SNAPSHOT | initToasterOperational: transaction succeeded
+2015-01-21 21:03:03,058 | INFO  | CommitFutures-0  | ToasterImpl                      | 222 - org.opendaylight.toaster.impl - 0.0.1.SNAPSHOT | initToasterConfiguration: transaction succeeded
+2015-01-21 21:03:03,064 | INFO  | DOM-CFG-DCL-0    | ToasterImpl                      | 222 - org.opendaylight.toaster.impl - 0.0.1.SNAPSHOT | onDataChanged - new Toaster config: Toaster{getDarknessFactor=1000, augmentations={}}
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+In the log, notice the initToasterConfiguration, and
+initToasterOperational method calls logging the write transactions to
+the data store.
+
+Now, we will use a REST client (for example, Google Chrome Postman or
+curl) to read back toaster configuration data from the MD-SAL data
+store. Assuming that you run the client on the same machine as the
+controller, the parameters will be as follows:
+
+`HTTP Method => GET` +
+`URL => `http://localhost:8181/restconf/config/toaster:toaster[`http://localhost:8181/restconf/config/toaster:toaster`] +
+`Header => Accept: application/json` +
+`       => Authorization: Basic admin:admin`
+
+For example, you can use curl:
+
+`> curl --verbose -u admin:admin `http://localhost:8181/restconf/config/toaster:toaster[`http://localhost:8181/restconf/config/toaster:toaster`]
+
+You should see response response code _HTTP/1.1 200 OK_, with the
+following JSON output.
+
+`{` +
+`   "toaster": {` +
+`       "darknessFactor": 1000` +
+`   }` +
+`}`
+
+Now, read back toaster operational data from the MD-SAL data store.
+Assuming that you run the client on the same machine as the controller,
+the parameters will be as follows:
+
+`HTTP Method => GET` +
+`URL => `http://localhost:8181/restconf/operational/toaster:toaster[`http://localhost:8181/restconf/operational/toaster:toaster`] +
+`Header => Accept: application/json` +
+`       => Authorization: Basic admin:admin`
+
+For example, you can use curl:
+
+`> curl --verbose -u admin:admin `http://localhost:8181/restconf/operational/toaster:toaster[`http://localhost:8181/restconf/operational/toaster:toaster`]
+
+You should see response response code _HTTP/1.1 200 OK_, with the
+following JSON output.
+
+`{` +
+`   "toaster": {` +
+`       "toasterStatus": "up",` +
+`       "toasterModelNumber": "Model 1 - Binding Aware",` +
+`       "toasterManufacturer": "Opendaylight"` +
+`   }` +
+`}`
+
+[[under-the-hood]]
+= Under the Hood

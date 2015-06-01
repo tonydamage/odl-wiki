@@ -1,0 +1,369 @@
+[[test-plan]]
+== Test Plan
+
+At a high level here are the tests we will be running using the
+distributed datastore
+
+[[basic-test]]
+=== Basic Test
+
+* Run a single instance of controller with clustering turned on
+* Connect mininet to controller with topology tree,4
+* Check if all nodes and the tables for those nodes are present in the
+operational data using RESTCONF
+* Exit mininet
+* Check that all nodes and the tables for those nodes are missing in the
+operational data using RESTCONF
+
+[[acceptance-criteria]]
+==== Acceptance Criteria
+
+* The test should work
+* Exceptions should only be limited to the ones that show up when
+controller is run with inmemory datastore
+
+[[odl-integration-tests]]
+=== ODL Integration tests
+
+* In a single instance deployment enable clustering and run the ODL
+Integration tests for the Base version
+* In a 3 node deployment run the ODL integration tests for the Base
+version against any one node
+
+[[acceptance-criteria-1]]
+==== Acceptance Criteria
+
+All tests should pass
+
+[[cbench]]
+=== CBench
+
+* In a single instance deployment enable clustering and run CBench for
+datastore against it
+* In a 3 node deployment run CBench against any one node
+
+[[acceptance-criteria-2]]
+==== Acceptance Criteria
+
+Distributed Datastore performance should be atleast 90% of InMemory
+Datastore performance
+
+[[isolation-tests]]
+=== Isolation tests
+
+To ensure that issues with the clustering can be isolated from modules
+like OpenFlowPlugin, Inventory Manager, Statictics Manager etc we are
+designing a test suite which includes a few new test modules. These
+modules will be used to modify data in the data store and invoke remote
+routed RPC. Initially python scripts will be used to drive these modules
+so that later on these scripts can be integrated into the robot test
+suite.
+
+[[test-suite-modules]]
+==== Test Suite Modules
+
+Test suite is a very simple application, which keeps record of cars,
+people and what cars a person bought. Test suite has three yang models,
+which may resides on different nodes of cluster data store.
+
+First model is to handle details about a car and here is how it looks
+like -
+
+` module car {` +
+`   yang-version 1;` +
+`   namespace "`urn:opendaylight:params:xml:ns:yang:controller:config:sal-clustering-it:car[`urn:opendaylight:params:xml:ns:yang:controller:config:sal-clustering-it:car`]`";` +
+`   prefix car;` +
+`   import ietf-inet-types { prefix "inet"; revision-date 2010-09-24; }` +
+`   organization "Netconf Central";` +
+`   contact` +
+`     "Harman Singh ``";` +
+`   description` +
+`     "YANG model for car for test application";` +
+`   revision "2014-08-18" {` +
+`     description` +
+`       "Clustering sample app";` +
+`   }` +
+`   typedef car-id {` +
+`     type inet:uri;` +
+`     description "An identifier for car entry.";` +
+`   }` +
+`   grouping car-entry {` +
+`     description "Describes the contents of a car entry -` +
+`                      Details of the car manufacturer, model etc";` +
+`     leaf id {` +
+`       type car-id;` +
+`       description "identifier of single list of entries.";` +
+`     }` +
+`     leaf model {` +
+`       type string;` +
+`     }` +
+`     leaf manufacturer {` +
+`       type string;` +
+`     }` +
+`     leaf year {` +
+`       type uint32;` +
+`     }` +
+`     leaf category {` +
+`       type string;` +
+`     }` +
+`   }` +
+`   container cars {` +
+`     description` +
+`       "Top-level container for all car objects.";` +
+`     list car-entry {` +
+`       key "id";` +
+`       description "A list of cars (as defined by the 'grouping car-entry').";` +
+`       uses car-entry;` +
+`     }` +
+`   }` +
+` }`
+
+Python scripts will add a set of cars using RESTConf APIs. Second model
+is about person and its details. This model also has a rpc to add person
+-
+
+` module people {` +
+`   yang-version 1;` +
+`   namespace "`urn:opendaylight:params:xml:ns:yang:controller:config:sal-clustering-it:people[`urn:opendaylight:params:xml:ns:yang:controller:config:sal-clustering-it:people`]`";` +
+`   prefix people;` +
+`   import ietf-inet-types { prefix "inet"; revision-date 2010-09-24; }` +
+`   organization "Netconf Central";` +
+`   contact` +
+`     "Harman Singh ``";` +
+`   description` +
+`     "YANG model for person for test application";` +
+`   revision "2014-08-18" {` +
+`     description` +
+`       "Clustering sample app";` +
+`   }` +
+`   typedef person-id {` +
+`     type inet:uri;` +
+`     description "An identifier for person.";` +
+`   }` +
+`   typedef person-ref {` +
+`     type instance-identifier;` +
+`     description "A reference that points to an people:people/person in the data tree.";` +
+`   }` +
+`   identity person-context {` +
+`       description "A person-context is a classifier for person elements which allows an RPC to provide a service on behalf of a particular element in the data tree.";` +
+`   }` +
+`   grouping person {` +
+`     description "Describes the details of the person";` +
+`     leaf id {` +
+`       type person-id;` +
+`       description "identifier of single list of entries.";` +
+`     }` +
+`     leaf gender {` +
+`       type string;` +
+`     }` +
+`     leaf age {` +
+`       type uint32;` +
+`     }` +
+`     leaf address {` +
+`       type string;` +
+`     }` +
+`     leaf contactNo {` +
+`       type string;` +
+`     }` +
+`   } ` +
+`   container people {` +
+`     description` +
+`       "Top-level container for all people";` +
+`     list person {` +
+`       key "id";` +
+`       description "A list of people (as defined by the 'grouping person').";` +
+`       uses person;` +
+`     }` +
+`   }` +
+`   rpc add-person {` +
+`     description` +
+`       "Add a person entry into database";` +
+`     input {` +
+`       uses person;` +
+`     }` +
+`   }` +
+` }`
+
+Test script will add first person to data store directly using RESTConf,
+but after that person addition should happen via calling add-person rpc.
+add-person rpc registers that person for routing purpose. This will make
+sure that each node in cluster has some people available, thus whenever
+a person buys a car and buy-car routed rpc gets executed, it could test
+routedRPC code, depends on which node that person is registered.
+
+buy-car routed rpc is present in separate Yang file along with a
+notification, which gets generated once person instance identifier is
+registered.
+
+` module car-purchase {` +
+`   yang-version 1;` +
+`   namespace "`urn:opendaylight:params:xml:ns:yang:controller:config:sal-clustering-it:car-purchase[`urn:opendaylight:params:xml:ns:yang:controller:config:sal-clustering-it:car-purchase`]`";` +
+`   prefix cp;` +
+`   import ietf-inet-types { prefix "inet"; revision-date 2010-09-24; }` +
+`   import car { prefix "car"; revision-date 2014-08-18; }` +
+`   import people { prefix "person"; revision-date 2014-08-18; }` +
+`   import yang-ext {prefix "ext"; revision-date "2013-07-09";}` +
+`   organization "Netconf Central";` +
+`   contact` +
+`     "Harman Singh ``";` +
+`   description` +
+`     "YANG model for car purchase for test application";` +
+`   revision "2014-08-18" {` +
+`     description` +
+`       "Clustering sample app";` +
+`   }` +
+`   rpc buy-car {` +
+`         description` +
+`           "buy a new car";` +
+`         input {` +
+`           leaf person {` +
+`             ext:context-reference "person:person-context";` +
+`             type person:person-ref;` +
+`             description "A reference to a particular person.";` +
+`           }` +
+`           leaf car-id {` +
+`             type car:car-id;` +
+`             description "identifier of car.";` +
+`           }` +
+`           leaf person-id {` +
+`             type person:person-id;` +
+`             description "identifier of person.";` +
+`           }` +
+`         }` +
+`    }` +
+`    notification carBought {` +
+`         description` +
+`           "Indicates that a person bought a car.";` +
+`         leaf car-id {` +
+`           type car:car-id;` +
+`           description "identifier of car.";` +
+`         }` +
+`         leaf person-id {` +
+`           type person:person-id;` +
+`           description "identifier of person.";` +
+`         }` +
+`     }` +
+` }`
+
+Third model is a map of cars and people. Whenever a person buys a car
+and triggers above mentioned routed rpc of buy-car, a notification will
+be generated. A listener to that notification, will add an entry in
+cars-people map. We need to add first entry in map directly in datastore
+via RestConf.
+
+` module car-people {` +
+`   yang-version 1;` +
+`   namespace "`urn:opendaylight:params:xml:ns:yang:controller:config:sal-clustering-it:car-people[`urn:opendaylight:params:xml:ns:yang:controller:config:sal-clustering-it:car-people`]`";` +
+`   prefix car;` +
+`   import ietf-inet-types { prefix "inet"; revision-date 2010-09-24; }` +
+`   import car { prefix "c"; revision-date 2014-08-18; }` +
+`   import people { prefix "people"; revision-date 2014-08-18; }` +
+`   organization "Netconf Central";` +
+`   contact` +
+`     "Harman Singh ``";` +
+`   description` +
+`     "YANG model for car for test application";` +
+`   revision "2014-08-18" {` +
+`     description` +
+`       "Clustering sample app";` +
+`   }` +
+`   container car-people {` +
+`     description` +
+`      "Top-level container for all people car map";` +
+`     list car-person {` +
+`       key "car-id person-id";` +
+`       description "A mapping of cars and people.";` +
+`       leaf car-id {` +
+`         type c:car-id;` +
+`       }` +
+`       leaf person-id {` +
+`         type people:person-id;` +
+`       }` +
+`     }` +
+`   }` +
+` }`
+
+[[sample-restconf-calls]]
+==== Sample RestConf calls
+
+` `*`Add` `car`*` `
+
+POST http://localhost:8080/restconf/config/
+
+` Payload - ` +
+` {"car:cars":{` +
+`   "car-entry": [` +
+`    {` +
+`     "id": "1",` +
+`     "category": "coupe",` +
+`     "model": "mustang",` +
+`     "manufacturer": "ford",` +
+`     "year": "2013"` +
+`    }` +
+`   ]` +
+` }` +
+`}`
+
+` `*`Add` `person`*` `
+
+POST http://localhost:8080/restconf/config/
+
+` Payload -` +
+` {"people:people":{` +
+` "person": [` +
+`   {` +
+`     "id": “harman",` +
+`     "gender": "Male",` +
+`     "age": “28",` +
+`     "address": "milpitas",` +
+`     "contactNo": "434343434"` +
+`   }` +
+` ]` +
+` }` +
+`}`
+
+` `*`Add` `car-person` `entry`*
+
+POST http://localhost:8080/restconf/config/
+
+` Payload - ` +
+` {"car-people:car-people":{` +
+`  "car-person": [` +
+`    {` +
+`     "car-id": "1",` +
+`     "person-id": "harman" ` +
+`    }` +
+`   ]` +
+` }` +
+`}`
+
+` `*`Add` `person` `via` `rpc`* +
+` URL - `http://localhost:8080/restconf/operations/people:add-person[`http://localhost:8080/restconf/operations/people:add-person`] +
+` Payload - ` +
+` {` +
+`   "input" :` +
+`   {` +
+`    "people:id" : "tintin",` +
+`    "people:gender":"Male",` +
+`    "people:address" : "San Jose",` +
+`    "people:contactNo":"2324234324",` +
+`    "people:age":"23"` +
+`   }` +
+` }`
+
+` `*`Buy` `car` `via` `routed` `rpc`* +
+`  URL - `http://localhost:8080/restconf/operations/car-purchase:buy-car[`http://localhost:8080/restconf/operations/car-purchase:buy-car`] +
+`  Payload - ` +
+`  {` +
+`   "input" :` +
+`    {` +
+`      "car-purchase:person" : "/people:people/people:person[people:id='tintin']", ` +
+`      "car-purchase:person-id" : "tintin",` +
+`      "car-purchase:car-id" : "1"` +
+`    }` +
+`  }`
+
+[[acceptance-criteria-3]]
+==== Acceptance Criteria
+
+TBD

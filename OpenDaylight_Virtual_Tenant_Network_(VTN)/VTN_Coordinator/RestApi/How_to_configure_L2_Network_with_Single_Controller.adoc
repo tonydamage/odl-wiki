@@ -1,0 +1,171 @@
+[[overview]]
+= Overview
+
+This example provides the procedure to demonstrate configuration of VTN
+Coordinator with L2 network using VTN Virtualization(single controller).
+Here is the Example for vBridge Interface Mapping with Single Controller
+using mininet. The Mininet details and set-up can be referred at below
+URL:
+https://wiki.opendaylight.org/view/OpenDaylight_Controller:Installation#Using_Mininet
+
+image:Single Controller Mapping.png[Single Controller Mapping.png,title="Single Controller Mapping.png"]
+
+[[requirements]]
+= Requirements
+
+* Configure Mininet and create a topology:
+
+::
+----------------------------------------------------------------------------------
+mininet@mininet-vm:~$ sudo mn --controller=remote,ip=<controller-ip> --topo tree,2
+----------------------------------------------------------------------------------
+
+[[configuration]]
+= Configuration
+
+All the commands below will be execute on a controller terminal (change
+127.0.0.1 to your VTN Coordinator IP, if it is running on a different
+host). Remember to change to yours IP of controller. For troubleshooting
+you can add -v after curl command to see debug information.
+
+* Create a Controller
+
+[cols="",]
+|=======================================================================
+|curl --user admin:adminpass -H 'content-type: application/json' -X POST
+-d '\{"controller": \{"controller_id": "controllerone", "ipaddr":"**",
+"type": "odc", "version": "1.0", "auditstatus":"enable"}}'
+http://127.0.0.1:8083/vtn-webapi/controllers.json
+|=======================================================================
+
+If the controller is able to access mininet's topology, you should be
+"operstatus":"up" with this command: # curl --user admin:adminpass -H
+'content-type: application/json' -X GET
+http://127.0.0.1:8083/vtn-webapi/controllers/detail
+
+* Create a VTN
+
+[cols="",]
+|=======================================================================
+|curl --user admin:adminpass -H 'content-type: application/json' -X POST
+-d '\{"vtn" : \{"vtn_name":"vtn1","description":"test VTN" }}'
+http://127.0.0.1:8083/vtn-webapi/vtns.json
+|=======================================================================
+
+* Create a vBridge in the VTN
+
+[cols="",]
+|=======================================================================
+|curl --user admin:adminpass -H 'content-type: application/json' -X POST
+-d '\{"vbridge" :
+\{"vbr_name":"vBridge1","controller_id":"controllerone","domain_id":"(DEFAULT)"
+}}' http://127.0.0.1:8083/vtn-webapi/vtns/vtn1/vbridges.json
+|=======================================================================
+
+* Create two Interfaces into the vBridge
+
+[cols="",]
+|=======================================================================
+|curl --user admin:adminpass -H 'content-type: application/json' -X POST
+-d '\{"interface": \{"if_name": "if1","description": "if_desc1"}}'
+http://127.0.0.1:8083/vtn-webapi/vtns/vtn1/vbridges/vBridge1/interfaces.json
+
+|curl --user admin:adminpass -H 'content-type: application/json' -X POST
+-d '\{"interface": \{"if_name": "if2","description": "if_desc2"}}'
+http://127.0.0.1:8083/vtn-webapi/vtns/vtn1/vbridges/vBridge1/interfaces.json
+|=======================================================================
+
+* Get the list of logical ports configured
+
+[cols="",]
+|=======================================================================
+|curl --user admin:adminpass -H 'content-type: application/json' -X GET
+http://127.0.0.1:8083/vtn-webapi/controllers/controllerone/domains/latexmath:[$DEFAULT$]/logical_ports.json
+|=======================================================================
+
+If no logical ports were listed something wrong with the communication
+between VTN-Coordinator and the controller, than review your
+configurations and IP addresses used.
+
+* Note:Post lithium release logical_port_id will be in below format
+
+` logical_port_id":"PP-OF:openflow:1-s1-eth2" change the portmap configuration accordingly. `
+
+* Sample of logical ports list
+
+` {"logical_ports":[{"logical_port_id":"PP-OF:openflow:1-s1-eth1"},{"logical_port_id":"PP-OF:openflow:1-s1-eth2"},` +
+` {"logical_port_id":"PP-OF:openflow:2-s2-eth1"},{"logical_port_id":"PP-OF:openflow:2-s2-eth2"},` +
+` {"logical_port_id":"PP-OF:openflow:2-s2-eth3"},{"logical_port_id":"PP-OF:openflow:3-s3-eth1"},` +
+` {"logical_port_id":"PP-OF:openflow:3-s3-eth2"},{"logical_port_id":"PP-OF:openflow:3-s3-eth3"}]}`
+
+* Sample portmap configuration
+
+[cols="",]
+|=======================================================================
+|curl --user admin:adminpass -H 'content-type: application/json' -X PUT
+-d '\{"portmap":\{"logical_port_id": "PP-OF:openflow:3-s3-eth1"}}'
+http://127.0.0.1:8083/vtn-webapi/vtns/vtn1/vbridges/vBridge1/interfaces/if1/portmap.json
+|=======================================================================
+
+* Configure two mappings on the interfaces
+
+[cols="",]
+|=======================================================================
+|curl --user admin:adminpass -H 'content-type: application/json' -X PUT
+-d '\{"portmap":\{"logical_port_id":
+"PP-OF:00:00:00:00:00:00:00:03-s3-eth1"}}'
+http://127.0.0.1:8083/vtn-webapi/vtns/vtn1/vbridges/vBridge1/interfaces/if1/portmap.json
+
+|curl --user admin:adminpass -H 'content-type: application/json' -X PUT
+-d '\{"portmap":\{"logical_port_id":
+"PP-OF:00:00:00:00:00:00:00:02-s2-eth1"}}'
+http://127.0.0.1:8083/vtn-webapi/vtns/vtn1/vbridges/vBridge1/interfaces/if2/portmap.json
+|=======================================================================
+
+[[verification]]
+= Verification
+
+Please verify whether the Host1 and Host3 are pinging.
+
+* Send packets from Host1 to Host3
+
+[cols="",]
+|===================
+|mininet> h1 ping h3
+|===================
+
+[[faqs]]
+= FAQ's
+
+[[can-the-same-port-be-port-mapped-in-multiple-vbridges]]
+== Can the same port be port mapped in multiple vbridges ?
+
+`  Yes, The combination `` should be unique in a configuration. ` +
+`  i.e. If sample port with vlan 100 is mapped to a vbridge, You cannot use the same configuration in any other vbridge.`
+
+[[does-vtn-manager-depends-on-opendaylight-controllers-routing-function]]
+== Does VTN manager depends on opendaylight controller's routing
+function?
+
+`  VTN Manager uses the IRouting API of OpenDaylight to determine the path and writes flow entries to switches.`
+
+[[mandatory-check-list-before-starting-any-testing]]
+== Mandatory check list before starting any testing:
+
+[cols="",]
+|=======================================================================
+|curl -v --user admin:adminpass -H 'content-type: application/json' -H
+'ipaddr:127.0.0.1' -X GET
+http://127.0.0.1:8083/vtn-webapi/controllers/detail.json
+|=======================================================================
+
+`  Check the controller status after creating it. Using the above GET command in Coordinator:` +
+`  The operat status should be UP. Only when the controller is UP all the actions will be learned in the ODL.` +
+`  If the controller status is DOWN all the operations in the VTN coordinator will be a success but it will not get reflected` +
+`  in the Controller.`
+
+[[things-to-check-before-pinging]]
+== Things to check before pinging:
+
+`  After creating Portmap for the interfaces check if the Vbridge,Vterminal and the interfaces for UP status. ` +
+`  Then if flowlists and flowfilters are used, check the Source and destination IP’s have been correctly assigned or not.`

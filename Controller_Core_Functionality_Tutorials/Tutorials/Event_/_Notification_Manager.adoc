@@ -1,0 +1,431 @@
+[[overview-of-event-topic-broker]]
+= Overview of Event Topic Broker
+
+[[introduction]]
+== Introduction
+
+Today it is common to have plethora of data collection platforms, often
+dedicated to specific devices. These platforms often act as inadvertent
+silos for the data they obtain, which can be inefficient when looking at
+Big Data approach to OSS/management/service creation.
+
+Naturally different devices have individual requirements when it comes
+to 'big-data' collection. The OpenDaylight southbound architecture
+provides us with an excellent framework for device interaction, not only
+to configure devices/system, but also to function as an acquisition
+layer for management/telemetry data.
+
+Different OSS, EMS, Analytics and other platforms have particular
+requirements when it comes to ingesting data. The OpenDaylight
+northbound architecture can therefore be utilised to provide support for
+a variety of data connector plugins.
+
+Security and policy control of network data has always been a complex
+issue for network/infrastructure providers, and data is often collected
+by multiple times by multiple systems. Using a centralised approach, the
+controller can be programmed through policy to ‘collect once, distribute
+many’.
+
+In summary Open Daylight lends itself well to being both a controller
+environment for not only configuration / management, but also as a
+conduit between devices and OSS.
+
+[[how-can-i-try-this]]
+== How can I try this?
+
+The core code and an example event generator / user-agent is available
+via:
+
+---------------------------------------------------------------
+git clone https://git.opendaylight.org/gerrit/coretutorials.git
+---------------------------------------------------------------
+
+Section 2 of this wiki details how to build, configure and use some
+example REST APIs.
+
+[[the-event-topic-broker]]
+== The Event Topic Broker
+
+image:Event_topic_broker_1.jpg[Event_topic_broker_1.jpg,title="Event_topic_broker_1.jpg"]
+
+[[key-components]]
+== Key Components
+
+In order to enable both the sending and receiving of notifications via a
+Topic system there are 3 key component areas which enable this
+functionality.We can best describe the new functionality by In order to
+implement this functionality OpenDaylight gains the following new
+functions:
+
+[[event-topic-broker-evtb]]
+=== Event Topic Broker (EvTB)
+
+A set of APIs which enabled Opendaylight to encapsulate
+events/notifications and present them as Topics which can be subscribed
+to. You can identify this function in OpenDaylight as a features called
+'odl-message-bus' *** name to be changed shortly ***
+
+--------------------------------------------------------------------------------------------
+odl-message-bus                 | 1.2.0-SNAPSHOT  |  x         odl-controller-1.2.0-SNAPSHOT
+--------------------------------------------------------------------------------------------
+
+[[spi-southbound-convenience-api]]
+=== SPI (southbound convenience API)
+
+Provides an SPI to enable a plugin to register with the EvTB as an Event
+Source.
+
+[[user-agents-ua]]
+=== User Agents (UA)
+
+These are effectively plugins which subscribed to one or more Topic/s.
+They can be self-contained, for example an Application which ingests and
+acts on notifications, or they can be connectors to other platforms or
+applications, for example an XMPP client connected to an external Jabber
+based infrastructure. The function of a User Agent can also be
+implemented into a Southbound plugin, should this be so desired.
+
+[[event-topic-broker-evtb-1]]
+== Event Topic Broker (EvTB)
+
+[[core-capabilities]]
+=== Core Capabilities
+
+[[event-sources-evs]]
+==== Event Sources (EvS)
+
+An event source is a physical or virtual object that is capable of
+producing notifications. Examples of Event Sources would be, network
+devices such as Routers/Switches, newly emerging devices from IOT
+platforms, virtual appliances from NFV. etc. It is also possible of the
+EvS to be a Southbound plugin, which is either proxying for the
+nodes/devices which is manages, or simply that the plugin is an eEvS.
+
+[[topics]]
+==== Topics
+
+A Topic is a stream of notifications/events produced from a user defined
+set of nodes and notification type. Two patterns have to be used when
+creating a topic: the event source nodes are specified by
+'node-id-pattern', the notification types by 'notification-pattern'. For
+example "node-id-pattern":"router_PE_*" and "notification-pattern":
+"urn:ietf:params:xml:ns:yang:ietf-syslog*". When a topic is created a
+identified by a unique ID is returned, for example 563ac588
+
+[[event-source-topology-evst]]
+==== Event Source Topology (EvST)
+
+Nodes which register as being Event Source capable are stored in the
+Event Source Topology (EvST). This is effectively a data-base residing
+in the OpenDaylight data-store and is used by the Event Manager to
+identify nodes and their capabilities.
+
+[[interfaces-provided]]
+=== Interfaces Provided
+
+Topic management is via a set of APIs, which enable the creation /
+deletion of Topics, and give the ability to subscribe to Topics.
+
+[[topic-management-via-rest-creating-and-destroying-a-topic]]
+== Topic Management via REST (Creating and Destroying a Topic)
+
+For creating and destroying a topic the suitable equivalents of the REST
+API requests stated in the examples below can be used.
+
+[[creating-a-topic]]
+=== Creating a Topic
+
+----------------------------------------------------------------------------
+POST http://localhost:8181/restconf/operations/event-aggregator:create-topic
+HEADERS Content-Type application/json
+
+{ "event-aggregator:input": {
+  "notification-pattern": "pattern.of.notification.*",
+  "node-id-pattern":"router-17*" 
+  }
+}
+----------------------------------------------------------------------------
+
+The request returns a topic-id unique to that particular topic., for
+example:
+
+----------------------------------------------------------
+{
+    "output": {
+        "topic-id": "9f4e18cd-06f0-4ad6-9d16-ad9a34eb4031"
+    }
+}
+----------------------------------------------------------
+
+[[destroying-a-topic]]
+=== Destroying a Topic
+
+-----------------------------------------------------------------------------
+POST http://localhost:8181/restconf/operations/event-aggregator:destroy-topic
+HEADERS Content-Type application/json
+
+<destroy-topic>
+  <topic-id>9f4e18cd-06f0-4ad6-9d16-ad9a34eb4031</topic-id>
+</destroy-topic>
+-----------------------------------------------------------------------------
+
+The request returns no value....** to be updated **
+
+[[topic-management-via-java-api]]
+== Topic Management via JAVA API
+
+[[creating-and-destroying-a-topic]]
+=== Creating and Destroying a Topic
+
+To create or destroy a topic, a client code has to gain a particular
+EventAggregatorService via the RpcProviderRegistry and to call the
+appropriate methods of the service:
+
+------------------------------------------------------------------------
+Future<RpcResult<CreateTopicOutput>> createTopic(CreateTopicInput input)
+
+Future<RpcResult<java.lang.Void>> destroyTopic(DestroyTopicInput input);
+------------------------------------------------------------------------
+
+[[example-event-generator---hweventsource]]
+== Example Event Generator - hweventsource
+
+Available for the OpenDaylight controller is a set of features which
+allow a user/developer to test the basic functionality of the Event
+Topic Broker.
+
+The hweventsource project can be considered a starting point for
+users/developers wishing to understand how to generate events, create a
+topic and then subscribe to that topic.
+
+The hweventsource application creates its own event source and register
+instances of this Event Source (nodes) to the MD SAL infrastructure
+using the Event Topic Broker. The registration of Event Source nodes has
+to be done via the EventSourceRegistry, which is a part of the Event
+Topic Broker SPI. Each event source node periodically simulates
+occurring of an event by generating appropriate notifications. The
+EventSourceRegistry notifies the registered event source nodes about new
+topics.
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------------
+odl-hweventsource-api           | 1.0-SNAPSHOT     | x         | odl-hweventsource-1.0-SNAPSHOT        | OpenDaylight :: hweventsource :: api              
+odl-hweventsource               | 1.0-SNAPSHOT     | x         | odl-hweventsource-1.0-SNAPSHOT        | OpenDaylight :: hweventsource                     
+odl-hweventsource-rest          | 1.0-SNAPSHOT     | x         | odl-hweventsource-1.0-SNAPSHOT        | OpenDaylight :: hweventsource :: REST             
+odl-hweventsource-ui            | 1.0-SNAPSHOT     | x         | odl-hweventsource-1.0-SNAPSHOT        | OpenDaylight :: hweventsource :: UI               
+odl-hweventsource-uagent        | 1.0-SNAPSHOT     | x         | odl-hweventsource-1.0-SNAPSHOT        | OpenDaylight :: hweventsource :: UserAgent        
+-----------------------------------------------------------------------------------------------------------------------------------------------------------
+
+[[trying-out-the-functionality]]
+= Trying out the Functionality
+
+The CoreTutorials project includes all the functionality mentioned in
+part 1 of this Wiki.
+
+[[building-the-project]]
+== Building the Project
+
+In your project build directory clone the coretutorials project and
+build it. If you wish to run all the test, then remove
+'-Dcheckstyle.skip=true -DskipTests=true' from the instructions below,
+however it will take significantly longer to build.
+
+---------------------------------------------------------------
+git clone https://git.opendaylight.org/gerrit/coretutorials.git
+cd coretutorials
+mvn clean install -Dcheckstyle.skip=true -DskipTests=true
+---------------------------------------------------------------
+
+Start OpenDaylight and check out the build.
+
+-------------------------------------------
+cd /hweventsource/karaf/target/assembly/bin
+./karaf
+-------------------------------------------
+
+Setup an event-output file, which will be used view the subscribed
+events later.
+
+----------------------------
+mkdir  -p /var/tmp/test-logs
+chmod 777 /var/tmp/test-logs
+----------------------------
+
+[[exploring-the-functionality]]
+== Exploring the Functionality
+
+By default the _odl-message-bus_ and _hweventsource_ are loaded and
+therefore you can view entries in the _Event Source Topology_.
+
+[[view-event-source-topology]]
+=== View Event Source Topology
+
+The REST call to view this is below:
+
+--------------------------------------------------------------------------------
+GET http://localhost:8181/restconf/operational/network-topology:network-topology
+
+HEADERS Content-Type application/json
+--------------------------------------------------------------------------------
+
+you will be returned a result of:
+
+-------------------------------------------------------------------------------
+{
+    "network-topology": {
+        "topology": [
+            {
+                "topology-id": "EVENT-SOURCE-TOPOLOGY",
+                "topology-types": {
+                    "event-source:topology-event-source": {}
+                },
+                "node": [
+                    {
+                        "node-id": "EventSourceSample01",
+                        "event-source:event-source-node": "EventSourceSample01"
+                    },
+                    {
+                        "node-id": "EventSourceSample00",
+                        "event-source:event-source-node": "EventSourceSample00"
+                    }
+                ]
+            }
+        ]
+    }
+}
+-------------------------------------------------------------------------------
+
+[[creating-a-topic-1]]
+=== Creating a Topic
+
+In order to create a Topic you will need to create a topic. In this
+example we use the notification-pattern that corresponds a given
+notification type and to the desired nodes.
+
+-----------------------------------------------------------------------------
+POST: http://localhost:8181/restconf/operations/event-aggregator:create-topic
+HEADERS: Content-Type application/json
+BODY:
+{ "event-aggregator:input": {
+  "notification-pattern": "*sample*",
+  "node-id-pattern":"*00"  
+  }
+}
+-----------------------------------------------------------------------------
+
+You will be returned a response via REST contining the unique Topic-ID.
+
+----------------------------------------------------------
+{
+    "output": {
+        "topic-id": "c61d441c-ac01-4f23-983f-cc53cf0d0cd7"
+    }
+}
+----------------------------------------------------------
+
+[[subscribing-to-the-topic]]
+=== Subscribing to the Topic
+
+As described in section 1.8 included in the project is a basic
+user-agent called _odl-hweventsource-uagent_. This UA can subscribe to
+the topic you have just created and output this to a log file for the
+purposes of demonstration.
+
+-----------------------------------------------------------------------------
+POST: http://localhost:8181/restconf/operations/uagent-topic-read:read-topic
+HEADERS: Content-Type application/json
+BODY:
+{  
+  "input":  
+  {      "uagent-topic-read:topic-id": "c61d441c-ac01-4f23-983f-cc53cf0d0cd7"
+  }
+}
+-----------------------------------------------------------------------------
+
+[[viewing-the-topic-events]]
+=== Viewing the Topic Events
+
+Earlier you created a directory, and it is here we can use the log file
+to view the events coming from the subscription to the Topic. In a
+terminal window you can simply 'tail the log file.
+
+------------------------------------------------------
+tail -f /var/tmp/test-logs/hweventsource-uagent-00.log
+------------------------------------------------------
+
+You will see a new 'Event' in the log every 3 seconds.
+
+[[playing-with-event-paramaters-in-hweventsource]]
+=== Playing with Event Paramaters in _hweventsource_
+
+There are 2 configuration files which control the _hweventsource_
+functions. Since this is only a demo to generate events, the config is
+limited. However if you wish to play around you the following parameters
+can be configured.
+
+In your project direction move to the following directory
+
+----------------------------------------------------------------------------
+cd /coretutorials/hweventsource/karaf/target/assembly/etc/opendaylight/karaf
+----------------------------------------------------------------------------
+
+Here you will see the following 2 files:
+
+01-hweventsource-config.xml and 02-hweventsource-config-uagent.xml
+
+[[changing-the-event-parameters]]
+==== Changing the Event Parameters
+
+In _01-hweventsource-config.xml_ you can set the following parameters:
+
+------------------------------------------------------------------------------------------------------------------------------------------
+<number-event-sources>2</number-event-sources> <!-- number of event sources created after start  -->
+<message-generate-period>3</message-generate-period> <!-- each event source will generate notification in given period (in seconds)    -->
+<message-text>Hello World</message-text> <!-- notification will contain given text -->
+------------------------------------------------------------------------------------------------------------------------------------------
+
+In _02-hweventsource-config-uagent.xml_ you can change the output
+directory of the events.
+
+-----------------------------------------------------------------------------------
+<output-file-name>/var/tmp/test-logs/hweventsource-uagent-00.log</output-file-name>
+-----------------------------------------------------------------------------------
+
+[[work-in-progress-will-be-a-split-from-this-wiki---registering-a-plugin-as-an-event-source-work-in-progress]]
+= *** WORK IN PROGRESS *** Will be a split from this Wiki - Registering
+a plugin as an Event Source *** WORK IN PROGRESS ***
+
+To register and unregister as an Event Source a client/plugin has to use
+the _EventSourceRegistry_ service. This service is provided by the
+_messagebus-app-impl_ module.
+
+The items of the arguments passed to these methods are equivalent to
+those used in REST API requests.
+
+An event source is a topology node able to produce notifications. To
+register an event source, the client code has to perform the next steps:
+
+Create an object of the class implementing the EventSource interface.
+The getSourceNodeKey() method of this class has to return NodeKey
+identifying the topology node that is event source.
+
+To register EventSource object, the client has to call method
+registerEventSource() on the EventSourceRegistry service. The service
+will add node into the event source topology and register it as RPC
+provider. The registerEventSource() method returns an
+EventSourceRegistration object.
+
+The registered event source will be associated with all topics known at
+the time of it’s registration and with all topics created later.
+Unregistering an Event Source
+
+To unregister an event source the client code has to call the method
+close() on the EventSourceRegistration object. The EventSourceRegistry
+removes the node from the event source topology and unregisters it as
+RPC provider.
+
+[[community-conversation]]
+= Community Conversation
+
+`  `https://lists.opendaylight.org/pipermail/controller-dev/2015-March/thread.html[`https://lists.opendaylight.org/pipermail/controller-dev/2015-March/thread.html`] +
+`  `https://meetings.opendaylight.org/opendaylight-meeting/2015/md_sal_interest_call/opendaylight-meeting-md_sal_interest_call.2015-03-24-16.01.txt[`https://meetings.opendaylight.org/opendaylight-meeting/2015/md_sal_interest_call/opendaylight-meeting-md_sal_interest_call.2015-03-24-16.01.txt`] +
+`  `https://lists.opendaylight.org/pipermail/controller-dev/2015-March/008715.html[`https://lists.opendaylight.org/pipermail/controller-dev/2015-March/008715.html`]

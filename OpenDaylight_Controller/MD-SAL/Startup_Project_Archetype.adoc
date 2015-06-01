@@ -1,0 +1,526 @@
+[[introduction]]
+== Introduction
+
+This tutorial is aimed at a developer who would like a quick start to
+OpenDaylight Development. It will create a local repository for the code
+and guide you through a simple build process. Once the tutorial is
+complete you will be able to start OpenDaylight and the test a simple
+RPC. The test RPC will be one you have created, based on the principle
+of 'hello world'.
+
+Ideally you will have already have a working knowledge of Maven 3.1.1
+(at time of writing), Java 1.7.0_75 (at time of writing) and how to set
+up an environment with the correct paths/variables on your development
+machine.
+
+During this tutorial you will use the Maven Archetype framework, which
+provides a template approach to downloading projects. For more details
+please read
+http://maven.apache.org/guides/introduction/introduction-to-archetypes.html
+.
+
+[[setup]]
+== Setup
+
+Once you have setup your development machine with Maven and Java, you
+will need to update your Maven settings.xml. A quick way to do this is
+to download via
+GettingStarted:Development_Environment_Setup#Edit_your_.7E.2F.m2.2Fsettings.xml[
+Edit your settings.xml file ]
+
+You should view this file to get a better understanding as to what it is
+for, which is to define the repositories for this project.
+
+IMPORTANT - If you already have previously downloaded OpenDaylight for
+another project it is recommended that you remove an existing repository
+before you start this project. If you are simply rebuilding the projects
+below, having previously run this tutorial, then you don't need to
+delete your local repository.
+
+If you are using Linux on as your development machine, you will find
+your local repository in ~/.m2/repository. Other platforms will vary.
+
+[[part-1---build-with-a-simple-example-module]]
+== Part 1 - Build with a simple 'Example' module
+
+Let's begin by creating a simple 'Example' project using Maven and an
+archetype called 'opendaylight-startup-archetype'.
+
+If this is the first time you are downloading this project then it will
+take a while to pull all the code from the remote repository. Don't
+panic if this takes a while
+
+----------------------------------------------------------------------------------------------------------------------------
+mvn archetype:generate -DarchetypeGroupId=org.opendaylight.controller -DarchetypeArtifactId=opendaylight-startup-archetype \
+-DarchetypeRepository=http://nexus.opendaylight.org/content/repositories/opendaylight.snapshot/ \
+-DarchetypeCatalog=http://nexus.opendaylight.org/content/repositories/opendaylight.snapshot/archetype-catalog.xml
+----------------------------------------------------------------------------------------------------------------------------
+
+Respond to the prompts (Please note that groupid and artifactid need to
+be all lower case):
+
+--------------------------------------------------------------------------------------------------------------
+Define value for property 'groupId': : org.opendaylight.example
+Define value for property 'artifactId': : example
+Define value for property 'version':  1.0-SNAPSHOT: : 1.0.0-SNAPSHOT
+Define value for property 'package':  org.opendaylight.example: : 
+Define value for property 'classPrefix':  ${artifactId.substring(0,1).toUpperCase()}${artifactId.substring(1)}
+Define value for property 'copyright': : Copyright (c) 2015 Yoyodyne, Inc. 
+--------------------------------------------------------------------------------------------------------------
+
+In particular, accept the default value of classPrefix
+($\{artifactId.substring(0,1).toUpperCase()}$\{artifactId.substring(1)})
+which creates a Java Class Prefix by capitalizing the first character of
+the artifactId ( so in this example the classPrefix will be Example)
+
+[[ok-its-all-downloaded....now-what]]
+=== Ok it's all downloaded....now what?
+
+The archetype will have create a top level directory:
+
+--------------
+${artifactId}/
+--------------
+
+in our example:
+
+--------
+example/
+--------
+
+Enter the directory:
+
+-----------
+cd example/
+-----------
+
+and look around:
+
+----------
+api/
+artifacts/
+features/
+impl/
+karaf/
+pom.xml
+----------
+
+[[time-to-build-the-example-project]]
+=== Time to build the 'example' project
+
+Let's build the project for the first time. Depending on your
+development machine's specification this might take a little while.
+Ensure sure you are in the project's root directory, example/, and then
+issue the build command, shown below.
+
+-----------------
+mvn clean install
+-----------------
+
+[[starting-your-example-project-for-the-first-time]]
+=== Starting your 'example' project for the first time
+
+Once the project has built you will have created an Opendaylight
+distribution. Change to the directory and have a look.
+
+----------------------------
+cd karaf/target/assembly/bin
+ls
+----------------------------
+
+Once you are ready start the 'example' project using the following
+command.
+
+-------
+./karaf
+-------
+
+Wait for the karaf cli:
+
+-----------------------
+opendaylight-user@root>
+-----------------------
+
+IMPORTANT: Wait for OpenDaylight to fully load all the components which
+can take a minute or two after the prompt appears. (check the CPU on
+your dev machine, specifically the Java process, to see when it calms
+down.
+
+[[check-for-basic-functioning]]
+=== Check for basic functioning
+
+During the build process a module called 'Example' was built, which you
+can now verify on the console by checking out the log:
+
+--------------------------
+log:display | grep Example
+--------------------------
+
+Look for the log entry which includes the entry 'ExampleProvider Session
+Initiated'.
+
+To shutdown OpenDaylight via the console issue the command below.
+
+-----------
+shutdown -f
+-----------
+
+[[part-2---hello-world---defining-a-simple-rpc]]
+== Part 2 - Hello World - Defining a Simple RPC
+
+In part 2 creates a new project, again using the Maven archetype
+'opendaylight-startup-archetype', but this time creating a 'hello'
+project.
+
+It would be beneficial to have a working knowledge of Java development,
+since Part 2 of this wiki explains at how to augment the 'hello' project
+to build the example API.
+
+If you have already done the 'example' project the time to pull the
+archetype is greatly reduced, since you now have a local repository in
+~/.m2/repository (in Linux other systems may vary for location). If you
+have deleted the local repository, Maven will re-fetch it.
+
+[[run-the-archetype-and-create-the-hello-project]]
+=== Run the archetype and create the 'hello' project
+
+----------------------------------------------------------------------------------------------------------------------------
+mvn archetype:generate -DarchetypeGroupId=org.opendaylight.controller -DarchetypeArtifactId=opendaylight-startup-archetype \
+-DarchetypeRepository=http://nexus.opendaylight.org/content/repositories/opendaylight.snapshot/ \
+-DarchetypeCatalog=http://nexus.opendaylight.org/content/repositories/opendaylight.snapshot/archetype-catalog.xml
+----------------------------------------------------------------------------------------------------------------------------
+
+Respond to the prompts:
+
+--------------------------------------------------------------------------------------------------------------
+Define value for property 'groupId': : org.opendaylight.hello
+Define value for property 'artifactId': : hello
+Define value for property 'version':  1.0-SNAPSHOT: : 1.0.0-SNAPSHOT
+Define value for property 'package':  org.opendaylight.hello: : 
+Define value for property 'classPrefix':  ${artifactId.substring(0,1).toUpperCase()}${artifactId.substring(1)}
+Define value for property 'copyright': : Copyright(c) Yoyodyne, Inc.
+--------------------------------------------------------------------------------------------------------------
+
+[[have-a-look-at-hello-project]]
+=== Have a look at 'hello' project
+
+---------
+cd hello/
+ls -1
+api
+artifacts
+features
+impl
+karaf
+pom.xml
+---------
+
+[[build-hello-project-using]]
+=== Build 'hello' project using:
+
+-----------------
+mvn clean install
+-----------------
+
+[[check-for-basic-functioning-1]]
+=== Check for basic functioning
+
+Run karaf:
+
+----------------------------
+cd karaf/target/assembly/bin
+
+and then execute
+
+./karaf
+----------------------------
+
+Wait for the karaf cli:
+
+-----------------------
+opendaylight-user@root>
+-----------------------
+
+IMPORTANT: Remember to wait for OpenDaylight to fully load. (check Java
+process CPU has calmed down).
+
+Verify the 'hello' module has loaded by checking out the log:
+
+------------------------
+log:display | grep Hello
+------------------------
+
+Shutdown karaf
+
+-----------
+shutdown -f
+-----------
+
+Return to the top of the directory structure:
+
+---------------
+cd ../../../../
+---------------
+
+[[understanding-where-the-log-line-came-from-the-entry-point]]
+=== Understanding where the log line came from (the entry point)
+
+The entry point is in the impl project:
+
+-----------------------------------------------------------------
+impl/src/main/java/org/opendaylight/hello/impl/HelloProvider.java
+-----------------------------------------------------------------
+
+In the HelloProvider.onSessionInitiate method:
+
+-------------------------------------------------------------
+@Override
+    public void onSessionInitiated(ProviderContext session) {
+        LOG.info("HelloProvider Session Initiated");
+    }
+-------------------------------------------------------------
+
+This is the method you would add any new things you are doing in your
+implementation. Its analogous to an Activator.
+
+[[adding-a-very-simple-helloworld-rpc-api]]
+=== Adding a very simple HelloWorld RPC api
+
+Edit
+
+----------------------------
+api/src/main/yang/hello.yang
+----------------------------
+
+Edit this file to look as below. You will see that we are adding the
+code in a YANG module to define the 'hello-world' RPC:
+
+----------------------------------------------------------
+module hello {
+    yang-version 1;
+    namespace "urn:opendaylight:params:xml:ns:yang:hello";
+    prefix "hello";
+
+    revision "2015-01-05" {
+        description "Initial revision of hello model";
+    }
+    rpc hello-world {
+        input {
+            leaf name {
+                type string;
+            }
+        }
+        output {
+            leaf greating {
+                type string;
+            }
+        }
+    }
+}
+----------------------------------------------------------
+
+Return to the hello/api directory and build your api:
+
+-----------------
+cd ../../../
+mvn clean install
+-----------------
+
+[[implementing-the-helloworld-rpc-api]]
+=== Implementing the HelloWorld RPC API
+
+We now need to define the HelloService, which will be called via the
+'hello-world' API.
+
+-----------------------------------------------------
+cd ../impl/src/main/java/org/opendaylight/hello/impl/
+-----------------------------------------------------
+
+Create a new file called HelloWorldImpl.java and add in the code below.
+
+----------------------------------------------------------------------------------------------------------------
+package org.opendaylight.hello.impl;
+
+import java.util.concurrent.Future;
+
+import org.opendaylight.yang.gen.v1.urn.opendaylight.params.xml.ns.yang.hello.rev150105.HelloService;
+import org.opendaylight.yang.gen.v1.urn.opendaylight.params.xml.ns.yang.hello.rev150105.HelloWorldInput;
+import org.opendaylight.yang.gen.v1.urn.opendaylight.params.xml.ns.yang.hello.rev150105.HelloWorldOutput;
+import org.opendaylight.yang.gen.v1.urn.opendaylight.params.xml.ns.yang.hello.rev150105.HelloWorldOutputBuilder;
+import org.opendaylight.yangtools.yang.common.RpcResult;
+import org.opendaylight.yangtools.yang.common.RpcResultBuilder;
+
+public class HelloWorldImpl implements HelloService {
+
+    @Override
+    public Future<RpcResult<HelloWorldOutput>> helloWorld(HelloWorldInput input) {
+        HelloWorldOutputBuilder helloBuilder = new HelloWorldOutputBuilder();
+        helloBuilder.setGreating("Hello " + input.getName());
+        return RpcResultBuilder.success(helloBuilder.build()).buildFuture();
+    }
+
+}
+----------------------------------------------------------------------------------------------------------------
+
+In the current directory is the file HelloProvider.java, in which we
+register the RPC we created in the 'hello.yang' file. You can either
+edit the HelloProvider.java to match what is below, or you can simple
+replace it with the code below.
+
+-----------------------------------------------------------------------------------------------------
+/*
+ * Copyright(c) Yoyodyne, Inc. and others.  All rights reserved.
+ *
+ * This program and the accompanying materials are made available under the
+ * terms of the Eclipse Public License v1.0 which accompanies this distribution,
+ * and is available at http://www.eclipse.org/legal/epl-v10.html
+ */
+package org.opendaylight.hello.impl;
+
+import org.opendaylight.controller.sal.binding.api.BindingAwareBroker.ProviderContext;
+import org.opendaylight.controller.sal.binding.api.BindingAwareBroker.RpcRegistration;
+import org.opendaylight.controller.sal.binding.api.BindingAwareProvider;
+import org.opendaylight.yang.gen.v1.urn.opendaylight.params.xml.ns.yang.hello.rev150105.HelloService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+public class HelloProvider implements BindingAwareProvider, AutoCloseable {
+
+    private static final Logger LOG = LoggerFactory.getLogger(HelloProvider.class);
+    private RpcRegistration<HelloService> helloService;
+
+    @Override
+    public void onSessionInitiated(ProviderContext session) {
+        LOG.info("HelloProvider Session Initiated");
+        helloService = session.addRpcImplementation(HelloService.class, new HelloWorldImpl());
+    }
+
+    @Override
+    public void close() throws Exception {
+        LOG.info("HelloProvider Closed");
+        if (helloService != null) {
+            helloService.close();
+        }
+    }
+
+}
+-----------------------------------------------------------------------------------------------------
+
+The next step is optional, however you can build just the java classes
+which will register the new RPC. This is useful to test the edits you
+have made to HelloProvider.java and HelloWorldImpl.java
+
+------------------------
+cd ../../../../../../../
+mvn clean install
+------------------------
+
+Return to the top level directory
+
+------
+cd ../
+------
+
+Now build the entire 'hello' again, which will pickup the changes you
+have made and build them into your project:
+
+-----------------
+mvn clean install
+-----------------
+
+[[running-your-hello-project-for-the-first-time]]
+=== Running your 'hello' project for the first time
+
+Run karaf:
+
+-------------------------------
+cd ../karaf/target/assembly/bin
+./karaf
+-------------------------------
+
+As before, wait for the project to completely load. Then view the log to
+see the loaded 'Hello' Module:
+
+------------------------
+log:display | grep Hello
+------------------------
+
+[[testing-the-hello-world-rpc-via-rest]]
+== Testing the 'hello-world' RPC via REST
+
+There are a lot of ways to test your RPC. The ones listed below are some
+examples.
+
+[[using-the-api-explorer-via-http.]]
+=== Using the API Explorer via http.
+
+Go to the http://localhost:8181/apidoc/explorer/index.html[apidoc UI]
+with your web browser.
+
+NOTE - in the above URL you might need to change 'localhost' to the
+IP/Host name to reflect your development machine's network address.
+
+Click on
+
+-----------------
+hello(2015-01-05)
+-----------------
+
+and then click on
+
+----------------------------------
+POST /operations/hello:hello-world
+----------------------------------
+
+and provide value:
+
+--------------------------------------
+{"hello:input": { "name":"Your Name"}}
+--------------------------------------
+
+and click the button
+
+----------------------------------------------------------------------------------
+
+You will be prompted for a username and password, by default they are admin/admin.
+
+In the response body you should see.
+<pre>
+{
+  "output": {
+    "greating": "Hello Your Name"
+  }
+}
+----------------------------------------------------------------------------------
+
+[[using-a-browser-rest-client]]
+=== Using a browser REST client
+
+`For example the Firefox plugin 'RESTClient' [`https://github.com/chao/RESTClient[`https://github.com/chao/RESTClient`]`}`
+
+--------------------------------------------------------------
+POST:
+http://192.168.1.43:8181/restconf/operations/hello:hello-world
+--------------------------------------------------------------
+
+----------------
+Header: 
+application/json
+----------------
+
+--------------------
+Body:
+{"input": {
+    "name": "Andrew"
+  }
+}
+--------------------
+
+[[troubleshooting]]
+== Troubleshooting
+
+If while attempting to POST /operations/hello:hello-world you get a
+response code 501, check the file: HelloProvider.java and make sure the
+helloService member is being set. By not invoking
+"session.addRpcImplementation()" the REST api will be unable to map
+/operations/hello:hello-world url to HelloWorldImpl.

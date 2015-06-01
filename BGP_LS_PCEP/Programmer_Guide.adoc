@@ -1,203 +1,117 @@
-Programming tunnels through PCEP is one of the key features of
-BGP-LS/PCEP implemented in Opendaylight. User can create, update and
-delete tunnel via RESTCONF calls. Tunnel (LSP - Label Switched Path)
-arguments are passed through RESTCONF and generate a PCEP message that
-is sent to PCC (which is also specified via RESTCONF call). PCC sends a
-response back to ODL. The response is then interpreted and sent to
-RESTCONF, where, in case of success, the new LSP is displayed.
+[[bgp]]
+== BGP
+
+The only RESTCONF operation in BGP is population the RIB of application
+peer. First you have to configure your application peer. Check the
+BGP LS PCEP:User Guide[User Guide] on how to do that. If your peer is
+configured, you can populate the RIB by making following POST call to
+RESTCONF:
+
+*RESTCONF URL* :
+_http://localhost:8181/restconf/config/bgp-rib:application-rib/example-app-rib/tables/bgp-types:ipv4-address-family/bgp-types:unicast-subsequent-address-family/_
+
+- where _example-app-rib_ is your application RIB id (that you specified
+in the configuration) and _tables_ specifies AFI and SAFI of the data
+that you want to add.
+
+*Method:* POST
+
+*Sample input:* for *Content-Type:* application/xml
+
+code,xml-------------------------------------------------------------------
+code,xml
+ <?xml version="1.0" encoding="UTF-8" standalone="no"?>
+ <ipv4-routes xmlns="urn:opendaylight:params:xml:ns:yang:bgp-inet">
+  <ipv4-route>
+   <prefix>200.20.160.41/32</prefix>
+   <attributes>
+    <ipv4-next-hop>
+     <global>199.20.160.41</global>
+    </ipv4-next-hop><as-path/>
+    <multi-exit-disc>
+     <med>0</med>
+    </multi-exit-disc>
+    <local-pref>
+     <pref>100</pref>
+    </local-pref>
+    <originator-id>
+     <originator>41.41.41.41</originator>
+    </originator-id>
+    <origin>
+     <value>igp</value>
+    </origin>
+    <cluster-id>
+     <cluster>40.40.40.40</cluster>
+    </cluster-id>
+   </attributes>
+  </ipv4-route>
+ </ipv4-routes>
+-------------------------------------------------------------------
+
+The request results in *204 No content*. This is expected. You can see
+the data by viewing the RIB Restconf URL specified in
+BGP LS PCEP:Restconf[Restconf tutorial].
+
+[[pcep]]
+== PCEP
+
+Programming tunnels through PCEP is one of the key features of PCEP
+implementation in OpenDaylight. User can create, update and delete
+tunnel via RESTCONF calls. Tunnel (LSP - Label Switched Path) arguments
+are passed through RESTCONF and generate a PCEP message that is sent to
+PCC (which is also specified via RESTCONF call). PCC sends a response
+back to ODL. The response is then interpreted and sent to RESTCONF,
+where, in case of success, the new LSP is displayed.
 
 Following is an example how a stateful initiated PCEP session RESTCONF
 output looks like:
 
-_http://localhost:8080/restconf/operational/network-topology:network-topology/topology/pcep-topology_
+_http://localhost:8181/restconf/operational/network-topology:network-topology/topology/pcep-topology_
 
- +
-` ` +
-` ``synchronized` +
-` ` +
-`  ` +
-`   ``true` +
-`   ``true` +
-`  ` +
-` ` +
-` ``43.43.43.43` +
-` ` +
-` ``pcc://43.43.43.43` +
+code,xml,numberLines------------------------------------------------------
+code,xml,numberLines
+<node>
+ <path-computation-client>
+ <state-sync>synchronized</state-sync>
+ <stateful-tlv>
+  <stateful>
+   <initiation>true</initiation>
+   <lsp-update-capability>true</lsp-update-capability>
+  </stateful>
+ </stateful-tlv>
+ <ip-address>43.43.43.43</ip-address>
+ </path-computation-client>
+ <node-id>pcc://43.43.43.43</node-id>
+</node>
+------------------------------------------------------
 
 If your output does *NOT* match the above sample (especially the two
 flags) *DO NOT* proceed with tunnel management, as your configuration
-needs to be adjusted. Consult BGP LS PCEP:User Guide[User Guide] or
+needs to be adjusted. Consult
 BGP LS PCEP:Troubleshooting[Troubleshooting] sites.
 
-[[tunnel-management-for-draft-ietf-pce-stateful-pce-02-and-draft-crabbe-initiated-00]]
-== Tunnel Management for draft-ietf-pce-stateful-pce-02 and
-draft-crabbe-initiated-00
-
-[[creating-lsp]]
-=== Creating LSP
-
-An LSP in PCEP is created in two phases. First, you create a simple
-end-to-end LSP, that is not operational. Making an add-lsp operation
-will trigger a Pcinitiate message to PCC. Link to RESTCONF parameters
-https://jenkins.opendaylight.org/bgpcep/job/bgpcep-nightly/lastSuccessfulBuild/artifact/target/staging/pcep-parent/pcep-topology-api/network-topology-pcep.html#add-lsp/input/arguments[here]
-
-Each RESTCONF operations call requires some xml input that is send via
-HTTP POST method. Whenever you are sending an xml input, set up HTTP
-header Content-Type: application/xml.
-
-*RESTCONF URL* :
-_http://localhost:8080/restconf/operations/network-topology-pcep:add-lsp_
-
-*Method:* POST
-
-*Sample input:* for *Content-Type:* application/json
-
-`{` +
-` "input": {` +
-`  "node": "pcc://39.39.39.39",` +
-`  "name": "update-tunel",` +
-`  "network-topology-ref": "/network-topology:network-topology/network-topology:topology[network-topology:topology-id=\"pcep-topology\"]",` +
-`  "arguments: {` +
-`   "endpoints-obj": {` +
-`    "ipv4": {` +
-`     "source-ipv4-address": "39.39.39.39",` +
-`     "destination-ipv4-address": "43.43.43.43"` +
-`    }` +
-`   }` +
-`  }` +
-` }` +
-`}`
-
-*Sample input:* for *Content-Type:* application/xml
-
- +
-` ``pcc://39.39.39.39` +
-` ``update-tunel` +
- +
-` ` +
-`  ` +
-`   ``39.39.39.39` +
-`   ``43.43.43.43` +
-`  ` +
-` ` +
- +
-`/topo:network-topology/topo:topology[topo:topology-id="pcep-topology"]` +
-
-*Details:*
-
-* : specifies node-id of the PCC, where you want to send the PCEP
-message. PCEP states that the PCC recieving this message needs to be set
-as the source of the LSP, otherwise it will ignore the tag and create a
-tunnel with the PCC set as source. This node-id can be found when
-listing all the PCC connected to ODL:
-_http:/localhost:8080/restconf/operational/network-topology:network-topology/topology/pcep-topology_
-* : name of the LSP
-* : LSP arguments
-* : http://tools.ietf.org/html/rfc5440#section-7.6[Endpoints object],
-mandatory, stating the source and destination of the LSP
-
-[[updating-lsp]]
-=== Updating LSP
-
-Updating is necessary to make LSP operational. It can be also used for
-adding specific hops to the LSP. Making an update-lsp operation will
-trigger a Pcupd message to PCC.
-
-*RESTCONF URL* :
-_http://localhost:8080/restconf/operations/network-topology-pcep:update-lsp_
-
-*Method:* POST
-
-*Content-Type:* application/xml
-
-*Sample input:*
-
- +
-` ``pcc://39.39.39.39` +
-` ``update-tunel` +
-` ``/topo:network-topology/topo:topology[topo:topology-id="pcep-topology"]` +
-` ` +
-`   ``true` +
-`   ` +
-`     ` +
-`      ``false` +
-`      ``195.20.160.40/32` +
-`     ` +
-`     ` +
-`      ``false` +
-`      ``201.20.160.43/32` +
-`     ` +
-`     ` +
-`      ``false` +
-`      ``43.43.43.43/32` +
-`     ` +
-`   ` +
-` ` +
-
-*Details:*
-
-* : specifies node-id of the PCC, where you want to send the PCEP
-message. This node-id can be found when listing all the PCC connected to
-ODL:
-_http:/localhost:8080/restconf/operational/network-topology:network-topology/topology/pcep-topology_
-* : name of the LSP that you want to update
-* : LSP arguments
-* : Mandatory argument specifying
-http://tools.ietf.org/html/draft-ietf-pce-stateful-pce-02#section-7.2[O
-flag]
-* : http://tools.ietf.org/html/rfc5440#section-7.9[Explicit Route
-Object], specifies hops between source and destination nodes (in this
-order). This object can be also passed in arguments when creating LSP.
-Note: *ODL does NOT order hops, nor does it validate them, therefore
-user is responsible for putting correct hops in correct order.*
-
-[[removing-lsp]]
-=== Removing LSP
-
-Removing LSP from PCC is done via following RESTCONF URL. Making a
-remove-lsp operation will trigger a Pcupd message to PCC, with
-remove-flag set to true.
-
-*RESTCONF URL* :
-_http://localhost:8080/restconf/operations/network-topology-pcep:remove-lsp_
-
-*Method:* POST
-
-*Content-Type:* application/xml
-
-*Sample input:*
-
- +
-` ``pcc://39.39.39.39` +
-` ``update-tunel` +
-` ``/topo:network-topology/topo:topology[topo:topology-id="pcep-topology"]` +
-
-*Details:*
-
-* : specifies node-id of the PCC, where you want to send the PCEP
-message. This node-id can be found when listing all the PCC connected to
-ODL:
-_http:/localhost:8080/restconf/operational/network-topology:network-topology/topology/pcep-topology_
-* : name of the LSP that you want to remove
-
 [[tunnel-management-for-draft-ietf-pce-stateful-pce-07-and-draft-ietf-pce-pce-initiated-lsp-00]]
-== Tunnel Management for draft-ietf-pce-stateful-pce-07 and
+=== Tunnel Management for draft-ietf-pce-stateful-pce-07 and
 draft-ietf-pce-pce-initiated-lsp-00
 
-[[creating-lsp-1]]
-=== Creating LSP
+Before proceeding, read carefully drafts
+http://tools.ietf.org/html/draft-ietf-pce-stateful-pce-07[draft-ietf-pce-stateful-pce-07]
+and
+http://tools.ietf.org/html/draft-ietf-pce-pce-initiated-lsp-00[draft-ietf-pce-pce-initiated-lsp-00]
+to learn about the user-input values in this section.
+
+[[creating-lsp]]
+==== Creating LSP
 
 An LSP in PCEP can be created in one or two steps. Making an add-lsp
-operation will trigger a Pcinitiate message to PCC. Link to RESTCONF
-parameters
-https://jenkins.opendaylight.org/bgpcep/job/bgpcep-nightly/lastSuccessfulBuild/artifact/target/staging/pcep-parent/pcep-topology-api/network-topology-pcep.html#add-lsp/input/arguments[here]
+operation will trigger a Pcinitiate message to PCC.
 
 Each RESTCONF operations call requires some xml input that is send via
 HTTP POST method. Whenever you are sending an xml input, set up HTTP
 header Content-Type: application/xml.
 
 *RESTCONF URL* :
-_http://localhost:8080/restconf/operations/network-topology-pcep:add-lsp_
+_http://localhost:8181/restconf/operations/network-topology-pcep:add-lsp_
 
 *Method:* POST
 
@@ -205,134 +119,157 @@ _http://localhost:8080/restconf/operations/network-topology-pcep:add-lsp_
 
 *Sample input:*
 
- +
-` ``pcc://43.43.43.43` +
-` ``update-tunel` +
- +
-` ` +
-`  ``true` +
-`  ``true` +
-` ` +
-` ` +
-`  ` +
-`   ``43.43.43.43` +
-`   ``39.39.39.39` +
-`  ` +
-` ` +
-` ` +
-`   ` +
-`    ``false` +
-`    ``201.20.160.40/32` +
-`   ` +
-`   ` +
-`    ``false` +
-`    ``195.20.160.39/32` +
-`   ` +
-`   ` +
-`    ``false` +
-`    ``39.39.39.39/32` +
-`   ` +
-`   `` ` +
- +
-`/topo:network-topology/topo:topology[topo:topology-id="pcep-topology"]` +
+code,xml,numberLines-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+code,xml,numberLines
+<input xmlns="urn:opendaylight:params:xml:ns:yang:topology:pcep">
+ <node>pcc://43.43.43.43</node>
+ <name>update-tunel</name>
+ <arguments>
+  <lsp xmlns="urn:opendaylight:params:xml:ns:yang:pcep:ietf:stateful">
+   <delegate>true</delegate>
+   <administrative>true</administrative>
+  </lsp>
+  <endpoints-obj>
+   <ipv4>
+    <source-ipv4-address>43.43.43.43</source-ipv4-address>
+    <destination-ipv4-address>39.39.39.39</destination-ipv4-address>
+   </ipv4>
+  </endpoints-obj>
+  <ero>
+   <subobject>
+    <loose>false</loose>
+    <ip-prefix><ip-prefix>201.20.160.40/32</ip-prefix></ip-prefix>
+   </subobject>
+   <subobject>
+    <loose>false</loose>
+    <ip-prefix><ip-prefix>195.20.160.39/32</ip-prefix></ip-prefix>
+   </subobject>
+   <subobject>
+    <loose>false</loose>
+    <ip-prefix><ip-prefix>39.39.39.39/32</ip-prefix></ip-prefix>
+   </subobject>
+   </ero> 
+ </arguments>
+ <network-topology-ref xmlns:topo="urn:TBD:params:xml:ns:yang:network-topology">/topo:network-topology/topo:topology[topo:topology-id="pcep-topology"]</network-topology-ref>
+</input>
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 *Details:*
 
-* : specifies node-id of the PCC, where you want to send the PCEP
-message. PCEP states that the PCC recieving this message needs to be set
-as the source of the LSP, otherwise it will ignore the tag and create a
-tunnel with the PCC set as source. This node-id can be found when
-listing all the PCC connected to ODL:
-_http:/localhost:8080/restconf/operational/network-topology:network-topology/topology/pcep-topology_
-* : name of the LSP
-* : LSP arguments
-* : http://tools.ietf.org/html/rfc5440#section-7.6[Endpoints object],
-mandatory, stating the source and destination of the LSP
-* : http://tools.ietf.org/html/rfc5440#section-7.9[Explicit Route
-Object], mandatory, specifies hops between source and destination nodes
-(in this order). This object can be also passed in arguments when
-creating LSP. Note: *ODL does NOT order hops, nor does it validate them,
-therefore user is responsible for putting correct hops in correct
-order.*
-* :
+* 2: *node* : specifies node-id of the PCC, where you want to send the
+PCEP message. PCEP states that the PCC recieving this message needs to
+be set as the source of the LSP, otherwise it will ignore the tag and
+create a tunnel with the PCC set as source. This node-id can be found
+when listing all the PCC connected to ODL:
+_http:/localhost:8181/restconf/operational/network-topology:network-topology/topology/pcep-topology_
+* 3: *name* : name of the LSP
+* 4: *arguments* : LSP arguments
+* 5: *lsp* :
 http://tools.ietf.org/html/draft-ietf-pce-stateful-pce-07#section-7.3[LSP
 Object] mandatory, you have to specify at least delegate and
 administrative flags
+* 9: *endpoints-obj* :
+http://tools.ietf.org/html/rfc5440#section-7.6[Endpoints object],
+mandatory, stating the source and destination of the LSP
+* 15: *ero* : http://tools.ietf.org/html/rfc5440#section-7.9[Explicit
+Route Object], mandatory, specifies hops between source and destination
+nodes (in this order). This object can be also passed in arguments when
+creating LSP. Note: *ODL does NOT change order of hops, nor does it
+validate them, therefore user is responsible for putting correct hops in
+correct order.*
 
-[[updating-lsp-1]]
-=== Updating LSP
+[[updating-lsp]]
+==== Updating LSP
 
 Making an update-lsp operation will trigger a Pcupd message to PCC.
 Updating can be used to change or add additional information to the LSP.
 
+You can only successfully update an LSP if you own the delegation. You
+automatically own the delegation, if you've created the LSP. You don't
+own it, if another PCE created this LSP. In this case PCC is only
+reporting this LSP for you, as read-only (you'll see _false_). However
+ODL won't restrict you from trying to modify the LSP, but you will be
+stopped by receiving a Pcerr message from PCC.
+
+To revoke delegation, don't forget to set __ to true.
+
 *RESTCONF URL* :
-_http://localhost:8080/restconf/operations/network-topology-pcep:update-lsp_
+_http://localhost:8181/restconf/operations/network-topology-pcep:update-lsp_
 
 *Method:* POST
 
 *Content-Type:* application/xml
 
-The complete list of arguments can be found
-https://jenkins.opendaylight.org/bgpcep/job/bgpcep-nightly/lastSuccessfulBuild/artifact/target/staging/pcep-parent/pcep-topology-api/network-topology-pcep.html#update-lsp/input/arguments[here].
 For each update, ERO object is mandatory.
 
 *Minimal update-lsp sample input:*
 
- +
-`pcc://43.43.43.43` +
-`update-tunel` +
- +
- +
-`  ``true` +
-`  ``true` +
- +
- +
-`  ` +
-`   ``false` +
-`   ``200.20.160.41/32` +
-`  ` +
-`  ` +
-`   ``false` +
-`   ``196.20.160.39/32` +
-`  ` +
-`  ` +
-`   ``false` +
-`   ``39.39.39.39/32` +
-`  ` +
-`  `` ` +
- +
-`/topo:network-topology/topo:topology[topo:topology-id="pcep-topology"]` +
+code,xml,numberLines-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+code,xml,numberLines
+<input xmlns="urn:opendaylight:params:xml:ns:yang:topology:pcep">
+ <node>pcc://43.43.43.43</node>
+ <name>update-tunel</name>
+ <arguments>
+ <lsp xmlns="urn:opendaylight:params:xml:ns:yang:pcep:ietf:stateful">
+   <delegate>true</delegate>
+   <administrative>true</administrative>
+ </lsp>
+ <ero>
+   <subobject>
+    <loose>false</loose>
+    <ip-prefix><ip-prefix>200.20.160.41/32</ip-prefix></ip-prefix>
+   </subobject>
+   <subobject>
+    <loose>false</loose>
+    <ip-prefix><ip-prefix>196.20.160.39/32</ip-prefix></ip-prefix>
+   </subobject>
+   <subobject>
+    <loose>false</loose>
+    <ip-prefix><ip-prefix>39.39.39.39/32</ip-prefix></ip-prefix>
+   </subobject>
+   </ero> 
+ </arguments>
+ <network-topology-ref xmlns:topo="urn:TBD:params:xml:ns:yang:network-topology">/topo:network-topology/topo:topology[topo:topology-id="pcep-topology"]</network-topology-ref>
+</input>
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 *Details:*
 
-* : specifies node-id of the PCC, where you want to send the PCEP
-message. PCEP states that the PCC recieving this message needs to be set
-as the source of the LSP, otherwise it will ignore the tag and create a
-tunnel with the PCC set as source. This node-id can be found when
-listing all the PCC connected to ODL:
-_http:/localhost:8080/restconf/operational/network-topology:network-topology/topology/pcep-topology_
-* : name of the LSP
-* : LSP arguments
-* : http://tools.ietf.org/html/rfc5440#section-7.9[Explicit Route
-Object], mandatory, specifies hops between source and destination nodes
-(in this order). This object can be also passed in arguments when
-creating LSP. Note: *ODL does NOT order hops, nor does it validate them,
-therefore user is responsible for putting correct hops in correct
-order.*
-* :
+* 2: *node* : specifies node-id of the PCC, where you want to send the
+PCEP message. PCEP states that the PCC recieving this message needs to
+be set as the source of the LSP, otherwise it will ignore the tag and
+create a tunnel with the PCC set as source. This node-id can be found
+when listing all the PCC connected to ODL:
+_http:/localhost:8181/restconf/operational/network-topology:network-topology/topology/pcep-topology_
+* 3: *name* : name of the LSP
+* 4: *arguments* : LSP arguments
+* 5: *lsp* :
 http://tools.ietf.org/html/draft-ietf-pce-stateful-pce-07#section-7.3[LSP
 Object] mandatory, you have to specify at least delegate and
 administrative flags
+* 9: *ero* : http://tools.ietf.org/html/rfc5440#section-7.9[Explicit
+Route Object], mandatory, specifies hops between source and destination
+nodes (in this order). This object can be also passed in arguments when
+creating LSP. Note: *ODL does NOT change order of hops, nor does it
+validate them, therefore user is responsible for putting correct hops in
+correct order.*
 
-[[removing-lsp-1]]
-=== Removing LSP
+[[removing-lsp]]
+==== Removing LSP
 
 Removing LSP from PCC is done via following RESTCONF URL. Making a
 remove-lsp operation will trigger a Pcinitiate message to PCC, with
 remove-flag in SRP set to true.
 
+You can only successfully remove an LSP if you own the delegation. You
+automatically own the delegation, if you've created the LSP. You don't
+own it, if another PCE created this LSP. In this case PCC is only
+reporting this LSP for you, as read-only (you'll see _false_). However
+ODL won't restrict you from trying to remove the LSP, but you will be
+stopped by receiving a Pcerr message from PCC.
+
 *RESTCONF URL* :
-_http://localhost:8080/restconf/operations/network-topology-pcep:remove-lsp_
+_http://localhost:8181/restconf/operations/network-topology-pcep:remove-lsp_
 
 *Method:* POST
 
@@ -340,16 +277,141 @@ _http://localhost:8080/restconf/operations/network-topology-pcep:remove-lsp_
 
 *Sample input:*
 
- +
-` ``pcc://43.43.43.43` +
-` ``update-tunel` +
-` ``/topo:network-topology/topo:topology[topo:topology-id="pcep-topology"]` +
+code,xml,numberLines-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+code,xml,numberLines
+<input xmlns="urn:opendaylight:params:xml:ns:yang:topology:pcep">
+ <node>pcc://43.43.43.43</node>
+ <name>update-tunel</name>
+ <network-topology-ref xmlns:topo="urn:TBD:params:xml:ns:yang:network-topology">/topo:network-topology/topo:topology[topo:topology-id="pcep-topology"]</network-topology-ref>
+</input>
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 *Details:*
 
-* : specifies node-id of the PCC, where you want to send the PCEP
-message. This node-id can be found when listing all the PCC connected to
-ODL:
-_http:/localhost:8080/restconf/operational/network-topology:network-topology/topology/pcep-topology_
-* : name of the LSP that you want to remove
+* 2: *node* : specifies node-id of the PCC, where you want to send the
+PCEP message. This node-id can be found when listing all the PCC
+connected to ODL:
+_http:/localhost:8181/restconf/operational/network-topology:network-topology/topology/pcep-topology_
+* 3: *name* : name of the LSP that you want to remove
 
+[[tunnel-management-for-draft-ietf-pce-segment-routing-01]]
+=== Tunnel Management for draft-ietf-pce-segment-routing-01
+
+http://tools.ietf.org/html/draft-ietf-pce-segment-routing-01[draft-ietf-pce-segment-routing-01]
+PCEP extension for Segment Routing
+
+Extends draft-ietf-pce-stateful-pce-07 and
+draft-ietf-pce-pce-initiated-lsp-00, brings new SR-ERO subobject
+composed of SID (Segment Identifier) and/or NAI (Node or Adjacency
+Identifier). Segment Routing path is carried in the ERO object, as a
+list of SR-ERO subobjects ordered by user. The draft redefines format of
+messages (PCUpd, PCRpt, PCInitiate) - along with common header, they can
+hold SPR, LSP and SR-ERO (containing only SR-ERO subobjects) objects.
+
+Note: Values used in sample inputs below are illustrative.
+
+[[create-segment-routing-lsp]]
+==== Create Segment Routing LSP
+
+Making an add-lsp operation will trigger a Pcinitiate message to PCC.
+
+*RESTCONF URL* :
+_http://localhost:8181/restconf/operations/network-topology-pcep:add-lsp_
+
+*Method:* POST
+
+*Content-Type:* application/xml
+
+*Sample input:*
+
+code,xml,numberLines-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+code,xml,numberLines
+<input xmlns="urn:opendaylight:params:xml:ns:yang:topology:pcep">
+ <node>pcc://43.43.43.43</node>
+ <name>update-tunnel</name>
+ <arguments>
+   <lsp xmlns="urn:opendaylight:params:xml:ns:yang:pcep:ietf:stateful">
+    <delegate>true</delegate>
+    <administrative>true</administrative>
+   </lsp>
+   <path-setup-type xmlns="urn:opendaylight:params:xml:ns:yang:pcep:ietf:stateful">
+    <pst>1</pst>
+   </path-setup-type>
+   <ero>
+     <subobject>
+       <loose>false</loose>
+       <sid-type xmlns="urn:opendaylight:params:xml:ns:yang:pcep:segment:routing">ipv4-node-id</sid-type>
+       <m-flag xmlns="urn:opendaylight:params:xml:ns:yang:pcep:segment:routing">true</m-flag>
+       <sid xmlns="urn:opendaylight:params:xml:ns:yang:pcep:segment:routing">12</sid>
+       <ip-address xmlns="urn:opendaylight:params:xml:ns:yang:pcep:segment:routing">39.39.39.39</ip-address>
+     </subobject>
+   </ero>
+ </arguments>
+ <network-topology-ref xmlns:topo="urn:TBD:params:xml:ns:yang:network-topology">/topo:network-topology/topo:topology[topo:topology-id="pcep-topology"]</network-topology-ref>
+</input>
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+*Details:*
+
+* 9: *path-setup-type* as per
+https://tools.ietf.org/html/draft-ietf-pce-lsp-setup-type-01#section-3[draft-ietf-pce-lsp-setup-type]
+* 13: SR-ERO *subobject*
+* 15: *Sid-Type* enumeration type ipv4-node-id
+* 16: *m* bit is set
+* 17: *Segment Identifier* value is 12
+* 18: *Ipv4 Node Identifier* address set to 39.39.39.39
+
+[[update-segment-routing-lsp]]
+==== Update Segment Routing LSP
+
+Making an update-lsp operation will trigger a Pcupd message to PCC.
+Update Segment Routing LSP - i.e. enhance path with another segment.
+
+*RESTCONF URL* :
+_http://localhost:8181/restconf/operations/network-topology-pcep:update-lsp_
+
+*Method:* POST
+
+*Content-Type:* application/xml
+
+*sample input:*
+
+code,xml,numberLines------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+code,xml,numberLines
+<input xmlns="urn:opendaylight:params:xml:ns:yang:topology:pcep">
+  <node>pcc://43.43.43.43</node>
+  <name>update-tunnel</name>
+  <arguments>
+    <lsp xmlns="urn:opendaylight:params:xml:ns:yang:pcep:ietf:stateful">
+      <delegate>true</delegate>
+      <administrative>true</administrative>
+    </lsp>
+    <path-setup-type xmlns="urn:opendaylight:params:xml:ns:yang:pcep:ietf:stateful">
+       <pst>1</pst>
+    </path-setup-type>
+    <ero>
+      <subobject>
+        <loose>false</loose>
+        <sid-type xmlns="urn:opendaylight:params:xml:ns:yang:pcep:segment:routing">ipv4-node-id</sid-type>
+        <m-flag xmlns="urn:opendaylight:params:xml:ns:yang:pcep:segment:routing">true</m-flag>
+        <sid xmlns="urn:opendaylight:params:xml:ns:yang:pcep:segment:routing">11</sid>
+        <ip-address xmlns="urn:opendaylight:params:xml:ns:yang:pcep:segment:routing">200.20.160.41</ip-address>
+      </subobject>
+      <subobject>
+        <loose>false</loose>
+        <sid-type xmlns="urn:opendaylight:params:xml:ns:yang:pcep:segment:routing">ipv4-node-id</sid-type>
+        <m-flag xmlns="urn:opendaylight:params:xml:ns:yang:pcep:segment:routing">true</m-flag>
+        <sid xmlns="urn:opendaylight:params:xml:ns:yang:pcep:segment:routing">12</sid>
+        <ip-address xmlns="urn:opendaylight:params:xml:ns:yang:pcep:segment:routing">39.39.39.39</ip-address>
+      </subobject>
+    </ero> 
+  </arguments>
+  <network-topology-ref xmlns:topo="urn:TBD:params:xml:ns:yang:network-topology">/topo:network-topology/topo:topology[topo:topology-id="pcep-topology"]</network-topology-ref>
+</input>
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+[[remove-segment-routing-lsp]]
+==== Remove Segment Routing LSP
+
+Removing Segment Routing LSP works same as in example
+https://wiki.opendaylight.org/view/BGP_LS_PCEP:Programmer_Guide#Removing_LSP_2[above].

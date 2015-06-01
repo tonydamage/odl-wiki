@@ -1,0 +1,560 @@
+[[overview]]
+= Overview
+
+Currently the https://ramcloud.stanford.edu/raft.pdf[RAFT Consensus
+Algorithm] used in
+OpenDaylight_Controller:MD-SAL:Architecture:Clustering[MD-SAL
+Clustering] recommends an odd number of controllers in a cluster
+deployment. An even number of controllers are allowed in the cluster's
+definition but provide no additional fault tolerance. In the event of a
+network partition or failure of node(s) RAFT will automatically elect a
+new Leader as long as there is a majority of nodes available. Otherwise
+access to the datastore (R/W) is unavailable (times-out).
+
+For many deployments it is desirable to have a 2-Node cluster operating
+in either an Active-Active or Active-Passive
+link:Deployment Modes[Deployment Modes] to provide some level of fault
+tolerance without the cost of a 3-Node deployment. There are, however,
+costs to the data consistency provided by RAFT for such deployments.
+
+ +
+Changes are being proposed in the Lithium release to support 2-Node
+clusters. The expected behavior, rational for design decision,
+implementation details, and failure scenarios are outlined below.
+
+[[guidelines]]
+== Guidelines
+
+The Active-Active (AA) and Active-Passive (AP)
+link:Deployment Modes[Deployment Modes] discussed here are for the
+Controller (datastore services, southbound, SAL services, etc.). The
+AA/AP mode of Applications and Services using the controller may be
+different than the AA/AP mode of the controller.
+
+[[terminology]]
+== Terminology
+
+:\{| |- | || -*Primary Controller* || (_aka Full Primary_) The
+controller that is Master of all devices on the network and Leader of
+all the shards in the Datastore. |- | || -*Partial Primary* || The
+controller that is Master of a subset of devices on the network and
+Leader of all the shards in the Datastore on its segment of the network.
+|- | || -*Configured Primary* || The Controller the administrator wants
+to run the network (when possible). It may have an improved hardware
+configuration or other features that makes it the preferred system. |- |
+|| -*Secondary* || (_aka Configured Primary_) The Controller the
+administrator wants to serve as a backup Controller, i.e. NOT the
+Configured Primary. |- | || -*Network Partition Detection* || An
+external agent that reports the occurrence of a Full (all links between
+2 controllers and segments of devices on the network are unavailable) or
+Partial (a given Controller's links are unavailable) Network Partition.
+|}
+
+[[references]]
+== References
+
+:*https://ramcloud.stanford.edu/raft.pdf|RAFT[RAFT Consensus Algorithm]
+
+:*OpenDaylight_Controller:MD-SAL:Architecture:Clustering[MD-SAL
+Clustering Design]
+
+ +
+= Deployment Modes = *Note:* The Secondary Active/Passive role describes
+the
+
+The fault tolerance of any clustered SDN controller deployment is highly
+dependent on the chosen network topology. To have a robust deployment
+the placement of controllers on the network and the number/type of links
+is very important. The diagram below is the recommended 2-Node network
+topology that attempts to provide a high-level of fault tolerance:
+
+[[recommended-2-node-topology]]
+== Recommended 2-Node Topology
+
+image:TwoNodeStrategy-Recommended_Topology.png[TwoNodeStrategy
+(Active-Passive)|x500px,title="TwoNodeStrategy (Active-Passive)|x500px"]
+
+::
+  *Switch * - (Aggregation Switches) Primary switch for controller A/B,
+  respectively.
+  +
+  *Switch <#>* - (Access Switches)
+
+ +
+Each controller should be dual-homed with Primary (_1_) and Secondary
+(_2_) links to each aggregation switches. Heartbeats are alternatively
+sent across each link (round-robin). Each aggregation switch also has 2
+Inter-Switch links (_IS<1|2>_) to provide redundancy at the aggregation
+layer. In this configuration Full Network Partition are rare (but
+possible) and are handled by the Consensus Strategy.
+
+ +
+== Controller-Level == This section covers the possible operation modes
+of the controller and affects the following components:
+
+:* (Southbound) Device Ownership
+
+:* (Core Controller) MD-SAL Access [Datastore, RPCs, Notifications,
+RESTconf]
+
+[[active-active]]
+=== Active-Active
+
+[cols=",,",]
+|=======================================================================
+| |*Definition* : |Ideally one Controller is the Primary Controller in
+the system. In the event of the configured Primary's failure, Partial
+Network Partition of the Primary Controller's links, or Full Network
+Partition (if monitoring is enabled) the passive Secondary will be
+promoted to the active Primary controller role as part of the Failover.
+During a Full Network Partition both segment of the network may be
+independently managed.
+|=======================================================================
+
+[[active-passive]]
+=== Active-Passive
+
+[cols=",,",]
+|=======================================================================
+| |*Definition* : |Ideally one Controller is the Primary Controller in
+the system. In the event of the configured Primary's failure or Partial
+Network Partition/failure of the Primary Controller's links the passive
+Secondary will be promoted to the active Primary controller role as part
+of the Failover. In the event of a Full Network Partition (if monitoring
+is enabled) the passive Secondary will NOT be promoted to the Primary
+role but will instead suspend Core Controller functionality. The
+switches (*Y*) on the Secondary's segment of the network will go
+unmanaged.
+|=======================================================================
+
+ +
+== Application-Level == This section covers the possible operation modes
+of Applications, which may be different than Controller-Level deployment
+modes.
+
+*Note:* Applications can be services running on an instance of the
+Controller (local) or running externally (remote) and interacting with a
+Controller in via the REST interface(s). The focus of the descriptions
+below are for the Applications running locally on the controller.
+
+[[active-active-1]]
+=== Active-Active
+
+[cols=",,",]
+|=======================================================================
+| |*Definition* : |Multiple (1+) instances of the Application are
+running on the Controllers in the Cluster. All local instances are able
+to service local (RPCs, notifications, etc.) requests. Control should be
+partitioned between Application instances so they are not conflicting or
+redundant. Each instance has either full knowledge of the state of other
+applications OR is designed to manage a subset of data for the whole
+clustered application. That knowledge is strictly or eventually
+consistent depending on the data replication settings.
+|=======================================================================
+
+[[active-passive-1]]
+=== Active-Passive
+
+[cols=",,",]
+|=======================================================================
+| |*Definition* : |Multiple (1+) instances of the Application are
+running on the Controllers in the Cluster. Only 1 instance is actively
+servicing local (RPCs, notifications, etc.) requests. Ideally this
+Active instance of the Application is on the same controller which has
+the Leader of the Shard(s) for that application. Other instance(s) of
+the Application are passive standbys which do not service any requests
+or provide any services. Each instance has either full knowledge of the
+state of other applications OR is designed to manage a subset of data
+for the whole clustered application. That knowledge is strictly or
+eventually consistent depending on the data replication settings.
+|=======================================================================
+
+ +
+= Implementation = To minimize the impact to existing RAFT and
+clustering code a Strategy Pattern (*ConsensusStrategy*) is being
+utilized to allow alternative runtime-selected behavior. Existing RAFT
+behavior can be altered based on the selected strategy, system state,
+and configuration.
+
+[[consensusstrategy]]
+== ConsensusStrategy
+
+The proposed Consensus Strategy is under review:
+(https://git.opendaylight.org/gerrit/#/c/12832/)
+
+[[callbacks]]
+=== Callbacks
+
+The *ConsensusStrategy* defines the callbacks made from each RAFT Actor
+(i.e. Shards in the MD-SAL Clustering Distributed Datastore) at certain
+points in the RAFT behavior. By utilizing callbacks from the *RaftActor*
+to the installed *ConsensusStrategy* we are able to influence the
+behavior of RAFT running for each Shard of the datastore.
+
+:\{| |- | || *onDataSent* || Called by a Leader whenever it sends a
+replicated log update to other nodes. |- | || *onDataReceived* || Called
+by a Leader when it has received a replicated log update from another
+Leader on the network (normally unexpected). |- | || *onPartitionSynced*
+|| Notification to a Leader that a particular participant in the cluster
+is now up-to-date with the Leader's replicated log state. |- | ||
+*onHeartbeatNotReceived* || Called by a Follower when its heartbeat
+timer has expired from no replicated log updates from the current
+Leader. |- | || *onElectionTimeout* || Called by a Candidate when an
+election timeout occurs. |- | || *onVoteReceived* || Called by a
+Candidate whenever it has received a vote. |- | ||
+*onVoteRequestReceived* || Called on a Participant whenever it has
+received a vote request from a Candidate. |}
+
+For each callback an action is defined that will instruct the calling
+*RaftActor* (i.e. a Shard in the Distributed Datastore) if it should
+alter its behavior or state in any way.
+
+ +
+== RaftStrategy == The *RaftStrategy* simply re-defines the existing
+RAFT behavior to be compatible with the *ConsensusStrategy* callback
+approach.
+
+ +
+== TwoNodeStrategy == The *TwoNodeStrategy* supports Active-Active and
+Active-Passive Controller Deployment Modes.
+
+[[key-points]]
+=== Key Points
+
+Unlike the *RaftStrategy* the *TwoNodeStrategy* embraces eventual
+consistency and is based on the following key principles that differs
+from core https://ramcloud.stanford.edu/raft.pdf[RAFT] principles:
+
+:\{| |- | 1) || *Don't Try to Avoid 2 Leaders* || It can happen because
+no Network Partition Algorithm is omniscient. Allow 2 Leaders to occur
+and deterministically correct asap when detected. |- | 2) || *Don't Try
+to Have Only 1 Node With The Latest State as the Only Active Node in The
+Cluster* || Attempting to do so can leave the network unmanaged and
+normal RAFT rules for determining the latest state doesn't apply in this
+scheme. |- | 3) || *We Can't Wait For Normal RAFT Voting To Elect A
+Leader in Some Failure Scenarios* || There may be no other controller to
+hold an election with so favor guaranteed Leader assignment at the risk
+of multiple Leaders, which will be detected and corrected. |- | 4) ||
+*Applications Are The Only Ones That Can Ultimately Resolve Their Data*
+|| Notify APPs when data has changed outside the normal RAFT rules, i.e.
+when 2 Leaders are detected & resolved, so they can take the appropriate
+action. |}
+
+::
+  ;;
+    *Important*: There are costs to data consistency during Failback.
+    (See Behavior section below and
+    OpenDaylight_Controller:MD-SAL:Architecture:Clustering:2-Node:Failure_Modes[Failure
+    Modes & Test Cases]) for details.
+
+[[configuration-options]]
+=== Configuration Options
+
+The *TwoNodeStrategy* defines the following configuration options that
+may be changed on a running system.
+
+:\{| |- | || *configuredPrimary* || Which of the two controllers is the
+desired Primary of the cluster. |- | || *failbackToPrimary* || (TRUE) If
+the Secondary controller is acting as the Primary in the cluster and
+if/when possible the system should return control to the
+*configuredPrimary*. |- | || *networkPartitionDetectionEnabled* ||
+(TRUE) If externally monitored and reported Network Partition state
+should be considered in the strategy's behavior. |- | ||
+*activeActiveDeployment* || (TRUE) if Secondary can be an acting Primary
+at the same time as the configuredPrimary (_See Active-Active subsection
+for details_). |}
+
+[[behavior]]
+=== Behavior
+
+The *TwoNodeStrategy* breaks with some of the fundamental principles of
+https://ramcloud.stanford.edu/raft.pdf[RAFT] in order to support
+operation of minority member clusters. The potential cost is always data
+consistency that will be resolved in different ways depending on the
+failure mode.
+
+The tables for the Active-Active and Active-Passive Deployment Modes
+below describes the fundamental differences with RAFT and the
+implications on 2-Node Controller and Application behavior for different
+parts of the controller. (The Recommended 2-Node Topology elements are
+referenced to make it easier to follow along with a real deployment.)
+
+::
+  RAFT Difference #1: *Leader Election*
+  +
+  ;;
+    - There is NO voting process for Leadership.
+  +
+  :\{| class="wikitable"
+
+|- | _RAFT Behavior_ || A voting process is used to elect a Leader when
+there is a majority number of Controllers in the cluster. The Leader has
+the latest data (per RAFT rules for election term and log index). |- |
+_TwoNodeStrategy Behavior_ || There is no voting process since there are
+failure modes when 1 Controller is alive and able to manage the network
+but there may be no other controller to vote it in to Leadership.
+Instead as shown in the RAFT state diagrams below the Configured Primary
+will boot up as a Follower and will always be a Follower or Leader based
+of the following rules:
+
+\a) Remain Follower if receive Leader Heartbeat from Secondary _before_
+election timeout.
+
+\b) Become Leader if no Heartbeat received from Secondary in the cluster
+(election timeout). |- | Example 1) || a) A new 2-Node cluster is
+created. b) Controller A or Controller B never starts up properly.
+
+*Result:*Without this variation to RAFT Controller A could not take over
+as the Full Primary and manage the network on a new cluster startup. |-
+| Example 2) || a) A healthy 2-Node cluster: Controller A is the Full
+Primary. b) Controller A fail-stops and Controller B is now the Full
+Primary. +
+c) Controller B fails leave all devices unmanaged. +
+d) Controller A is restarted.
+
+*Result:* Without this variation to RAFT Controller A could not take
+over as the Full Primary and manage the network. |}
+
+::
+  RAFT Difference #2: *Multiple Leaders / Data Sync Rules*
+  +
+  ;;
+    - Multiple Leaders are allowed for Active-Active behavior.
+  +
+  :\{| class="wikitable"
+
+|- | _RAFT Behavior_ || There is only 1 Leader for a shard in the
+cluster. If multiple Leaders where present for some reason the election
+term and log index dictate the latest/valid Leader. |- |
+_TwoNodeStrategy Behavior_ || Both controllers could be Leaders in the
+case of a Network Partition (Active-Active mode) when each controller is
+not visible to the other or during transition periods (Active-Passive
+mode). Election term and log index are may not be the only criteria to
+determine who really has the latest state.
+
+When the Network Partition is healed and the 2 Leaders "see" each other
+the rule is the Configured Primary's data will replace the Secondary and
+Applications on the Secondary will be notified of the data change.
+
+- Case where normal RAFT data consistency is compromised. |- | Example
+1a) (Failover) || Network Partition for Active-Active 2-Node cluster.
+
+*Result:*Without this variation to RAFT Controller A would lose
+Leadership (become Candidate) and Controller B would go from Follower to
+Candidate with no active Leaders in the cluster and all switches are
+unmanaged. |- | Example 1b) (Failback) || a) Because of full replication
+the both nodes have accurate data in the shard for their segment of the
+network. b) During network partition each changes device state in their
+segment. +
+c) The Network Partition is healed. +
+d) Controller B see Controller A's heartbeat and clears it state to
+allow Controller A to sync its state.
+
+*Result:*Without this variation to RAFT Controller B would have
+incremented its election term and B's state should overwrite A by normal
+RAFT rules. |}
+
+::
+  RAFT Difference #3: *Leader Handoff*
+  +
+  ;;
+    - Leadership can be transfered to allow *failbackToPrimary* option.
+  +
+  :\{| class="wikitable"
+
+|- | _RAFT Behavior_ || In a healthy cluster leadership for a shard is
+not changing. |- | _TwoNodeStrategy Behavior_ || When configuration
+option *failbackToPrimary* is TRUE the the Configured Primary should
+become the Full Primary of the system and do so with out any loss of
+state. |- | Example 1) || *failbackToPrimary == TRUE* a) Controller A
+failed and Controller B is acting as the Full Primary. +
+b) Controller B alters the shard state and network devices. +
+c) Controller A is restarted, boots up as a Follower, and sees
+Controller B's leadership. +
+d) Controller B syncs A to its state and with *onPartitionSynced* gives
+up Leadership so Controller A can take over. +
+e) Controller A election times out (because B is no longer heartbeating
+as a Leader) and elects itself as Leader. Timing issue as B give up
+Leadership does A become Leader fast enough (may loop here and rely on
+random election time outs of RAFT to recover - no data lost but
+datastore access blocked till Leader assigned.???
+
+*Result:*Without this variation to RAFT we couldn't recover failback to
+the Configured Primary. |- | Example 2) || Because of random startup
+timing of node and election time outs it is possible with a healthy
+cluster the Configured Primary would not be elected the Full Primary of
+the system, e.g. Controller B becomes Leader fast, Controller A starts
+up as Follower and respects Controller B's leadership.
+
+*Result:*Without this variation to RAFT we couldn't use
+*failbackToPrimary == TRUE* to guarantee the Configured Primary is the
+Full Primary on new cluster creation. |}
+
+ +
+==== Active-Active ==== The diagram below represents the RAFT state
+transitions for an Active-Active 2-Node deployment using the
+*TwoNodeStrategy* callbacks. (Normal RAFT rules for transitions still
+apply when not preempted by these callbacks)
+
+image:TwoNodeStrategy-Active-Active.png[TwoNodeStrategy
+(Active-Active)|x500px,title="TwoNodeStrategy (Active-Active)|x500px"]
+
+::
+  ;;
+    *No Candidate State*
+    +
+    The Candidate RAFT State and associated transitions to/from that
+    state for the Configured Primary are technically not possible in the
+    Active-Active mode of *TwoNodeStrategy*. The logic is such that the
+    Configured Primary will always be a Follower or Leader as previously
+    described in Raft Difference #1. Programmatically the callbacks are
+    as shown in case the Configured Primary is a Candidate for some
+    reason.'' The Secondary is allowed to transition to Candidate state.
+
+ +
+::As a result the Leader will always have its election term == 0 and the
+Secondary will have an election term >= 0 per RAFT rules of
+transitioning to Candidate state. This information is used to overwrite
+data as intended by the *TwoNodeStategy.*
+
+ +
+==== Active-Passive ==== The diagram below represents the RAFT state
+transitions for an Active-Passive 2-Node deployment using the
+*TwoNodeStrategy* callbacks.
+
+image:TwoNodeStrategy-Active-Passive.png[TwoNodeStrategy
+(Active-Passive)|x500px,title="TwoNodeStrategy (Active-Passive)|x500px"]
+
+::
+  ;;
+    *2 Leaders Possibility*
+    +
+    Since 1) RAFT behavior changes are limited to normal RAFT rules and
+    the callbacks specified with the Consensus Strategy, and 2) the
+    Network Partition (NP) Detection Algorithm that the Active-Passive
+    mode relies to determine if the Secondary should be promoted to a
+    Primary (RAFT Leader) can never be perfect it is possible there will
+    be small windows of time when the *2 Leaders can exist in a
+    Active-Passive 2-Node cluster.*
+
+ +
+::The *TwoNodeStrategy* accepts this and tries to detect and correct for
+2-Leader cases like Active-Active mode (where it is actually allowed and
+desire) during the *onDataReceived* callback. The *onDataSent* callback
+is added to allow a re-evaluation of the NP state by a Secondary acting
+as a leader.
+
+ +
+== Optimizations ==
+
+[[data-sync]]
+=== Data Sync
+
+In the case of 2 Leaders the logic calls for a clearing of state on the
+Secondary so that it can sync up with the Primary. A full clear and
+restore from the Configured Primary may involve a lot of data transfer.
+One optimization might be for the Configured Primary to snapshot its
+election/log index on Network Partition to serve as a restore point.
+
+[[data-loss-control]]
+=== Data-Loss Control
+
+If fine-grained sharding is supported it will be possible to minimize
+the data loss caused by the *TwoNodeStrategy* when data is updated
+outside of normal RAFT rules. With the [#Recommended 2-Node Topology]
+previously shown Controller A could maintain its inventory of switches
+in a different shard than Controller B's inventory. In the event of a
+Full Network Partition with full replication of the finer-grained shards
+each Controller will have a copy of all the inventory data. But because
+of the partition it will only change those devices that are accessible
+and which it should own based on the topology. When the partition is
+fixed only the true device owner's data will be the final state for that
+shard.
+
+*For the Inventory example the cost of this optimization is network
+topology, device ownership, and shard definition are linked.* Further
+work on the ConsensusStrategy is needed to make sure the
+*configuredPrimary* setting is applicable at the Shard level.
+
+[[load-balancing-active-active]]
+=== Load-Balancing (Active-Active)
+
+The ideal Active-Active behavior includes load-balancing of devices and
+network control even when there is are no failures.
+
+ +
+= Failure Modes & Test Cases = The
+OpenDaylight_Controller:MD-SAL:Architecture:Clustering:2-Node:Failure_Modes[Failure
+Modes & Test Cases] page described various failure scenarios for both
+2-Node Deployment modes.
+
+ +
+= Network Partition Detection = The *TwoNodeStrategy* relies on a
+Network Partition Detection algorithm in its behavior. The
+OpenDaylight_Controller:MD-SAL:Architecture:Clustering:2-Node:Network_Partition_Detection[Network
+Partition Detection] page describes available implementations in detail.
+
+ +
+= Dependencies = To support a 2-Node cluster (or an even-node cluster
+with alternative behavior) requires changes to the following areas of
+the controller:
+
+[cols=",,",options="header",]
+|=======================================================================
+|Subsystem |Required Change |Status
+|Clustering |Consensus Strategy to influence RAFT behavior.
+|https://git.opendaylight.org/gerrit/#/c/12832/[Proposal Being Reviewed]
+
+| |Northbound Cluster Leader IP Alias |Not Started (Alternatives?)
+
+| |Fine-Grained Sharding |(Optimization) For improved data consistency.
+
+|Datastore |Allow datastore access from cluster minority when
+configured. |Proposal Being Reviewed
+
+| |Data Change Notification Routing |Changes Being Proposed (LINK)
+
+|MD-SAL |Yang Notification Routing |Changes Being Proposed (LINK)
+
+|Southbound |Device Ownership and Roles (e.g. Single PKT_IN To 1
+Controller) |Separate Mastership Service
+
+|System-Wide |System/Application Suspend Behavior |Not Started
+|=======================================================================
+
+ +
+= Development Schedule & Status =
+
+[[development]]
+== *Development:*
+
+[cols=",,",options="header",]
+|================================
+|Target Date |Description |Status
+|? |? |?
+|================================
+
+[[testing]]
+== *Testing:*
+
+[cols=",,",options="header",]
+|================================
+|Target Date |Description |Status
+|? |? |?
+|================================
+
+ +
+= Open Questions =
+
+1.  If the Controller boots with incorrect persisted state (i.e.
+Configuration and/or Operational Datastores vs. the switch state) how
+are the switches' state resolved? Possibilities:
+
+::* Switches connecting to the Primary Controller clear they state in
+some way? (OpenFlow driven?)
+
+::* System is relying on all flow timeouts? (Realistic assumption that
+timeouts are always used?)
+
+::* ODL components (which one(s)?) reconcile the Controller datastore
+state to switch state?

@@ -18,38 +18,213 @@ OpenDaylight project, specifically the Techtorial Fedora VM.
 [[manual-set-up]]
 = Manual Set Up
 
-The remainder of this guide discusses how to set up the development
-environment using Fedora (linux) environment.
+The remainder of this guide discusses how to set up a development
+environment in Fedora or Ubuntu Linux.
 
-1.  Download and Install https://fedoraproject.org/[Fedora]
-2.  Download and install the Java JDK (version 1.7 seems to be the
-supported version for ODL at this point).
-3.  Download and install http://maven.apache.org/download.cgi[maven]
-* Once you have downloaded and unzipped maven, I found it handy to
-create a symbolic link to mvn from the /usr/bin directory so mvn can be
-found in your path without having to modify the path variable. To set
-the symbolic link you can use this command: +
- ln -s /opt/maven/bin/mvn /usr/bin/mvn +
- _Assumes maven was extracted to /opt/_
-* Edit your .bashrc file to set default maven options to increase the
-amount of memory used for compiling.
-1.  vi ~/.bashrc
-2.  Add export MAVEN_OPTS='-Xmx1048m -XX:MaxPermSize=512m' +
+[[linux-operating-system]]
+== Linux Operating System
+
+[[fedora]]
+=== Fedora
+
+Follow the steps on the https://getfedora.org[Get Fedora] page.
+
+[[ubuntu]]
+=== Ubuntu
+
+Information on Ubuntu Desktop can be found here:
+http://www.ubuntu.com/desktop[Ubuntu Deskop].
+
+[[download-and-install-the-java-jdk]]
+== Download and install the Java JDK
+
+OpenDaylight requires Java 7 JDK for both Helium (current release) and
+Lithium (upcoming release).
+
+Fedora:
+
+`sudo yum install java-1.7.0-openjdk` +
+`sudo yum install java-1.7.0-openjdk-devel`
+
+Ubuntu:
+
+`sudo apt-get install openjdk-7-jre` +
+`sudo apt-get install openjdk-7-jdk`
+
+[[download-and-install-maven]]
+== Download and install http://maven.apache.org/[maven]
+
+OpenDaylight uses Apache Maven for building all projects. You need to
+have version 3.1.1 or later installed.
+
+Fedora:
+
+`sudo yum install maven`
+
+Ubuntu:
+
+`sudo apt-get install maven`
+
+NOTE: For Ubuntu the default version installed for Maven is 3.0.4. Some
+projects are moving to a newer version of Maven so you can optionally go
+directly to the http://maven.apache.org/download.cgi[Download Maven]
+page and grab a newer version.
+
+[[install-git]]
+== Install Git
+
+OpenDaylight maintains all its code in https://git-scm.com/[Git]
+repositories. You will need a git client to access them.
+
+Fedora:
+
+`sudo yum install git`
+
+Ubuntu:
+
+`sudo apt-get install git-core`
+
+[[edit-your-.m2settings.xml]]
+== Edit your ~/.m2/settings.xml
+
+OpenDaylight maintains its own repositories outside of Maven Central,
+which means maven cannot resolve OpenDaylight artifacts by default.
+Since OpenDaylight is organized as multiple inter-dependent projects,
+building a particular project usually means pulling in some artifacts.
+In order to make this work, your maven installation needs to know the
+location of OpenDaylight repositories and has to taught to use them.
+
+This is achieved by making sure ~/.m2/settings.xml looks something like
+this:
+
+--------------------------------------------------------------------------------------------------------------------------------------------------
+# Shortcut command for grabbing settings.xml
+cp -n ~/.m2/settings.xml{,.orig} ; \wget -q -O - https://raw.githubusercontent.com/opendaylight/odlparent/master/settings.xml > ~/.m2/settings.xml
+--------------------------------------------------------------------------------------------------------------------------------------------------
+
+-------------------------------------------------------------------------------------------------------------
+<settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0 http://maven.apache.org/xsd/settings-1.0.0.xsd">
+ 
+  <profiles>
+    <profile>
+      <id>opendaylight-release</id>
+      <repositories>
+        <repository>
+          <id>opendaylight-mirror</id>
+          <name>opendaylight-mirror</name>
+          <url>http://nexus.opendaylight.org/content/repositories/public/</url>
+          <releases>
+            <enabled>true</enabled>
+            <updatePolicy>never</updatePolicy>
+          </releases>
+          <snapshots>
+            <enabled>false</enabled>
+          </snapshots>
+        </repository>
+      </repositories>
+      <pluginRepositories>
+        <pluginRepository>
+          <id>opendaylight-mirror</id>
+          <name>opendaylight-mirror</name>
+          <url>http://nexus.opendaylight.org/content/repositories/public/</url>
+          <releases>
+            <enabled>true</enabled>
+            <updatePolicy>never</updatePolicy>
+          </releases>
+          <snapshots>
+            <enabled>false</enabled>
+          </snapshots>
+        </pluginRepository>
+      </pluginRepositories>
+    </profile>
+
+    <profile>
+      <id>opendaylight-snapshots</id>
+      <repositories>
+        <repository>
+          <id>opendaylight-snapshot</id>
+          <name>opendaylight-snapshot</name>
+          <url>http://nexus.opendaylight.org/content/repositories/opendaylight.snapshot/</url>
+          <releases>
+            <enabled>false</enabled>
+          </releases>
+          <snapshots>
+            <enabled>true</enabled>
+          </snapshots>
+        </repository>
+      </repositories>
+      <pluginRepositories>
+        <pluginRepository>
+          <id>opendaylight-snapshot</id>
+          <name>opendaylight-snapshot</name>
+          <url>http://nexus.opendaylight.org/content/repositories/opendaylight.snapshot/</url>
+          <releases>
+            <enabled>false</enabled>
+          </releases>
+          <snapshots>
+            <enabled>true</enabled>
+          </snapshots>
+        </pluginRepository>
+      </pluginRepositories>
+    </profile>
+  </profiles>
+
+  <activeProfiles>
+    <activeProfile>opendaylight-release</activeProfile>
+    <activeProfile>opendaylight-snapshots</activeProfile>
+  </activeProfiles>
+</settings>
+-------------------------------------------------------------------------------------------------------------
+
+If you are behind a proxy, you might need to add proxy configuration to
+~/.m2/settings.xml. Read -
+http://maven.apache.org/guides/mini/guide-proxies.html[Maven proxy
+configuration]
+
+[[optional-increase-the-amount-of-ram-maven-can-use]]
+== Optional: Increase the amount of RAM maven can use
+
+Some of OpenDaylight's projects are quite big and may cause your builds
+to be slower than necessary. You can tell maven to have more memory at
+its disposal by setting the MAVEN_OPTS environment variable. To do this,
+edit your ~/.bashrc (or ~/.zshrc, or similar depending on you shell):
+
+`vi ~/.bashrc`
+
+Add the following:
+
+`export MAVEN_OPTS='-Xmx1048m -XX:MaxPermSize=512m'`
+
 _Note, you can increase the heap space, the -Xmx setting, to greater
-that 1G if memory is available. When building in maven, the max memory
+than 1G if memory is available. When building in maven, the max memory
 reached will be displayed at the end of the build. You can use this as a
 guide to determine if more memory would help decrease build times._
-4.  Install GIT. One of the great advantages of using linux is yum
-(supported by some linux distributions, such as Fedora) :). To install
-GIT, run the following YUM command:
-* yum install curl-devel expat-devel gettext-developenssl-devel
-zlib-devel
-5.  Install wireshark - Wireshark is utility use for capturing
-individual packets between devices. Again, using yum, install wireshark:
-* yum install wireshark-gnome
-6.  Finally, continue your environment set up by following the next
-steps outline on the GettingStarted:Developer Main[Getting Started]
-page.
+Approx 1.5G of RAM is needed by the JVM to run the Helium Controller
+repeatedly and avoid OOM errors.
+
+[[optional-install-wireshark]]
+== Optional: Install Wireshark
+
+https://www.wireshark.org/[Wireshark] is a packet capture and inspection
+tool. You may find it handy when working with southbound plugins.
+
+Fedora:
+
+`sudo yum install wireshark`
+
+Ubuntu:
+
+`sudo apt-get install wireshark`
+
+[[per-project-environment-setup]]
+== Per-project environment setup
+
+Once you have reached this step, your environment has basic
+prerequisites to do development on OpenDaylight projects. Individual
+projects may require further setup, though. Consult the next steps
+outline on the GettingStarted:Developer Main[Getting Started] page.
 
 _Note: If you find there are missing tools or utilities that are
 required for a develop to get started, please add them to the list!_

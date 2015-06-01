@@ -33,6 +33,8 @@ During this example we illustrate how the yang model is providing
 abstraction for us, and how MD-SAL provides the plumbing (wiring) to
 hook everything up.
 
+* *Prerequisite* will define the project structure and the parent
+pom.xml gathering the different modules we'll build.
 * *Part 1* of this example will define the toaster data model
 (north-bound interface) and will provide a read-only implementation to
 retrieve operational data on the toaster.
@@ -53,6 +55,46 @@ controller.
 from the toaster provider and consumer that are routed through the
 MD-SAL .
 
+[[prerequisite-prepare-the-toaster-project]]
+= Prerequisite : Prepare the Toaster project
+
+It's a basic step presenting how your project directory folder should
+look like :
+
+------------------
+[Root directory]
+  pom.xml
+  toaster
+  toaster-config
+  toaster-consumer
+  toaster-provider
+------------------
+
+The _pom.xml_ file defines the parent project, and will declare the
+modules presented in the structure above: `
+  <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+   <modelVersion>4.0.0</modelVersion>
+  
+   <groupId>org.opendaylight.controller.samples</groupId>
+   <artifactId>toaster-parent</artifactId>
+   <packaging>pom</packaging>
+  
+   <modules>
+     <module>toaster</module>
+     <module>toaster-consumer</module>
+     <module>toaster-provider</module>
+     <module>toaster-config</module>
+   </modules>
+    
+   <scm>
+     <connection>scm:git:ssh://git.opendaylight.org:29418/controller.git</connection>
+     <developerConnection>scm:git:ssh://git.opendaylight.org:29418/controller.git</developerConnection>
+     <tag>HEAD</tag>
+     <url>https://wiki.opendaylight.org/view/OpenDaylight_Controller:MD-SAL</url>
+   </scm>
+  </project>
+`
+
 [[part-1-defining-an-operational-toaster]]
 = Part 1: Defining an Operational Toaster
 
@@ -62,7 +104,7 @@ data about the given toaster. The toaster model and service will be made
 up of two yang files, some new and modified java classes, and a number
 of auto-generated java files. Each yang file provides another level of
 abstraction between the north-bound client and the south-bound
-implementation. It is important to note that the MD-SAL is provides the
+implementation. It is important to note that the MD-SAL provides the
 plumbing while the yang data models provide the abstractions.
 
 1.  _toaster.yang_ - This file defines the north bound data model.
@@ -79,8 +121,8 @@ data of the toaster.
 The first yang file, _toaster.yang_, defines the north bound abstraction
 of the toaster data model, specifically its attributes, RPCs and
 notifications, that can be accessed by north-bound clients (e.g. the
-restconf API). This file is located in the _sample-toaster_ project
-under the _src/main/yang source_ folder.
+restconf API). This file is located in the _toaster_ project under the
+_src/main/yang_ source folder.
 
 -------------------------------------------------------------------------------------------------------------------------
   //This file contains a YANG data definition. This data model defines
@@ -218,10 +260,19 @@ configuration data in part 3 of this tutorial.
 
 At this point we can compile the yang data model to generate the java
 source files. To do this, we need to specify the _yang-maven-plugin_ in
-the pom.xml: `
+the pom.xml, declared in the _toaster_ project: `
  <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"''
                xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
-  ...
+  <parent>
+   <artifactId>toaster-parent</artifactId>
+   <groupId>org.opendaylight.controller</groupId>
+   <version>0.0.1-SNAPSHOT</version>
+   <relativePath>../</relativePath>
+  </parent>
+  
+  <artifactId>toaster</artifactId>
+  <packaging>bundle</packaging>
+  
   '''<build>
   '''  <plugins>
   '''    <plugin>
@@ -262,15 +313,18 @@ the pom.xml: `
   '''    <artifactId>yang-binding</artifactId>
   '''  </dependency>
   '''  <dependency>
-  '''    <groupId>org.opendaylight.controller</groupId>
-  '''    <artifactId>sal-common-util</artifactId>
-  '''  </dependency>
-  '''  <dependency>
   '''    <groupId>org.opendaylight.yangtools</groupId>
   '''    <artifactId>yang-common</artifactId>
   '''  </dependency>
   '''</dependencies>
-  ...
+  
+  <scm>
+   <connection>scm:git:ssh://git.opendaylight.org:29418/controller.git</connection>
+   <developerConnection>scm:git:ssh://git.opendaylight.org:29418/controller.git</developerConnection>
+   <url>https://wiki.opendaylight.org/view/OpenDaylight_Controller:MD-SAL</url>
+   <tag>HEAD</tag>
+  </scm>
+  
  </project>
 `
 
@@ -320,12 +374,13 @@ implementation to provide the operational data. We'll create a class
 *OpendaylightToaster*. On initialization, it writes the operational
 toaster data to the MD-SAL's data store, via the *DataBroker* interface,
 and deletes the data on close. The final version of this class can be
-found in the _sample-toaster-provider_ project under the _src/main/java_
-source folder. The reason this class is created in a separate project is
-it allows the data model and implementation to be provided by different
-bundles, thus allowing different bundles to define different
-implementations of the same data model. There is however nothing
-stopping us from putting everything into the same bundle if the
+found in the package
+_org.opendaylight.controller.sample.toaster.provider_ under the
+_src/main/java_ source folder. The reason this class is created in a
+separate project is it allows the data model and implementation to be
+provided by different bundles, thus allowing different bundles to define
+different implementations of the same data model. There is however
+nothing stopping us from putting everything into the same bundle if the
 implementation is proprietary.
 
 A portion of the class is shown below: `
@@ -435,8 +490,9 @@ in... you guessed it, yang.
 [[define-the-toaster-provider-service-yang-configuration]]
 === Define the Toaster provider service yang configuration
 
-Next we'll define a yang module that describes the configuration of the
-toaster provider service in the _toaster-provider-impl.yang_ file:
+Next we'll define, under the _src/main/yang_ folder, a yang module that
+describes the configuration of the toaster provider service in the
+_toaster-provider-impl.yang_ file:
 
 ---------------------------------------------------------------------------------------------------
 module toaster-provider-impl {
@@ -506,66 +562,141 @@ To generate the java source files that facilitate the service wiring, we
 need to add another code generator, *JmxGenerator*, to the
 yang-maven-plugin configuration in the pom.xml in addition to the
 *CodeGeneratorImpl*, as well as an additional dependency to the
-yangtools plugins: `
-    <plugin>
-       <groupId>org.opendaylight.yangtools</groupId>
-       <artifactId>yang-maven-plugin</artifactId>
-       <executions>
-          <execution>
-             <id>config</id>
-             <goals><goal>generate-sources</goal></goals>
-             <configuration>
-                <codeGenerators>
-                   '''<generator>
-                      '''<codeGeneratorClass>                                 
-                          '''org.opendaylight.controller.config.yangjmxgenerator.plugin.JMXGenerator
-                      '''</codeGeneratorClass>
-                      '''<outputBaseDir>${jmxGeneratorPath}</outputBaseDir>
-                      '''<additionalConfiguration>
-                          '''<namespaceToPackage1>                                                   
-                             '''urn:opendaylight:params:xml:ns:yang:controller==org.opendaylight.controller.config.yang
-                          '''</namespaceToPackage1>
-                      '''</additionalConfiguration>
-                   '''</generator>
-                   <generator>
-                        CodeGeneratorImpl is specified here...
-                   </generator>
-               </codeGenerators>
-               <inspectDependencies>true</inspectDependencies>
-            </configuration>
-          </execution>
-       </executions>
-       <dependencies>
-          '''<dependency>
-             '''<groupId>org.opendaylight.controller</groupId>
-             '''<artifactId>yang-jmx-generator-plugin</artifactId>
-             '''<version>${config.version}</version>
-          '''</dependency>
-          <dependency>
-             <groupId>org.opendaylight.yangtools</groupId>
-             <artifactId>maven-sal-api-gen-plugin</artifactId>
-             <version>${yangtools.version}</version>
-          </dependency>
-       </dependencies>
-    </plugin>
-` We also need to add dependencies in the pom.xml file so the
-_opendaylight-md-sal-binding_ and _config_ yang imports can be located
-by the code generator:
-
-----------------------------------------------------
-<dependency>
+yangtools plugins. Under the project _toaster-provider_, the yang.xml
+file should look like the following: `
+  <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+     <artifactId>toaster-parent</artifactId>
      <groupId>org.opendaylight.controller</groupId>
-     <artifactId>config-api</artifactId>
-</dependency>
-<dependency>
-      <groupId>org.opendaylight.controller</groupId>
-      <artifactId>sal-binding-config</artifactId>
-</dependency>
-----------------------------------------------------
+     <version>0.0.1-SNAPSHOT</version>
+     <relativePath>../</relativePath>
+    </parent>
+    <artifactId>toaster-provider</artifactId>
+    <packaging>bundle</packaging>
+  
+    <properties>
+      <sal-binding-api.version>1.2.0-SNAPSHOT</sal-binding-api.version>
+    </properties>
+  
+    <dependencies>
+      <dependency>
+        <groupId>${project.groupId}</groupId>
+        <artifactId>sample-toaster</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      '''<dependency>
+        '''<groupId>org.opendaylight.controller</groupId>
+        '''<artifactId>config-api</artifactId>
+      '''</dependency>
+      '''<dependency>
+        '''<groupId>org.opendaylight.controller</groupId>
+        '''<artifactId>sal-binding-api</artifactId>
+      '''</dependency>
+      <dependency>
+        <groupId>org.opendaylight.controller</groupId>
+        <artifactId>sal-binding-config</artifactId>
+      </dependency>
+      <dependency>
+        <groupId>org.opendaylight.controller</groupId>
+        <artifactId>sal-common-util</artifactId>
+      </dependency>
+      <dependency>
+        <groupId>org.osgi</groupId>
+        <artifactId>org.osgi.core</artifactId>
+      </dependency>
+      '''<dependency>
+       '''<groupId>org.opendaylight.controller</groupId>
+       '''<artifactId>yang-jmx-generator-plugin</artifactId>
+       '''<version>${config.version}</version>
+      '''</dependency>
+  
+      <!-- dependencies to use AbstractDataBrokerTest -->
+      <dependency>
+        <groupId>org.opendaylight.controller</groupId>
+        <artifactId>sal-binding-broker-impl</artifactId>
+        <scope>test</scope>
+      </dependency>
+      <dependency>
+        <groupId>org.opendaylight.controller</groupId>
+        <artifactId>sal-binding-broker-impl</artifactId>
+        <type>test-jar</type>
+        <scope>test</scope>
+      </dependency>
+      <dependency>
+          <artifactId>junit</artifactId>
+          <groupId>junit</groupId>
+          <scope>test</scope>
+      </dependency>
+      <!-- used to mock up classes -->
+       <dependency>
+        <groupId>org.mockito</groupId>
+        <artifactId>mockito-all</artifactId>
+        <scope>test</scope>
+      </dependency>
+  
+    </dependencies>
+  
+    <build>
+      <plugins>
+        <plugin>
+          <groupId>org.apache.felix</groupId>
+          <artifactId>maven-bundle-plugin</artifactId>
+          <configuration>
+            <instructions>
+              <Export-Package>org.opendaylight.controller.config.yang.toaster_provider,</Export-Package>
+              <Import-Package>*</Import-Package>
+            </instructions>
+          </configuration>
+        </plugin>
+        <plugin>
+          <groupId>org.opendaylight.yangtools</groupId>
+          <artifactId>yang-maven-plugin</artifactId>
+          <executions>
+            <execution>
+              <id>config</id>
+              <goals>
+                <goal>generate-sources</goal>
+              </goals>
+              <configuration>
+                <codeGenerators>
+                  '''<generator>
+                    '''<codeGeneratorClass>org.opendaylight.controller.config.yangjmxgenerator.plugin.JMXGenerator</codeGeneratorClass>
+                    '''<outputBaseDir>${jmxGeneratorPath}</outputBaseDir>
+                    '''<additionalConfiguration>
+                    '''<namespaceToPackage1>
+                        '''urn:opendaylight:params:xml:ns:yang:controller==org.opendaylight.controller.config.yang
+                    '''</namespaceToPackage1>
+                    '''</additionalConfiguration>
+                  '''</generator>
+                  <generator>
+                    <codeGeneratorClass>org.opendaylight.yangtools.maven.sal.api.gen.plugin.CodeGeneratorImpl</codeGeneratorClass>
+                    <outputBaseDir>${salGeneratorPath}</outputBaseDir>
+                  </generator>
+                </codeGenerators>
+                <inspectDependencies>true</inspectDependencies>
+              </configuration>
+            </execution>
+          </executions>
+        </plugin>
+      </plugins>
+    </build>
+    <scm>
+      <connection>scm:git:ssh://git.opendaylight.org:29418/controller.git</connection>
+      <developerConnection>scm:git:ssh://git.opendaylight.org:29418/controller.git</developerConnection>
+      <tag>HEAD</tag>
+      <url>https://wiki.opendaylight.org/view/OpenDaylight_Controller:MD-SAL</url>
+    </scm>
+  </project>
+`
+
+We also need to add dependencies in the pom.xml file so the
+_opendaylight-md-sal-binding_ and _config_ yang imports can be located
+by the code generator.
 
 After running mvn clean install you should see two files generated:
 
-* *ToasterProviderlModule* - concrete class whose _createInstance()_
+* *ToasterProviderModule* - concrete class whose _createInstance()_
 method provides the *OpendaylightToaster* instance.
 * *ToasterProviderModuleFactory* - concrete class instantiated
 internally by MD-SAL that creates *ToasterProviderModule* instances.
@@ -580,7 +711,8 @@ code.
 The *ToasterProviderModule* class is mostly complete from the code
 generation. Only the _ToasterProviderModule.createInstance()_ method
 needs to be implemented to instantiate and wire the
-*OpendaylightToaster*:
+*OpendaylightToaster*. The class is located under the package
+''org.opendaylight.controller.config.yang.config.toaster_provider.impl.
 
 ---------------------------------------------------------------------------------------
      @Override
@@ -600,7 +732,6 @@ needs to be implemented to instantiate and wire the
                 opendaylightToaster.close();
             }
         }
-
         return new AutoCloseableToaster();
     }
 ---------------------------------------------------------------------------------------
@@ -648,27 +779,13 @@ _data_ section of _configuration_ is where you define your services,
 implementation modules and how to configure each implementation. This
 section is used in the subsequent netconf "edit-config" message.
 
-Create an xml file named "03-toaster-sample.xml" with the following and
-put it into the _configuration/initial_ folder of the distribution that
-you are running (i.e.
-controller/opendaylight/distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/configuration/initial).
-
- +
-_Note 1: Be sure to save this xml file off. If you rebuild the
-distribution.opendaylight project, this folder will be deleted,
-including your file._ +
-''Note 2: If you are performing the steps of this tutorial, you can
-safely delete the existing file and create an empty file with the
-limited data below. As we proceed in this tutorial we will rebuild that
-file in its entirety. Also, the original version of the file is stored
-in the
-distribution/opendaylight/src/main/resources/configuration/initial
-directory just in case.
-
-Edit the 03-toaster-sample.xml file and put in the following content:
+Under the _toaster-config_ project, in the _src/main/resources_ source,
+create a folder _initial_ into which you create an xml file named
+"03-toaster-sample.xml" with the following:
 
 ---------------------------------------------------------------------------------------------------------------------------------------------------------------------
 <snapshot>
+    
     <configuration>
         <data xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
             <modules xmlns="urn:opendaylight:params:xml:ns:yang:controller:config">
@@ -685,17 +802,16 @@ Edit the 03-toaster-sample.xml file and put in the following content:
                        <type xmlns:binding="urn:opendaylight:params:xml:ns:yang:controller:md:sal:binding">binding:binding-async-data-broker</type>
                        <name>binding-data-broker</name>
                    </data-broker>
-
                 </module>
+
             </modules>
         </data>
-
     </configuration>
-
+  
     <required-capabilities>
         <capability>urn:opendaylight:params:xml:ns:yang:controller:config:toaster-provider:impl?module=toaster-provider-impl&amp;amp;revision=2014-01-31</capability>
     </required-capabilities>
-
+  
 </snapshot>
 ---------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -736,13 +852,47 @@ could actually be deployed first as the config subsystem will retry if a
 dependency is not yet present but it is more efficient on startup to
 explicitly define the ordering.
 
-On startup, the XML files in the _configuration/initial_ directory are
+On startup, the XML files in the _resources/initial_ directory are
 loaded by the *ConfigPersisterActivator*. A *ConfigPusher* instance is
 instantiated to push the configs via the NetConf subsystem to the
-*ConfigRegistryImpl*. When processing the toaster-provider-impl module
-in the toaster config file, the *ToasterProviderModuleFactory* class is
-located and instantiated and the _createModule_ method is called to
-create a *ToasterProviderModule* instance. The
+*ConfigRegistryImpl*. In order to push the config file, we have to
+define it in the pom file of the *ConfigPusher*, which is located under
+_controller/opendaylight/commons/opendaylight_: `
+   <properties>
+    ...
+    <config.toaster.configfile>03-toaster-sample.xml</config.toaster.configfile>
+    ...
+   </properties>   
+`
+
+Compile _controller/opendaylight/commons/opendaylight_ using
+` mvn clean install `.
+
+*Note*: As the toaster example is already provided by MDSAL, the config
+file is already declared in the ConfigPusher file.
+
+You also have to specified the path of the config file in the
+feature.xml file of MDSAL. Go to
+_controller/features/mdsal/src/main/resources/_ and edit the
+_features.xml_ file by adding the following: `
+   <feature name='odl-toaster' version='${project.version}' description="OpenDaylight :: Toaster">
+        <feature version='${yangtools.version}'>odl-yangtools-common</feature>
+        <feature version='${yangtools.version}'>odl-yangtools-binding</feature>
+        <feature version='${project.version}'>odl-mdsal-broker</feature>
+        <bundle>mvn:org.opendaylight.controller.samples/toaster/${project.version}</bundle>
+        <bundle>mvn:org.opendaylight.controller.samples/toaster-consumer/${project.version}</bundle>
+        <bundle>mvn:org.opendaylight.controller.samples/toaster-provider/${project.version}</bundle>
+        <configfile finalname="${config.configfile.directory}/${config.toaster.configfile}">mvn:org.opendaylight.controller.samples/toaster-config/${project.version}/xml/config</configfile>
+    </feature>
+` Compile _controller/features/mdsal_ using ` mvn clean install `.
+
+*Note*: As the toaster example is already provided by MDSAL, the path to
+the config file is already declared in the features file.
+
+When processing the toaster-provider-impl module in the toaster config
+file, the *ToasterProviderModuleFactory* class is located and
+instantiated and the _createModule_ method is called to create a
+*ToasterProviderModule* instance. The
 _ToasterProviderModule.createInstance_ method is then called to create
 and wire the *OpenDaylightToaster*.
 
@@ -755,8 +905,68 @@ when you start it. If the wiring service fails to find all of the
 dependencies you will see errors printed out there about missing
 capabilities etc.*
 
+Now you have to define the pom file for the _toaster-config_ project, as
+below: `
+  <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+      <groupId>org.opendaylight.controller</groupId>
+      <artifactId>toaster-parent</artifactId>
+      <version>0.0.1-SNAPSHOT</version>
+    </parent>
+  
+    <artifactId>toaster-config</artifactId>
+    <description>Configuration files for toaster</description>
+    <packaging>jar</packaging>
+  
+    <build>
+      <plugins>
+          <plugin>
+          <groupId>org.codehaus.mojo</groupId>
+          <artifactId>build-helper-maven-plugin</artifactId>
+          <executions>
+            <execution>
+              <id>attach-artifacts</id>
+              <goals>
+                <goal>attach-artifact</goal>
+              </goals>
+              <phase>package</phase>
+              <configuration>
+                <artifacts>
+                  <artifact>
+                    <file>${project.build.directory}/classes/initial/03-toaster-sample.xml</file>
+                    <type>xml</type>
+                    <classifier>config</classifier>
+                  </artifact>
+                </artifacts>
+              </configuration>
+            </execution>
+          </executions>
+        </plugin>
+      </plugins>
+    </build>
+  </project>
+` Compile the _toaster-config_ project using ` mvn clean install `.
+
 [[getting-the-operational-status-of-the-toaster]]
 == Getting the Operational Status of the Toaster
+
+First, you need to compile, run karaf, and install dependency: `
+  // compile karaf
+  cd controller/karaf
+  mvn clean install
+    
+  // run karaf
+  tar xf distribution.opendaylight-karaf-1.5.0-SNAPSHOT.tar.gz
+  ./distribution.opendaylight-karaf-1.5.0-SNAPSHOT/bin/karaf
+  
+ // install dependency into karaf
+ feature:install odl-restconf
+  
+  // now, you can install your feature
+  feature:install odl-toaster
+`
 
 To get the operational status of the toaster you will make a call to the
 RESTCONF service provided by MD-SAL. You do this by performing a GET to
@@ -1227,6 +1437,21 @@ Body =>
 _Note: The default and mandatory flags are not currently implemented in,
 so even though the toast type and doneness is defaulted in the yang
 model, you still have to provide their values here._
+
+The XML equivalent to the above JSON example is shown below.
+
+-------------------------------------------------------------------
+HTTP Method => POST
+URL => http://localhost:8181/restconf/operations/toaster:make-toast
+HEADER => Content-Type: application/xml
+Body =>
+<input xmlns="http://netconfcentral.org/ns/toaster">
+     <toasterDoneness>10</toasterDoneness>
+     <toasterToastType>wheat-bread</toasterToastType>
+</input>
+-------------------------------------------------------------------
+
+''Note: An XML namespace is required in Lithium and above. ''
 
 [[invoke-cancel-toast-via-restconf]]
 === Invoke cancel-toast via RestConf

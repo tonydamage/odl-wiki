@@ -1,0 +1,341 @@
+In case this guide does not lead to desired results, please consult also
+https://wiki.opendaylight.org/view/BGP_LS_PCEP:Troubleshooting[the
+thoubleshooting page].
+
+[[bgp]]
+=== BGP
+
+OpenDaylight SP edition comes pre-configured with baseline BGP
+configuration. You can find it in the opendaylight/configuration/initial
+directory and it consists of two files:
+
+*
+https://jenkins.opendaylight.org/integration/view/Integration%20jobs/job/integration-master-project-centralized-integration/lastSuccessfulBuild/artifact/distributions/serviceprovider/target/distributions-serviceprovider-0.2.0-SNAPSHOT-osgipackage/opendaylight/configuration/initial/31-bgp.xml[31-bgp.xml],
+which defines the basic parser and RIB support. Unless you need to add a
+new AFI/SAFI, you should keep this file as is
+
+*
+https://jenkins.opendaylight.org/integration/view/Integration%20jobs/job/integration-master-project-centralized-integration/lastSuccessfulBuild/artifact/distributions/serviceprovider/target/distributions-serviceprovider-0.2.0-SNAPSHOT-osgipackage/opendaylight/configuration/initial/41-bgp-example.xml[41-bgp-example.xml],
+which contains a sample configuration which needs to be customized to
+your deployment.
+
+*Currently the configuration for BGP peer is ignored in the
+configuration, to prevent the client from starting with default
+configuration. Therefore the first step is to uncomment ALL the
+commented parts in this file.*
+
+[[bgp-client-configuration]]
+==== BGP Client configuration
+
+\1. Adjust values for initial BGP Open message
+
+ +
+`    ``prefix:rib-impl` +
+`    ``example-bgp-rib` +
+`    ``example-bgp-rib` +
+`    ``64496``         // Our AS number, we use this in best path selection` +
+`    ``192.0.2.2``         // Our BGP identifier, we use this in best path selection`
+
+\2. Specify IP address of your BGP speaker
+
+ +
+`    ``prefix:bgp-peer` +
+`    ``example-bgp-peer` +
+`    ``192.0.2.1``                         // IP address or hostname of the speaker` +
+`    ``180` +
+
+You can also add more BGP peers with different instance name and
+hostname.
+
+ +
+`    ``prefix:bgp-peer` +
+`    ``example-bgp-peer2` +
+`    ``192.0.2.2` +
+`    ``180`
+
+\3. Configure connection attributes (all in milliseconds)
+
+ +
+`   ``prefix:timed-reconnect-strategy` +
+`   ``example-reconnect-strategy` +
+`   ``1000``             // Minimum sleep time in between reconnect tries` +
+`   ``180000``           // Maximum sleep time in between reconnect tries` +
+`   ``2.00``       // Power factor of the sleep time between reconnect tries` +
+`   ``5000``       // How long we should wait for the TCP connect attempt, overrides default connection timeout dictated by TCP retransmits` +
+`   ` +
+`       ``netty:netty-event-executor` +
+`       ``global-event-executor` +
+`   ` +
+
+[[bgp-speaker-configuration]]
+==== BGP Speaker configuration
+
+Previous entries addressed the configuration of a BGP connection
+initiated by ODL. ODL also supports BGP Speaker functionality and
+accepts incoming BGP connections. +
+ +
+The configuration of BGP speaker is located in:
+https://jenkins.opendaylight.org/integration/view/Integration%20jobs/job/integration-master-project-centralized-integration/lastSuccessfulBuild/artifact/distributions/serviceprovider/target/distributions-serviceprovider-0.2.0-SNAPSHOT-osgipackage/opendaylight/configuration/initial/41-bgp-example.xml[41-bgp-example.xml]
+:
+
+ +
+`   ``prefix:bgp-peer-acceptor` +
+`   ``bgp-peer-server` +
+`   <!--Default parameters-->` +
+`    <!--<binding-address>0.0.0.0</binding-address>-->` +
+`    <!--<binding-port>179</binding-port>-->` +
+`   ` +
+`       ``prefix:bgp-dispatcher` +
+`       ``global-bgp-dispatcher` +
+`   ` +
+`   <!--Drops or accepts incoming BGP connection, every BGP Peer that should be accepted needs to be added to this registry-->` +
+`   ` +
+`       ``prefix:bgp-peer-registry` +
+`       ``global-bgp-peer-registry` +
+`   ` +
+
+\1. Changing speaker configuration
+
+* Changing binding address: Uncomment tag _binding-address_ and change
+the address to e.g. 127.0.0.1. The default binding address is 0.0.0.0.
+* Changing binding port: Uncomment tag _binding-port_ and change the
+port to e.g. 1790. The default binding port is 179 as specified in
+http://tools.ietf.org/html/rfc4271[BGP RFC].
+
+\2. Configuring incoming BGP connections
+
+By default, the *BGP speaker drops all BGP connections from unknown BGP
+peers*. The decision is made in component _bgp-peer-registry_ that is
+injected into the speaker (The registry is configured in
+https://jenkins.opendaylight.org/integration/view/Integration%20jobs/job/integration-master-project-centralized-integration/lastSuccessfulBuild/artifact/distributions/serviceprovider/target/distributions-serviceprovider-0.2.0-SNAPSHOT-osgipackage/opendaylight/configuration/initial/31-bgp.xml[31-bgp.xml]). +
+ +
+To add BGP Peer configuration into the registry, it is necessary to
+configure regular BGP peer just like in example in
+https://jenkins.opendaylight.org/integration/view/Integration%20jobs/job/integration-master-project-centralized-integration/lastSuccessfulBuild/artifact/distributions/serviceprovider/target/distributions-serviceprovider-0.2.0-SNAPSHOT-osgipackage/opendaylight/configuration/initial/41-bgp-example.xml[41-bgp-example.xml].
+Notice that the BGP peer depends on the same _bgp-peer-registry_ as
+_bgp-speaker_:
+
+ +
+`    ``prefix:bgp-peer` +
+`    ``example-bgp-peer` +
+`    ``192.0.2.1` +
+`    ...` +
+`    ` +
+`        ``prefix:bgp-peer-registry` +
+`        ``global-bgp-peer-registry` +
+`    ` +
+`    ...` +
+
+BGP peer registers itself into the registry, which allows incoming BGP
+connections handled by the _bgp-speaker_. (Config attribute
+_peer-registry_ is optional for now to preserve backwards
+compatibility). With this configuration, the connection to 192.0.2.1 is
+initiated by ODL but will also be accepted from 192.0.2.1. In case both
+connections are being established, only one of them will be preserved
+and the other will be dropped. The connection initiated from device with
+lower bgp id will be dropped by the registry. +
+ +
+There is a way to configure the peer only for incoming connections (The
+connection will not be initiated by the ODL, ODL will only wait for
+incoming connection from the peer. The peer is identified by its IP
+address). To configure peer only for incoming connection add attribute
+_initiate-connection_ to peer's configuration:
+
+ +
+`    ``prefix:bgp-peer` +
+`    ``example-bgp-peer` +
+`    ``192.0.2.1``                         // IP address or hostname of the speaker` +
+`    ``180` +
+`    ``false``  // Connection will not be initiated by ODL` +
+`    ...` +
+
+The attribute _initiate-connection_ is optional with the default value
+set to *true*.
+
+[[application-peer-configuration]]
+==== Application Peer configuration
+
+Application Peer is a special type of BGP peer. It has it's own BGP RIB.
+This RIB can be populated through RESTCONF. If ODL is set as BGP
+speaker, the changes are sent to other BGP clients as well. To properly
+configure application peer, add following lines to:
+https://jenkins.opendaylight.org/integration/view/Integration%20jobs/job/integration-master-project-centralized-integration/lastSuccessfulBuild/artifact/distributions/serviceprovider/target/distributions-serviceprovider-0.2.0-SNAPSHOT-osgipackage/opendaylight/configuration/initial/41-bgp-example.xml[41-bgp-example.xml]
+and make appropriate changes.
+
+ +
+` ``prefix:bgp-application-peer` +
+` ``example-bgp-peer-app` +
+` ``10.1.9.9`` <!-- Your local BGP-ID that will be used in BGP Best Path Selection algorithm -->` +
+` ` +
+`  ``prefix:rib-instance` +
+`  ``example-bgp-rib`` <!-- RIB where the changes from application RIB should be propagated -->` +
+` ` +
+` ``example-app-rib``  <!-- Your application RIB identifier -->` +
+` ` +
+`  ``binding:binding-async-data-broker` +
+`  ``binding-data-broker` +
+` ` +
+
+[[pcep]]
+=== PCEP
+
+OpenDaylight SP edition comes pre-configured with baseline PCEP
+configuration.The default shipped configuration will start a PCE server
+on port 4189.
+
+*
+https://jenkins.opendaylight.org/integration/view/Integration%20jobs/job/integration-master-project-centralized-integration/lastSuccessfulBuild/artifact/distributions/serviceprovider/target/distributions-serviceprovider-0.2.0-SNAPSHOT-osgipackage/opendaylight/configuration/initial/32-pcep.xml[32-pcep.xml]
+- basic PCEP configuration, including session parameters
+*
+https://jenkins.opendaylight.org/integration/view/Integration%20jobs/job/integration-master-project-centralized-integration/lastSuccessfulBuild/artifact/distributions/serviceprovider/target/distributions-serviceprovider-0.2.0-SNAPSHOT-osgipackage/opendaylight/configuration/initial/39-pcep-provider.xml[39-pcep-provider.xml]
+- configuration for PCEP provider
+
+[[configure-draft-versions]]
+==== Configure draft versions
+
+There are already two extensions for PCEP: +
+*http://tools.ietf.org/html/draft-ietf-pce-stateful-pce[draft-ietf-pce-stateful-pce]*
+- in versions 02 and 07 +
+*http://tools.ietf.org/html/draft-ietf-pce-pce-initiated-lsp[draft-ietf-pce-pce-initiated-lsp]*
+- versions crabbe-initiated-00 and ietf-initiated-00 +
+ Note, that they extend each other, so it is vital to load the
+extensions with compatible versions. In this case crabbe-initiated-00 is
+compatible with stateful-02 and ietf-initiated-00 is compatible with
+stateful-07. Default configuration is to use newest versions of the
+drafts.
+
+*You have to complete all three steps in order to get stateful02 PCEP
+connection running and synchronized.*
+
+If you want to use older version: +
+1. Switch commented code to ignore stateful-7 and ietf-initiated-00
+versions in
+https://jenkins.opendaylight.org/integration/view/Integration%20jobs/job/integration-master-project-centralized-integration/lastSuccessfulBuild/artifact/distributions/serviceprovider/target/distributions-serviceprovider-0.2.0-SNAPSHOT-osgipackage/opendaylight/configuration/initial/32-pcep.xml[32-pcep.xml]:
+
+`` +
+` <!-- This block is draft-ietf-pce-stateful-pce-07 + draft-ietf-pce-inititated-pce-00 -->` +
+` <!--extension>` +
+`  <type>pcepspi:extension</type>` +
+`  <name>pcep-parser-ietf-stateful07</name>` +
+` </extension>` +
+` <extension>` +
+`  <type>pcepspi:extension</type>` +
+`  <name>pcep-parser-ietf-initiated00</name>` +
+` </extension-->` +
+` <!-- This block is draft-ietf-pce-stateful-pce-02 + draft-crabbe-pce-inititated-pce-00 -->` +
+ +
+` ``pcepspi:extension` +
+` ``pcep-parser-ietf-stateful02` +
+ +
+ +
+` ``pcepspi:extension` +
+` ``pcep-parser-crabbe-initiated00` +
+
+\2. In the same file, make sure the proposal matches your chosen draft
+version. Change _stateful07-proposal_ to _stateful02-proposal_ :
+
+ +
+`    ``pcep:pcep-session-proposal-factory` +
+`    ``stateful02-proposal` +
+
+\3. In
+https://jenkins.opendaylight.org/integration/view/Integration%20jobs/job/integration-master-project-centralized-integration/lastSuccessfulBuild/artifact/distributions/serviceprovider/target/distributions-serviceprovider-0.2.0-SNAPSHOT-osgipackage/opendaylight/configuration/initial/39-pcep-provider.xml[39-pcep-provider.xml],
+stateful-plugin also needs to match. Change _stateful07_ to
+_stateful02_:
+
+ +
+`    ``prefix:pcep-topology-stateful` +
+`    ``stateful02` +
+
+[[configure-pcep-segment-routing]]
+==== Configure PCEP Segment Routing
+
+http://tools.ietf.org/html/draft-sivabalan-pce-segment-routing-02[draft-sivabalan-pce-segment-routing-02]
+PCEP extension for Segment Routing
+
+*PCEP Segment Routing initial configuration:*
+
+*
+https://jenkins.opendaylight.org/bgpcep/job/bgpcep-nightly/ws/pcep/controller-config/src/main/resources/initial/33-pcep-segment-routing.xml[_33-pcep-segment-routing.xml_]
+
+* To use Segment Routing uncomment two commented blocks
+
+* Activate parsers/serializes extension:
+** Crete _pcep-parser-segment-routing02_ instance
+** Reconfigure (inject into list of extensions) _global-pcep-extensions_
+
+code,xml--------------------------------------------------------------------------------------------------------------------------------------------
+code,xml
+
+<module>
+    <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:pcep:sr02:cfg">prefix:pcep-parser-segment-routing02</type>
+    <name>pcep-parser-segment-routing02</name>
+</module>
+
+<module>
+    <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:pcep:spi">prefix:pcep-extensions-impl</type>
+    <name>global-pcep-extensions</name>
+    <extension>
+        <type xmlns:pcepspi="urn:opendaylight:params:xml:ns:yang:controller:pcep:spi">pcepspi:extension</type>
+        <name>pcep-parser-segment-routing02</name>
+    </extension>
+</module>
+.
+.
+.
+<services xmlns="urn:opendaylight:params:xml:ns:yang:controller:config">
+    <service>
+        <type xmlns:pcepspi="urn:opendaylight:params:xml:ns:yang:controller:pcep:spi">pcepspi:extension</type>
+        <instance>
+            <name>pcep-parser-segment-routing02</name>
+            <provider>/config/modules/module[name='pcep-parser-segment-routing02']/instance[name='pcep-parser-segment-routing02']</provider>
+        </instance>
+    </service>
+</services>
+--------------------------------------------------------------------------------------------------------------------------------------------
+
+* Advertise Segment Routing capability in Open Message:
+** Instantiate pcep-session-proposal-factory-sr02
+** Reconfigure _global-pcep-dispatcher_
+
+code,xml------------------------------------------------------------------------------------------------------------------------------------------------------
+code,xml
+<module>
+    <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:pcep:sr02:cfg">prefix:pcep-session-proposal-factory-sr02</type>
+    <name>pcep-session-proposal-factory-sr02</name>
+</module>
+<module>
+    <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:pcep:impl">prefix:pcep-dispatcher-impl</type>
+    <name>global-pcep-dispatcher</name>
+    <pcep-session-proposal-factory>
+        <type xmlns:pcep="urn:opendaylight:params:xml:ns:yang:controller:pcep">pcep:pcep-session-proposal-factory</type>
+        <name>pcep-session-proposal-factory-sr02</name>
+    </pcep-session-proposal-factory>
+</module>
+.
+.
+.
+<services xmlns="urn:opendaylight:params:xml:ns:yang:controller:config">
+    <service>
+        <type xmlns:pcep="urn:opendaylight:params:xml:ns:yang:controller:pcep">pcep:pcep-session-proposal-factory</type>
+        <instance>
+            <name>pcep-session-proposal-factory-sr02</name>
+            <provider>/config/modules/module[name='pcep-session-proposal-factory-sr02']/instance[name='pcep-session-proposal-factory-sr02']</provider>
+        </instance>
+    </service>
+</services>
+------------------------------------------------------------------------------------------------------------------------------------------------------
+
+[[mailing-lists]]
+== Mailing Lists
+
+If you have any questions, feel free to write to one of our mailing
+lists:
+
+*
+https://lists.opendaylight.org/mailman/listinfo/bgpcep-dev[bgpcep-dev],
+a general developers list
+*
+https://lists.opendaylight.org/mailman/listinfo/bgpcep-users[bgpcep-users],
+the general user support list
+

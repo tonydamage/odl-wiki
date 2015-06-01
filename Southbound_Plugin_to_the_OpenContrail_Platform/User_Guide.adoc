@@ -2,14 +2,31 @@
 == Introduction
 
 This user guide will help to setup and integrate Southbound plugin to
-the OpenContrail Platform.
+the OpenContrail Platform with OpenDaylight.
 
-[[how-to-run]]
-== How to run
+[[prerequisite]]
+== Prerequisite
 
-* Download/Gerrit the following from the respository:
+*OpenContrail and OpenStack Setup* - Ensure OpenStack and OpenContrail
+nodes are up and running. Refer the following link for installation and
+setup.
 
-`   1. Opendaylight controller Base or SP edition` +
+*
+Southbound plugin to the OpenContrail platform:Environment Setup[Environment
+Setup]
+
+[[building-a-plugin2oc-based-opendaylight-virtualization-edition]]
+== 1. Building a plugin2oc based Opendaylight Virtualization edition :
+
+This is the legacy way to build and distribute Opendaylight archives.
+And this method was followed in Hydrogen and possibly in Helium release
+as well.
+
+[[setup-and-installation]]
+=== *Setup and Installation*
+
+* *OpenDaylight* - Download/Gerrit the Opendaylight controller Base /
+Virtualization / SP edition from the respository:
 
 --------------------------------------------------------------
 http://www.opendaylight.org/software/downloads 
@@ -17,14 +34,45 @@ OR
 git clone https://git.opendaylight.org/gerrit/p/controller.git
 --------------------------------------------------------------
 
-`   2. Southbound plugin to the OpenContrail Platform` +
-` `
+* *Southbound plugin to the OpenContrail Platform* - Download/Gerrit the
+plugin from the respository:
 
 ---------------------------------------------------------------
 git clone https://git.opendaylight.org/gerrit/plugin2oc.git
 or
 git clone ssh://<username>@git.opendaylight.org:29418/plugin2oc
 ---------------------------------------------------------------
+
+[[configuration]]
+=== *Configuration*
+
+* *ODL - Initial Setup*
+
+Refer this link for inital setup of OpenDaylight controller
+https://wiki.opendaylight.org/view/OpenDaylight_Controller:Pulling,Hacking,_and_Pushing_the_Code_from_the_CLI.
+
+* *Southbound plugin to the OpenContrail Platform Deployment*
+
+Copy the following jar from plugin2oc into
+/root/controller/opendaylight/distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/plugins
+directory of OpenDaylight.
+
+-------------------------
+plugin2oc.neutron-0.1.jar
+-------------------------
+
+* *Configuration changes*
+
+Add the following parameters to config.ini file under the directory
+/root/controller/opendaylight/distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/plugins/configuration/config.ini
+
+-------------------------------------------------------------------------------------------------
+plugin2oc.apiserver.port = 8082 //<By default API server runs on port 8082>
+plugin2oc.apiserver.ipaddress = <IP Address of the node where OpenContrail API Server is running>
+-------------------------------------------------------------------------------------------------
+
+[[how-to-run]]
+=== *How to run*
 
 * Replace plugin2oc related jar files into the depolyment folder of the
 Base/Virtualization/SP edition i.e under the directory location
@@ -35,30 +83,123 @@ Base/Virtualization/SP edition i.e under the directory location
 
 * Run the controller using the command ./run.sh
 
-[[configuration]]
-== Configuration
+[[test-the-plugin]]
+=== *Test the plugin*
 
-* Initial Setup
+Sample - *Creating a network*
 
-Refer this link for inital setup of OpenDaylight controller
-https://wiki.opendaylight.org/view/OpenDaylight_Controller:Pulling,Hacking,_and_Pushing_the_Code_from_the_CLI.
+*Request* : From RESTClient hit the following:
 
-* ODL-Southbound plugin to the OpenContrail Platform Deployment
+* Authentication --> Basic Authentication:
 
-`   Copy the following jar from plugin2oc into /root/controller/opendaylight/distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/plugins directory of OpenDaylight. `
+----------------
+Username : admin
+Password : admin
+----------------
 
--------------------------
-plugin2oc.neutron-0.1.jar
--------------------------
+* URL: :8080/controller/nb/v2/neutron/networks
+* Headers --> Custom Header
 
-* Configuration changes
+------------------------
+Name : Content-Type
+Value : application/json
+------------------------
 
-`   Add the following parameters to config.ini file under the directory /root/controller/opendaylight/distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/plugins/configuration/config.ini`
+* Body
+
+-------------------------------------------------------
+{ "networks": [
+ {
+   "id": "d17696ea-1d2f-42ff-9a8f-895eca97b5ed",
+   "name": "Network-test",
+   "tenant_id": "93397de8-7b3c-4450-a700-40d5d0120e89",
+   "router:external": true,
+   "shared": true
+  }
+]}
+-------------------------------------------------------
+
+*Output* : ODL console should display the following:
+
+-----------------------------------------------------------------------------------------------
+Network: Network-test having UUID: d17696ea-1d2f-42ff-9a8f-895eca97b5ed successfully created...
+-----------------------------------------------------------------------------------------------
+
+[[building-a-karaf-feature-and-deploying-it-in-an-opendaylight-karaf-distribution]]
+== 2. Building a Karaf Feature and deploying it in an Opendaylight Karaf
+distribution
+
+This is a new method for Opendaylight distribution wherein there is no
+defined editions such as Base, Virtualization or SP editions. The
+end-customer can choose to deploy the required feature based on his/her
+deployment needs.
+
+[[setup-and-installation-1]]
+=== *Setup and Installation*
+
+* Download the controller - sample build -
+http://nexus.opendaylight.org/content/groups/staging/org/opendaylight/integration/distribution-karaf/0.2.0-Helium/distribution-karaf-0.2.0-Helium.zip
+* Unzip distribution-karaf-0.2.0-Helium.zip
+* Clean out your local .m2
+
+`rm -rf ~/.m2/repository/org/opendaylight`
+
+[[configuration-1]]
+=== *Configuration*
+
+Add the following parameters to system.properties file under the
+directory /distribution-karaf-0.2.0-Helium/etc/system.properties
 
 -------------------------------------------------------------------------------------------------
 plugin2oc.apiserver.port = 8082 //<By default API server runs on port 8082>
 plugin2oc.apiserver.ipaddress = <IP Address of the node where OpenContrail API Server is running>
 -------------------------------------------------------------------------------------------------
+
+[[how-to-run-1]]
+=== *How to run*
+
+* Run Karaf
+
+-------------------------------------------
+cd distribution-karaf-0.2.0-Helium-RC0/bin/
+./karaf
+-------------------------------------------
+
+[[load-the-feature]]
+=== *Load the feature*
+
+-----------------------------------------------------------------
+opendaylight-user@root>feature:install odl-plugin2oc odl-restconf
+-----------------------------------------------------------------
+
+[[ensure-the-features-are-loaded]]
+=== *Ensure the features are loaded*
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------
+opendaylight-user@root>feature:list -i | grep odl-plugin2oc
+odl-plugin2oc              | 0.1.0-Helium  | x         | odl-plugin2oc-0.1-Helium               | OpenDaylight :: plugin2oc :: Plugin                
+opendaylight-user@root>feature:list -i | grep odl-restconf
+odl-restconf                     | 1.1-Helium   | x         | odl-mdsal-1.1-Helium                | OpenDaylight :: Restconf  
+-----------------------------------------------------------------------------------------------------------------------------------------------------
+
+[[test-the-plugin-1]]
+=== *Test the plugin*
+
+Sample - *Creating a network*
+
+*Request* : From CLI hit the following CURL command:
+
+------------------------------------------------------------------------------------------------------------------------
+curl -X POST -H "Content-Type: application/json" -u admin:admin http://localhost:8080/controller/nb/v2/neutron/networks 
+-d '{ "networks": [ { "id": "d17696ea-1d2f-42ff-9a8f-895eca97b5ed", "name": "Network-1",
+"tenant_id": "93397de8-7b3c-4450-a700-40d5d0120e89","router:external": true,"shared": true} ]}'
+------------------------------------------------------------------------------------------------------------------------
+
+*Output* : Karaf console should display the following:
+
+-----------------------------------------------------------------------------------------------
+Network: Network-test having UUID: d17696ea-1d2f-42ff-9a8f-895eca97b5ed successfully created...
+-----------------------------------------------------------------------------------------------
 
 [[related-documents]]
 == Related Documents
@@ -67,6 +208,6 @@ plugin2oc.apiserver.ipaddress = <IP Address of the node where OpenContrail API S
 Project_Proposals:Southbound plugin to the OpenContrail platform[Project
 Proposal]
 *
-Southbound plugin to the OpenContrail platform:Environment Setup[Environment
-Setup]
+Southbound Plugin to the OpenContrail Platform:Developer_Guide[Developer
+Guide]
 

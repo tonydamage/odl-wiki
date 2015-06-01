@@ -1,255 +1,263 @@
 [[technical-architecture]]
 == Technical Architecture
 
-FIXME: add a high-level picture of what we BGP/LS and PCEP do. A
-detailed description of the project likely including both high-level and
-lower-level architecture diagrams
+In overall OpenDaylight architecture, BGPCEP as a project is dependent
+on _yangtools_ project, for generating Java API out of YANG models, and
+on _controller_ (MD-SAL), for storing data. The controller contains also
+component _protocol-framework_, which is a wrapper on
+http://netty.io[netty] and this is used to handle TCP connections used
+in both protocols. Another dependency in controller is on
+_config-subsystem_. All configuration in BGPCEP is done using this
+component. Both BGP and PCEP protocols support MD5, therefore _TCPMD5_
+is another dependency of BGPCEP.
 
-[[configuration]]
-== Configuration
+image:Overall_arch.png[Overall
+architecture,title="Overall architecture"]
 
-* For basic configuration see BGP LS PCEP:User Guide[User Guide]
+BGP and PCEP implementations are independent of each other, but they
+share some dependencies as seen in following picture, namely components
+concepts, util and rsvp. For more information about any component,
+consult BGP LS PCEP:Component Map[Component Map]. Each box in the
+diagram represents a *-parent component.
 
-[[tutorial-how-to]]
-== Tutorial / How-To
+image:bgpcep-dependencies.png[Dependencies inside
+BGPCEP,title="Dependencies inside BGPCEP"]
 
-[[introduction]]
-=== Introduction
+For more information about BGP architecture, click
+BGP LS PCEP:BGP[here]. For PCEP, click BGP LS PCEP:PCEP[here].
 
-An extension to a protocol means basically adding parsers and
-serializers for new elements, such as messages, objects, tlvs or
-subobjects. This is usually necessary when you are extending the
-protocol with another RFC or draft. Both BGP and PCEP parsers are
-pluggable and you can specify which extensions to load alongside to the
-base parser in the configuration file.
+[[overall-structure]]
+=== Overall structure
 
-[[writing-an-extension-to-pce-protocol]]
-==== Writing an extension to PCE protocol
+Generally a component is a compact set of Java classes that represent
+one topic. Components in BGPCEP consist of three parts:
 
-[[current-standards-support]]
-===== Current standards support
+* API - public
+* SPI - public
+* IMPL - private
 
-Current pcep base-parser implementation supports following RFCs:
+Where needed, part of any component is the configuration, which uses
+config-subsystem. Configuration models are always in separate packages.
 
-*http://tools.ietf.org/html/rfc5440[RFC5440]* - Path Computation Element
-(PCE) Communication Protocol (PCEP) +
-*http://tools.ietf.org/html/rfc5541[RFC5541]* - Encoding of Objective
-Functions in the Path Computation Element Communication Protocol
-(PCEP) +
-*http://tools.ietf.org/html/rfc5455[RFC5455]* - Diffserv-Aware
-Class-Type Object for the Path Computation Element Communication
-Protocol +
-*http://tools.ietf.org/html/rfc5521[RFC5521]* - Extensions to the Path
-Computation Element Communication Protocol (PCEP) for Route Exclusions +
-*http://tools.ietf.org/html/rfc5557[RFC5557]* - Path Computation Element
-Communication Protocol (PCEP) Requirements and Protocol Extensions in
-Support of Global Concurrent Optimization +
- There are already two extensions for: +
-*http://tools.ietf.org/html/draft-ietf-pce-stateful-pce[draft-ietf-pce-stateful-pce]*
-- in versions 02 and 07 +
-*http://tools.ietf.org/html/draft-ietf-pce-pce-initiated-lsp[draft-ietf-pce-pce-initiated-lsp]*
-- versions crabbe-initiated-00 and ietf-initiated-00 +
+[[api]]
+==== API
 
-`    ``${project.groupId}` +
-`    ``pcep-ietf-stateful02` +
+Most of Java API is generated from YANG models. Some components consist
+of only a YANG model and generated source code. You can find list of
+models BGP LS PCEP:Models[here]. API packages are public and are subject
+to API freeze.
 
- +
-`    ``${project.groupId}` +
-`    ``pcep-ietf-stateful07` +
+[[spi]]
+==== SPI
 
-Note, that they extend each other, so it is vital to load the extensions
-with compatible versions. In this case crabbe-initiated-00 is compatible
-with stateful-02 and ietf-initiated-00 is compatible with stateful-07.
+SPI packages contain classes that usually are not generated, but
+nevertheless part of the API. Also SPI packages cannot be changed after
+API freeze. A typical class in SPI is an abstract class, that implements
+an interface from API package and whose subclasses are located in IMPL
+package. This class can be also extended by the user.
 
-[[how-to-implement-an-extension-to-pcep]]
-===== How to implement an extension to PCEP
+[[impl]]
+==== IMPL
 
-* Create a separate artefact (eclipse project) for your extension. Make
-sure it depends on pcep-api and pcep-spi.
+Implementation of API/SPI, subject to code freeze.
 
-* Write yang model for new elements or augment existing ones. Perform
-'mvn install' to generate files from the model.
+[[serialization-and-deserialization-of-protocol-messages]]
+=== Serialization and deserialization of protocol messages
 
-* Write parsers and serializers. All parsers need to implement *Parser
-and *Serializer interfaces from pcep-spi (e.g. if you are writing a new
-TLV, your parser should implement TlvParser and TlvSerializer). Add
-Activator, that extends AbstractPCEPExtensionProviderActivator, where
-you register your parsers and serializers.
+_Protocol element_ : general name for a specific part of a protocol,
+e.g. message, object, attribute (differs for each protocol)
 
-[[update-configuration]]
-====== Update configuration
+__ : any given protocol element name
 
-* Update
-https://jenkins.opendaylight.org/integration/view/Integration%20jobs/job/integration-project-centralized-integration/lastSuccessfulBuild/artifact/distributions/serviceprovider/target/distributions-serviceprovider-0.1.1-SNAPSHOT-osgipackage/opendaylight/configuration/initial/32-pcep.xml[32-pcep.xml].
-Register your parser as a module in pcep-impl:
+Parsing and serializing in BGPCEP project is very similar for both
+protocols involved. Here we present the mechanisms of parsing and
+serialization that are common for both protocols. In
+BGP LS PCEP:BGP[BGP] and BGP LS PCEP:PCEP[PCEP] sites you can find more
+protocol specific information about parsers. The classes which are
+responsible for parsing and serialization are called _Parser.java_.
+Despite the name, they also involve serialization, as shown in following
+class diagram.
 
- +
-`   ``prefix:pcep-parser-new-parser` +
-`   ``pcep-parser-new-parser` +
+image:Parser-hierarchy.png[Parser dependency,title="Parser dependency"]
 
-* Add it as an extension to pcep-parser-base:
+[[message-lifecycle]]
+==== Message lifecycle
 
- +
-`   ``pcepspi:extension` +
-`   ``pcep-parser-new-parser` +
+Message lifecycle begins in the network, where message is sent to ODL
+instance through TCP and ends in _Session_. Serialization is the same
+process, but reversed, therefore we'll only describe parsing. TCP
+session is handled by Netty a third-party library, and _framework_ which
+is a component in the controller build atop of Netty. In BGPCEP there
+are a few classes in each protocol that serve as Netty handlers. For
+more information about Netty pipeline, consult their website
+_http://netty.io_. Netty and _protocol-framework_ module convert
+incoming bytes into one ByteBuf object per message. ByteBufs are then
+sent to parsers. Parsed message is given to _Session_.
 
-* Add it's instance to services:
+image:Netty-parsing.png[Message lifecycle,title="Message lifecycle"]
 
- +
-`   ``pcep-parser-new-parser` +
-`   ``/config/modules/module[name='pcep-parser-new-parser']/instance[name='pcep-parser-new-parser']` +
+[[channel-handlers]]
+==== Channel handlers
 
-* Update odl-pcep-impl-cfg.yang so that it generates Module and
-ModuleFactory classes for your new parser.
+Both protocols have designated a few classes to handle TCP connection
+and session establishment. In BGP, the classes are in
+_BGP_LS_PCEP:BGP#BGP_RIB[rib-impl]_ module, in PCEP, they are in module
+_BGP_LS_PCEP:PCEP#PCEP[pcep-impl]_. In Lithium, we plan on moving those
+classes to separate packages and reduce the channel handling in general.
 
-`identity pcep-parser-new-parser {` +
-`   base config:module-type;` +
-`   config:provided-service spi:extension;` +
-`   config:java-name-prefix NewParserPCEPParser;` +
-`}`
+* _Dispatcher_ classes create server and/or client (e.g.
+_https://git.opendaylight.org/gerrit/gitweb?p=bgpcep.git;a=blob;f=bgp/rib-impl/src/main/java/org/opendaylight/protocol/bgp/rib/impl/BGPDispatcherImpl.java;hb=refs/heads/master[BGPDispatcherImpl]_)
+* _HandlerFactory_ classes define encoder and decoder handlers for the
+Netty pipeline, _ByteToMessageDecoder_ and _MessageToBytEncoder_ are the
+actual decoders/encoders (e.g.
+_https://git.opendaylight.org/gerrit/gitweb?p=bgpcep.git;a=blob;f=bgp/rib-impl/src/main/java/org/opendaylight/protocol/bgp/rib/impl/BGPHandlerFactory.java;hb=refs/heads/master[BGPHandlerFactory]_)
+* _MessageHeaderDecoder_ tells Netty how the message header looks in
+specific protocol (e.g.
+_https://git.opendaylight.org/gerrit/gitweb?p=bgpcep.git;a=blob;f=bgp/rib-impl/src/main/java/org/opendaylight/protocol/bgp/rib/impl/BGPMessageHeaderDecoder.java;hb=refs/heads/master[BGPMessageHeaderDecoder]_)
 
-`augment "/config:modules/config:module/config:configuration" {` +
-`   case pcep-parser-new-parser {` +
-`       when "/config:modules/config:module/config:type = 'pcep-parser-new-parser'";` +
-`   }` +
-`}`
+Session negotiation is not handled in _Session_ object, but rather in
+_SessionNegotiator_. _Session_ is created, when the negotiation is over.
 
-Run mvn install on pcep-impl-config to generate Module and ModuleFactory
-files.
+* _AbstractSessionNegotiator_ negotiates the session proposals (e.g.
+_https://git.opendaylight.org/gerrit/gitweb?p=bgpcep.git;a=blob;f=bgp/rib-impl/src/main/java/org/opendaylight/protocol/bgp/rib/impl/AbstractBGPSessionNegotiator.java;hb=refs/heads/master[AbstractBGPSessionNegotiator]_)
 
-* Update Module to start your NewParserPCEPParserModule.java whent it's
-created.
+After the negotiation is completed, message handling is moved to
+_Session_ object (e.g.
+_https://git.opendaylight.org/gerrit/gitweb?p=bgpcep.git;a=blob;f=bgp/rib-impl/src/main/java/org/opendaylight/protocol/bgp/rib/impl/BGPSessionImpl.java;hb=refs/heads/master[BGPSessionImpl]_).
 
-`@Override` +
-`public java.lang.AutoCloseable createInstance() {` +
-`   return new InitiatedActivator();` +
-`}`
+[[registration]]
+==== Registration
 
-[[writing-an-extension-to-bgp]]
-==== Writing an extension to BGP
+All parsers and serializers need to be registered into _Extension
+provider_. This _Extension provider_ is configured in initial
+configuration for each protocol. Configuration specifies one
+implementation of _Extension provider_ that will take care of
+registering parser extensions (in BGP its
+https://git.opendaylight.org/gerrit/gitweb?p=bgpcep.git;a=blob;f=bgp/parser-spi/src/main/java/org/opendaylight/protocol/bgp/parser/spi/pojo/SimpleBGPExtensionProviderContext.java;hb=refs/heads/master[SimpleBGPExtensionProviderContext]).
+Note, that also base-parser needs to be specified as an extension. Class
+that actually registers parsers and serializers, is called _Activator_.
+Each extension has its own _Activator_. Each protocol element has its
+own _Registry_. _Registry_ is responsible for choosing the correct
+parser implementation based on element class or element type. Class
+_Extension Consumer_ allows accessing these registries.
 
-[[current-standards-support-1]]
-===== Current standards support
+image:Registration.png[Registration,title="Registration"]
 
-Current bgp base-parser implementation supports following RFCs:
+[[parsing]]
+==== Parsing
 
-*http://tools.ietf.org/html/rfc4271[RFC4271]* - A Border Gateway
-Protocol 4 (BGP-4) +
-*http://tools.ietf.org/html/rfc4724[RFC4724]* - Graceful Restart
-Mechanism for BGP +
-*http://tools.ietf.org/html/rfc4760[RFC4760]* - Multiprotocol Extensions
-for BGP-4 +
-*http://tools.ietf.org/html/rfc1997[RFC1997]* - BGP Communities
-Attribute +
-*http://tools.ietf.org/html/rfc4360[RFC4360]* - BGP Extended Communities
-Attribute +
-*http://tools.ietf.org/html/rfc6793[RFC6793]* - BGP Support for
-Four-Octet Autonomous System (AS) Number Space (NEW speaker only) +
- There is already one extension for: +
-*http://tools.ietf.org/html/draft-ietf-idr-ls-distribution[draft-ietf-idr-ls-distribution]*
-- in version 04 +
+Parsing is done in a layered way shown in following diagram. It starts
+in a Netty handler, _ByteToMessageDecoder_. All _parse()_ methods take
+two arguments, _buffer_ and _builder_. _Buffer_ is of type _ByteBuf_,
+_builder_ type depends on the element that is being parsed. Both
+protocols have message header. This header is parsed in
+_AbstractMessageParser_ and it contains the information about the type
+of the message we are parsing. Knowing the type, the class looks into
+registry and chooses correct parser for this type of message. The header
+is stripped from the _buffer_ and just the necessary information is
+passed to the _SpecificMessageParser_.
 
- +
-`   ``${project.groupId}` +
-`   ``bgp-linkstate` +
+image:Parsing.png[Protocol message
+parsing,title="Protocol message parsing"]
 
-[[how-to-implement-an-extension-to-bgp]]
-===== How to implement an extension to BGP
+Depending of the nature of the message, this process is repeated until
+the buffer is empty, or an unrecoverable error occurs. Unrecoverable
+error means that there is a syntax error, e.g. the length specified in
+element length field does not match the length of readable bytes in
+given buffer. Some of those errors need to be followed by specific steps
+described in a RFC. Those errors are thrown in form of
+_DocumentedException_. Both protocols have an enum _Errors_ that
+contains all possible values for _DocumentedException_. Any other error
+that is not specified by RFC is thrown in form of
+_DeserializerException_.
 
-* Create a separate artefact (eclipse project) for your extension. Make
-sure it depends on pcep-api and pcep-spi.
+[[serialization]]
+==== Serialization
 
-* Write yang model for new elements or augment existing ones. Perform
-'mvn install' to generate files from the model.
+Serialization is also done in a layered way, from the biggest element to
+smallest. It starts in _Sessions sendMessage()_ method. Message is then
+sent to _AbstractMessageParser_ which will call _SpecificMessageParser_
+based on the java class of the message. All _serialize()_ methods take
+two arguments, _buffer_ and the protocol element. _Buffer_ is of type
+_ByteBuf_. Each parser first creates an empty _valueBuffer_, serializes
+the value of the protocol element and writes the contents in the
+_valueBuffer_. This is done to obtain the length of the content, because
+most protocol elements require a header with a length field.
+_ValueBuffer_, _buffer_ and other arguments needed to create element
+header are then sent to a _Util_ class (e.g.
+https://git.opendaylight.org/gerrit/gitweb?p=bgpcep.git;a=blob;f=bgp/parser-spi/src/main/java/org/opendaylight/protocol/bgp/parser/spi/AttributeUtil.java;hb=refs/heads/master[AttributeUtil]).
+Those classes only contain one method _format()_. Call to _format()_
+method is always the last one in each parser. This method calculates
+element length field based on _valueBuffer_, creates element header and
+writes everything into _buffer_. Serializing is then returned to
+original parser and resumed as shown in following diagram.
 
-* Write parsers and serializers. All parsers need to implement *Parser
-and *Serializer interfaces from bgp-spi (e.g. if you are writing a new
-Capability, your parser should implement CapabilityParser and
-CapabilitySerializer).
+image:Serialization.png[Serialization,title="Serialization"]
 
-* Add Activator, that extends AbstractBGPExtensionProviderActivator,
-where you register your parsers and serializers. If your extension adds
-another AFI/SAFI you also habe to add another Activator that extends
-AbstractRIBExtensionProviderActivator and registrate new address family
-and subsequent address family.
+[[general-components-overview]]
+== General Components Overview
 
-[[update-configuration-1]]
-====== Update configuration
+[[concepts]]
+=== Concepts
 
-* Update
-https://jenkins.opendaylight.org/integration/view/Integration%20jobs/job/integration-project-centralized-integration/lastSuccessfulBuild/artifact/distributions/serviceprovider/target/distributions-serviceprovider-0.1.1-SNAPSHOT-osgipackage/opendaylight/configuration/initial/31-bgp.xml[31-bgp.xml].
-Register your parser as a module in bgp-impl:
+Concepts module introduces DTOs used throughout whole BGPCEP project,
+such as various registries. YANG as a modeling language does not have
+specified the type IEEE754 floating point. Therefore this module
+introduces a wrapper typedef over byte array: float16, float32 and
+float64. Definitions can be found in
+https://git.opendaylight.org/gerrit/gitweb?p=bgpcep.git;a=blob;f=concepts/src/main/yang/ieee754.yang;hb=refs/heads/master[ieee754.yang].
+Those types are then used in
+https://git.opendaylight.org/gerrit/gitweb?p=bgpcep.git;a=blob;f=concepts/src/main/yang/network-concepts.yang;hb=refs/heads/master[network-concepts.yang]
+to model metric and bandwidth.
 
- +
-`   ``prefix:bgp-new-parser` +
-`   ``bgp-new-parser` +
+[[util]]
+=== Util
 
-* Add it as an extension to bgp-parser-base:
+Util module groups util classes used throughout BGPCEP project. Amongst
+them are classes dealing with raw byte array, ByteBuf, Ipv4/6
+addresses/prefixes.
 
- +
-`   ``bgpspi:extension` +
-`   ``bgp-new-parser` +
+[[rsvp]]
+=== RSVP
 
-* Add it's instance to services:
+This module contains the definition of types related to Resource
+Reservation Protocol (RSVP). All types are defined in
+https://git.opendaylight.org/gerrit/gitweb?p=bgpcep.git;a=blob;f=rsvp/api/src/main/yang/rsvp.yang;hb=refs/heads/master[rsvp.yang].
 
- +
-`   ``bgp-new-parser` +
-`   ``/modules/module[type='bgp-new-parser'][name='bgp-new-parser']` +
- +
+[[topology-overview]]
+== Topology Overview
 
-Also, if you are introducing new AFI/SAFI, don't forget to registrate
-your extension also to RIB.
-
-* Create your own configuration file so that it generates Module and
-ModuleFactory classes for your new parser.
-
-`identity bgp-new-parser {` +
-`       base config:module-type;` +
-`       config:provided-service bgpspi:extension;` +
-`       config:provided-service ribspi:extension; // for new AFI/SAFI` +
-`       config:java-name-prefix NewParser;` +
-`}`
-
-`augment "/config:modules/config:module/config:configuration" {` +
-`       case bgp-new-parser {` +
-`               when "/config:modules/config:module/config:type = 'bgp-new-parser'";` +
-`       }` +
-`}`
-
-Run mvn install on your extension artefact to generate Module and
-ModuleFactory files.
-
-* Update Module to start your NewParserModule.java whent it's created.
-
-`@Override` +
-`public java.lang.AutoCloseable createInstance() {` +
-`   return new NewParserActivator();` +
-`}`
+[[topology-tunnel]]
+=== Topology tunnel
 
 [[programmatic-interfaces]]
 == Programmatic Interface(s)
 
 * Howto pull code from gerrit:
-OpenDaylight_Controller:Pulling,_Hacking,_and_Pushing_the_Code_from_the_CLI +
+GettingStarted:Pulling,_Hacking,_and_Pushing_All_the_Code_from_the_CLI +
 * Gerrit repository: https://git.opendaylight.org/gerrit/bgpcep[gerrit]
 * Bugzilla: https://bugs.opendaylight.org/[Bugzilla]
 
 * Mailing lists
 
 ::
-  _bgpcep-bugs@opendaylight.org_ +
-  +
   _bgpcep-dev@opendaylight.org_ +
   +
-  _bgpcep-gerrit@opendaylight.org_ +
+  _bgpcep-users@opendaylight.org_ +
 
 * YANG Models - BGP LS PCEP:Models[BGP LS PCEP:Models]
 
-* API Documentation –
-https://jenkins.opendaylight.org/bgpcep/job/bgpcep-nightly/lastSuccessfulBuild/artifact/target/staging/releasepom/apidocs/index.html[Javadoc
-API]
+* API Documentation is generated with command: mvn site and can be found
+in target/site directory.
 
-For debugging purposes, set lower log levels for bgpcep project in
-logback.xml .
+For debugging purposes, set lower log levels for bgpcep project in karaf
+console :
 
+`log:set TRACE org.opendaylight.bgpcep `
 
+`log:set TRACE org.opendaylight.protocol`
+
+or in etc/org.ops4j.pax.logging.cfg :
+
+`log4j.logger.org.opendaylight.protocol=TRACE` +
+`log4j.logger.org.opendaylight.bgpcep=TRACE`

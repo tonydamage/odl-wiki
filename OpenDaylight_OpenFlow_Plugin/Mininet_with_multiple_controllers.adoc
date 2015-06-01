@@ -1,0 +1,78 @@
+[[introduction]]
+== Introduction
+
+In order to test clustering it is needed to successfully connect
+switches to multiple controllers. This page describes how to achieve
+this with *ovs virtual switches*.
+
+[[connecting-to-multiple-controllers]]
+== Connecting to multiple controllers
+
+There are two ways how to connect virtual switch to multiple
+controllers:
+
+* by using ovs-vsctl set-controller
+* by script
+
+[[ovs-vsctl-set-controller]]
+=== ovs-vsctl set-controller
+
+1.  Start mininet with desired topology, e.g.:
++
+::
+  `sudo mn --topo single,1 --controller 'remote,ip=10.1.2.3:6653' --switch ovsk,protocols=OpenFlow13`
+2.  Set new controllers for given switch, e.g.:
++
+::
+  `sudo ovs-vsctl set-controller s1 tcp:10.1.2.3:6653 tcp:10.1.2.4:6653 ...`
+* NOTE: This operation causes the switch to reset its connection
+
+[[script]]
+=== script
+
+* Create your own virtual network programatically and set the
+controllers
+(http://windysdn.blogspot.sk/2013/10/mininet-script-for-multiple-controllers.html)
+
+`#!/usr/bin/python` +
+ +
+`from mininet.net import Mininet` +
+`from mininet.node import Controller, OVSKernelSwitch, RemoteController` +
+`from mininet.cli import CLI` +
+`from mininet.log import setLogLevel, info` +
+ +
+`def emptyNet():` +
+ +
+`   net = Mininet(controller=RemoteController, switch=OVSKernelSwitch)` +
+ +
+`   c1 = net.addController('c1', controller=RemoteController, ip="192.168.200.22", port=6633)` +
+`   c2 = net.addController('c2', controller=RemoteController, ip="127.0.0.1", port=6633)` +
+ +
+`   h1 = net.addHost( 'h1', ip='10.0.0.1' )` +
+`   h2 = net.addHost( 'h2', ip='10.0.0.2' )` +
+`   h3 = net.addHost( 'h3', ip='10.0.0.3' )` +
+`   h4 = net.addHost( 'h4', ip='10.0.0.4' )` +
+ +
+`   s1 = net.addSwitch( 's1' )` +
+`   s2 = net.addSwitch( 's2' )` +
+ +
+`   s1.linkTo( h1 )` +
+`   s1.linkTo( h2 )` +
+`   s1.linkTo( s2 )` +
+`   s2.linkTo( h3 )` +
+`   s2.linkTo( h4 )` +
+ +
+`   net.build()` +
+`   c1.start()` +
+`   c2.start()` +
+`   s1.start([c1,c2])` +
+`   s2.start([c1,c2])` +
+ +
+`   net.start()` +
+`   net.staticArp()` +
+`   CLI( net )` +
+`   net.stop()` +
+ +
+`if __name__ == '__main__':` +
+`    setLogLevel( 'info' )` +
+`    emptyNet()`

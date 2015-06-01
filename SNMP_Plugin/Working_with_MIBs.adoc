@@ -1,0 +1,265 @@
+[[introduction]]
+= Introduction
+
+This page serves as an introduction to using
+http://en.wikipedia.org/wiki/Management_information_base[MIBs] in
+conjunction with the SNMP Plugin for Opendaylight.
+
+The SNMP protocol uses MIB definitions as a standardized way to interact
+with a network device. In the SNMP Plugin for Opendaylight, MIBs can
+also be used as an abstraction from the underlying SNMP messages
+required to interact with a node in the network. This helps to reduce
+code duplication, as the core logic for populating MIB tables can be
+centralized within the SNMP Plugin.
+
+*Note:* A patch for the code in this tutorial can be found
+https://git.opendaylight.org/gerrit/15433[here]. I encourage you to
+follow along with the tutorial, and refer to the code examples if you
+have any questions.
+
+[[adding-a-mib]]
+= Adding a MIB
+
+The SNMP Plugin can use custom defined MIBs to return data to your
+plugin. This is helpful as the SNMP Plugin can use the MIB definition to
+dynamically determine the data type of the object it's retrieving, and
+return you the correct type. MIBs aren't required to be pre-compiled
+with the SNMP plugin before using them; the SNMP Plugin is equipped to
+dynamically populate MIBs at runtime.
+
+In this tutorial we'll walk through creating a plugin using a new MIB,
+and retrieving a MIB table from a network device using the SNMP Plugin.
+
+[[gather-mib-files]]
+=== Gather MIB files
+
+The first step in adding a new MIB is to get the .my and the .oid files
+corresponding to the MIB in question. The Cisco SNMP Object Navigator is
+a good place to do so.
+
+In this example I will be adding the DOCS-IF-MIB, which is the SNMP
+object for DOCSIS Interfaces on cable devices. If you don't have access
+to a device which supports the DOCS-IF-MIB, I encourage you to try this
+tutorial with a different MIB table, and use the DOCS-IF-MIB
+implementation as a reference. We need both
+ftp://ftp.cisco.com/pub/mibs/v2/DOCS-IF-MIB.my[DOCS-IF-MIB.my] and
+ftp://ftp.cisco.com/pub/mibs/oid/DOCS-IF-MIB.oid[DOCS-IF-MIB.oid]. The
+DOCS-IF-MIB.my file is used to determine the object types and hierarchy
+of the model, and the DOCS-IF-MIB.oid is used to determine the Object
+Identifier for each table in the MIB.
+
+[[convert-mib-to-yang]]
+=== Convert MIB to YANG
+
+The OID file can be left as-is and placed in the /src/main/oid/
+directory of your project. The MIB file needs to be converted into a
+YANG model before it can be used with the SNMP Plugin (we look to
+automate this in the future). MIBs are converted into YANG models using
+a tool called "smidump". A web-interface
+http://www.ibr.cs.tu-bs.de/projects/libsmi/tools/[here] is the easiest
+way to access it.
+
+The settings should look like:
+
+image:SMI-dump example.png[SMI-dump example.png,title="SMI-dump example.png"]
+
+If the MIB in question corresponds to an IETF standard, we can use the
+standardized MIB instead of uploading our own. This will generate a
+.yang file for you, which you should place in the /src/main/yang folder
+of your project.
+
+Now's a good time to make sure the YANG model compiles correctly into
+Java code, and correct any mistakes from smidump. This is not always
+required, and is usually nothing more than updating import versions on
+dependencies. For this, we use YANG Tools:Main[YANG Tools]. I won't go
+over the steps required for this part, as many other tutorials already
+exist. Check out the Ping and
+OpenDaylight_Controller:MD-SAL:Toaster_Tutorial if you need assistance.
+In my case I needed to add a revision date to the `ietf-yang-types`
+import on the DOCS-IF-MIB model.
+
+Before: +
+` 
+  import ietf-yang-types {
+    prefix "yang"; 
+  } 
+`
+
+After: `
+  import ietf-yang-types {
+    prefix "yang";
+    revision-date "2010-09-24";
+  }
+`
+
+You may find that the MIB you're using is dependent on other MIB types.
+In this case simply repeat the MIB to YANG steps for the dependent MIBs,
+and the YANG Tools plugin should compile. You will find that the SNMP
+Plugin contains many of the base MIB types, which will resolve many of
+the dependencies for you.
+
+[[add-yang-oid-plugin]]
+=== Add YANG-OID Plugin
+
+In the pom.xml file for your project, add the `yang-oid-plugin` to the
+build process as shown below. This plugin is responsible for adding the
+OID information (from the .oid file in the previous step) to each table
+of the MIB.
+
+`
+            <plugin>
+                <groupId>org.opendaylight.snmp</groupId>
+                <artifactId>yang-oid-plugin</artifactId>
+                <version>1.0-SNAPSHOT</version>
+                <executions>
+                    <execution>
+                        <phase>generate-sources</phase>
+                        <goals>
+                            <goal>oid</goal>
+                        </goals>
+                        <configuration>
+                            <yangDirectory>target/generated-sources/sal</yangDirectory>
+                            <oidDirectory>src/main/oid</oidDirectory>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+`
+
+[[using-mibs]]
+= Using MIBs
+
+Now we're ready to start using the DOCS-IF MIB in Java code. For this
+example, we will create a simple RPC method to return a list of
+DOCS-IF-MIB objects from our network element (This corresponds to a list
+of configured cable modems on the router). In other scenarios, using
+MIBs may be beneficial for fetching data from nodes in the network, such
+as the list of configured interfaces on the node (IF-MIB), or any other
+properties. Using the MIB definition abstracts the generic SNMP
+framework from each individual plugin, thus reducing all of the
+boilerplate code required to make SNMP requests.
+
+[[adding-rpc-methods]]
+=== Adding RPC Methods
+
+For this example we'll be using 1 rpc method to return our data:
+get-docs-if-mib. Create a new yang file with the following:
+
+`
+    rpc get-docs-if-mib {
+            input {
+                leaf ip-address {
+                    type inet:ipv4-address;
+                }
+            }
+            output {
+                container tutorialObjects {
+                    uses docs:docsIfCmtsObjectsGroup;
+                }
+            }
+        }
+`
+
+*Note:* for the sake of this tutorial, I've modified the previously
+generated yang-model to define the MIB using groupings in conjunction
+with the containers. This allows me to use the
+`uses docs:docsIfCmtsObjectsGroup;` line instead of having to re-define
+the output container.
+
+[[write-the-code]]
+=== Write the Code
+
+Here's the bulk of the code required to get the RPC method to work.
+
+`
+   private DocsIfCmtsObjects getDocsIfCmtsObjects(Ipv4Address ipv4Address) {
+        SNMPImpl snmp = (SNMPImpl) snmpService;
+  
+        DocsIfCmtsObjectsBuilder docsIfCmtsObjectsBuilder = new DocsIfCmtsObjectsBuilder();
+        Collection<DocsIfCmtsCmStatusEntryBuilder> docsIfCmtsCmStatusEntryBuilders = snmp.populateMibTable(ipv4Address, DocsIfCmtsCmStatusEntryBuilder.class);
+  
+        ArrayList<DocsIfCmtsCmStatusEntry> docsIfCmtsCmStatusEntries = new ArrayList<>();
+        for (DocsIfCmtsCmStatusEntryBuilder cmtsCmStatusEntryBuilder : docsIfCmtsCmStatusEntryBuilders) {
+            docsIfCmtsCmStatusEntries.add(cmtsCmStatusEntryBuilder.build());
+        }
+        docsIfCmtsObjectsBuilder.setDocsIfCmtsCmStatusEntry(docsIfCmtsCmStatusEntries);
+        DocsIfCmtsObjects docsIfCmtsObjects = docsIfCmtsObjectsBuilder.build();
+        return docsIfCmtsObjects;
+    }
+
+    @Override
+    public Future<RpcResult<GetDocsIfMibOutput>> getDocsIfMib(GetDocsIfMibInput input) {
+  
+        GetDocsIfMibOutputBuilder getDocsIfMibOutputBuilder = new GetDocsIfMibOutputBuilder();
+        TutorialObjectsBuilder tutorialObjectsBuilder = new TutorialObjectsBuilder(getDocsIfCmtsObjects(input.getIpAddress()));
+        getDocsIfMibOutputBuilder.setTutorialObjects(tutorialObjectsBuilder.build());
+  
+        RpcResultBuilder<GetDocsIfMibOutput> rpcResultBuilder = RpcResultBuilder.success(getDocsIfMibOutputBuilder.build());
+        return Futures.immediateFuture(rpcResultBuilder.build());
+    }
+`
+
+The key line here is
+` docsIfCmtsCmStatusEntryBuilders = snmp.populateMibTable(ipv4Address, DocsIfCmtsCmStatusEntryBuilder.class); `
+This is the call to the SNMP Plugin to take the DocsIfCmtsCmStatusEntry
+table (shown
+http://tools.cisco.com/Support/SNMP/do/BrowseOID.do?local=en&translate=Translate&objectInput=1.3.6.1.2.1.10.127.1.3.3.1[here]
+) and aggregate the data across all the tables into a Collection of MIB
+objects.
+
+[[running-the-code]]
+=== Running the Code
+
+After starting up opendaylight, install the `odl-restconf-all` and
+`odl-snmp-plugin` features
+
+`
+  opendaylight-user@root>feature:repo-add mvn:org.opendaylight.snmp/features-snmp/1.0-SNAPSHOT/xml/features
+  Adding feature url mvn:org.opendaylight.snmp/features-snmp/1.0-SNAPSHOT/xml/features
+  opendaylight-user@root>feature:install odl-snmp-plugin
+  opendaylight-user@root>feature:install odl-restconf-all
+`
+
+This installs the base SNMP Plugin and provides basic REST API support.
+Next we install the bundle we created in this project.
+
+`
+  opendaylight-user@root>bundle:install    file://~/.m2/repository/org/opendaylight/snmp/mibs-tutorial/1.0-SNAPSHOT/mibs-tutorial-1.0-SNAPSHOT.jar
+`
+
+Now we're able to invoke the RPC method we created earlier using the
+REST API. You should see something like this:
+
+` 
+  
+  "tutorialObjects": {
+                "docsIfCmtsCmStatusEntry": [
+                    {
+                        "docsIfCmtsCmStatusIndex": 2523149,
+                        "docsIfCmtsCmStatusMacAddress": "00:15:d1:76:65:01",
+                        "docsIfCmtsCmStatusIpAddress": "80.30.0.188",
+                        "docsIfCmtsCmStatusDownChannelIfIndex": 2721,
+                        "docsIfCmtsCmStatusUpChannelIfIndex": 16962,
+                        "docsIfCmtsCmStatusRxPower": 5,
+                        "docsIfCmtsCmStatusTimingOffset": 1303,
+                        "docsIfCmtsCmStatusEqualizationData": "",
+                        "docsIfCmtsCmStatusValue": "registrationComplete",
+                        "docsIfCmtsCmStatusUnerroreds": 103415,
+                        "docsIfCmtsCmStatusCorrecteds": 0,
+                        "docsIfCmtsCmStatusUncorrectables": 0,
+                        "docsIfCmtsCmStatusSignalNoise": 361,
+                        "docsIfCmtsCmStatusMicroreflections": 0,
+                        "docsIfCmtsCmStatusExtUnerroreds": 103415,
+                        "docsIfCmtsCmStatusExtCorrecteds": 0,
+                        "docsIfCmtsCmStatusExtUncorrectables": 0,
+                        "docsIfCmtsCmStatusModulationType": "atdma",
+                        "docsIfCmtsCmStatusInetAddressType": "ipv4",
+                        "docsIfCmtsCmStatusValueLastUpdate": 114067182
+                    },
+`
+
+Here we fetched a the complete list of cable modems from the router,
+along with all of its data. Each application can choose to use any or
+all of the data obtained to complete whatever task is required, without
+having to go through the low-level SNMP messages required to populate
+each table.

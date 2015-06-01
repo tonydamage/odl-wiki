@@ -1,13 +1,10 @@
 This section describes how to setup the latest OpenDaylight Dlux UI
-project and run it.
-
-*Note*
-
-* The older version of dlux used Python/Django framework for UX.
-* The latest (current) version uses a JavaScript based
-Single-Page-Application using AngularJS, running on NodeJS.
-* This document describes the latest setup. This may eventually replace
-the documentation about Python-based UX.
+project and run it for development purpose. Dlux is also available as
+Karaf feature. If you just want to play with Dlux UI, you can enable
+Dlux feature in Karaf distribution. to do so, refer to page
+OpenDaylight_dlux:Dlux_Karaf_Feature[ Enable Dlux Karaf Feature]. The
+latest (current) version uses a JavaScript based Single-Page-Application
+using AngularJS, running on NodeJS.
 
 [[required-technology-stack]]
 == Required Technology Stack
@@ -19,48 +16,14 @@ the documentation about Python-based UX.
 * Karma (JavaScript Test Runner, http://karma-runner.github.io/)
 * Other AngularJS/Third-party JS libraries
 
-[[install-nodejs]]
-== Install NodeJS
-
-For Mac, if you have *brew*:
-
--------------------
-* brew update
-* brew install node
--------------------
-
-For Windows and Mac without brew:
-
-* Goto http://www.nodejs.org
-* Download and install the NodeJS
-
-Verify nodeJS is installed
-
----------------
-$ npm --version
----------------
-
-[[install-required-node-libraries]]
-== Install required Node libraries
-
-Install the following node components using npm. For Mac, you may have
-to use "sudo"
-
--------------------------------
-$ sudo npm -g install grunt-cli
-$ sudo npm -g install bower
-$ sudo npm -g install karma
-$ sudo npm -g install karma-cli
--------------------------------
-
 [[get-latest-dlux-code-from-git]]
 == Get latest DLUX code from git
 
 Anonymous clone:
 
----------------------------------------------------------
-$ git clone http://git.opendaylight.org/gerrit/p/dlux.git
----------------------------------------------------------
+----------------------------------------------------
+$ git clone https://git.opendaylight.org/gerrit/dlux
+----------------------------------------------------
 
 If you have a opendaylight.org account:
 
@@ -71,35 +34,147 @@ $ git clone ssh://<username>@git.opendaylight.org:29418/dlux.git
 If you want to create a new account with opendaylight.org, see
 link:WSO2 Identity server[https://identity.opendaylight.org/carbon/admin/index.jsp?loginStatus=true]
 
-[[build-the-dlux-code]]
-== Build the DLUX code
+[[build-dlux-code-with-karaf-feature-and-distribution]]
+== Build DLUX code with Karaf feature and distribution
 
---------------------------------------------------------------------------------------------------------
-$ cd dlux
+All necessary modules mentioned above such as nodesjs, bower etc. will
+be installed automatically, when you run the dlux build for first time.
+Run following command at dlux home directory /dlux to build dlux feature
+and distribution along with code. Once successful, It will make dlux
+feature available to install and also create dlux karaf distribution.
+You can find karaf distribution at dlux/distribution-dlux.
 
-#installs the necessary NodeJS related components for the project - will create a node_modules directory
-$ sudo npm install  
+--------------------
+$  mvn clean install
+--------------------
 
-#installs necessary components provided by power
-$ bower install 
+*NOTE*: Some people reported about node related error while maven build.
+Those errors are usually environment related, mostly happens because of
+the permission issues or node is not installed properly. Try to
+reinstall node manually.
 
-# run the unit tests and start karma test runner
-# this will open up the default browser pointing to karma test running and run the unit tests
-$ grunt watch
---------------------------------------------------------------------------------------------------------
+[[install-nodejs-manually-if-needed]]
+== Install NodeJS manually if needed
 
-Hit Ctrl-C to quit
+*For Windows and Mac without brew:*
 
-[[run-the-dlux-code-against-the-controller]]
-== Run the DLUX code against the controller
+. Go to http://www.nodejs.org . Download and install NodeJS
 
-* Start the ODL Controller using run.sh (run.bat in Windows) with
-defaults (ie start on 8080 port). For more information on running the
-controller see [[OpenDaylight Controller
+*For Mac with brew installed:*
+
+`$ brew update` +
+`$ brew install node`
+
+*Verify NodeJS is installed:*
+
+----------------
+ $ npm --version
+----------------
+
+[[install-nodejs-dependencies]]
+== Install NodeJS dependencies
+
+To build DLUX from git, also install these via npm:
+
+----------------------------------------------------------------------------------------------------------------------------
+npm install grunt esprima ng-annotate simple-fmt simple-is alter ordered-ast-traverse source-map stable stringmap stringset 
+----------------------------------------------------------------------------------------------------------------------------
+
+[[run-dlux-in-karaf-distribution]]
+== Run DLUX in karaf distribution
+
+Once you have dlux distribution or you have karaf distribution from
+integration repository. You can turn on the dlux feature to access the
+UI. We will take example of dlux distribution here. Navigate to
+directory dlux/distribution-dlux/target/assembly/bin and start the karaf
+via following command -
+
+-------
+./karaf
+-------
+
+On the karaf shell, install dlux core feature via running following
+command -
+
+-----------------------------
+feature:install odl-dlux-core
+-----------------------------
+
+It will internally install odl-restconf and dlux topology application
+along with core dlux components. once this feature is successfully
+installed. Access the dlux UI at http://localhost:8181/index.html.
+Default credentials are admin/admin for login.
+
+All the applications in dlux are now karaf features. You can install
+other dlux applications such as nodes, yang-ui from karaf console using
+commands such as
+
+-------------------------------
+feature:install odl-dlux-node
+
+feature:install odl-dlux-yangui
+-------------------------------
+
+[[run-the-dlux-code-in-developer-mode-against-the-controller]]
+== Run the DLUX code in developer mode against the controller
+
+*Note: Following way of development is not recommended for anyone who is
+not familiar with dlux code.*
+
+Start karaf distribution with installed md-sal features(Karaf starts at
+port 8181). For more information on running the controller see
+[[OpenDaylight Controller
 Installation|https://wiki.opendaylight.org/view/OpenDaylight_Controller:Installation]
+
 * Goto mininet VM and create a topology for the controller
 
-Back in the DLUX terminal, type
+Based on where you controller is running, Update baseUrl in file
+dlux/dlux-web/config/development.json.
+
+Uncomment following code in app.module.js located at
+modules/loader-resources/src/main/resources/app
+
+----------------------------------------------
+
+/*
+var module = [
+  'angularAMD',
+  'app/core/core.module',
+  'angular-translate',
+  'angular-translate-loader-static-files',
+  'angular-ui-router',
+  'ocLazyLoad',
+  'angular-css-injector',
+  'app/node/nodes.module',
+  'app/topology/topology.module',
+  'common/login/login.module',
+  'app/yangui/yangui.module',
+  'common/navigation/navigation.module',
+  'common/topbar/topbar.module',
+  'common/layout/layout.module',
+  'common/config/env.module']; //needed module
+
+// The name of all angularjs module
+var e = [
+  'ui.router',
+  'oc.lazyLoad',
+  'pascalprecht.translate',
+  'angular.css.injector',
+  'app.nodes',
+  'app.topology',
+  'app.common.login',
+  'app.yangui',
+  'app.common.nav',
+  'app.common.topbar',
+  'app.common.layout'];
+//--------------------\\
+
+*/
+----------------------------------------------
+
+Build your module/loader-resources by running mvn clean install.
+
+Navigate to directory, dlux/dlux-web, type
 
 ------------
 $ grunt live
@@ -107,4 +182,5 @@ $ grunt live
 
 Open a browser and goto http://localhost:9000
 
-This should bring up the DLUX UI and pull data from the controller
+This should bring up the DLUX UI and pull data from the controller. Use
+admin/admin credentials to access the UI

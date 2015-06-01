@@ -1,0 +1,2482 @@
+__TOC__
+
+[[this-is-a-working-draft---please-use-the-linked-toaster-step-by-step]]
+== THIS IS A WORKING DRAFT - PLEASE USE THE LINKED TOASTER STEP BY STEP
+
+[[overview]]
+= Overview
+
+The following tutorial will breakdown the prebuilt Toaster sample and
+take you through the Toaster sample step by step as if re-creating it
+from scratch. We will start with simple definitions that enable access
+to the operational data only, and advance to the full-blown example that
+demonstrates many aspects of MD-SAL, including remote procedure calls
+via JMX and restconf, accessing state data via JMX, notifications and a
+consumer service. You may follow the steps by actually creating new
+projects and performing them or by simply reading through and also
+studying the prebuilt code. Either way, this exercise is useful in
+understanding in general what you need to do to build MD-SAL plugins
+from scratch.
+
+_If you are looking for an overview of the prebuilt Toaster sample,
+along with discussions of how the classes interact with eachother, check
+out the
+https://wiki.opendaylight.org/view/OpenDaylight_Controller:MD-SAL:Toaster_Tutorial[Toaster
+Tutorial]_'
+
+*NOTE: The follow documentation is a work in progress and may have
+embedded questions and answers. Look for QUESTION to find existing
+questions.*
+
+[[toaster-parts]]
+==== Toaster Parts
+
+There are several parts that make up this toaster step-by-step example.
+During this example we illustrate how the yang model is providing
+abstraction for us, and how MD-SAL provides the plumbing (wiring) to
+hook everything up.
+
+* *Part 1* of this example will define the toaster data model
+(north-bound interface) and will provide a read-only implementation to
+retrieve operational data on the toaster.
+* *Part 2* will add and implement a remote procedure call which will
+allow the user to interact with the operations restconf interface, as
+well as see status changes to operational data.
+* *Part 3* illustrates how a user can modify configuration data via
+restconf and how our toaster can listener for those changes.
+* *Part 4* of this example will provide additional statistical
+attributes not present in the north bound interface, but available by
+the implementation via JMX.
+* *Part 5* will introduce a KitchenService that is a consumer of the
+toaster model. This provides a demonstration of how other business
+intelligence in the controller can access the data models and invoke RPC
+calls for the purpose of providing additional business logic in the
+controller.
+* *Part 6* will expand our example by adding unsolicited notifications
+from the toaster provider and consumer that are routed through the
+MD-SAL .
+
+[[part-1-defining-an-operational-toaster]]
+= Part 1: Defining an Operational Toaster
+
+Part 1 of this tutorial will walk you through defining a data model
+which maps to a toaster, and a service that provides the operational
+data about the given toaster. The toaster model and service will be made
+up of two yang files, some new and modified java classes, and a number
+of auto-generated java files. Each yang file provides another level of
+abstraction between the north-bound client and the south-bound
+implementation. It is important to note that the MD-SAL provides the
+plumbing while the yang data models provide the abstractions.
+
+1.  _toaster.yang_ - This file defines the north bound data model.
+Specifically, it defines the abstraction of a toaster that is visible to
+north-bound clients (e.g. the restconf API).
+2.  _toaster-provider-impl.yang_ - This file defines an implementation
+of the toaster service and the services it needs from the MD-SAL
+framework, e.g. the data-broker, which is used to store the operational
+data of the toaster.
+
+[[define-the-toaster-yang-data-model]]
+== Define the Toaster yang data model
+
+The first yang file, _toaster.yang_, defines the north bound abstraction
+of the toaster data model, specifically its attributes, RPCs and
+notifications, that can be accessed by north-bound clients (e.g. the
+restconf API). This file is located in the _sample-toaster_ project
+under the _src/main/yang source_ folder.
+
+-------------------------------------------------------------------------------------------------------------------------
+  //This file contains a YANG data definition. This data model defines
+  //a toaster, which is based on the SNMP MIB Toaster example 
+  module toaster {
+
+    //The yang version - today only 1 version exists. If omitted defaults to 1.
+    yang-version 1; 
+
+    //a unique namespace for this toaster module, to uniquely identify it from other modules that may have the same name.
+    namespace
+      "http://netconfcentral.org/ns/toaster"; 
+
+    //a shorter prefix that represents the namespace for references used below
+    prefix toast;
+
+    //Defines the organization which defined / owns this .yang file.
+    organization "Netconf Central";
+
+    //defines the primary contact of this yang file.
+    contact
+      "Andy Bierman <andy@netconfcentral.org>";
+
+    //provides a description of this .yang file.
+    description
+      "YANG version of the TOASTER-MIB.";
+
+    //defines the dates of revisions for this yang file
+    revision "2009-11-20" {
+      description
+        "Toaster module in progress.";
+    }
+
+    //declares a base identity, in this case a base type for different types of toast.
+    identity toast-type {
+      description
+        "Base for all bread types supported by the toaster. New bread types not listed here nay be added in the future.";
+    }
+
+    //the below identity section is used to define globally unique identities
+    //Note - removed a number of different types of bread to shorten the text length.
+    identity white-bread {
+      base toast:toast-type;       //logically extending the declared toast-type above.
+      description "White bread.";  //free text description of this type.
+    }
+
+    identity wheat-bread {
+      base toast-type;
+      description "Wheat bread.";
+    }
+
+    //defines a new "Type" string type which limits the length
+    typedef DisplayString {
+      type string {
+        length "0 .. 255";
+      }
+      description
+        "YANG version of the SMIv2 DisplayString TEXTUAL-CONVENTION.";
+      reference
+        "RFC 2579, section 2.";
+
+    }
+
+    // This definition is the top-level configuration "item" that defines a toaster. The "presence" flag connotes there
+    // can only be one instance of a toaster which, if present, indicates the service is available.
+    container toaster {
+      presence
+        "Indicates the toaster service is available";
+      description
+        "Top-level container for all toaster database objects.";
+
+      //Note in these three attributes that config = false. This indicates that they are operational attributes.
+      leaf toasterManufacturer {
+        type DisplayString;
+        config false;
+        mandatory true;
+        description
+          "The name of the toaster's manufacturer. For instance, Microsoft Toaster.";
+      }
+
+      leaf toasterModelNumber {
+        type DisplayString;
+        config false;
+        mandatory true;
+        description
+          "The name of the toaster's model. For instance, Radiant Automatic.";
+      }
+
+      leaf toasterStatus {
+        type enumeration {
+          enum "up" {
+            value 1;
+            description
+              "The toaster knob position is up. No toast is being made now.";
+          }
+          enum "down" {
+            value 2;
+            description
+              "The toaster knob position is down. Toast is being made now.";
+          }
+        }
+        config false;
+        mandatory true;
+        description
+          "This variable indicates the current state of  the toaster.";
+      }
+    }  // container toaster
+  }  // module toaster
+-------------------------------------------------------------------------------------------------------------------------
+
+You can see above that we marked all three of the leaf attributes on the
+toaster container as operational (_config false_), instead of
+configuration data. MD-SAL, along with some ietf drafts for restconf
+split the configuration and operational data into two separate data
+stores.
+
+* Operational - Operational data stores are used to show the running
+state (read only) view of the devices, network, services, etc that you
+might be looking at. In our case we have a service called toaster which
+is available - the manufacture, model and status of the toaster are all
+provided by the underlying toaster and can not be configured (later we
+will add a configuration attribute). Think of the first two attributes
+as constants which are hardcoded into the physical device, while the
+third is a representation of current state, and changes as the toaster
+is used.
+* Config - Config data stores are generally used to configure the device
+in someway. These configurations are user provided and is a way for the
+user to tell the device how to behave. For example if you wanted to
+configure the resource in some way, such as applying a policy or other
+configuration then you would use this data store. We will add some
+configuration data in part 3 of this tutorial.
+
+[[generate-the-toaster-yang-data-model-source]]
+== Generate the Toaster yang data model source
+
+At this point we can compile the yang data model to generate the java
+source files. To do this, we need to specify the _yang-maven-plugin_ in
+the pom.xml: `
+ <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"''
+               xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  ...
+  '''<build>
+  '''  <plugins>
+  '''    <plugin>
+  '''      <groupId>org.opendaylight.yangtools</groupId>
+  '''      <artifactId>yang-maven-plugin</artifactId>
+  '''      <executions>
+  '''        <execution>
+  '''          <goals>
+  '''            <goal>generate-sources</goal>
+  '''          </goals>
+  '''          <configuration>
+  '''            <yangFilesRootDir>src/main/yang</yangFilesRootDir>
+  '''            <codeGenerators>
+  '''              <generator>
+  '''                <codeGeneratorClass>org.opendaylight.yangtools.maven.sal.api.gen.plugin.CodeGeneratorImpl</codeGeneratorClass>
+  '''                <outputBaseDir>${salGeneratorPath}</outputBaseDir>
+  '''              </generator>
+  '''            </codeGenerators>
+  '''            <inspectDependencies>true</inspectDependencies>
+  '''          </configuration>
+  '''        </execution>
+  '''      </executions>
+  '''      <dependencies>
+  '''        <dependency>
+  '''          <groupId>org.opendaylight.yangtools</groupId>
+  '''          <artifactId>maven-sal-api-gen-plugin</artifactId>
+  '''          <version>${yangtools.version}</version>
+  '''          <type>jar</type>
+  '''        </dependency>
+  '''      </dependencies>
+  '''    </plugin>
+  '''  </plugins>
+  '''</build>
+    
+  '''<dependencies>
+  '''  <dependency>
+  '''    <groupId>org.opendaylight.yangtools</groupId>
+  '''    <artifactId>yang-binding</artifactId>
+  '''  </dependency>
+  '''  <dependency>
+  '''    <groupId>org.opendaylight.controller</groupId>
+  '''    <artifactId>sal-common-util</artifactId>
+  '''  </dependency>
+  '''  <dependency>
+  '''    <groupId>org.opendaylight.yangtools</groupId>
+  '''    <artifactId>yang-common</artifactId>
+  '''  </dependency>
+  '''</dependencies>
+  ...
+ </project>
+`
+
+The _yang-maven-plugin_ is used to generate java source from yang
+definition files. Much of the plugin's configuration is boilerplate.
+Tags of specific interest:
+
+* *yangFilesRootDir* - specifies the directory under the project to
+locate yang files to process. This defaults to src/main/yang.
+* *codeGeneratorClass* - specifies the code generator to use.
+CodeGeneratorImpl is used to generate classes that represent the yang
+data model components.
+* *outputBaseDir* - specifies the output directory for the generated
+classes. In the controller project we specify the $\{salGeneratorPath}
+property which is defined in the root pom as src/main/yang-gen-sal.
+
+Next, run:
+
+-----------------
+mvn clean install
+-----------------
+
+_Note: You really only need to run 'mvn install' here since we have
+nothing to clean, but running a clean will not harm anything and is a
+good practice to ensure your generated code is cleaned up correctly so
+new code can be generated._
+
+Now you will see java class files generated under
+_src/main/yang-gen-sal_. Classes of note:
+
+* *Toaster* - an interface that represents the toaster container with
+methods to obtain the leaf node data.
+* *ToasterData* - an interface that represents the top-level toaster
+module with one method _getToaster()_ that returns the singleton toaster
+instance.
+* *WheatBread*, *WhiteBread*, etc' - abstract classes that represent the
+various toast types.
+* *$YangModelBindingProvider*, *$YangModuleInfoImpl* - these are used
+internally by MD-SAL to wire the toaster module for use. More on this
+later.
+
+[[implement-the-operational-toaster-provider-opendaylighttoaster]]
+== Implement the operational Toaster provider (OpendaylightToaster)
+
+We've defined the data model for the toaster, now we need an
+implementation to provide the operational data. We'll create a class
+*OpendaylightToaster*. On initialization, it writes the operational
+toaster data to the MD-SAL's data store, via the *DataBroker* interface,
+and deletes the data on close. The final version of this class can be
+found in the _sample-toaster-provider_ project under the _src/main/java_
+source folder. The reason this class is created in a separate project is
+it allows the data model and implementation to be provided by different
+bundles, thus allowing different bundles to define different
+implementations of the same data model. There is however nothing
+stopping us from putting everything into the same bundle if the
+implementation is proprietary.
+
+A portion of the class is shown below: `
+ public class OpendaylightToaster implements AutoCloseable{
+   
+    //making this public because this unique ID is required later on in other classes.
+    public static final InstanceIdentifier<Toaster>  TOASTER_IID = InstanceIdentifier.builder(Toaster.class).build();
+       
+    private static final DisplayString TOASTER_MANUFACTURER = new DisplayString("Opendaylight");
+    private static final DisplayString TOASTER_MODEL_NUMBER = new DisplayString("Model 1 - Binding Aware");
+     
+    private DataBroker dataProvider;
+   
+    public OpendaylightToaster() {
+    }
+     
+    private Toaster buildToaster( ToasterStatus status ) {
+        
+        // note - we are simulating a device whose manufacture and model are
+        // fixed (embedded) into the hardware.
+        // This is why the manufacture and model number are hardcoded.
+        return new ToasterBuilder().setToasterManufacturer( TOASTER_MANUFACTURER )
+                                   .setToasterModelNumber( TOASTER_MODEL_NUMBER )
+                                   .setToasterStatus( status )
+                                   .build();
+    }
+    
+    public void setDataProvider( final DataBroker salDataProvider ) {
+         this.dataProvider = salDataProvider;
+         setToasterStatusUp( null );
+    }
+  
+    /**
+     * Implemented from the AutoCloseable interface.
+     */
+    @Override
+    public void close() throws ExecutionException, InterruptedException {
+        if (dataProvider != null) {
+            WriteTransaction t = dataProvider.newWriteOnlyTransaction();
+            t.delete(LogicalDatastoreType.OPERATIONAL,TOASTER_IID);
+            ListenableFuture<RpcResult<TransactionStatus>> future = t.commit();
+            Futures.addCallback( future, new FutureCallback<RpcResult<TransactionStatus>>() {
+                @Override
+                public void onSuccess( RpcResult<TransactionStatus> result ) {
+                    LOG.debug( "Delete Toaster commit result: " + result );
+                }
+                
+                @Override
+                public void onFailure( Throwable t ) {
+                    LOG.error( "Delete of Toaster failed", t );
+                }
+            } );
+        }
+    }
+    
+    private void setToasterStatusUp( final Function<Boolean,Void> resultCallback ) {
+        
+        WriteTransaction tx = dataProvider.newWriteOnlyTransaction();
+        tx.put( LogicalDatastoreType.OPERATIONAL,TOASTER_IID, buildToaster( ToasterStatus.Up ) );
+        
+        ListenableFuture<RpcResult<TransactionStatus>> commitFuture = tx.commit();
+        
+        Futures.addCallback( commitFuture, new FutureCallback<RpcResult<TransactionStatus>>() {
+            @Override
+            public void onSuccess( RpcResult<TransactionStatus> result ) {
+                if( result.getResult() != TransactionStatus.COMMITED ) {
+                    LOG.error( "Failed to update toaster status: " + result.getErrors() );
+                }
+                
+                notifyCallback( result.getResult() == TransactionStatus.COMMITED );
+            }
+            
+            @Override
+            public void onFailure( Throwable t ) {
+                // We shouldn't get an OptimisticLockFailedException (or any ex) as no
+                // other component should be updating the operational state.
+                LOG.error( "Failed to update toaster status", t );
+                
+                notifyCallback( false );
+            }
+            
+            void notifyCallback( boolean result ) {
+                if( resultCallback != null ) {
+                    resultCallback.apply( result );
+                }
+            }
+        } );
+    }
+ }
+`
+
+[[wiring-the-opendaylighttoaster-service]]
+== Wiring the OpendaylightToaster service
+
+We've implemented the toaster provider service - now we have to get our
+*OpendaylightToaster* instantiated and wired up with the MD-SAL. There's
+a couple ways to do this - we're going to use the config subsystem which
+provides service lifecycle management and also provides configuration
+access through JMX and NETCONF. The config subsystem is separate from
+MD-SAL and is used to instantiate and wire the toaster service to
+MD-SAL.
+
+We first need to describe our *OpendaylightToaster* service
+configuration and what dependent services it needs. This is defined
+in... you guessed it, yang.
+
+[[define-the-toaster-provider-service-yang-configuration]]
+=== Define the Toaster provider service yang configuration
+
+Next we'll define a yang module that describes the configuration of the
+toaster provider service in the _toaster-provider-impl.yang_ file:
+
+---------------------------------------------------------------------------------------------------
+module toaster-provider-impl {
+    yang-version 1;
+    namespace "urn:opendaylight:params:xml:ns:yang:controller:config:toaster-provider:impl";
+    prefix "toaster-provider-impl";
+
+    import config { prefix config; revision-date 2013-04-05; }
+    import opendaylight-md-sal-binding { prefix mdsal; revision-date 2013-10-28; }
+
+    description
+        "This module contains the base YANG definitions for toaster-provider impl implementation.";
+
+    revision "2014-01-31" {
+        description
+            "Initial revision.";
+    }
+
+    // This is the definition of the service implementation as a module identity
+    identity toaster-provider-impl {
+            base config:module-type;
+
+            // Specifies the prefix for generated java classes.
+            config:java-name-prefix ToasterProvider;
+    }
+
+    // Augments the 'configuration' choice node under modules/module.  
+    augment "/config:modules/config:module/config:configuration" {
+        case toaster-provider-impl {
+            when "/config:modules/config:module/config:type = 'toaster-provider-impl'";
+
+            //wires in the data-broker service 
+            container data-broker {
+                uses config:service-ref {
+                    refine type {
+                        mandatory false;
+                        config:required-identity mdsal:binding-async-data-broker;
+                    }
+                }
+            }      
+        }
+    }
+}
+---------------------------------------------------------------------------------------------------
+
+The *toaster-provider-impl* identity is a _module-type_ identity that
+defines a global identifier for the toaster-provider service
+implementation so that it can be referred to.
+
+The augmentation of the _modules/module/configuration_ hierarchy
+choice-type node adds schema nodes specific to the
+*toaster-provider-impl* module identity type (as indicated by the 'when'
+clause). This is where we define configuration information needed to
+initialize the *toaster-provider-impl* module; specifically, which
+external service dependencies are needed. We see that the
+*OpendaylightToaster* needs the *DataBroker* so we add a *data-broker*
+container node that defines a dependency on the MD-SAL's DataBroker
+service. Syntactically, it defines a reference (of type _service-ref_)
+to the particular service instance referred to by the
+_mdsal:binding-async-data-broker_ service identity. The service instance
+is set at runtime by the MD-SAL.
+
+[[generate-the-toaster-yang-provider-source]]
+=== Generate the Toaster yang provider source
+
+To generate the java source files that facilitate the service wiring, we
+need to add another code generator, *JmxGenerator*, to the
+yang-maven-plugin configuration in the pom.xml in addition to the
+*CodeGeneratorImpl*, as well as an additional dependency to the
+yangtools plugins: `
+    <plugin>
+       <groupId>org.opendaylight.yangtools</groupId>
+       <artifactId>yang-maven-plugin</artifactId>
+       <executions>
+          <execution>
+             <id>config</id>
+             <goals><goal>generate-sources</goal></goals>
+             <configuration>
+                <codeGenerators>
+                   '''<generator>
+                      '''<codeGeneratorClass>                                 
+                          '''org.opendaylight.controller.config.yangjmxgenerator.plugin.JMXGenerator
+                      '''</codeGeneratorClass>
+                      '''<outputBaseDir>${jmxGeneratorPath}</outputBaseDir>
+                      '''<additionalConfiguration>
+                          '''<namespaceToPackage1>                                                   
+                             '''urn:opendaylight:params:xml:ns:yang:controller==org.opendaylight.controller.config.yang
+                          '''</namespaceToPackage1>
+                      '''</additionalConfiguration>
+                   '''</generator>
+                   <generator>
+                        CodeGeneratorImpl is specified here...
+                   </generator>
+               </codeGenerators>
+               <inspectDependencies>true</inspectDependencies>
+            </configuration>
+          </execution>
+       </executions>
+       <dependencies>
+          '''<dependency>
+             '''<groupId>org.opendaylight.controller</groupId>
+             '''<artifactId>yang-jmx-generator-plugin</artifactId>
+             '''<version>${config.version}</version>
+          '''</dependency>
+          <dependency>
+             <groupId>org.opendaylight.yangtools</groupId>
+             <artifactId>maven-sal-api-gen-plugin</artifactId>
+             <version>${yangtools.version}</version>
+          </dependency>
+       </dependencies>
+    </plugin>
+` We also need to add dependencies in the pom.xml file so the
+_opendaylight-md-sal-binding_ and _config_ yang imports can be located
+by the code generator:
+
+----------------------------------------------------
+<dependency>
+     <groupId>org.opendaylight.controller</groupId>
+     <artifactId>config-api</artifactId>
+</dependency>
+<dependency>
+      <groupId>org.opendaylight.controller</groupId>
+      <artifactId>sal-binding-config</artifactId>
+</dependency>
+----------------------------------------------------
+
+After running mvn clean install you should see two files generated:
+
+* *ToasterProviderlModule* - concrete class whose _createInstance()_
+method provides the *OpendaylightToaster* instance.
+* *ToasterProviderModuleFactory* - concrete class instantiated
+internally by MD-SAL that creates *ToasterProviderModule* instances.
+
+*Note*: these 2 classes are generated under _src/main/java_ and are
+intended to be checked into Git as they will contain manually written
+code.
+
+[[implement-the-toasterprovidermodule]]
+=== Implement the ToasterProviderModule
+
+The *ToasterProviderModule* class is mostly complete from the code
+generation. Only the _ToasterProviderModule.createInstance()_ method
+needs to be implemented to instantiate and wire the
+*OpendaylightToaster*:
+
+---------------------------------------------------------------------------------------
+     @Override
+    public java.lang.AutoCloseable createInstance() {
+        final OpendaylightToaster opendaylightToaster = new OpendaylightToaster();
+
+        DataBroker dataBrokerService = getDataBrokerDependency();
+        opendaylightToaster.setDataProvider(dataBrokerService);
+        
+        // Wrap toaster as AutoCloseable and close registrations to md-sal at
+        // close(). The close method is where you would generally clean up thread pools
+        // etc.
+        final class AutoCloseableToaster implements AutoCloseable {
+
+            @Override
+            public void close() throws Exception {
+                opendaylightToaster.close();
+            }
+        }
+
+        return new AutoCloseableToaster();
+    }
+---------------------------------------------------------------------------------------
+
+In the above code, the *DataBroker* dependency has already been injected
+by the MD-SAL and is available via the _getDataBrokerDependency()_
+method defined in the generated base class. The automatic injection is
+facilitated by the dependency augmentation that we had defined in the
+_toaster-provider-impl.yang_ file.
+
+The return type of _createInstance()_ is *AutoCloseable*. We have to
+return an AutoCloseable object so MD-SAL can inform our logic when it is
+time to shutdown.
+
+We don't need to modify or implement anything in
+*ToasterProviderModuleFactory* for this example.
+
+_Note 1: A future enhancement in this area may be to simplify the
+registration process here by performing more of the registrations etc
+automatically. Today this is how you need to perform these
+registrations._
+
+[[define-the-initial-xml-configuration]]
+== Define the initial XML configuration
+
+We have now defined the toaster data model (toaster.yang) and a provider
+implementation (toaster-provider-impl.yang). At this point, if the
+bundles were deployed, the configuration of the toaster data model
+(although we haven't defined any config attributes yet) would be
+accessible via restconf however the operational data and RPC provided by
+the *OpenDaylightToaster* service would not be accessible. What we have
+done so far is to define the service implementation. The last step is to
+actually tell MD-SAL to "deploy" the implementation, i.e. create an
+instance of the *OpenDaylightToaster* service, resolve its dependencies
+and advertise it for consumption/use.
+
+To do this, we need to create an xml file that defines the initial
+configuration of the toaster provider service deployment. The
+configuration is actually deployed internally using the netconf
+protocol. The xml is comprised of 2 main sections: _configuration_ and
+_required-capabilities_. The _required-capabilities_ section is needed
+for the netconf ""hello" message and describes the yang modules that are
+needed by the services in order for them to function properly. Under the
+_data_ section of _configuration_ is where you define your services,
+implementation modules and how to configure each implementation. This
+section is used in the subsequent netconf "edit-config" message.
+
+Create an xml file named "03-toaster-sample.xml" with the following and
+put it into the _configuration/initial_ folder of the distribution that
+you are running (i.e.
+controller/opendaylight/distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/configuration/initial).
+
+ +
+_Note 1: Be sure to save this xml file off. If you rebuild the
+distribution.opendaylight project, this folder will be deleted,
+including your file._ +
+''Note 2: If you are performing the steps of this tutorial, you can
+safely delete the existing file and create an empty file with the
+limited data below. As we proceed in this tutorial we will rebuild that
+file in its entirety. Also, the original version of the file is stored
+in the
+distribution/opendaylight/src/main/resources/configuration/initial
+directory just in case.
+
+Edit the 03-toaster-sample.xml file and put in the following content:
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------
+<snapshot>
+    <configuration>
+        <data xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+            <modules xmlns="urn:opendaylight:params:xml:ns:yang:controller:config">
+
+                <!-- defines an implementation module -->
+                <module>
+                    <type xmlns:toaster="urn:opendaylight:params:xml:ns:yang:controller:config:toaster-provider:impl">
+                        toaster:toaster-provider-impl
+                    </type>
+                    
+                    <name>toaster-provider-impl</name>
+
+                    <data-broker>
+                       <type xmlns:binding="urn:opendaylight:params:xml:ns:yang:controller:md:sal:binding">binding:binding-async-data-broker</type>
+                       <name>binding-data-broker</name>
+                   </data-broker>
+
+                </module>
+            </modules>
+        </data>
+
+    </configuration>
+
+    <required-capabilities>
+        <capability>urn:opendaylight:params:xml:ns:yang:controller:config:toaster-provider:impl?module=toaster-provider-impl&amp;amp;revision=2014-01-31</capability>
+    </required-capabilities>
+
+</snapshot>
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Under the _modules_ section, we specify the toaster-provider-impl module
+and its dependency configuration as defined in the
+_toaster-provider-impl.yang_ file. The _type_ element refers to the
+fully-qualified toaster-provider-impl module identity and specifies the
+type of the module. The _name_ element specifies the unique module name.
+At runtime, the actual module instance is created and inserted under the
+config _modules/module/_ hierarchy node.
+
+The _data-broker_ element refers to the DataBroker service instance by
+its unique service _name_ which is located under the config
+_services/service/_ hierarchy node. The _type_ element refers to the
+fully-qualified service identity and specifies the type of the service.
+The actual service instance is provided by the MD-SAL at runtime.
+
+The _required-capabilities_ section lists only the toaster-provider-impl
+yang module as a dependent capability. There are other dependent
+modules, opendaylight-md-sal-binding etc, but they are inferred by the
+imports in the _toaster-provider-impl.yang_ file so they don't have to
+be explicitly specified. Each _capability_ is a URI of the form:
+
+` `__`?module=`__`&amp;revision=`__
+
+The "03" prefix in the file name is significant. The files in
+_configuration/initial_ are sorted by name thus allowing you control
+over the order in which they are deployed. While the file name doesn't
+actually need to be prefixed with a number, doing so allows for easier
+sorting and is the best practice/convention. You'll notice other files
+numbered this way. We choose "03" prefix for our toaster so it is higher
+than the existing internal MD-SAL config files and thus will be deployed
+last. You basically want to order the config files such that
+dependencies (as inferred by the _required-capabilities_) are deployed
+first. Since the toaster is dependent on MD-SAL (specifically
+"01-md-sal.xml"), we deploy it last. Technically, the toaster config
+could actually be deployed first as the config subsystem will retry if a
+dependency is not yet present but it is more efficient on startup to
+explicitly define the ordering.
+
+On startup, the XML files in the _configuration/initial_ directory are
+loaded by the *ConfigPersisterActivator*. A *ConfigPusher* instance is
+instantiated to push the configs via the NetConf subsystem to the
+*ConfigRegistryImpl*. When processing the toaster-provider-impl module
+in the toaster config file, the *ToasterProviderModuleFactory* class is
+located and instantiated and the _createModule_ method is called to
+create a *ToasterProviderModule* instance. The
+_ToasterProviderModule.createInstance_ method is then called to create
+and wire the *OpenDaylightToaster*.
+
+For a detailed walk-through on how to make a 'config-subsystem aware'
+project please visit
+https://wiki.opendaylight.org/view/OpenDaylight_Controller:Config:Examples:Sample_Project
+
+*Note: Be sure to keep an eye on the command line of the OSGI container
+when you start it. If the wiring service fails to find all of the
+dependencies you will see errors printed out there about missing
+capabilities etc.*
+
+[[getting-the-operational-status-of-the-toaster]]
+== Getting the Operational Status of the Toaster
+
+To get the operational status of the toaster you will make a call to the
+RESTCONF service provided by MD-SAL. You do this by performing a GET to
+the operational data store.
+
+----------------------------------------------------------------------
+  HTTP Method: GET
+  HTTP URL: http://localhost:8080/restconf/operational/toaster:toaster
+----------------------------------------------------------------------
+
+You should see the following response:
+
+-----------------------------------------------------
+{
+    toaster: {
+        toasterManufacturer: "Opendaylight"
+        toasterModelNumber: "Model 1 - Binding Aware"
+        toasterStatus: "Up"
+   }
+}
+-----------------------------------------------------
+
+_Note: If you want XML instead of json, add *Accept:
+application/yang.data+xml* to the headers of the request._
+
+[[how-does-md-sal-know-about-my-toaster]]
+== How Does MD-SAL Know about my Toaster?
+
+The sample-toaster bundle only defines a yang file and has no bundle
+Activator and has no code other than the generated source files. If you
+are wondering how MD-SAL becomes aware of the toaster yang data model
+then read on.
+
+The magic is done via some files that are generated by the
+yang-maven-plugin under _target/classes/META-INF_ that get inserted into
+the sample-toaster bundle.
+
+* The _src/main/yang/toaster.yang_ file is copied to
+_target/classes/META-INF/yang/toaster.yang_.
+* The _org.opendaylight.yangtools.yang.binding.YangModelBindingProvider_
+file is generated in _target/classes/META-INF/services_ and contains the
+fully-qualfied name of the toaster's generated
+*$YangModelBindingProvider* class. The MD-SAL's
+*ModuleInfoBundleTracker* class in the config subsystem scrapes the
+_META-INF/services/org.opendaylight.yangtools.yang.binding.YangModelBindingProvider_
+resource from bundles on startup and reads the class name(s) defined in
+the file. For each YangModelBindingProvider class specified, the MD-SAL
+creates an instance and calls _getModuleInfo()_ to return the singleton
+*$YangModuleInfoImpl* instance. This class has methods to obtain static
+configuration information about the yang module, e.g. name, revision,
+imports etc, as well as a _getModuleSourceStream()_ method that provides
+an input stream to the _META-INF/yang/toaster.yang_ file. Once the
+MD-SAL knows about a yang module and its definitions, it can wire it up
+to RestConf and other parts of the system.
+
+[[how-do-my-jar-files-get-deployed-in-osgi]]
+== How Do My Jar Files get Deployed in OSGI?
+
+Now that you have created your projects you need to get the .jar files
+that are created into your OSGi container. You can manually copy the
+.jar file which is generated under your /target directory to the
+controller/opendaylight/distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/plugins
+directory. To manually copy in the updated code, you can copy the jar
+file from the target directory to the plugins directory. For example
+from the toaster-provider project directory:
+
+`
+ toaster-provider> cp target/sample-toaster-provider-1.1-SNAPSHOT.jar ../../../distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/plugins
+`
+
+Note though, that if your jars were previously deployed via the
+distribution.opendaylight/pom.xml then the jar names will actually be
+modified. So in that case you may want to copy to the jar directly. For
+example:
+
+`
+ toaster-provider> cp target/sample-toaster-provider-1.1-SNAPSHOT.jar ../../../distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/plugins/org.opendaylight.controller.samples.sample-toaster-provider-1.1-SNAPSHOT.jar
+`
+
+To have your jars included automatically when you build your controller
+then you need to add your bundles as dependencies in
+controller/opendaylight/distribution/opendaylight/pom.xml. By just
+adding your bundles in the dependencies section your bundles will
+automatically be bundled up and copied to the plugins directory
+automatically when you build the distribution/opendaylight project.
+
+[[part-2-enabling-remote-procedure-calls-rpc---lets-make-some-toast]]
+= Part 2: Enabling Remote Procedure Calls (RPC) - Lets make some toast!
+
+Part 2 of the toaster example will add some behavior to the toaster.
+Having a toaster is cool but we'd really like it to make some toast for
+us. To accomplish this, we will define an RPC (Remote Procedure Call) in
+the toaster yang data model and write an implementation.
+
+[[define-the-yang-rpc]]
+=== Define the yang RPC
+
+Edit the existing _toaster.yang_ file, where we will define 2 RPC
+methods, _make-toast_ and _cancel-toast_ (add the bold lines under the
+module toaster heading):
+
+`
+    module toaster {
+        ... 
+    '''//This defines a Remote Procedure Call (rpc). RPC provide the ability to initiate an action
+    '''//on the data model. In this case the initating action takes two optional inputs (because default value is defined)
+    '''//QUESTION: Am I correct that the inputs are optional because they have defaults defined? The REST call doesn't seem to account for this.
+    '''rpc make-toast {
+    '''  description
+    '''    "Make some toast. The toastDone notification will be sent when the toast is finished.
+    '''     An 'in-use' error will be returned if toast is already being made. A 'resource-denied' error will 
+    '''     be returned if the toaster service is disabled.";<br>
+    '''  input {
+    '''    leaf toasterDoneness {
+     '''     type uint32 {
+     '''       range "1 .. 10";
+    '''      }
+    '''      default '5';
+    '''      description
+     '''       "This variable controls how well-done is the ensuing toast. It should be on a scale of 1 to 10.
+      '''       Toast made at 10 generally is considered unfit for human consumption; toast made at 1 is warmed lightly.";
+      '''  }<br>
+      '''  leaf toasterToastType {
+      '''    type identityref {
+      '''      base toast:toast-type;
+      '''    }
+    '''      default 'wheat-bread';
+    '''      description
+    '''        "This variable informs the toaster of the type of material that is being toasted. The toaster uses this information, 
+    '''          combined with toasterDoneness, to compute for how long the material must be toasted to achieve the required doneness.";
+     '''   }
+   '''   }
+    '''}  // rpc make-toast<br>
+  '''  // action to cancel making toast - takes no input parameters
+   ''' rpc cancel-toast {
+   '''   description
+   '''     "Stop making toast, if any is being made.
+    '''       A 'resource-denied' error will be returned 
+   '''        if the toaster service is disabled.";
+    '''}  // rpc cancel-toast'''
+    ...
+  }
+`
+
+Running 'mvn clean install', we see the following additional classes
+generated:
+
+* *ToasterService* - an interface that extends *RpcService* and defines
+the RPC methods corresponding to the yang data model.
+* *MakeToastInput* - an interface defining a DTO providing the input
+parameters for the make-toast call.
+* *MakeToastInputBuilder* - a concrete class for creating MakeToastInput
+instances.
+
+_Note: It is important that you run the mvn clean stage everytime you
+modify the yang files. There are some files that are not generated if
+they already exist, which can lead to incorrect generated files. When
+you change .yang file, you should always run mvn clean, which will
+remove all of the generated yang files, via the mvn-clean-plugin defined
+in the common.opendaylight pom.xml file._
+
+[[implement-the-rpc-methods]]
+=== Implement the RPC methods
+
+We've defined the data model interface for the RPC calls - now we must
+provide the implementation. We are going to modify our
+*OpendaylightToaster* class to implement the new *ToasterService*
+interface that was just generated. Only the relevant parts of the code
+are shown for simplicity: `
+ public class OpendaylightToaster implements '''ToasterService,''' AutoCloseable {
+  
+   ...  
+   private final ExecutorService executor;
+   
+   // The following holds the Future for the current make toast task.
+   // This is used to cancel the current toast.
+   private final AtomicReference<Future<?>> currentMakeToastTask = new AtomicReference<>();
+   
+   public OpendaylightToaster() {
+       executor = Executors.newFixedThreadPool(1);
+   }
+    
+   /**
+   * Implemented from the AutoCloseable interface.
+   */
+   @Override
+   public void close() throws ExecutionException, InterruptedException {
+       // When we close this service we need to shutdown our executor!
+       executor.shutdown();
+       
+       ...
+   }
+   
+   @Override
+   public Future<RpcResult<Void>> cancelToast() {
+   
+       Future<?> current = currentMakeToastTask.getAndSet( null );
+       if( current != null ) {
+           current.cancel( true );
+       }
+  
+       // Always return success from the cancel toast call.
+       return Futures.immediateFuture( Rpcs.<Void> getRpcResult( true,
+                                       Collections.<RpcError>emptyList() ) );
+   }
+     
+   @Override
+   public Future<RpcResult<Void>> makeToast(final MakeToastInput input) {
+       final SettableFuture<RpcResult<Void>> futureResult = SettableFuture.create();
+  
+       checkStatusAndMakeToast( input, futureResult );
+  
+       return futureResult;
+   }
+  
+   private void checkStatusAndMakeToast( final MakeToastInput input,
+                                         final SettableFuture<RpcResult<Void>> futureResult ) {
+  
+       // Read the ToasterStatus and, if currently Up, try to write the status to Down.
+       // If that succeeds, then we essentially have an exclusive lock and can proceed
+       // to make toast.
+  
+       final ReadWriteTransaction tx = dataProvider.newReadWriteTransaction();
+       ListenableFuture<Optional<DataObject>> readFuture =
+                                          tx.read( LogicalDatastoreType.OPERATIONAL, TOASTER_IID );
+  
+       final ListenableFuture<RpcResult<TransactionStatus>> commitFuture =
+           Futures.transform( readFuture, new AsyncFunction<Optional<DataObject>,
+                                                                   RpcResult<TransactionStatus>>() {
+  
+               @Override
+               public ListenableFuture<RpcResult<TransactionStatus>> apply(
+                       Optional<DataObject> toasterData ) throws Exception {
+  
+                   ToasterStatus toasterStatus = ToasterStatus.Up;
+                   if( toasterData.isPresent() ) {
+                       toasterStatus = ((Toaster)toasterData.get()).getToasterStatus();
+                   }
+  
+                   LOG.debug( "Read toaster status: {}", toasterStatus );
+  
+                   if( toasterStatus == ToasterStatus.Up ) {
+  
+                       LOG.debug( "Setting Toaster status to Down" );
+  
+                       // We're not currently making toast - try to update the status to Down
+                       // to indicate we're going to make toast. This acts as a lock to prevent
+                       // concurrent toasting.
+                       tx.put( LogicalDatastoreType.OPERATIONAL, TOASTER_IID,
+                               buildToaster( ToasterStatus.Down ) );
+                       return tx.commit();
+                   }
+  
+                   LOG.debug( "Oops - already making toast!" );
+  
+                   // Return an error since we are already making toast. This will get
+                   // propagated to the commitFuture below which will interpret the null
+                   // TransactionStatus in the RpcResult as an error condition.
+                   return Futures.immediateFuture( Rpcs.<TransactionStatus>getRpcResult(
+                           false, null, makeToasterInUseError() ) );
+               }
+       } );
+  
+       Futures.addCallback( commitFuture, new FutureCallback<RpcResult<TransactionStatus>>() {
+           @Override
+           public void onSuccess( RpcResult<TransactionStatus> result ) {
+               if( result.getResult() == TransactionStatus.COMMITED  ) {
+  
+                   // OK to make toast
+                   currentMakeToastTask.set( executor.submit(
+                                                    new MakeToastTask( input, futureResult ) ) );
+               } else {
+  
+                   LOG.debug( "Setting error result" );
+  
+                   // Either the transaction failed to commit for some reason or, more likely,
+                   // the read above returned ToasterStatus.Down. Either way, fail the
+                   // futureResult and copy the errors.
+  
+                   futureResult.set( Rpcs.<Void>getRpcResult( false, null, result.getErrors() ) );
+               }
+           }
+  
+           @Override
+           public void onFailure( Throwable ex ) {
+               if( ex instanceof OptimisticLockFailedException ) {
+  
+                   // Another thread is likely trying to make toast simultaneously and updated the
+                   // status before us. Try reading the status again - if another make toast is
+                   // now in progress, we should get ToasterStatus.Down and fail.
+  
+                   LOG.debug( "Got OptimisticLockFailedException - trying again" );
+  
+                   checkStatusAndMakeToast( input, futureResult );
+  
+               } else {
+  
+                   LOG.error( "Failed to commit Toaster status", ex );
+  
+                   // Got some unexpected error so fail.
+                   futureResult.set( Rpcs.<Void> getRpcResult( false, null, Arrays.asList(
+                        RpcErrors.getRpcError( null, null, null, ErrorSeverity.ERROR,
+                                               ex.getMessage(),
+                                               ErrorType.APPLICATION, ex ) ) ) );
+               }
+           }
+       } );
+   }
+  
+   private class MakeToastTask implements Callable<Void> {
+  
+       final MakeToastInput toastRequest;
+       final SettableFuture<RpcResult<Void>> futureResult;
+  
+       public MakeToastTask( final MakeToastInput toastRequest,
+                             final SettableFuture<RpcResult<Void>> futureResult ) {
+           this.toastRequest = toastRequest;
+           this.futureResult = futureResult;
+       }
+  
+       @Override
+       public Void call() {
+           try
+           {
+               // make toast just sleeps for n seconds.
+               long darknessFactor = OpendaylightToaster.this.darknessFactor.get();
+               Thread.sleep(toastRequest.getToasterDoneness());
+           }
+           catch( InterruptedException e ) {
+               LOG.info( "Interrupted while making the toast" );
+           }
+  
+           toastsMade.incrementAndGet();
+  
+           amountOfBreadInStock.getAndDecrement();
+           if( outOfBread() ) {
+               LOG.info( "Toaster is out of bread!" );
+  
+               notificationProvider.publish( new ToasterOutOfBreadBuilder().build() );
+           }
+  
+           // Set the Toaster status back to up - this essentially releases the toasting lock.
+           // We can't clear the current toast task nor set the Future result until the
+           // update has been committed so we pass a callback to be notified on completion.
+  
+           setToasterStatusUp( new Function<Boolean,Void>() {
+               @Override
+               public Void apply( Boolean result ) {
+  
+                   currentMakeToastTask.set( null );
+  
+                   LOG.debug("Toast done");
+  
+                   futureResult.set( Rpcs.<Void>getRpcResult( true, null,
+                                                          Collections.<RpcError>emptyList() ) );
+  
+                   return null;
+               }
+           } );
+           return null;
+      }
+ }
+` In the above code you can see that we have implemented the _makeToast_
+and _cancelToast_ methods, in addition to the _close_ method from the
+AutoCloseable interface to ensure that we properly clean up our embedded
+threadpool. Refer to inline comments for more details on what is
+happening.
+
+[[register-opendaylighttoaster-with-the-rpc-service]]
+=== Register OpendaylightToaster with the RPC service
+
+The next step is to register our *OpendaylightToaster* as the provider
+for the RPC calls. To do this we will need to first declare a dependency
+on the MD-SAL's RPC registry service in the _toaster-provider-impl.yang_
+file similar as we did with the data broker service: `
+    //augments the configuration,  
+    augment "/config:modules/config:module/config:configuration" {
+        case toaster-provider-impl {
+            when "/config:modules/config:module/config:type = 'toaster-provider-impl'";
+            ...     
+            
+            '''//Wires dependent services into this class - in this case the RPC registry service
+            '''container rpc-registry {
+            '''    uses config:service-ref {
+            '''        refine type {
+            '''            mandatory true;
+            '''            config:required-identity mdsal:binding-rpc-registry;
+            '''        }
+            '''    }
+            '''} 
+        }
+    }
+`
+
+Re-generate the source. The generated *AbstractToasterProviderModule*
+class will now have a _getRpcRegistryDependency()_ method. We can access
+that method in the *ToasterProviderModule* implementation to register
+the *OpenDaylightToaster* with the RPC registry service: `
+    @Override
+    public java.lang.AutoCloseable createInstance() {
+        final OpendaylightToaster opendaylightToaster = new OpendaylightToaster();
+    
+        ...
+        
+        '''final BindingAwareBroker.RpcRegistration<ToasterService> rpcRegistration = getRpcRegistryDependency()
+        '''        .addRpcImplementation(ToasterService.class, opendaylightToaster);
+           
+        final class AutoCloseableToaster implements AutoCloseable {
+     
+            @Override
+            public void close() throws Exception {
+                ...
+          '''      rpcRegistration.close();
+                ...
+            }
+   
+        }
+    
+        return new AutoCloseableToaster();
+    }
+`
+
+Finally we need to add the dependency for the 'rpc-registry' to the
+toaster-provider-impl module in the initial configuration XML file
+(remember the 03-sample-toaster.xml file?) as we did earlier with the
+'data-broker': `
+  <module>
+      <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:config:toaster-provider:impl">
+            prefix:toaster-provider-impl
+       </type>
+      
+       <name>toaster-provider-impl</name>
+      
+        '''<rpc-registry>
+        '''       <type xmlns:binding="urn:opendaylight:params:xml:ns:yang:controller:md:sal:binding">binding:binding-rpc-registry</type>
+        '''       <name>binding-rpc-broker</name>
+        '''</rpc-registry>
+    
+        ...
+   
+   </module>
+`
+
+Thats it! We are now ready to deploy our updated bundles and try out our
+makeToast and cancel toast calls.
+
+[[invoke-make-toast-via-restconf]]
+=== Invoke make-toast via RestConf
+
+It's finally time to make some delicious wheat toast! To invoke the
+_make-toast_ via the Restconf you will perform an HTTP POST to an
+operations URL.
+
+--------------------------------------------------------------------
+HTTP Method => POST
+URL => http://localhost:8080/restconf/operations/toaster:make-toast 
+Header =>   Content-Type: application/yang.data+json  
+Body =>  
+{
+  "input" :
+  {
+     "toaster:toasterDoneness" : "10",
+     "toaster:toasterToastType":"wheat-bread" 
+  }
+}
+--------------------------------------------------------------------
+
+_Note: The default and mandatory flags are not currently implemented in,
+so even though the toast type and doneness is defaulted in the yang
+model, you still have to provide their values here._
+
+[[invoke-cancel-toast-via-restconf]]
+=== Invoke cancel-toast via RestConf
+
+If you don't like burnt toast, you may want to cancel the _make-toast_
+operation part of the way through! You do this by invoking the
+_cancel-toast_ call via restconf:
+
+---------------------------------------------------------------------
+URL => http://localhost:8080/restconf/operations/toaster:cancel-toast
+HTTP Method => POST
+---------------------------------------------------------------------
+
+_Note: There is a bug in the way the RestconfImpl class processes /
+routes the REST requests. If you define the Content-Type header, then
+the rest call is routed to a method which expects a non-empty body. In
+this case though we don't have any input, so our body should be empty.
+Thus an exception is thrown. In order to make the cancel-toast call work
+successfully, you need to invoke the above call, with NO content-type
+define. By doing that you route the request to a different method, which
+expects an empty body._
+
+[[see-the-toaster-status-updated]]
+=== See the Toaster status updated
+
+To see the updated toaster status, invoke the _make-toast_ call (with a
+doneness of 10 to get the longest delay) and then immediately invoke the
+get to retrieve the Operational Status of the Toaster. You should now
+see: \{
+
+`   toaster: {` +
+`       toasterManufacturer: "Opendaylight"` +
+`       toasterModelNumber: "Model 1 - Binding Aware"` +
+`       toasterStatus: "Down"` +
+`  }`
+
+}
+
+[[part-3-add-some-configuration-data---my-toast-is-too-light]]
+= Part 3: Add some configuration data - My toast is too light!
+
+In part 3 we will explore defining and enabling configuration attributes
+(as opposed to operational attributes) in our yang toaster file. In this
+section we are going to define a new configuration attribute on the
+toaster which will allow the user to modify number of seconds each level
+of doneness will take. More importantly, we will illustrate how our
+*OpendaylightToaster* can register for changes in that configuration
+data as well as how the user can set, update and delete that
+information.
+
+[[add-the-configuration-attribute-to-toaster.yang]]
+== Add the configuration attribute to toaster.yang
+
+The first step is to add a new attribute, *darknessFactor*, to the
+_toaster_ container in the _toaster.yang_ file.
+
+`
+  container toaster {
+      ...
+     
+      '''leaf darknessFactor {
+      '''  type uint32;
+      '''  config true;
+      '''  default 1000;
+      '''  description
+      '''    "The darkness factor. Basically, the number of ms to multiple the doneness value by.";
+      '''}
+     
+      ...
+ }
+`
+
+Now run 'mvn clean install' to generate the updated *Toaster* interface.
+
+[[listening-for-changes]]
+== Listening for Changes
+
+In order for our *OpendaylightToaster* to get notified when the
+configuration data changes we need to implement the *DataChangeListener*
+interface.
+
+::
+  _Note: There are multiple DataChangeListener interfaces. We must
+  implement the
+  `org.opendaylight.controller.sal.binding.api.data.DataChangeListener;`
+  interface._
+
+`
+   ...
+   '''import org.opendaylight.controller.sal.binding.api.data.DataChangeListener;'''
+   ...
+   public class OpendaylightToaster implements ToasterData, ToasterService, AutoCloseable, '''DataChangeListener''' {
+   ...
+      '''@Override
+      '''public void onDataChanged(DataChangeEvent<InstanceIdentifier<?>, DataObject> change) {
+      '''        //TODO - implement
+      '''}
+   ...
+   }
+`
+
+The *DataChangeListener* interface has a single method, _onDataChanged_,
+which passes a change event. The change event can contain changes for
+multiple nodes (in the case of a list), but in our case we only have a
+single node that we are looking for. The next step is to extract the
+updated data from the change event. Do this by providing the following
+implementation for the _onDataChanged_ method.
+
+`
+   ...
+   //Thread safe holder for our darkness multiplier.
+   private AtomicLong darknessFactor = new AtomicLong( 1000 );
+   ...
+   @Override
+   public void onDataChanged(DataChangeEvent<InstanceIdentifier<?>, DataObject> change) {
+       DataObject dataObject = change.getUpdatedSubtree();
+       if( dataObject instanceof Toaster )
+       {
+           Toaster toaster = (Toaster) dataObject;
+           Long darkness = toaster.getDarknessFactor();
+           if( darkness != null )
+           {
+               darknessFactor.set( darkness );
+           }
+       }
+   }
+    ...
+` The last step is to modify the *MakeToastTask* call method to use our
+new darkness factor instead of a hard-coded value. `
+  private class MakeToastTask implements Callable<Void> {
+        ...
+        @Override
+       public Void call() throws InterruptedException {
+           try
+           {
+             '''  // make toast just sleeps for n seconds per doneness level.
+             '''  long darknessFactor = OpendaylightToaster.this.darknessFactor.get();
+             '''  Thread.sleep(darknessFactor * toastRequest.getToasterDoneness());
+           }
+           catch( InterruptedException e ) {
+               ...
+           }
+           ...
+       }
+    }
+`
+
+The final step is to register our listener with the
+*DataProviderService* service in order to receive the notifications. We
+will perform this registration in
+_ToasterProviderModule.createInstance()_: `
+   @Override
+    public java.lang.AutoCloseable createInstance() {
+        final OpendaylightToaster opendaylightToaster = new OpendaylightToaster();
+         
+        ...
+        
+        '''final ListenerRegistration<DataChangeListener> dataChangeListenerRegistration = 
+        '''        dataBrokerService.registerDataChangeListener( OpendaylightToaster.TOASTER_IID, opendaylightToaster );
+        <br>
+        ...
+        final class AutoCloseableToaster implements AutoCloseable {     
+            @Override
+            public void close() throws Exception {
+                '''dataChangeListenerRegistration.close(); //closes the listener registrations (removes it)
+                ...
+            }
+        }
+        ...
+    }
+    
+` We have now registered our toaster as a listener for changes to the
+toaster node and any node below it.
+
+[[changing-the-darkness-factor]]
+== Changing the Darkness Factor
+
+To change the darkness factor we will use a REST call to the restconf
+service provided by MD-SAL. Once your controller is started, perform the
+following PUT:
+
+-------------------------------------------------------------
+  HTTP Method: PUT
+  URL:  http://localhost:8080/restconf/config/toaster:toaster
+  HEADER: content-type: application/yang.data+json
+  BODY: 
+  {
+    toaster:
+    {
+       darknessFactor: "2000"
+    }
+ }
+-------------------------------------------------------------
+
+You should receive a return code of 200. If you perform a GET to the
+same URL, your should see the update darkness factor returned. At this
+point, if you perform the make-toast RPC call you should see the delay
+reflect the value of the darknessFactor * the doneness.
+
+'''NOTE: This is a known bug in restconf which allows you to PUT to
+attributes which we are NOT marked as configuration attributes (ie
+operational) in the yang data model, ie toasterManufacture,
+toasterModel, and toasterStatus. It is discouraged for developers to
+depend on this ability as it will be removed in the near future. Only
+attributes marked as `config: true` in the yang data model should be
+modified or accessed via _/restconf/config_ get/put/post/delete.
+
+[[part-4-add-state-data-to-the-toasterservice-implementation-jmx-access---count-my-toast]]
+= Part 4: Add state data to the ToasterService implementation (JMX
+Access) - Count my toast!
+
+For internal statistical purposes and troubleshooting, we'd like to keep
+track of how many pieces of toast the toaster has made over time. We
+need an attribute, *toasts-made*, to track the count and a way to obtain
+the count. Whenever we *make-toast*, we want to increment *toasts-made*.
+In addition, we'd like a mechanism to clear the *toasts-made* count.
+
+To accomplish this, the MD-SAL provides the ability to define internal
+state data and RPC calls that are only accessible via JMX.
+
+[[define-the-state-data-model]]
+== Define the state data model
+
+We'll define *toasts-made* as statistical state data on the toaster
+provider service implementation since that is where *make-toast*
+happens. In addition, we'll define an RPC call, *clear-toasts-made*.
+
+In _toaster-provider-impl.yang_:
+
+---------------------------------------------------------------------------------------
+    import rpc-context { prefix rpcx; revision-date 2013-06-17; }
+    ...
+    augment "/config:modules/config:module/config:state" {
+        case toaster-provider-impl {
+            when "/config:modules/config:module/config:type = 'toaster-provider-impl'";
+
+            leaf toasts-made {
+                type uint32;
+            }
+
+            rpcx:rpc-context-instance "clear-toasts-made-rpc";
+        }
+    }
+
+    identity clear-toasts-made-rpc;
+
+    rpc clear-toasts-made  {
+        description
+          "JMX call to clear the toasts-made counter.";
+
+        input {
+            uses rpcx:rpc-context-ref {
+                refine context-instance {
+                    rpcx:rpc-context-instance clear-toasts-made-rpc;
+                }
+            }
+        }
+    }
+---------------------------------------------------------------------------------------
+
+The augmentation of the _modules/module/state_ hierarchy choice-type
+node adds schema nodes specific to the toaster-provider-impl module
+identity type (as indicated by the 'when' clause). This is where we
+define the state information that the MD-SAL will make available via
+JMX.
+
+*toasts-made* is a simple leaf node. The definition of
+*clear-toasts-made* deserves a little explanation. We define an
+identity, _clear-toasts-made-rpc_, for the RPC so it can be referenced.
+The _input_ of the RPC reuses the _rpc-context-ref_ grouping and
+inherits the _context-instance_ leaf node that references the
+_clear-toasts-made-rpc_ identity. Similarly, we define a node in the
+state augments clause that also references the _clear-toasts-made-rpc_
+identity. In this way, we tie the state data node to the RPC.
+
+Run 'mvn clean install' to generate the source. 3 additional classes are
+generated under _src/main/yang-gen-config_:
+
+* *ToasterProviderRuntimeMXBean* - JMX bean interface that defines the
+_getToastsMade()_ method to provide access to the *toasts-made*
+attribute and the _clearToastsMade()_ RPC method.
+* *ToasterProviderRuntimeRegistration* - concrete class that wraps a
+*ToasterProviderRuntimeMXBean* registration.
+* *ToasterProviderRuntimeRegistrator* - concrete class that registers a
+*ToasterProviderRuntimeMXBean* implementation with the MD-SAL.
+
+[[implement-the-state-data-model]]
+== Implement the state data model
+
+Now that we've defined the data model for our state data and behavior we
+need to provide an implementation. Since the *OpenDaylightToaster* makes
+toast, we'll implement it there.
+
+The *ToasterProviderRuntimeMXBean* provides the interface for access to
+the state data so we need to modify *OpenDaylightToaster* to implement
+the *ToasterProviderRuntimeMXBean* interface:
+
+`
+ public class OpendaylightToaster implements ToasterService, AutoCloseable, DataChangeListener''', ToasterProviderRuntimeMXBean''' {
+    ...
+    '''private final AtomicLong toastsMade = new AtomicLong(0);
+    ...
+    <br>
+    '''/**
+     '''* Accessor method implemented from the ToasterProviderRuntimeMXBean interface.
+     '''*/
+    '''@Override
+    '''public Long getToastsMade() {
+        '''return toastsMade.get();
+    '''}
+    <br>
+    '''/**
+     '''* JMX RPC call implemented from the ToasterProviderRuntimeMXBean interface.
+     '''*/
+    '''@Override
+    '''public void clearToastsMade() {
+        '''LOG.info( "clearToastsMade" );
+        '''toastsMade.set( 0 );
+    '''}
+    ...
+    <br>
+    private class MakeToastTask implements Callable<Void> {
+        ...
+        @Override
+        public Void call() throws InterruptedException {
+            ...
+            '''toastsMade.incrementAndGet();'''
+            ...
+        }
+    }
+ }
+`
+
+[[register-the-toasterproviderruntimemxbean-service]]
+== Register the ToasterProviderRuntimeMXBean service
+
+We need to do a final step to register the *OpendaylightToaster* as the
+*ToasterProviderRuntimeMXBean* service. We do this in the
+*ToasterProviderModule* via the *ToasterProviderRuntimeRegistrator*
+returned by the base class's _getRootRuntimeBeanRegistratorWrapper()_
+method:
+
+`
+    public java.lang.AutoCloseable createInstance() {
+        final OpendaylightToaster opendaylightToaster = new OpendaylightToaster();
+        ...
+        // Register runtimeBean for toaster statistics via JMX
+        '''final ToasterProviderRuntimeRegistration runtimeReg = getRootRuntimeBeanRegistratorWrapper().register( opendaylightToaster);
+        ...
+        final class AutoCloseableToaster implements AutoCloseable {
+            @Override
+            public void close() throws Exception {
+                ...
+                '''runtimeReg.close();
+                ...
+            }
+            ...
+        }
+    }
+`
+
+Note: we also have to close the *ToasterProviderRuntimeRegistration*
+when the *OpendaylightToaster* instance is closed.
+
+[[accessing-toasts-made-and-clear-toasts-made-via-jmx]]
+== Accessing toasts-made and clear-toasts-made via JMX
+
+The toasts-made attribute that we added is available via MBeans through
+the java management beans. You can programmatically access these through
+the mbean platform or via JConsole.
+
+* _JConsole is a utility shipped with each JDK and is located in the bin
+directory of your java home folder._
+
+* First, start the controller using the -jmx flag.
+
+-------------
+./run.sh -jmx
+-------------
+
+This flag starts the JMX server in the controller to allow JConsole to
+attach.
+
+Launch JConsole, double click on the jconsole application under
+
+-----------------------
+$JAVA_HOME/bin/jconsole
+-----------------------
+
+_Note: Path may change based on OS and installation_
+
+* Connect to the running eclipse process either by selecting the
+application, or specifying the "hostname:1088" in the remote connect
+dialog. For more information on JMX check out this document:
+https://wiki.opendaylight.org/images/8/89/Jconsole.pdf[1].
+
+* Once connected, navigate to the "MBeans" tab.
+
+:*Expand the
+"org.opendaylight.controller->RuntimeBean->toaster-provider-impl->toster-provider-impl"
+nodes.
+
+* Select "Attributes". You will now see the "ToastsMade" attribute
+displayed and this attribute will change when the make-toast RPC call is
+executed.
+* After you have called ToastsMade call a few times, refresh the
+attributes and see that the value increased.
+* Now select "Operations", and click the "clearToastsMade" button.
+* Return to the Attributes and note that the counter is now set to 0.
+
+[[part-5-add-a-consumer-of-the-toasterservice---lets-make-breakfast]]
+= Part 5: Add a consumer of the ToasterService - Let's make breakfast!
+
+We've seen how we can use RestConf to access the *ToasterService* RPC
+methods. In this section we'll show how to access the *ToasterService*
+programmatically from within the controller.
+
+We'll create a new service called *KitchenService* that provides a
+method to make breakfast (this is located in the
+_sample-toaster-consumer_ project). This service will access the
+*ToasterService* to provide the toast for our breakfast.
+
+The *KitchenService* defines a higher-level service for making a full
+breakfast. This nicely demonstrates “service chaining”, where a consumer
+of one or more services is also a provider of another service. This
+example will only call into the 'toast' service but one can see that it
+could be extended to also call into an 'eggs' service and also add a
+'coffee' service etc.
+
+[[define-the-kitchenservice-interface]]
+== Define the KitchenService interface
+
+For the sake of brevity, we'll hand-code the KitchenService data model
+and interface instead of defining it in yang. In a true kitchenService
+model you would likely want to define the KitchenService in yang to get
+the benefit of auto-generated classes and the out-of-box functionality
+that MD-SAL provides. For this example, we define an enumeration and
+interface java files under src/main/java, in the
+_org.opendaylight.controller.sample.kitchen.api package_. `
+ //EggsType.java  
+ public enum EggsType {
+     SCRAMBLED,
+     OVER_EASY,
+     POACHED
+ }
+` `
+ //KitchenService.java 
+ public interface KitchenService {
+   
+     Future<RpcResult<Void>> makeBreakfast( EggsType eggs, Class<? extends ToastType> toast, int toastDoneness );
+    
+ }
+`
+
+Our breakfast only includes eggs with the toast for simplicity - a
+complete breakfast may also include bacon or sausage and coffee. Eggs,
+breakfast meat, coffee etc could also be separate data models with
+corresponding services like the ToasterService - we leave that as an
+exercise for the reader.
+
+[[define-the-kitchenservice-implementation]]
+== Define the KitchenService implementation
+
+Next we create a class, *KitchenServiceImp*, to implement the interface
+and access the *ToasterService* to make the toast:
+
+------------------------------------------------------------------------------------------------------------------------
+public class KitchenServiceImpl implements KitchenService {
+
+    private static final Logger log = LoggerFactory.getLogger( KitchenServiceImpl.class );
+
+    private final ToasterService toaster;
+
+    public KitchenServiceImpl(ToasterService toaster) {
+        this.toaster = toaster;
+    }
+
+    @Override
+    public Future<RpcResult<Void>> makeBreakfast( EggsType eggs, Class<? extends ToastType> toast, int toastDoneness ) {
+  
+        // Call makeToast and use JdkFutureAdapters to convert the Future to a ListenableFuture,
+        // The OpendaylightToaster impl already returns a ListenableFuture so the conversion is
+        // actually a no-op.
+  
+        ListenableFuture<RpcResult<Void>> makeToastFuture = JdkFutureAdapters.listenInPoolThread(
+                makeToast( toastType, toastDoneness ), executor );
+  
+        ListenableFuture<RpcResult<Void>> makeEggsFuture = makeEggs( eggsType );
+  
+        // Combine the 2 ListenableFutures into 1 containing a list of RpcResults.
+  
+        ListenableFuture<List<RpcResult<Void>>> combinedFutures =
+                Futures.allAsList( ImmutableList.of( makeToastFuture, makeEggsFuture ) );
+  
+        // Then transform the RpcResults into 1.
+  
+        return Futures.transform( combinedFutures,
+            new AsyncFunction<List<RpcResult<Void>>,RpcResult<Void>>() {
+                @Override
+                public ListenableFuture<RpcResult<Void>> apply( List<RpcResult<Void>> results )
+                                                                                 throws Exception {
+                    boolean atLeastOneSucceeded = false;
+                    Builder<RpcError> errorList = ImmutableList.builder();
+                    for( RpcResult<Void> result: results ) {
+                        if( result.isSuccessful() ) {
+                            atLeastOneSucceeded = true;
+                        }
+  
+                        if( result.getErrors() != null ) {
+                            errorList.addAll( result.getErrors() );
+                        }
+                    }
+  
+                    return Futures.immediateFuture(
+                              Rpcs.<Void> getRpcResult( atLeastOneSucceeded, errorList.build() ) );
+                }
+        } );
+    }
+  
+    private ListenableFuture<RpcResult<Void>> makeEggs( EggsType eggsType ) {
+  
+        return executor.submit( new Callable<RpcResult<Void>>() {
+  
+            @Override
+            public RpcResult<Void> call() throws Exception {
+  
+                // We don't actually do anything here - just return a successful result.
+                return Rpcs.<Void> getRpcResult( true, Collections.<RpcError>emptyList() );
+            }
+        } );
+    }
+  
+    private Future<RpcResult<Void>> makeToast( Class<? extends ToastType> toastType,
+                                               int toastDoneness ) {
+        // Access the ToasterService to make the toast.
+  
+        MakeToastInput toastInput = new MakeToastInputBuilder()
+            .setToasterDoneness( (long) toastDoneness )
+            .setToasterToastType( toastType )
+            .build();
+  
+        return toaster.makeToast( toastInput );
+    }
+}
+------------------------------------------------------------------------------------------------------------------------
+
+[[wiring-the-kitchenservice-implementation]]
+== Wiring the KitchenService implementation
+
+Similar to the toaster provider service, we'll describe the kitchen
+service implementation in yang and provide the initial configuration xml
+so the MD-SAL can wire it up.
+
+[[define-the-kitchen-service-yang]]
+=== Define the kitchen service yang
+
+We'll define the kitchen service implementation and its dependencies in
+_kitchen-service-impl.yang_:
+
+-------------------------------------------------------------------------------------------
+module kitchen-service-impl {
+
+    yang-version 1;
+    namespace "urn:opendaylight:params:xml:ns:yang:controller:config:kitchen-service:impl";
+    prefix "kitchen-service-impl";
+
+    import config { prefix config; revision-date 2013-04-05; }
+    import rpc-context { prefix rpcx; revision-date 2013-06-17; }
+
+    import opendaylight-md-sal-binding { prefix mdsal; revision-date 2013-10-28; }
+
+    description
+        "This module contains the base YANG definitions for
+        kitchen-service impl implementation.";
+
+    revision "2014-01-31" {
+        description
+            "Initial revision.";
+    }
+
+    // This is the definition of kitchen service interface identity.
+    identity kitchen-service {
+        base "config:service-type";
+        config:java-class "org.opendaylight.controller.sample.kitchen.api.KitchenService";
+    }
+
+    // This is the definition of kitchen service implementation module identity. 
+    identity kitchen-service-impl {
+            base config:module-type;
+            config:provided-service kitchen-service;
+            config:java-name-prefix KitchenService;
+    }
+
+    augment "/config:modules/config:module/config:configuration" {
+        case kitchen-service-impl {
+            when "/config:modules/config:module/config:type = 'kitchen-service-impl'";
+
+            container rpc-registry {
+                uses config:service-ref {
+                    refine type {
+                        mandatory true;
+                        config:required-identity mdsal:binding-rpc-registry;
+                    }
+                }
+            }
+        }
+    }
+}
+-------------------------------------------------------------------------------------------
+
+This is similar to the toaster-provider-impl yang except we also define
+a *kitchen-service* _service-type_ identity which defines a global
+identifier for the kitchen service interface that can be referred to.
+The _config:java-class_ property specifies the *KitchenService* java
+interface.
+
+The _config:provided-service_ property of the *kitchen-service-impl*
+module identity refers to the *kitchen-service* service-type identity as
+its provided service interface.
+
+This *kitchen-service* identity will be used by the config subsystem to
+advertise the service instance provided by the *kitchen-service-impl*
+module as an OSGi service with the *KitchenService* java interface.
+Since we didn't define a kitchen yang data model and advertise the
+*KitchenServiceImpl* with the MD-SAL RPC service registry, the only
+(convenient) way for other bundles to access the *KitchenService* is by
+obtaining it via OSGi. Typically you wouldn't need to advertise a
+service with OSGi unless a bundle that isn't MD-SAL aware needs to
+access it but this demonstrates it is possible to do so. Note that we
+didn't advertise the *ToasterService* in this manner, instead the
+*KitchenServiceImpl* obtains it via the MD-SAL RPC registry.
+
+_Note: the sample-toaster-it pax-exam integration test bundle does use
+the KitchenService OSGi service._
+
+In the pom.xml, we need to add the JMXGenerator to the yang-maven-plugin
+configuration as we did earlier for the toaster provider pom file.
+
+[[implement-the-kitchenservicemodule]]
+=== Implement the KitchenServiceModule
+
+After running 'mvn clean install', several source files will be
+generated similar to the toaster provider, of which we only need to
+modify the _KitchenServiceModule.createInstance()_ method to instantiate
+the *KitchenServiceImpl* instance and wire it:
+
+--------------------------------------------------------------------------------------------------------------------------------
+    @Override
+    public java.lang.AutoCloseable createInstance() {
+        ToasterService toasterService = getRpcRegistryDependency().getRpcService(ToasterService.class);
+
+        final KitchenServiceImpl kitchenService = new KitchenServiceImpl(toasterService);
+
+        final class AutoCloseableKitchenService implements KitchenService, AutoCloseable {
+
+            @Override
+            public void close() throws Exception {
+            }
+
+            @Override
+            public Future<RpcResult<Void>> makeBreakfast( EggsType eggs, Class<? extends ToastType> toast, int toastDoneness ) {
+                return kitchenService.makeBreakfast( eggs, toast, toastDoneness );
+            }
+        }
+
+        AutoCloseable ret = new AutoCloseableKitchenService();
+        return ret;
+    }
+--------------------------------------------------------------------------------------------------------------------------------
+
+Since we specified the provided service for the kitchen service
+implementation module in _kitchen-service-impl.yang_, we must return an
+*AutoCloseable* instance that also implements the *KitchenService*
+interface. Otherwise this would result in a failure in the config
+subsystem.
+
+[[define-initial-configuration]]
+=== Define initial configuration
+
+Finally, add the kitchen service and module definitions to the initial
+configuration xml created earlier: `
+ <snapshot>
+    <configuration>
+        <data xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+            <modules xmlns="urn:opendaylight:params:xml:ns:yang:controller:config">
+               ...
+               '''<module>
+                  '''<type xmlns:kitchen="urn:opendaylight:params:xml:ns:yang:controller:config:kitchen-service:impl">
+                     '''kitchen:kitchen-service-impl
+                  '''</type>
+                  '''<name>kitchen-service-impl</name>
+                  <br>
+                  '''<rpc-registry>
+                     '''<type xmlns:binding="urn:opendaylight:params:xml:ns:yang:controller:md:sal:binding">binding:binding-rpc-registry</type>
+                     '''<name>binding-rpc-broker</name>
+                  '''</rpc-registry>
+                '''</module>
+            </modules>
+            '''<services xmlns="urn:opendaylight:params:xml:ns:yang:controller:config">
+                '''<service>
+                    '''<type xmlns:kitchen="urn:opendaylight:params:xml:ns:yang:controller:config:kitchen-service:impl">
+                        '''kitchen:kitchen-service
+                    '''</type>
+                    '''<instance>
+                        '''<name>kitchen-service</name>
+                        '''<provider>/modules/module[type='kitchen-service-impl'][name='kitchen-service-impl']</provider>
+                    '''</instance>
+                '''</service>
+            '''</services>
+        </data>
+    </configuration>
+    
+    <required-capabilities>
+        '''<capability>urn:opendaylight:params:xml:ns:yang:controller:config:kitchen-service:impl?module=kitchen-service-impl&amp;amp;revision=2014-01-31</capability>
+        <capability>urn:opendaylight:params:xml:ns:yang:controller:config:toaster-provider:impl?module=toaster-provider-impl&amp;amp;revision=2014-01-31</capability>
+    </required-capabilities>
+ </snapshot>
+`
+
+The kitchen-service-impl _module_ definition is similar to the
+toaster-provider-impl module outlined earlier.
+
+We also define a _service_ entry for the kitchen-service interface that
+tells the config subsystem to advertise the OSGi service. The _type_
+element refers to the fully-qualified kitchen-service identity and
+specifies the interface type of the service. The _instance_ element
+specifies the service instance information. The _name_ element specifies
+a unique service name and the _provider_ element specifies the path of
+the form _/modules/module/name_ to locate the kitchen-service-impl
+module, which provides the service instance, by its module name. At
+runtime, the actual service instance is instantiated and inserted under
+the config _/services/service/_ hierarchy node and advertised with OSGi.
+
+[[add-jmx-rpc-to-make-breakfast]]
+== Add JMX RPC to make breakfast
+
+At this point, if we deployed the kitchen service we wouldn't be able to
+access it via restconf as we didn't define a yang data model for it.
+Presumably, for a real service, there would be java clients to consume
+it. In lieu of that we can utilize JMX to exercise the kitchen service
+to make breakfast.
+
+The MD-SAL also supports RPC calls via JMX. We simply define the RPC in
+yang and tie it to the _config:state_ via augmentation as we did earlier
+for the *clearToastsMade* RPC in the toaster provider.
+
+We'll add a *make-scrambled-with-wheat* RPC definition to
+_kitchen-service-impl.yang_. This call takes no input and hard-codes
+scrambled eggs with light wheat toast for simplicity.
+
+-------------------------------------------------------------------------------------------------
+    augment "/config:modules/config:module/config:state" {
+        case kitchen-service-impl {
+            when "/config:modules/config:module/config:type = 'kitchen-service-impl'";
+
+            rpcx:rpc-context-instance "make-scrambled-with-wheat-rpc";
+        }
+    }
+
+    identity make-scrambled-with-wheat-rpc;
+
+    rpc make-scrambled-with-wheat  {
+        description
+          "Shortcut JMX call to make breakfast with scrambled eggs and wheat toast for testing.";
+
+        input {
+            uses rpcx:rpc-context-ref {
+                refine context-instance {
+                    rpcx:rpc-context-instance make-scrambled-with-wheat-rpc;
+                }
+            }
+        }
+        output {
+            leaf result {
+                type boolean;
+            }
+        }
+    }
+-------------------------------------------------------------------------------------------------
+
+After re-generating the source, modify the *KitchenServiceImpl* to
+implement the generated interface *KitchenServiceRuntimeMXBean* that
+defines the _makeScrambledWithWheat()_ method.
+
+----------------------------------------------------------------------------------------------------
+    @Override
+    public Boolean makeScrambledWithWheat() {
+        try {
+            // This call has to block since we must return a result to the JMX client.
+            RpcResult<Void> result = makeBreakfast( EggsType.SCRAMBLED, WheatBread.class, 2 ).get();
+            if( result.isSuccessful() ) {
+                log.info( "makeBreakfast succeeded" );
+            } else {
+                log.warn( "makeBreakfast failed: " + result.getErrors() );
+            }
+  
+            return result.isSuccessful();
+  
+        } catch( InterruptedException | ExecutionException e ) {
+            log.warn( "An error occurred while maing breakfast: " + e );
+        }
+  
+        return Boolean.FALSE;
+    }
+----------------------------------------------------------------------------------------------------
+
+Next, modify the _KitchenServiceModule.createInstance()_ to register the
+*KitchenService* with JMX and then close it in the *AutoCloseable*
+wrapper. `
+    '''final KitchenServiceRuntimeRegistration runtimeReg =
+                                  '''getRootRuntimeBeanRegistratorWrapper().register( kitchenService );
+    ...
+    final class AutoCloseableKitchenService implements AutoCloseable {
+        @Override
+        public void close() throws Exception {
+            ...
+            '''runtimeReg.close();            
+        }
+    }
+    ...
+
+                    
+`
+
+[[make-breakfast-via-jmx]]
+== Make breakfast via JMX
+
+We can access the kitchen-service-impl MBean via JConsole as we did
+earlier with the toaster-service-impl MBean.
+
+* Navigate to the MBeans tab
+* Expand the
+_org.opendaylight.controller->RuntimeBean->kitchen-service-impl->kitchen-service-imp->Operations_
+node.
+* Click the _makeScrambledWithWheat_ button.
+* To verify it actually made the toast, expand
+_org.opendaylight.controller->RuntimeBean->toaster-provider-impl->toaster-provider-imp->Attributes_
+and check the value of _ToastsMade_.
+
+[[part-6-notifications---oh-no-the-toaster-is-out-of-bread]]
+= Part 6: Notifications - Oh no, the Toaster is out of bread!
+
+This part will make use of the MD-SAL's unsolicited notification service
+to have the *OpenDaylightToaster* send notifications when significant
+events occur. Notifications can be consumed by registered listener
+implementations or by external netconf clients.
+
+A toaster can only make toast if it has a supply of bread. Currently,
+our *OpenDaylightToaster* has an infinite supply of bread which isn't
+very realistic in the real world.
+
+We'll modify the *OpenDaylightToaster* to have a finite stock of bread.
+We'll keep it simple and maintain an overall limit encompassing all
+types of bread instead of a limit per bread type.
+
+When called to make toast, if out of bread, a *toasterOutOfBread*
+notification will be sent.
+
+We'll also add an RPC call, _restock-toaster_, that can be used to set
+the amount of bread in stock. In addition it will send a
+*toasterRestocked* notification.
+
+The *KitchenService* will register for both notifications and act
+accordingly when received.
+
+[[define-the-notifications-and-rpc]]
+== Define the notifications and RPC
+
+We'll define the 2 notifications and RPC in the _toaster.yang_ file.
+
+`
+ module toaster {
+    ... 
+    '''rpc restock-toaster {
+        '''description
+          '''"Restocks the toaster with the amount of bread specified.";
+        <br>  
+        '''input {
+            '''leaf amountOfBreadToStock {
+                '''type uint32;
+                '''description
+                  '''"Indicates the amount of bread to re-stock";
+            '''}
+        '''}
+    '''}
+    <br>
+    '''notification toasterOutOfBread {
+      '''description
+        '''"Indicates that the toaster has run of out bread.";
+    '''}  // notification toasterOutOfStock
+    <br>
+    '''notification toasterRestocked {
+      '''description
+        '''"Indicates that the toaster has run of out bread.";
+      '''leaf amountOfBread {
+        '''type uint32;
+        '''description
+          '''"Indicates the amount of bread that was re-stocked";
+      '''}
+    '''}  // notification toasterRestocked
+    
+  }  // module toaster
+`
+
+After running 'mvn clean install', several new classes will be
+generated:
+
+* *ToasterOutOfBread* - an interface defining a DTO for the
+_toasterOutOfBread_ notification.
+* *ToasterOutOfBreadBuilder* - a concrete class for creating
+*ToasterOutOfBread* instances.
+* *ToasterRestocked* - an interface defining a DTO for the
+_toasterRestocked_ notification.
+* *ToasterRestockedBuilder* - a concrete class for creating
+*ToasterRestocked* instances.
+* *ToasterListener* - interface for consumers of the toaster
+notifications to implement that defines receipt methods for each
+notification type.
+
+[[implement-notifications-and-rpc-in-opendaylighttoaster]]
+== Implement notifications and RPC in OpenDaylightToaster
+
+Next we add code to the *OpenDaylightToaster* to implement the
+*restockToaster* RPC and to send the notifications.
+
+`
+ public class OpendaylightToaster implements ToasterService, ToasterProviderRuntimeMXBean, AutoCloseable, DataChangeListener {
+    ...
+    '''private NotificationProviderService notificationProvider;
+    ...
+    '''private final AtomicLong amountOfBreadInStock = new AtomicLong( 100 );
+    ...
+    '''public void setNotificationProvider(NotificationProviderService salService) {
+        '''this.notificationProvider = salService;
+    '''}
+    ...
+    <br>
+    private void checkStatusAndMakeToast( final MakeToastInput input,
+                                          final SettableFuture<RpcResult<Void>> futureResult ) {
+   
+        ...  
+        final ListenableFuture<RpcResult<TransactionStatus>> commitFuture =
+            Futures.transform( readFuture, new AsyncFunction<Optional<DataObject>,
+                                                                    RpcResult<TransactionStatus>>() {
+  
+                @Override
+                public ListenableFuture<RpcResult<TransactionStatus>> apply(
+                        Optional<DataObject> toasterData ) throws Exception {
+  
+                    ...
+                    if( toasterStatus == ToasterStatus.Up ) {
+  
+                       '''if( outOfBread() ) {
+                           '''LOG.debug( "Toaster is out of bread" );
+  
+                           '''return Futures.immediateFuture( Rpcs.<TransactionStatus>getRpcResult(
+                           '''            false, null, makeToasterOutOfBreadError() ) );
+                       '''}
+  
+                       ...
+                   }
+                   ...
+               }
+       } );
+       ...  
+   }
+   ...
+    '''/**
+     '''* RestConf RPC call implemented from the ToasterService interface.
+     '''* Restocks the bread for the toaster and sends a ToasterRestocked notification.
+     '''*/
+    '''@Override
+    '''public Future<RpcResult<java.lang.Void>> restockToaster(RestockToasterInput input) {
+        '''LOG.info( "restockToaster: " + input );
+        '''
+        '''amountOfBreadInStock.set( input.getAmountOfBreadToStock() );
+        '''
+        '''if( amountOfBreadInStock.get() > 0 ) {
+            '''ToasterRestocked reStockedNotification =
+                '''new ToasterRestockedBuilder().setAmountOfBread( input.getAmountOfBreadToStock() ).build();
+            '''notificationProvider.publish( reStockedNotification );
+        '''}
+        '''
+        '''return Futures.immediateFuture(Rpcs.<Void> getRpcResult(true, Collections.<RpcError> emptySet()));
+    '''}
+    ...
+    '''private boolean outOfBread()
+    '''{
+        '''return amountOfBreadInStock.get() == 0;
+    '''}
+    <br>
+    private class MakeToastTask implements Callable<Void> {
+        ...
+        @Override
+        public Void call() throws InterruptedException {
+            ...
+            '''amountOfBreadInStock.getAndDecrement();
+            '''if( outOfBread() ) {
+                '''LOG.info( "Toaster is out of bread!" );
+                '''
+                '''notificationProvider.publish( new ToasterOutOfBreadBuilder().build() );
+            '''}
+            ...
+        }
+    }
+}
+`
+
+[[wire-the-opendaylighttoaster-for-notifications]]
+== Wire the OpenDaylightToaster for notifications
+
+The *OpenDaylightToaster* needs access to the MD-SAL's
+*NotificationProviderService* in order to send notifications. We need to
+specify the *NotificationProviderService* as a dependency in the
+toaster-provider-impl module by adding an entry to the
+*config:configuration* augmentation: `
+     augment "/config:modules/config:module/config:configuration" {
+        case toaster-consumer-impl {
+            when "/config:modules/config:module/config:type = 'toaster-consumer-impl'";
+            ...
+            <br>
+            '''container notification-service {
+                '''uses config:service-ref {
+                    '''refine type {
+                        '''mandatory true;
+                        '''config:required-identity mdsal:binding-notification-service;
+                    '''}
+                '''}
+            '''}
+        }
+    }
+`
+
+Run 'mvn clean install' to generate the source.
+
+The generated *AbstractToasterProviderModule* class should now have a
+_getNotificationServiceDependency()_ method. We can access that method
+in the _ToasterProviderModule.createInstance()_ method to inject the
+*NotificationProviderService* into the *OpenDaylightToaster*.
+
+--------------------------------------------------------------------------------
+opendaylightToaster.setNotificationProvider(getNotificationServiceDependency());
+--------------------------------------------------------------------------------
+
+Finally we need to add the dependency for the 'notification-service' to
+the toaster-provider-impl module in the initial configuration XML file
+as we did earlier with the 'rpc-registry': `
+ <snapshot>
+    <configuration>
+        <data xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+            <modules xmlns="urn:opendaylight:params:xml:ns:yang:controller:config">
+                <!-- Specify the configuration for the toaster-provider-impl module as defined in the 
+                        toaster-provider-impl.yang file -->
+                <module>
+                    ...
+                    '''<notification-service>
+                        '''<type xmlns:binding="urn:opendaylight:params:xml:ns:yang:controller:md:sal:binding">
+                            '''binding:binding-notification-service
+                        '''</type>
+                        '''<name>binding-notification-broker</name>
+                    '''</notification-service>
+                </module>
+            </modules>
+            ...
+        </data>
+    </configuration>
+    ...
+ </snapshot>
+`
+
+[[implement-notifications-in-kitchenserviceimpl]]
+== Implement notifications in KitchenServiceImpl
+
+Next we modify the *KitchenServiceImpl* to implement the
+*ToasterListener* interface and the notification methods. `
+ public class KitchenServiceImpl implements KitchenService, KitchenServiceRuntimeMXBean, '''ToasterListener''' {
+    ...
+    '''private volatile boolean toasterOutOfBread;
+    <br>
+    private Future<RpcResult<Void>> makeToast( Class<? extends ToastType> toastType,
+                                               int toastDoneness ) {
+  
+        '''if( toasterOutOfBread )
+        '''{
+        '''    log.info( "We're out of toast but we can make eggs" );
+        '''    return Futures.immediateFuture( Rpcs.<Void> getRpcResult( true,
+        '''               Arrays.asList( RpcErrors.getRpcError( "", "partial-operation", null,
+        '''                                  ErrorSeverity.WARNING,
+        '''                                  "Toaster is out of bread but we can make you eggs",
+        '''                                  ErrorType.APPLICATION, null ) ) ) );
+        '''}
+  
+        // Access the ToasterService to make the toast.
+  
+        MakeToastInput toastInput = new MakeToastInputBuilder()
+            .setToasterDoneness( (long) toastDoneness )
+            .setToasterToastType( toastType )
+            .build();
+  
+        return toaster.makeToast( toastInput );
+    }
+    ...
+    '''/**
+     '''* Implemented from the ToasterListener interface.
+     '''*/
+    '''@Override
+    '''public void onToasterOutOfBread( ToasterOutOfBread notification ) {
+        '''log.info( "ToasterOutOfBread notification" );
+        '''toasterOutOfBread = true;
+    '''}
+    <br>
+    '''/**
+     '''* Implemented from the ToasterListener interface.
+     '''*/
+    '''@Override
+    '''public void onToasterRestocked( ToasterRestocked notification ) {
+        '''log.info( "ToasterRestocked notification - amountOfBread: " + notification.getAmountOfBread() );
+        '''toasterOutOfBread = false;
+    '''}
+ }
+`
+
+The _onToasterOutOfBread_ and _onToasterRestocked_ notification methods
+simply set and clear the _toasterOutOfBread_. When called to make
+breakfast, if _toasterOutOfBread_, we can't make toast but attempt to
+make the eggs so someone can at least get something for breakfast.
+
+[[wire-the-kitchenserviceimpl-for-notifications]]
+== Wire the KitchenServiceImpl for notifications
+
+The *KitchenServiceImpl* needs to be registered with the MD-SAL's
+*NotificationProviderService* in order to receive notifications. We need
+to specify the _notification-service_ as a dependency in the
+kitchen-service-impl module by adding an entry to the
+config:configuration augmentation: `
+    augment "/config:modules/config:module/config:configuration" {
+        case kitchen-service-impl {
+            when "/config:modules/config:module/config:type = 'kitchen-service-impl'";
+            ...
+            <br>
+            '''container notification-service {
+                '''uses config:service-ref {
+                    '''refine type {
+                        '''mandatory true;
+                        '''config:required-identity mdsal:binding-notification-service;
+                    '''}
+                '''}
+            '''}
+        }
+    }
+`
+
+Run 'mvn clean install' to generate the source.
+
+The generated *AbstractKitchenServiceModule* class should now have a
+_getNotificationServiceDependency()_ method. We can access that method
+in the _KitchenServiceModule.createInstance()_ method to register the
+*KitchenServiceImpl* with the *NotificationProviderService*.
+
+`
+    public java.lang.AutoCloseable createInstance() {
+        ...
+        '''final Registration<NotificationListener> toasterListenerReg =
+                '''getNotificationServiceDependency().registerNotificationListener( kitchenService );
+        <br>
+        final KitchenServiceRuntimeRegistration runtimeReg =
+                getRootRuntimeBeanRegistratorWrapper().register( kitchenService );
+        <br>
+        final class AutoCloseableKitchenService implements KitchenService, AutoCloseable  {
+            @Override
+            public void close() throws Exception {
+                '''toasterListenerReg.close();
+                runtimeReg.close();
+                log.info("Toaster consumer (instance {}) torn down.", this);
+            }
+            ...
+        }
+        ...
+    }
+
+`
+
+Finally we need to add the dependency for the 'notification-service' to
+the kitchen-service-impl module in the initial configuration XML file. `
+ <snapshot>
+   <configuration>
+       <data xmlns="urn:ietf:params:xml:ns:netconf:base:1.0">
+           <modules xmlns="urn:opendaylight:params:xml:ns:yang:controller:config">
+               ...
+               <module>
+                   ...
+                   '''<notification-service>
+                       '''<type xmlns:binding="urn:opendaylight:params:xml:ns:yang:controller:md:sal:binding">
+                           '''binding:binding-notification-service
+                       '''</type>
+                       '''<name>binding-notification-broker</name>
+                   '''</notification-service>
+               </module>
+           </modules>
+           ...
+       </data>
+   </configuration>
+   ...
+ </snapshot>
+`
+
+[[testing-the-notifications]]
+== Testing the notifications
+
+We'll first make the toaster run out of bread. The default amount of
+bread in stock is 100. Rather than taking the time to make 100 toasts,
+we'll first invoke the *restock-toaster* RPC via restconf to lower it to
+3.
+
+-------------------------------------------------------------------------
+HTTP Method => POST
+URL => http://localhost:8080/restconf/operations/toaster:restock-toaster 
+Header => Content-Type: application/yang.data+json  
+Body =>  
+{
+  "input" :
+  {
+     "toaster:amountOfBreadToStock" : "3"
+  }
+}
+-------------------------------------------------------------------------
+
+Next we'll make 3 breakfast orders to deplete the toaster's stock.
+
+* Open JConsole
+* Navigate to the MBeans tab
+* Expand the
+_org.opendaylight.controller->RuntimeBean->kitchen-service-impl->kitchen-service-imp->Operations_
+node.
+* Click the *makeScrambledWithWheat* button 3 times.
+
+After the 3rd breakfast, the toaster will be out of bread and send the
+_toasterOutOfBread_ notification to the kitchen service. You should see
+this message in the controller log/console:
+
+`   ...KitchenServiceImpl - ToasterOutOfBread notification`
+
+Click the *makeScrambledWithWheat* button again - the result should be
+true and you should see this message in the log:
+
+`   ...KitchenServiceImpl - We're out of toast but we can make eggs`
+
+Invoke *restock-toaster* again - you should see this message in the log:
+
+`   ...KitchenServiceImpl - ToasterRestocked notification - amountOfBread: 3`

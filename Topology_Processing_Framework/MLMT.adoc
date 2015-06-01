@@ -1,0 +1,118 @@
+The project aim is to provide Yang models for both multi-layer and
+multi-technology topology view, both augmenting the network-topology
+Yang data model already in use inside OpenDaylight architecture.
+
+The multi-layer topology shall include each single building topology
+view as associated to specific layers and shall build up the correlation
+across them in terms of basic network elements (node, termination-point,
+links). In that way, a global topology graph embracing multiple network
+layers shall be available.
+
+The multi-technology topology shall result as an extension of the
+network-topology model in order to describe all the cross-technologies
+information in a normalized fashion. The constraints model shall be able
+to capture also application driven constraints, in compliance with the
+SDN paradigm, in addition to native and controller specific ones. That
+will contribute in providing a normalized view of the network.
+
+The OpenDaylight Yang data models related to network-topologies and its
+augmentations are described at the following link:
+
+https://wiki.opendaylight.org/view/YANG_Tools:Available_Models[https://wiki.opendaylight.org/view/YANG_Tools:Available_Models]
+
+The proposal aims to reuse those models and preserving the currently
+available implementations.
+
+Further, at northbound interface level, the Operator will have the
+chance to specify which topologies want to be included within the
+multi-layer topology to make the approach as flexible and configurable
+based on specific needs.
+
+No updates to OpenDaylight inventory model are planned.
+
+Let us see how the multi-layer and multi-technology view can be build
+starting from the following sample network comprising four photonic
+nodes and three IP routers.
+
+Herein shown is the physical topology used in this example.
+
+image:Sample_net.jpg[Sample_net.jpg,title="Sample_net.jpg"]
+
+_Fig. 1 - Sample network physical topology_
+
+The photonic plug-in is aware of:
+
+image:Four photonic nodes.jpg[Four photonic nodes.jpg,title="Four photonic nodes.jpg"]
+
+'' Fig. 2 - Photonic topology''
+
+IP router plugin is aware of:
+
+image:Three_ip_nodes.jpg[Three_ip_nodes.jpg,title="Three_ip_nodes.jpg"]
+
+_Fig. 3 - Initial IP topology_
+
+And eventually, as soon as forwarding adjacency will be notified to the
+control plane, an additional link will be part of the layer-3 topology,
+as herein shown:
+
+image:Three_ip_nodes_and_adj.jpg[Three_ip_nodes_and_adj.jpg,title="Three_ip_nodes_and_adj.jpg"]
+
+_Fig. 4 - Resulting IP topology_
+
+Further, the links connecting nodes belonging to different technology
+(in this example, photonic and IP) are reported in a specific topology,
+the inter-technology topology herein depicted:
+
+image:Inter-tech.jpg[Inter-tech.jpg,title="Inter-tech.jpg"]
+
+_Fig. 5 - Inter-technology topology_
+
+If those nodes do not share any discovery mechanism, no plug-in can
+advertise them and hence they need explicit provisioning at
+configuration level. In general that could be the case whenever
+interconnected nodes do not share any plugin.
+
+As a whole, the resulting topologies are:
+
+image:Resulting_topo.jpg[Resulting_topo.jpg,title="Resulting_topo.jpg"]
+
+_Fig. 6 - Layer topologies_
+
+The picture above shows all three layers (photonic, inter-technology and
+IP) each one exported by its own specific topology model.
+
+The resulting multi-layer and multi-technology topology is shown in the
+picture below. Four photonic nodes are building up the layer 0 network
+and three IP routers the layer-3 network. Inter-technology links and
+termination points allow the communication across layers.
+
+image:Mlmt_topo_circle.jpg[Mlmt_topo_circle.jpg,title="Mlmt_topo_circle.jpg"]
+
+_Fig. 7 - Resulting normalized topology with Forwarding Adjacency_
+
+In that way, instead of targeting layer by layer, the Operator shall
+have already available northbound the normalized topology view of the
+network as determined by the multi-layer and multi-technology model.
+
+The set of new defined Yang data model shall be:
+
+* multi-layer-topology.yang, which shall augment the current
+network-topology.yang to include references to underlying topologies
+* multi-technology-topology.yang, which shall augment the current
+network-topology.yang to include the multi-technology information inside
+node, termination-point, link related attributes
+
+The set of involved data storages shall be:
+
+* A configured network-topology storage where the Operator specifies the
+topologies that intend to include inside the multi-layer topology. That
+will be based on current network-topology Yang model and will take
+advantage of the underlay-topology data node
+* An operative network-topology storage augmented as based on proposed
+Yang data model, which will be populated based on advertised nodes,
+termination points, links and forwarding adjacencies. Forwarding
+adjacencies will be correlated to underlying services. Inter-technology
+information will augment the nodes, termination-points, links attributes
+information.
+

@@ -1,0 +1,1434 @@
+[[testbed-setup-instructions]]
+== Testbed Setup Instructions:
+
+[[software-installation]]
+=== Software Installation:
+
+* Download or build a base distribution of the controller 1
+* Though these instructions will work with any distribution to test
+--you must use the openflowplugin 1.3 --use a distribution where the new
+openflowplugin is the default or where it can be turned on.
+* The easiest approach is to use OpenflowPlugin distribution.
+* Go to the distribution directory rename
+configuration/initial/05-clustering.xml.conf to
+configuration/initial/05-clustering.xml
+* Run the controller with the following command ./run.sh
+-XX:MaxPermSize=512m
+* Perform the Test Case -- 1. Basic Test
+* Once you have verified 1. Basic Test passes copy the binaries to
+Controller 2, Controller 3
+
+[[three-node-cluster-setup]]
+==== Three Node Cluster Setup:
+
+Follow the instructions of "Three Node Cluster setup" and "Three Node
+Cluster with HA" -- to update the akka.conf and module-shards.conf that
+can be found in link:Running and testing an OpenDaylight Cluster[Running
+and testing OpenDaylight Cluster]
+
+[[isolation-models]]
+==== Isolation Models
+
+Details of Isolation Models used to do functional HA test on Distributed
+Datastore/Remote RPC can be found in
+link:Running and testing an OpenDaylight Cluster[Running and testing
+OpenDaylight Cluster]
+
+[[isolation-test-driver---clustering-test-service]]
+=== Isolation Test Driver - Clustering Test Service
+
+* You need to build the sal-clustering-it-model-1.1-SNAPSHOT.jar
+sal-clustering-it-provider-1.1-SNAPSHOT.jar and copy them to each
+controller plugins directory. These projects can be found in integration
+repo under
+'''integration/test/tools/odl-mdsal-clustering-tests/clustering-test-app
+folder
+* The Isolation Test Driver files can be found in integration repo under
+*integration/test/tools/odl-mdsal-clustering-tests/clustering-functional-test*.These
+are python based and utilizes requests library that you can download
+from here http://docs.python-requests.org/en/latest/
+
+[[jmx-url]]
+=== JMX URL
+
+To check leadership in the cluster, replicated journal log and commit
+index you need to use the following JMX URL
+
+http://:8080/controller/nb/v2/jolokia/read/org.opendaylight.controller:Category=Shard,name=member-1-shard-inventory-operational,type=DistributedDatastore
+
+[[functional-test-cases]]
+== Functional Test Cases
+
+[cols=",,,",options="header",]
+|=======================================================================
+|Test Case |Description |Expected Results |Actual Result
+|1. Basic (Single Node) a|
+|
+
+1.  Run a single instance of controller with clustering turned on
+2.  Connect mininet to controller with topology tree,6
+3.  Check if all nodes and the tables for those nodes are present in the
+operational data using RESTCONF
+4.  Stop the controller
+5.  Start the controller again
+6.  repeat step 3.
+7.  Exit mininet
+
+ a|
+|
+
+* The test should work
+* Check that all nodes and the tables for those nodes are missing in the
+operational data using RESTCONF
+
+ ||
+
+|*Three Node Cluster - Basic Normal Scenarios* | | |
+
+a|
+\2. Three Node Cluster -- use the leader and perform the RESTCONF/RPC
+operations on the leader controller
+
+[Use the following link to find the leader]
+
+GET http://:8080/controller/nb/v2/jolokia/read/
+org.opendaylight.controller:Category=Shard,
+name=member-1-shard-inventory-operational,type=DistributedDatastore
+
+ a|
+|
+
+* Create 100 Cars by running
+
+*python crud ac 100*
+
+* Create 100 persons by running
+
+*python crud ap 100*
+
+* Let the 100 persons buy the 100 cars by running
+
+*python crud bc 100*
+
+* Now check they are 100 cars by running
+
+*python crud gc 0*
+
+* Now check they are 101 persons entries by running
+
+*python crud gp 0*
+
+* Now check they are 101 carpersons entries by running
+
+*python crud gcp 0*
+
+ a|
+|
+
+* The checks should all pass
+
+ || Passed
+
+|3. Three Node Cluster --Starting with Test Case 1, use the first
+follower and perform the RESTCONF/RPC operations a|
+|
+
+* Check they are 100 cars by running
+
+*python crud gc 0*
+
+* Check they are 101 persons entries by running
+
+*python crud gp 0*
+
+* Check they are 101 carpersons entries by running
+
+*python crud gcp 0*
+
+ a|
+|
+
+* The checks should all pass
+* The results of these call should match the Test Case 1
+
+ || Passed
+
+|4. Three Node Cluster -- Starting with Test Case 2, use the second
+follower and perform the RESTCONF/RPC operations a|
+|
+
+* Check they are 100 cars by running
+
+*python crud gc 0*
+
+* Check they are 101 persons entries by running
+
+*python crud gp 0*
+
+* Check they are 101 carpersons entries by running
+
+*python crud gcp 0*
+
+ a|
+|
+
+* The checks should all pass
+* The results of these call should match the Test Case 1/2
+
+ || Passed
+
+|*Three Node Cluster - Basic (Software) Failure Scenarios* | | |
+
+a|
+\5. Three Node Cluster -- Failure of leader Starting with Test Case 4.
+
+* Stop the leader controller
+* Leader now should be one of the other controller
+* Use the following to find out new leader
+
+GET http://:8080/controller/nb/v2/jolokia/read/
+org.opendaylight.controller:Category=Shard,
+name=member-1-shard-inventory-operational,type=DistributedDatastore
+
+* Use the new leader to perform the operations
+
+ a|
+|
+
+* Delete all cars by running
+
+*python crud dc 0*
+
+* Delete all cars by running
+
+*python crud dp 0*
+
+* Create 200 Cars by running
+
+*python crud ac 200*
+
+* Create 200 persons by running
+
+*python crud ap 200*
+
+* Let the 200 persons buy the 100 cars by running
+
+*python crud bc 200*
+
+* Now check they are 200 cars by running
+
+*python crud gc 0*
+
+* Now check they are 201 persons entries by running
+
+*python crud gp 0*
+
+* Now check they are 201 carpersons entries by running
+
+*python crud gcp 0*
+
+ a|
+|
+
+* The checks should all pass
+* Note down the check results
+
+ ||
+
+a|
+\6. Three Node Cluster -- With new leader, executing GET operations on
+follower
+
+Starting with Test Case 5.
+
+* Use the following to find out only follower
+
+GET http://:8080/controller/nb/v2/jolokia/read/
+org.opendaylight.controller:Category=Shard,
+name=member-1-shard-inventory-operational,type=DistributedDatastore
+
+* Use the follower to perform the operations
+
+ a|
+|
+
+* Now check they are 200 cars by running
+
+*python crud gc 0*
+
+* Now check they are 201 persons entries by running
+
+*python crud gp 0*
+
+* Now check they are 201 carpersons entries by running
+
+*python crud gcp 0*
+
+ a|
+|
+
+* The checks should all pass
+* Note down the results
+* The results should match test case 5.
+
+ ||
+
+a|
+\7. Three Node Cluster -- With new leader, executing POST/GET operations
+on follower
+
+Starting with Test Case 6.
+
+* Use the follower to perform POST/DELETE/GET operations
+
+ a|
+|
+
+* Delete all cars by running
+
+*python crud dc 0*
+
+* Delete all cars by running
+
+*python crud dp 0*
+
+* Create 200 Cars by running
+
+*python crud ac 200*
+
+* Create 200 persons by running
+
+*python crud ap 200*
+
+* Let the 200 persons buy the 100 cars by running
+
+*python crud bc 200*
+
+* Now check they are 200 cars by running
+
+*python crud gc 0*
+
+* Now check they are 201 persons by running
+
+*python crud gp 0*
+
+* Now check they are 201 carpersons entries by running
+
+*python crud gcp 0*
+
+ a|
+|
+
+* The checks should all pass
+* Note down the results
+
+ ||
+
+a|
+\8. Three Node Cluster -- With new leader, executing GET operations
+
+* Starting with Test Case 7.
+* Execute GET operations on Leader
+* Compare the results to that of Test Case 7
+
+ a|
+|
+
+* Now check they are 200 cars by running
+
+*python crud gc 0*
+
+* Now check they are 201 persons by running
+
+*python crud gp 0*
+
+* Now check they are 201 carpersons entries by running
+
+*python crud gcp 0*
+
+ a|
+|
+
+* The checks should all pass
+* The results should match to that of Test Case 7
+
+ ||
+
+a|
+\9. Three Node Cluster -- Stopping new leader, and performing operations
+on Follower
+
+* Starting with Test Case 8.
+* Stop the Leader
+* Perform GET/POST operations on the follower ip
+
+ a|
+|
+
+* Now check how many cars are there
+
+*python crud gc 0*
+
+* Create 200 Cars by running
+
+*python crud ac 200*
+
+ a|
+|
+
+* All calls should fail as there is no leader
+* We require two nodes to be up for store to work
+
+ ||
+
+|*Three Node Cluster -- Basic Recovery after Failure Scenarios* | | |
+
+a|
+\10. Three Node Cluster --Bring back the stopped leader in TestCase 9
+
+* Starting with Test Case 9
+* Bring back the leader(which was stopped in TestCase9)
+* Give sometime and check which is the leader node
+
+GET http://:8080/controller/nb/v2/jolokia/read/
+org.opendaylight.controller:Category=Shard,
+name=member-1-shard-inventory-operational,type=DistributedDatastore
+
+* Perform GET operations using leaderIP and followerIP
+* Using leaderIP perform some DELETE/PUT operations
+* Confirm the GET results match using followerIP
+
+ a|
+| First Check using GET
+
+* Now check they are 200 cars by running
+
+*python crud gc 0*
+
+* Now check they are 201 persons by running
+
+*python crud gp 0*
+
+* Now check they are 201 carpersons entries by running
+
+_'python crud gcp 0_
+
+* Now check they are 200 cars by running
+
+*python crud gc 0*
+
+* Now check they are 201 persons by running
+
+*python crud gp 0*
+
+* Now check they are 201 carpersons entries by running
+
+_'python crud gcp 0_ Second Check Using Post
+
+* Delete all cars by running
+
+*python crud dc 0*
+
+* Delete all cars by running
+
+*python crud dp 0*
+
+* Create 200 Cars by running
+
+*python crud ac 200*
+
+* Create 200 persons by running
+
+*python crud ap 200*
+
+* Let the 200 persons buy the 100 cars by running
+
+*python crud bc 200*
+
+* Now check they are 200 cars by running
+
+*python crud gc 0*
+
+* Now check they are 201 persons entries by running
+
+*python crud gp 0*
+
+* Now check they are 201 carpersons entries by running
+
+*python crud gcp 0* Third Check From Follower
+
+* Now check they are 200 cars by running
+
+*python crud gc 0*
+
+* Now check they are 201 persons entries by running
+
+*python crud gp 0*
+
+* Now check they are 201 carpersons entries by running
+
+*python crud gcp 0*
+
+ a|
+|
+
+* First Check Results should match between Leader and Follower and
+TestCase9
+* Second Check Results should succeed
+* Third Check Results should match Leader results
+
+ ||
+
+a|
+\11. Three Node Cluster -- Staring back the first leader that had been
+stopped and ensure data consistency
+
+* Starting with Test Case 10
+* Start back the leader that was stopped in TestCase 5
+* All the members in cluster should be running with one leader
+
+and others being followers
+
+* Perform GET Operations using each member ip
+
+ a|
+| Perform the following operations using each member ip i.e. leader and
+two follower ips First Check From Leader
+
+* Now check they are 200 cars by running
+
+*python crud gc 0*
+
+* Now check they are 201 persons entries by running
+
+*python crud gp 0*
+
+* Now check they are 201 carpersons entries by running
+
+*python crud gcp 0* Second Check From Follower1
+
+* Now check they are 200 cars by running
+
+*python crud gc 0*
+
+* Now check they are 201 persons entries by running
+
+*python crud gp 0*
+
+* Now check they are 201 carpersons entries by running
+
+_'python crud gcp 0_ Third Check From Follower
+
+* Now check they are 200 cars by running
+
+*python crud gc 0*
+
+* Now check they are 201 persons entries by running
+
+*python crud gp 0*
+
+* Now check they are 201 carpersons entries by running
+
+_'python crud gcp 0_
+
+ a|
+|
+
+* There should be only one leader and two followers
+* All get calls using each controller ip should succeed
+
+and match
+
+ ||
+
+a|
+\12. Three Node Cluster -- functionality check after starting from
+failure scenarios
+
+* Continuing with Test Case 10
+* Perform POST/DELETE/GET operation from leader IP
+* Perform GET operation from two followers
+
+ a|
+| Perform the following operations First Check From Leader
+
+* Delete all cars by running
+
+*python crud dc 0*
+
+* Delete all cars by running
+
+*python crud dp 0*
+
+* Create 200 Cars by running
+
+*python crud ac 200*
+
+* Create 200 persons by running
+
+*python crud ap 200*
+
+* Let the 200 persons buy the 100 cars by running
+
+*python crud bc 200*
+
+* Now check they are 200 cars by running
+
+*python crud gc 0*
+
+* Now check they are 201 persons entries by running
+
+*python crud gp 0*
+
+* Now check they are 201 carpersons entries by running
+
+*python crud gcp 0* Second Check From Follower1
+
+* Now check they are 200 cars by running
+
+*python crud gc 0*
+
+* Now check they are 201 persons entries by running
+
+*python crud gp 0*
+
+* Now check they are 201 carpersons entries by running
+
+*python crud gcp 0* Third Check From Follower2
+
+* Now check they are 200 cars by running
+
+*python crud gc 0*
+
+* Now check they are 201 persons entries by running
+
+*python crud gp 0*
+
+* Now check they are 201 carpersons entries by running
+
+*python crud gcp 0*
+
+ a|
+|
+
+* There should be only one leader and two followers
+* All commands could be executed successfully
+* The result of GET operation from First, Second
+
+and Third Check should match
+
+ ||
+
+|'''Three Node Cluster - Disaster Recovery from persistence ''' | | |
+
+a|
+\13. Ensure recovering from persistence works properly from Leader
+
+* Starting with Test Case 2
+* Do a large set number of POST operations
+
+on leader
+
+* Poweroff the leader1 node abruptly
+* Do GET operations on New Leader
+
+and Follower and save results
+
+* Bring back the poweroff leader1 and
+
+give sometime to recover
+
+* Do GET Operations using the now running poweroff member
+
+ a|
+| Perform the following operations
+
+First Check From Leader
+
+* Delete all cars by running
+
+*python crud dc 0*
+
+* Delete all cars by running
+
+*python crud dp 0*
+
+* Create 20000 Cars by running
+
+*python crud ac 20000*
+
+* Create 20000 persons by running
+
+*python crud ap 20000*
+
+* Let the 20000 persons buy the 20000 cars by running
+
+*python crud bc 20000* Poweroff leader immediately while the above
+command is in progress and stop the command
+
+Second Check - From new leader
+
+* Now check they are 20000 cars by running
+
+*python crud gc 0*
+
+* Now check they are 20001 persons entries by running
+
+*python crud gp 0*
+
+* Using JMX url above
+
+and replacing memberip in URL with new leaderip save
+"LastLogIndex":,"CommitIndex":
+
+Third Check --From Follower
+
+* Now check they are 20000 cars by running
+
+*python crud gc 0*
+
+* Now check they are 20001 persons entries by running
+
+*python crud gp 0*
+
+* Using JMX url above
+
+and replacing memberip in URL with follower ip save
+"LastLogIndex":,"CommitIndex":
+
+Fourth Check
+
+* Bring back the poweroff member
+* Give sometime for replicated log entries to sync
+* Now check they are 20000 cars by running
+
+*python crud gc 0*
+
+* Now check they are 20000 persons entries by running
+
+*python crud gp 0*
+
+* Using JMX url above
+
+and replacing memberip in URL with poweroff member ip save
+"LastLogIndex":,"CommitIndex":
+
+ a|
+|
+
+* All commands could be executed successfully
+* The result of GET operation from Second, Third
+
+and Fourth Check should match.
+
+* The JMX values should match from Second,Third
+
+and Fourth Check
+
+* All 3 members are running and there is one leader
+
+and two follower
+
+ ||
+
+a|
+\14. Ensure recovering from persistence works properly from first
+follower
+
+* Starting with Test Case 2
+* Do a large set number of POST operations
+
+`on leader `
+
+* Poweroff the second follower node abruptly
+* Do GET operations on new leader
+
+and remaining follower and save results
+
+* Bring back the poweroff follower and
+
+give sometime to recover
+
+* Do GET Operations using poweroff follower node
+
+ a|
+| Perform the following operations
+
+First Check From Leader
+
+* Delete all cars by running
+
+*python crud dc 0*
+
+* Delete all cars by running
+
+*python crud dp 0*
+
+* Create 20000 Cars by running
+
+*python crud ac 20000*
+
+* Create 20000 persons by running
+
+*python crud ap 20000*
+
+* Let the 20000 persons buy the 20000 cars by running
+
+*python crud bc 20000* Poweroff first follower while the above command
+is in progress
+
+Second Check - the leader
+
+* Now check they are 20000 cars by running
+
+*python crud gc 0*
+
+* Now check they are 20001 persons entries by running
+
+*python crud gp 0*
+
+* Now check they are 20001 car persons entries by running
+
+*python crud gcp 0*
+
+* Using JMX url above
+
+and replacing memberip in URL with leaderip save
+"LastLogIndex":,"CommitIndex":
+
+Third Check --From running Follower
+
+* Now check they are 20000 cars by running
+
+*python crud gc 0*
+
+* Now check they are 20001 persons entries by running
+
+*python crud gp 0*
+
+* Now check they are 20001 car persons entries by running
+
+*python crud gcp 0*
+
+* Using JMX url above
+
+and replacing memberip in URL with follower ip save
+"LastLogIndex":,"CommitIndex":
+
+Fourth Check
+
+* Bring back the poweroff member
+* Give sometime for replicated log entries to sync
+* Now check they are 20000 cars by running
+
+*python crud gc 0*
+
+* Now check they are 20001 persons entries by running
+
+*python crud gp 0*
+
+* Now check they are 20001 car persons entries by running
+
+*python crud gcp 0*
+
+* Using JMX url above
+
+and replacing memberip in URL with poweroff member ip save
+"LastLogIndex":,"CommitIndex":
+
+ a|
+|
+
+* All commands could be executed successfully
+* The result of GET operation from Second, Third
+
+and Fourth Check should match.
+
+* The JMX values should match from Second,Third
+
+and Fourth Check
+
+* All 3 members are running and there is one leader
+
+and two follower
+
+ ||
+
+a|
+\15. Ensure recovering from persistence works properly from Second
+follower (Other than the one in Test Case 14)
+
+* Starting with Test Case 2
+* Do a large set number of POST operations
+
+on leader
+
+* Poweroff the second follower node abruptly
+* Do GET operations on new leader
+
+and remaining Follower and save results
+
+* Bring back the poweroff follower and
+
+give sometime to recover
+
+* Do GET Operations using poweroff follower node
+
+ a|
+| Perform the following operations
+
+First Check From Leader
+
+* Delete all cars by running
+
+*python crud dc 0*
+
+* Delete all cars by running
+
+*python crud dp 0*
+
+* Create 20000 Cars by running
+
+*python crud ac 20000*
+
+* Create 20000 persons by running
+
+*python crud ap 20000*
+
+* Let the 20000 persons buy the 20000 cars by running
+
+*python crud bc 20000* Poweroff second follower while the above command
+is in progress
+
+Second Check - the leader
+
+* Now check they are 20000 cars by running
+
+*python crud gc 0*
+
+* Now check they are 20001 persons entries by running
+
+*python crud gp 0*
+
+* Now check they are 20001 car persons entries by running
+
+*python crud gcp 0*
+
+* Using JMX url above
+
+and replacing memberip in URL with leaderip save
+"LastLogIndex":,"CommitIndex":
+
+Third Check --From running Follower
+
+* Now check they are 20000 cars by running
+
+*python crud gc 0*
+
+* Now check they are 20001 persons entries by running
+
+*python crud gp 0*
+
+* Now check they are 20001 car persons entries by running
+
+*python crud gcp 0*
+
+* Using JMX url above
+
+and replacing memberip in URL with follower ip save
+"LastLogIndex":,"CommitIndex":
+
+Fourth Check
+
+* Bring back the poweroff member
+* Give sometime for replicated log entries to sync
+* Now check they are 20000 cars by running
+
+*python crud gc 0*
+
+* Now check they are 20001 persons entries by running
+
+*python crud gp 0*
+
+* Now check they are 20001 car persons entries by running
+
+*python crud gcp 0*
+
+* Using JMX url above
+
+and replacing memberip in URL with poweroff member ip save
+"LastLogIndex":,"CommitIndex":
+
+ a|
+|
+
+* All commands could be executed successfully
+* The result of GET operation from Second, Third
+
+and Fourth Check should match.
+
+* The JMX values should match from Second,Third
+
+and Fourth Check
+
+* All 3 members are running and there is one leader
+
+and two follower
+
+ ||
+
+|'''Longevity Test ''' | | |
+
+a|
+\16. Ensure Clustering works for long period of time and when operations
+performed from all nodes
+
+* Starting with Test Case 2
+* Periodically do POST/DELETE/GET
+
+operations from all members
+
+* This should be continued for
+
+24-48HRS
+
+ a|
+| Perform the following operations Periodically perform using Leader and
+two Followers at t1, t2 and t3 interval
+
+* Delete all cars by running
+
+*python crud dc 0*
+
+* Delete all cars by running
+
+*python crud dp 0*
+
+* Create 1000 Cars by running
+
+*python crud ac 1000*
+
+* Create 1000 persons by running
+
+*python crud ap 1000*
+
+* Let the 1000 persons buy the 1000 cars by running
+
+*python crud bc 1000*
+
+Second Check - from leader, follower at every t4 period perform
+
+* Now check they are 1000 cars by running
+
+*python crud gc 0*
+
+* Now check they are 1001 persons entries by running
+
+*python crud gp 0*
+
+* Now check they are 1001 car persons entries by running
+
+*python crud gcp 0*
+
+Third Check Keep the periodic commands running for 24-48HRS duration
+
+ a|
+|
+
+* All commands could be executed successfully
+
+for the duration of 24-48HRS
+
+* At any time 3 members are running and there is one leader
+
+and two follower
+
+* No OOM errors
+* GET operation when performed at t4 should results 1000 entries
+
+`from each member & just before stopping the test case `
+
+ ||
+
+|'''Network Failures ''' | | |
+
+a|
+\17. Network failure between leader and follower1
+
+* Starting with Test Case 2
+* Disable the network interface on follower1
+* Perform operations using Leader and
+
+remaining follower
+
+ a|
+| Perform the following operations from leader
+
+* Delete all cars by running
+
+*python crud dc 0*
+
+* Delete all cars by running
+
+*python crud dp 0*
+
+* Create 1000 Cars by running
+
+*python crud ac 1000*
+
+* Create 1000 persons by running
+
+*python crud ap 1000*
+
+* Let the 1000 persons buy the 1000 cars by running
+
+*python crud bc 1000*
+
+Second Check - from leader, follower perform
+
+* Now check they are 1000 cars by running
+
+*python crud gc 0*
+
+* Now check they are 1001 persons entries by running
+
+*python crud gp 0*
+
+* Now check they are 1001 car persons entries by running
+
+*python crud gcp 0*
+
+ a|
+|
+
+* All commands could be executed successfully
+
+ ||
+
+a|
+\18. Network failure between leader and follower1 restored
+
+* Continuing with Test Case 17
+* Enable the network interface on follower1
+* Let the network connectivity get restored
+
+between follower1, leader and follower2
+
+* Give sometime
+* Check the replicated log entry sync status
+
+ a|
+| First Check Using JMX URL and replacing each member-ip in the
+member-ip of the URL, check the value of lastcommit index and
+commit-index values
+
+Second Check Perform the following operations from leader and two
+follower
+
+* Now check they are 1000 cars by running
+
+*python crud gc 0*
+
+* Now check they are 1000 persons entries by running
+
+*python crud gp 0*
+
+* Now check they are 1000 car persons entries by running
+
+*python crud gcp 0*
+
+ a|
+|
+
+* First Check values should match for all leader,
+
+follower1 and follower2
+
+* Second check results should match
+
+ ||
+
+a|
+19.
+
+Perform test case 17 but have the network interface disabled on follower
+2 (the other member than what was disabled in test case 17
+
+ a|
+| Perform the following operations from leader
+
+* Delete all cars by running
+
+*python crud dc 0*
+
+* Delete all cars by running
+
+*python crud dp 0*
+
+* Create 1000 Cars by running
+
+*python crud ac 1000*
+
+* Create 1000 persons by running
+
+*python crud ap 1000*
+
+* Let the 1000 persons buy the 1000 cars by running
+
+*python crud bc 1000*
+
+Second Check - from leader, follower perform
+
+* Now check they are 1000 cars by running
+
+*python crud gc 0*
+
+* Now check they are 1001 persons entries by running
+
+*python crud gp 0*
+
+* Now check they are 1001 car persons entries by running
+
+*python crud gcp 0*
+
+ a|
+|
+
+* All commands could be executed successfully
+
+ ||
+
+a|
+\20. Network failure between leader and follower2 restored
+
+* Continuing with Test Case 19
+* Enable the network interface on follower2
+* Let the network connectivity get restored
+
+between follower1, leader and follower2
+
+* Give sometime
+* Check the replicated log entry sync status
+
+ a|
+| First Check Using JMX URL and replacing each member-ip in the
+member-ip of the URL, check the value of lastcommit index and
+commit-index values
+
+Second Check Perform the following operations from leader and two
+follower
+
+* Now check they are 1000 cars by running
+
+*python crud gc 0*
+
+* Now check they are 1000 persons entries by running
+
+*python crud gp 0*
+
+* Now check they are 1000 car persons entries by running
+
+*python crud gcp 0*
+
+ a|
+|
+
+* First Check values should match for all leader,
+
+follower1 and follower2
+
+* Second check results should match
+
+ ||
+
+a|
+\21. Network failure between leader and followers
+
+* Starting with Test Case 2
+* Disable the network interface on Leader
+* Give sometime
+* Check there is new leadership
+* Perform operations using the new Leader and
+
+remaining follower
+
+ a|
+| Perform the following operations from new leader
+
+* Delete all cars by running
+
+*python crud dc 0*
+
+* Delete all cars by running
+
+*python crud dp 0*
+
+* Create 1000 Cars by running
+
+*python crud ac 1000*
+
+* Create 1000 persons by running
+
+*python crud ap 1000*
+
+* Let the 1000 persons buy the 1000 cars by running
+
+*python crud bc 1000*
+
+Second Check - from leader, follower perform
+
+* Now check they are 1000 cars by running
+
+*python crud gc 0*
+
+* Now check they are 1001 persons entries by running
+
+*python crud gp 0*
+
+* Now check they are 1001 car persons entries by running
+
+*python crud gcp 0*
+
+ a|
+|
+
+* All commands could be executed successfully
+
+ ||
+
+a|
+\22. Network failure between leader and followers restored
+
+* Continuing with Test Case 20
+* Enable the network interface on the old leader
+* Let the network connectivity get restored
+
+between follower1, leader and follower2
+
+* Give sometime
+* Check the replicated log entry sync status
+
+ a|
+| First Check Using JMX URL and replacing each member-ip in the
+member-ip of the URL, check the value of lastcommit index and
+commit-index values
+
+Second Check Perform the following operations from leader and two
+follower
+
+* Now check they are 1000 cars by running
+
+*python crud gc 0*
+
+* Now check they are 1000 persons entries by running
+
+*python crud gp 0*
+
+* Now check they are 1000 car persons entries by running
+
+*python crud gcp 0*
+
+ a|
+|
+
+* First Check values should match for all leader,
+
+follower1 and follower2
+
+* Second check results should match
+
+ ||
+
+|*Routed RPC* | | |
+
+|23. Ensure that routed rpc execution works regardless of which node is
+used for RestConf call Two Node Cluster -- Execute buy car rpc from
+controller 2, where person is registered at controller 1 a|
+|
+
+* Create 100 Cars by running
+
+*python crud ac 100*
+
+* Create 100 persons by running
+
+*python crud ap 100*
+
+* Let the 100 persons buy the 100 cars by running
+
+*python crud bc 100*
+
+* Now check they are 100 cars by running
+
+*python crud gc 0*
+
+* Now check they are 101 persons entries by running
+
+*python crud gp 0*
+
+* Now check they are 101 carpersons entries by running
+
+*python crud gcp 0*
+
+ a|
+|
+
+* The checks should all pass
+
+ ||
+
+|24. Ensure Routed RPC works even when people entries moved to different
+nodes a|
+| Three Node Cluster -- Execute all steps of test case 23. then, bring
+controller 1 down and perform steps mentioned below -
+
+* Create 100 Cars by running
+
+*python crud ac 100*
+
+* Create 100 persons by running
+
+*python crud ap 100*
+
+* Let the 100 persons buy the 100 cars by running
+
+*python crud bc 100*
+
+* Now check they are 100 cars by running
+
+*python crud gc 0*
+
+* Now check they are 101 persons entries by running
+
+*python crud gp 0*
+
+* Now check they are 101 carpersons entries by running
+
+*python crud gcp 0*
+
+ a|
+|
+
+* The checks should all pass
+
+ ||
+
+|25. Create and Install snapshots a|
+| Three Node Cluster - Create cars in Leader for snapshot to take place
+bring Follower down, create more cars in Leader for snapshot to take
+place, and then start the Follower. and perform steps mentioned below -
+
+* Create 100000 Cars by running
+
+*python crud ac 100000*
+
+* Stop a Follower
+* Create 100000 Cars by running
+
+*python crud ac 100000*
+
+* Start the Follower
+* The Follower' commit index and lastapplied should be same as in Leader
+
+|=======================================================================
+
