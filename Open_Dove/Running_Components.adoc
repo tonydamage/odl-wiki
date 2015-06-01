@@ -1,0 +1,104 @@
+[[odcs]]
+== oDCS
+
+After compiling the odcs, go to the "build" directory, type
+"dcs_server.py". "dcs_server.py" is the starting script. The list of
+parameters will be shown if the incorrect number of parameters are
+entered.
+
+[[running-with-temorary-cli]]
+=== Running with "TEMORARY" CLI
+
+A CLI has been provided on the oDCS. This CLI allows the user to
+configure DOVE objects such as domains, networks (vnids), subnets i.e.
+configuration that would be typically done by the DMC. The CLI has 2
+modes of operation:
+
+1.  Privileged mode: This allows user to enter configuration data
+2.  Non-privileged mode: For viewing data (read only)
+
+Start the CLI:
+
+--------------------------------
+./build/dcs_server.py <udp_port>
+--------------------------------
+
+Sample Output:
+
+-----------------------------------------------
+dove@dps-64:~/odcs$ ./build/dcs_server.py 12345
+DCS HTTP Server started on Port 1888
+Password:
+-----------------------------------------------
+
+Password for privileged mode: Hook&Ladder
+
+Password for non-privileged mode: Any other string
+
+[[odgw-user-agent]]
+== oDGW User Agent
+
+-------------------------
+Login as root [sudo -i]
+cd /path-to/opendove/odgw
+./run.sh
+-------------------------
+
+[[cli]]
+=== CLI
+
+Password is 'admin' Set management IP to DHCP:
+
+------------------------
+>> service mgmt-set-dhcp
+------------------------
+
+Set management IP to Static:
+
+-----------------------------------------
+>> service mgmtipv4 <ip> <mask> <nexthop>
+-----------------------------------------
+
+Command to join oDMC for configuration:
+
+--------------------------------
+>> service dmcadd <dmcip> <port>
+--------------------------------
+
+Command to list configurations recieved from oDMC
+
+---------------
+>> service show
+---------------
+
+[[ovs-agent]]
+== OVS Agent
+
+You will need to install and run openvswitch according to the INSTALL
+file in the openvswitch directory:
+
+`       % cd openvswitch_dir` +
+`       % ./boot.sh` +
+`       % ./configure --with-linux=/lib/modules/\`uname -r\`/build` +
+`       % make` +
+`       % sudo make install` +
+`       % make modules_install` +
+`       % /sbin/modprobe openvswitch` +
+`       % mkdir -p /usr/local/etc/openvswitch` +
+`       % ovsdb-tool create /usr/local/etc/openvswitch/conf.db vswitchd/vswitch.ovsschema (only on the first run)` +
+`       % ovsdb-server --remote=punix:/usr/local/var/run/openvswitch/db.sock \` +
+`                    --remote=db:Open_vSwitch,Open_vSwitch,manager_options \` +
+`                    --private-key=db:Open_vSwitch,SSL,private_key \` +
+`                    --certificate=db:Open_vSwitch,SSL,certificate \` +
+`                    --bootstrap-ca-cert=db:Open_vSwitch,SSL,ca_cert \` +
+`                    --pidfile --detach` +
+`       % ovs-vsctl --no-wait init` +
+`       % ovs-vswitchd --pidfile --detach`
+
+Run setup:
+
+`  $ sudo ./setup-dove.sh `` ` +
+`  `
+
+This will create dove datapath on the openvswitch and run the DOVE agent
+daemon

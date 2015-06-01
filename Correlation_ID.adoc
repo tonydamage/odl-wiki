@@ -1,0 +1,61 @@
+[[challenges-of-current-debugging]]
+== Challenges of current debugging
+
+Stack traces nor thread dumps contain enough information to figure out
+initial reason why an execution has been started. Logs could be used but
+the process is often painful.
+
+[[use-case]]
+== Use case
+
+netconf ssh session:
+
+netconf-ssh has a netty server with its own boss and worker threads.
+
+netconf-impl has another netty server (bound to LocalAddress).
+
+When user creates ssh connection, a session id is assigned in
+netconf-ssh. However this id is currently not propagated to
+netconf-impl. What should happen:
+
+Id should be propagated from one netty server to another, also when JMX
+call is made from netconf to config subsystem. Note that a client can
+call many RPCs via same netconf session, thus it is needed to track also
+RPCs. This cannot be done in netconf-ssh as actual parsing happens in
+netconf-impl.
+
+[[proposal]]
+== Proposal
+
+Generally, correlation Id(CID) is always propagated from an endpoint,
+and can spread out to many subtasks. I propose sticking CID to thread
+name. Boundaries when threads are switched must be handled separately:
+
+* submitting subtask to executor: executors should be smart to take
+current CID, generate child CID, wrap future/runnable/.. so that at
+beginning of execution the child ID is set and at execution end it is
+cleared.
+* task is propagated to remote netconf server. Example:
+sal-remote-connector. We can track CID over netconf by adding it as an
+attribute to to node.
+* task is propagated over blocking IO: when a thread is started that
+waits for client input, this thread must be assigned CID.
+* task is propagated over non blocking IO: when connection is
+established, client port can be used to pair CID of server and client.
+
+[[netty-specifics]]
+=== Netty specifics
+
+For boundaries that are crossed with netty, it should be possible to
+implement a database of CID-to-connection mapping. This database would
+then be queried by a ChannelHandler that would set the thread name
+accordingly.
+
+[[optimization-using-threadlocal]]
+=== Optimization using ThreadLocal
+
+There should be bundle tracking the CID inside of a ThreadLocal, so that
+the ID does not need to be parsed from thread name. The bundle carrying
+this ThreadLocal can also provide static utilities for wrapping Futures,
+Runnables etc so that CID is added/removed to thread name and
+ThreadLocal.

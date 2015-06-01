@@ -1,0 +1,312 @@
+[[contact-information-for-xsql]]
+== Contact Information for XSQL
+
+XSQL is in it's inital phase, please if you have any feedbacks, just
+drop me an email: saichler@cisco.com. I will be happy to have anothe
+rpair of eyes and insights to XSQL...:o)
+
+[[what-is-xsql]]
+== What is XSQL?
+
+In a nut shell, XSQL is a way to query tree models like they were a
+sequential database. For example, if your model looks like this:
+
+` Network-Element` +
+`     Module` +
+`        Port 1/1` +
+`        Port 1/2` +
+`        Port 1/3` +
+`        Port 1/4` +
+`     Module` +
+`        Port 2/1` +
+`        Port 2/2` +
+`        Port 2/3` +
+`        Port 2/4`
+
+And you want to collect all the "Port" type elements from that model
+with all their attributes, your XSQL query will look like this:
+
+` "select * from Port;"`
+
+The output will be a "table view" containing a row for each Port element
+with columns for all the attributes.
+
+[[xsql-for-md-sal]]
+== XSQL for MD-SAL
+
+XSQL for MD-SAL is providing the same translation for the yang base
+models that persist data to the MD-SAL data store. A container would be
+a virtual table and a leaf would be a column in that table. For example
+if i would like to get a list of nodes from the inventory, i would
+execute the following query:
+
+` select * from nodes/node;`
+
+The output to the screen would be something like the following:
+
+` |serial-number|software|initial-capability|current-capability|description|id               |manufacturer|hardware    |connected|` +
+` --------------------------------------------------------------------------------------------------------------------------------` +
+` |None         |2.1.2   |                  |                  |None       |openflow:9       |Nicira, Inc.|Open vSwitch|         |` +
+` |None         |2.1.2   |                  |                  |None       |openflow:8       |Nicira, Inc.|Open vSwitch|         |` +
+` |             |        |                  |                  |           |controller-config|            |            |true     |` +
+` |None         |2.1.2   |                  |                  |None       |openflow:6       |Nicira, Inc.|Open vSwitch|         |` +
+` |None         |2.1.2   |                  |                  |None       |openflow:4       |Nicira, Inc.|Open vSwitch|         |` +
+` |None         |2.1.2   |                  |                  |None       |openflow:5       |Nicira, Inc.|Open vSwitch|         |` +
+` |None         |2.1.2   |                  |                  |None       |openflow:7       |Nicira, Inc.|Open vSwitch|         |` +
+` |None         |2.1.2   |                  |                  |None       |openflow:3       |Nicira, Inc.|Open vSwitch|         |` +
+` |None         |2.1.2   |                  |                  |None       |openflow:11      |Nicira, Inc.|Open vSwitch|         |` +
+` |None         |2.1.2   |                  |                  |None       |openflow:10      |Nicira, Inc.|Open vSwitch|         |` +
+` |None         |2.1.2   |                  |                  |None       |openflow:15      |Nicira, Inc.|Open vSwitch|         |` +
+` |None         |2.1.2   |                  |                  |None       |openflow:2       |Nicira, Inc.|Open vSwitch|         |` +
+` |None         |2.1.2   |                  |                  |None       |openflow:12      |Nicira, Inc.|Open vSwitch|         |` +
+` |None         |2.1.2   |                  |                  |None       |openflow:13      |Nicira, Inc.|Open vSwitch|         |` +
+` |None         |2.1.2   |                  |                  |None       |openflow:14      |Nicira, Inc.|Open vSwitch|         |` +
+` |None         |2.1.2   |                  |                  |None       |openflow:1       |Nicira, Inc.|Open vSwitch|         |` +
+` Total Number Of Records=16`
+
+[[adding-xsql-to-your-distribution]]
+== Adding XSQL to your distribution
+
+XSQL project directory is located under the
+"controller/opendaylight/md-sal/sal-dom-xsql" directory, simply "cd" to
+the directory and execute "mvn clean install" to create the project
+".jar" file to be used in the distribution. Once the jar was build,
+simply copy it from the
+"controller/opendaylight/md-sal/sal-dom-xsql/target" directory to your
+distribution "plugin" directory. The startup configuration file can be
+found under the
+"controller/opendaylight/md-sal/sal-dom-xsql/src/main/resources" and it
+is named "04-xsql.xml". Copy this file to your distribution under the
+directory "configuration/initial" and execute the "run.sh" script to
+start your distribution.
+
+[[start-using-xsql]]
+== Start using XSQL
+
+There are two way to use XSQL, the XSQL console & JDBC interface. Will
+start with the XSQL console... The XSQL console is located @ port 34343,
+e.g. to connect to the console just telnet to that port, e.g.:
+
+` telnet 0 34343`
+
+you'll get a prompt as follows:
+
+` Trying 0.0.0.0...` +
+` Connected to 0.` +
+` Escape character is '^]'.` +
+` XSQL>    `
+
+[[getting-a-list-of-virtual-tables]]
+== Getting a list of Virtual Tables
+
+To get a list of virtual tables, simply execute the following command:
+
+` list vtables`
+
+The output will be a list of Virtual Tables for the different modules
+that are installed on the ODL and are using the data store.
+
+[[getting-a-list-of-virtual-fields]]
+== Getting a list of Virtual Fields
+
+to get a list of virtual fields, simple execute the following command
+with the name of the table:
+
+` list vfields `
+
+The output will be a list of Virtual Fields in the Virtual Table.
+
+[[quering]]
+== Quering
+
+Try to execute the query @ the top of this page and see if you get a
+similar output... Now let's try collecting all the "node-connectors"
+with the following query:
+
+` "select * from nodes/node/node-connector;`
+
+The output should be something like:
+
+` |port-number|id               |current-speed|current-feature     |maximum-speed|name    |supported|advertised-features|peer-features|hardware-address |configuration|` +
+` ---------------------------------------------------------------------------------------------------------------------------------------------------------------------` +
+` |1          |openflow:9:1     |             |[pause, forty-gb-fd]|             |s9-eth2 |[]       |[]                 |[]           |EA:CB:D5:22:B3:1A|[]           |` +
+` |2          |openflow:9:2     |             |[pause, forty-gb-fd]|             |s9-eth3 |[]       |[]                 |[]           |62:D3:FA:BA:97:E3|[]           |` +
+` |65534      |openflow:9:65534 |             |[]                  |             |s9      |[]       |[]                 |[]           |4E:0C:4B:73:38:40|[]           |` +
+` |3          |openflow:9:3     |             |[pause, forty-gb-fd]|             |s9-eth1 |[]       |[]                 |[]           |46:F2:E2:56:C7:33|[]           |` +
+` |65534      |openflow:8:65534 |             |[]                  |             |s8      |[]       |[]                 |[]           |AA:4B:3E:14:22:44|[]           |` +
+` |3          |openflow:8:3     |             |[pause, forty-gb-fd]|             |s8-eth3 |[]       |[]                 |[]           |92:1D:00:40:9F:BE|[]           |`
+
+Let's explicitly select only the id & the hardware-address:
+
+` XSQL>select id,hardware-address from nodes/node/node-connector;` +
+` |id               |hardware-address |` +
+` -------------------------------------` +
+` |openflow:9:1     |EA:CB:D5:22:B3:1A|` +
+` |openflow:9:2     |62:D3:FA:BA:97:E3|` +
+` |openflow:9:65534 |4E:0C:4B:73:38:40|` +
+` |openflow:9:3     |46:F2:E2:56:C7:33|` +
+` |openflow:8:65534 |AA:4B:3E:14:22:44|`
+
+And now let's add the node id so we will know to which node this
+node-connector belongs to:
+
+` XSQL>select nodes/node.id,nodes/node/node-connector.id,hardware-address from nodes/node,nodes/node/node-connector;` +
+` |id               |id               |hardware-address |` +
+` -------------------------------------------------------` +
+` |openflow:9       |openflow:9:1     |EA:CB:D5:22:B3:1A|` +
+` |openflow:9       |openflow:9:2     |62:D3:FA:BA:97:E3|` +
+` |openflow:9       |openflow:9:65534 |4E:0C:4B:73:38:40|`
+
+Note that because the field "id" exists in both virtual tables, i need
+to explicitly specify which id i refer to. Also note that there isn't
+any "join" statement here as the "join" is somehting inherited from the
+tree hierarchy structure of the data.
+
+Now let's start filtering and select all the ports that has "FA" in
+their hardware-address:
+
+` XSQL>select nodes/node.id,nodes/node/node-connector.id,hardware-address from nodes/node,nodes/node/node-connector ` +
+`      where nodes/node/node-connector.hardware-address like '%FA%';` +
+` |id               |id           |hardware-address |` +
+` ---------------------------------------------------` +
+` |openflow:9       |openflow:9:2 |62:D3:FA:BA:97:E3|` +
+` |openflow:3       |openflow:3:2 |B6:FA:AD:FE:47:1E|` +
+` |openflow:11      |openflow:11:3|52:42:FA:E2:8B:FF|` +
+` Total Number Of Records=3`
+
+[[exporting-to-csv-format-file]]
+== Exporting to CSV format file
+
+You can specify to export the data to a CSV formatted file, do this by
+writing "tocsv" on the xsql prompt, e.g.:
+
+` XSQL>tocsv` +
+` to csv file is true`
+
+To return back to regular output to the screen, just write again "tocsv"
+and it will be turned off.
+
+[[supported-syntax-and-criteria-operands]]
+== Supported Syntax And Criteria Operands
+
+The XSQL isn't fully ISO compatible to the SQL query, but it contains an
+initial syntax that supports querying and filtering data. If it will be
+picked up by the community, further implementation of the SQL ISO
+elements will be added depending on requirements and timelines. HOWEVER,
+let's review what is there...:o)
+
+The basic syntax for XSQL query is as follows:
+
+` `*`Select`*` `` `*`from`*` `` `*`where`*` `*`;`*
+
+[[vfields]]
+= vfields
+
+vFields can be specified by just using the name of the vfield if its
+distinguished enough in the query, for example:
+
+` select `*`hardware-address`*` from nodes/nodes/node-connector; `
+
+or by specifiying the table name before it:
+
+` select `*`nodes/node/node-connector.hardware-address`*` from nodes/node/node-connector;`
+
+The field name isn't case sensitive.
+
+[[vtables]]
+= vtables
+
+vTables names are also not case sensitive, you can use just the prefix
+of the table name if it is distinguished enough, for example:
+
+` select * from node-connector;`
+
+Otherwise it is recommended to use the full table path to avoid
+confusion:
+
+` select * from nodes/node/node-connector;`
+
+[[criteria]]
+= Criteria
+
+The supported criteria operations are as follows:
+
+` * "=" equale ` +
+` *   "!=" not equale ` +
+` *   ">" greater than ` +
+` *   "<" less than ` +
+` *   "<=" less or equale ` +
+` *   ">=" greater or equale ` +
+` *   "like" contains the following sub string ` +
+` *   “and” to concatenate condition in an “and” condition. ` +
+` *   “or” to concatenate condition in an “or” condition. ` +
+` *  "is null" to specify if a vfield is "null".` +
+` *  "not null" to specify if a vfield is not "null".`
+
+you can also use round brackets (e.g. "(" & ")"), but i am sorry to say
+i haven't tested it that good...:o)
+
+[[using-the-jdbc]]
+== Using the JDBC
+
+Using the JDBC is straightforward, just create a new java project in
+your favorite idea environment and add the XSQL ".jar" file as an
+imported library. Once imported, here is a standard code for executing a
+XSQL query via JDBC:
+
+` import java.sql.Connection;` +
+` import java.sql.DriverManager;` +
+` import java.sql.ResultSet;` +
+` import java.sql.Statement;` +
+` ` +
+` public class XSQLJDBCExample {` +
+`   public static void main(String args[]){` +
+`       Connection c = null;` +
+`       Statement st = null;` +
+`       ResultSet rs = null;` +
+`       ` +
+`       try{` +
+`           //Register the driver in the classloader` +
+`           Class.forName("org.opendaylight.controller.md.sal.dom.xsql.jdbc.JDBCDriver");` +
+`           //Get a new JDBC connection from the DriverManager` +
+`           c = DriverManager.getConnection("127.0.0.1");` +
+`           //Creste a JDBC statement` +
+`           st = c.createStatement();` +
+`           //Define the xsql query to execute ` +
+`           String xsql = "select nodes/node.id,nodes/node/node-connector.id,flow-capable-node-connector-statistics.* from "+` +
+`                         "nodes/node,nodes/node/node-connector,flow-capable-node-connector-statistics where hardware-address like '%FF%';";` +
+`           //Execute the xsql query` +
+`           rs = st.executeQuery(xsql);` +
+`           //count the columns returned by the query` +
+`           int colCount = rs.getMetaData().getColumnCount();` +
+`           //printout a column title line, in this example i am formating to csv` +
+`           System.out.print("\"");` +
+`           for(int i=1;i<=colCount;i++){               ` +
+`               System.out.print(rs.getMetaData().getColumnLabel(i));` +
+`               if(i<colCount)` +
+`                   System.out.print("\",\"");` +
+`               else` +
+`                   System.out.println("\"\n");` +
+`           }` +
+`           ` +
+`           //Iterate over the records and print them out as csv format.` +
+`           while(rs.next()){` +
+`               System.out.print("\"");` +
+`               for(int i=1;i<=colCount;i++){                   ` +
+`                   System.out.print(rs.getObject(i));` +
+`                   if(i<colCount)` +
+`                       System.out.print("\",\"");` +
+`                   else` +
+`                       System.out.println("\"\n");` +
+`               }                               ` +
+`           }` +
+`           ` +
+`       }catch(Exception err){` +
+`           err.printStackTrace();          ` +
+`       }finally{` +
+`           if(rs!=null)try{rs.close();}catch(Exception err){}` +
+`           if(st!=null)try{st.close();}catch(Exception err){}` +
+`           if(c!=null)try{c.close();}catch(Exception err){}            ` +
+`       }` +
+`   }` +
+` }`

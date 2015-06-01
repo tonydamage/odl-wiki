@@ -1,0 +1,264 @@
+[[prepared-status]]
+= Prepared Status
+
+https://git.opendaylight.org/gerrit/#/c/8174/
+
+* all flows, groups, meters added before a device connection are
+pre-configuration and those are saved in the dataStore/config only
+* all pre-configuration node flows, groups, meters from the
+dataStore/config are commited to device upon connection/reconnection
+* all device flows, groups, meters are added to the
+dataStore/operational upon connection/reconnection
+* all flows, groups, meters are deleted from the dataStore/operational
+upon disconnection. But the dataStore/config remains unaffected by
+device disconnection
+
+Flow ID in Flow Statistics and Flow Cookies
+
+* The flow_id is not supported by device, so we are using flowCookies
+marker for flow identification
+* The dataStore/config contains always "user defined flowCookies"
+* We replace those "user defined flowCookies" in FRM with new
+(generated) flowCookies and add pairs flowCookie (as a key) and List (as
+a list of flowIDs)
+** Generator produces uint64 and starts by 1. Value 0 is reserved for
+flows without defined flowCookie added via REST operations (bypassing
+FRM).
+** We are using LIST because the operations (as sal-flow:add-flow) could
+add new flow without flowID (bypassing FRM) and the system generates
+some system alien ID (with prefix #UF$TABLE*)
+** In general, we expect only one "user defined flowID" for one
+"flowCookie" and eventually zero or more system alien IDs
+** We have FlowCookiesMap> in the node table hierarchy in the
+dataStore/operational
+*** FlowCookiesMap is removed upon device disconnection
+*** List could contain only one "user defined flowId" and zero or more
+system alien IDs
+*** Statistic always checks the flow statistic data against the
+dataStore/config flow (for "user defined flowId") or against the
+dataStore/operational flow (for "system alien ID")
+**** if matching flowCookie found then comparison for priority and match
+follows
+
+[[current-status]]
+= Current Status
+
+Currently there is a dirty fix
+(https://git.opendaylight.org/gerrit/#/c/5001/) prepared, where we
+
+* Remove all flows from switch upon switch reconnection
+* Remove all flows from datastore upon switch disconnection
+
+This is generally bad strategy, because
+
+* We will immediately lose statistics data
+* We wont be able to configure switch via alternative way (e.g.:
+different controller)
+* In case of short term connection outage switch will need to configure
+again
+* Only code in application space is supposed to write to config context
+of datastore
+
+This issue is covered by
+https://bugs.opendaylight.org/show_bug.cgi?id=375[BUG 375],
+https://bugs.opendaylight.org/show_bug.cgi?id=537[BUG 537].
+
+[[ideas-on-how-to-handle-situations]]
+= Ideas on How to Handle Situations
+
+[[switch-gets-disconnected]]
+== Switch Gets Disconnected
+
+* Let's not remove the node from operational neither config context of
+datastore (statistics will remain accessible, installed flows can be
+inspected)
+* Adding flag to flowCapableNode augmentation in operational context
+indicating if the node is available could solve some underlying issues:
+** FRM and other components working with operational context will
+recognize if node is gone and wont try to invoke related rpcs
+** Statistics requests will skip such a node
+** New rpc can be exposed to application having all (or one particular)
+unavailable nodes removed from operational context
+* open question: we probably need to adjust topology and cope with LLDP
+discovery
++
+::
+  Update: LLDP packet sending mechanism will stop querying disconnected
+  nodes (upon nodeUpdated event). And so the LLDP listening stuff and
+  topology manager will cope with new status automatically.
+
+[[switch-gets-reconnected]]
+== Switch Gets Reconnected
+
+[[blocker]]
+=== BLOCKER
+
+Flows on switch do not contain id nor name as used inside controller.
+Meters and groups contain id on switch. So at least by flow we need a
+reliable compare code in order to merge flows right. Here are some other
+potentional problems:
+
+* masks - bites outside mask are cleared by ovs, but not by cpqd
+* flow flags - at least some of them seem to be ignored by cpqd
+* flow id - if existed on device, generated id is used on controller
+side (#UF$TABLE*42*1)
++
+::
+  Update: For flow identification *cookie field* should be used (this is
+  the purpose of cookie on flow).
+
+[[datastore-does-not-contain-any-related-items]]
+=== DataStore does not contain any related items
+
+* We will fill up operational context through pulling stats (if the
+switch contains any flows/meters/groups)
+* App might decide to purge all the switch content
+** This could be managed by new configuration item or by providing rpc
+to app for that goal (I vote for rpc)
++
+::
+  Update: having multiple apps attached to controller it is probably
+  safer to use configuration
+* Or app might want to adopt those data into config context (e.g.: to be
+able to modify them)
+** Again -> through configuration or via rpc (I vote for rpc)
++
+::
+  Update: having multiple apps attached to controller it is probably
+  safer to use configuration
+* Node in operational context can exist (and harvest stats data..) with
+or without being reflected by config context
+
+[[datastore-contains-related-items]]
+=== DataStore Contains Related Items
+
+After we pulled stats, there will be up-to-date operational context. Now
+there is new problem (except adopting) - merging config context with
+operational:
+
+* App might (or is expected to) decide to push all stuff from config
+into switch
+** Rpc/configuration item (I vote for configuration)
++
+::
+  Update: having multiple apps attached to controller it is probably
+  safer to use configuration
+** This should either wait till operational context is completed
+** Or start pushing and rely on switch to properly handle duplicate
+flows or updates
+* Here we might encounter errors and have to decide if the not
+applicable flows should be removed or kept in config context
+** Controlled by configuration item
++
+::
+  Update: having multiple apps attached to controller it is probably
+  safer to use configuration
+** App will be able to detect anytime if some config data are not
+propagated into device by comparing them with operational context
+*** by rpc (on demand)
+* Now we might have some data in operational context not reflected in
+config - here the adopting can by applied (as mentioned before)
+* App might decide to push flows from config into device again later
+(after adopting operational stuff to config context and altering it)
+** by rpc (on demand)
++
+::
+  Update: having multiple apps attached to controller it is probably
+  safer to use configuration
+
+[[configuration-note]]
+=== Configuration note
+
+Most of the values required from configuration can be in form of
+time-to-wait and then perform corresponding operation:
+
+* *purge switch content* upon connection established
+* *adopt switch content* to config context upon connection established
+* *push config content* to switch upon connection established
+* *purge not appliable items* from config context upon connection
+established
+* *retry to push config content* to switch if primary push fails
+
+Some of those are conflicting. In case that the switch gets disconnected
+again then all waiting operations should be cancelled.
+
+[[completely-different-approach---allow-inconsistency-between-operational-and-config-by-default]]
+= Completely different approach - allow inconsistency between
+operational and config by default
+
+We have already usecase covering preconfiguring flows, which means
+inconsistency untill device emerges. Lets have the FRM removed from
+commitHandlers and make it listen to dataChange in config and
+operational context of dataStore. And also flows managed by
+controller/FRM will have cookie field filled and timeouts set to 0
+(never expires). Following scenarios would arise.
+
+[[application-writes-a-flow-into-config]]
+== Application writes a flow into config
+
+FRM gets notified upon data changed.
+
+* if there is corresponding device connected, FRM will push flow and
+statistic harvester mechanizm will deliver result into operational
+context
+* if there is no device - no action
+
+In case of update or removal FRM behaves the same.
+
+[[device-appears-in-operational-context]]
+== Device appears in operational context
+
+FRM gets notified upon data changed. Here FRM could probably wait a few
+seconds till underlying items get into operational via stats harvest.
+
+* if there is underlying flow in config, FRM will push it to device.
+
+[[flow-appears-in-operational-context]]
+== Flow appears in operational context
+
+FRM gets notified upon data changed.
+
+* if there is cookie present, FRM will look up corresponding flow in
+config and:
+** if not found - remove it from device
+** if found - do nothing / update if different (might be configurable)
+* no cookie means the flow is not managed by controller and wont be
+touched by FRM
+
+[[flowdevice-disappears-from-operational]]
+== Flow/device disappears from operational
+
+FRM gets notified upon data changed. No action.
+
+[[unmanaged-flows]]
+== Unmanaged flows
+
+Flows can be pushed to device via restconf by directly invoking
+SalFlowService, and also removed and updated this way. Those flows are
+expected to have timeouts specified and no cookies (eventuall
+collissions with cookies of managed flows will result into update,
+removal or keeping the flow).
+
+[[remaining-issues]]
+== Remaining issues
+
+In case of device disconnection the corresponding operational context is
+suppossed to get cleared. But this context is build via statitics
+harvest so either the stats should be stored somewhere else or
+disconected devices might get an inactive flag. Or statistics will get
+lost together with device. But this is more related to statistic manager
+expected statistic lifecycle.
+
+OpenDaylight_OpenFlow_Plugin:Backlog:FlowCookieLifecycle[FlowCookieLifecycle]
+
+Fail handling - in case the flow add/update/remove action fails, then
+FRM should try again after some timeout or end up with error log?
+
+[[conclusion]]
+== Conclusion
+
+Taking this approach most of the inconsistent situations have simple
+solution and preconfiguration will be supported too. Similar strategy
+can by applied by meters and groups with one difference - there is no
+problem with identification of items (only flows are missing unique id
+on device).

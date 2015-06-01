@@ -1,0 +1,58 @@
+[[description]]
+== Description
+
+Currently OpenDaylight has clustering for ephemeral data using
+Infinispan via the Clustering Services API. Date stored through the
+Clustering Services API is replicated throughout the cluster, and so
+will survive loss of a particular controller node, but will *not*
+currently survive the entire controller cluster being brought down.
+
+There are some kinds of data (configuration being one example) that need
+to be durable across the entire cluster being brought down and then back
+up again. In order to achieve this we are looking at:
+
+1.  Using
+https://docs.jboss.org/author/display/ISPN/Cache+Loaders+and+Stores[CacheStores]
+behind Infinispan to selectively persist
+
+data marked as durable
+
+1.  1.  One possibility would be to use the
+https://docs.jboss.org/author/display/ISPN/Cache+Loaders+and+Stores#CacheLoadersandStores-Cassandracacheloader[CasandraCacheStore]
+2.  Whichever CacheStore is chosen, we should look at being able to
+'embed' it as a bundle so as to simplify deployment scenarios (ie... one
+should not have to install a separate persistence app, it should come as
+part of the controller).
+3.  It should be possible for folks to configure (ideally at run-time)
+the controller to use a different ClusterStore than the default one
+chosen.
+2.  Enhancing clustering services to allow users to indicate a cache is
+durable, and thus should be backed with a CacheStore.
+
+[[deliverables]]
+== Deliverables
+
+1.  Persistent store bundle (containing whatever persistent store is
+chosen)
+2.  Changes to configure Infinispan to use the ClusterStore when needed
+3.  Changes to Clustering Services API to allow designation of some data
+as durable.
+
+[[pointers]]
+== Pointers
+
+It appears that Cassandra can be
+http://prettyprint.me/prettyprint.me/2010/02/14/running-cassandra-as-an-embedded-service/index.html[embedded],
+thus it should be possible to embed it as an OSGI bundle. Other options
+for making use of Cassandra as a persistent store with zero additional
+deployment activity could also be explored.
+
+[[notes]]
+== Notes
+
+[[mentors]]
+== Mentors
+
+Colin Dixon IRC handle: colindixon +
+Ed Warnicke IRC handle: edwarnicke +
+ Giovanni Meo IRC handle: GiovanniMeo

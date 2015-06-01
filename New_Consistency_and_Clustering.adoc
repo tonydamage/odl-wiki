@@ -1,0 +1,94 @@
+[[goals]]
+== Goals
+
+1.  General
+* Stateless operations?
+* No affinity in operations?
+* Global data such as policies (data distribution to regions)
+* Ability to perform global functions?
+* Global visualizations?
+* Support issues, debugging, tracing, logging
+2.  Intra-Region Cluster Expectations
+* All members of a given cluster will have the same view of data (i.e.,
+essentially a logically shared store)
+* All members of a given cluster will have the same bundles installed
+and expose the same capabilities
+* Ability to place constraints on messages (calls) to prefer or limit
+provider set (such as latency, or even same process)
+3.  Inter-Region Cluster Expectations
+* Separate regions should be able to exercise [some level of] control
+over their "region" even if other regions fail or become disconnected
+* Messaging between regions should be mostly about control (policy
+updates, etc) as opposed to data replication
+* Data partitioning
+
+[[colins-opinionated-next-steps]]
+== User:Ckd[Colin]'s Opinionated Next Steps
+
+1.  We should just use Akka
+* It seems to provide most, if not all, of the features we want
+* The people running it seem to really know what they're doing
+* They offer concrete, understandable consistency properties that can be
+configured
+* It's Scala/Java-based
+2.  Some of us should just fork off and start testing a version of
+OpenDaylight which replaces Infinispan with Akka
+3.  In the longer run, we need to find better, more flexible APIs for
+things like
+* Picking CP vs. AP and specifying merge policies when/if we have AP
+* Picking persisted vs. ephemeral state
+* Configuring the cluster itself, e.g., potential members
+* Specifying sharding/locality information
+* Possibly also specifying query optimizations, e.g., should we build
+indices on some of the object's keys
+
+[[coarse-next-steps]]
+== Coarse Next Steps
+
+1.  Figure out what have now with Infinispan
+* Can we figure out what properties it gives us, if any?
+* Can we figure out how to make it not suck?
+* Is the Infinispan team interested in our use case?
+* Is there something simple we can do to bring JGroups up through
+Infinispan?
+* I think that we have enough evidence than Infinispan doesn't quite do
+what we want to move on here. --User:Ckd[Colin]
+2.  Figure out if we want to have our own project? Giovanni says yes.
+3.  Explore our other options: Akka, Cassandra, Zookeeper, JGroups, etc.
+4.  This is all basically just to get us where we should have been at
+the Hydrogen release.
+* At the same time, there are at least 3 different areas we need to look
+at from the point of view of consistency:
+1.  What consistency models do we want to have within a “region”? Also
+what is a “region”?
+2.  Do we want to start talking about inter-regioin consistency and
+state exchange?
+** Does this also tie into controller federation? Can we avoid this?
+3.  What consistency model do we want to provide in the network?
+** In particular, how does merging after a partition play into this?
+
+[[big-long-term-questions]]
+== Big (Long-Term) Questions
+
+1.  How much state needs to be replicated and where?
+* Jan points out that if you push every flowmod to every controller
+that’s going to limit your scalability.
+* At the same time, state that is logically global has to live
+everywhere.
+* Exploiting locality seems like a really good idea, but you re doing it
+at the risk of being less fault-tolerant.
+* We probably want to consider the set of possible controllers for a
+given switch to fail over to and make sure that we replicate any state
+we might need over to them.
+2.  How far can we scale this strongly consistent model?
+3.  Are there fundamental trade-offs we’re somehow making by choosing
+strong consistency?
+* What are they and how can they bite us?
+4.  Do we want to have a micro-controller per switch? How might that be
+done?
+* Could be a full-fledged version of the controller. Could be something
+simpler.
+5.  Why didn’t we do this with protocols in the past, e.g., OSPF?
+* Was it scale? Physical distances? Just not having the right tools?
+* What does 4D have to say about this?
+

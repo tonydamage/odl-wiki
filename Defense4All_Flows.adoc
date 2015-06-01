@@ -1,0 +1,190 @@
+[[basic-control-flows]]
+=== Defense4All Flows:Basic control flows[Basic control flows]
+
+Control flows are logically ordered according to module runtime
+dependencies, so if module A depends on module B then module B should be
+initialized before module A, and terminate after it. Defense4All App
+modules depend on most Framework modules, except RestServer.
+
+*Startup* – The startup consists of first instantiating all modules,
+then initializing them in order. Module instantiation includes setting
+up all externally configured runtime parameters. Initialization starts
+with all Framework modules, except the RestServer, which is activated
+last (after the application is fully ready). The Framework modules are
+initialized in the following order: FrameworkMain, RepoFactory,
+FlightRecorder, FrameworkMgmtPoint. Then the Framework initializes the
+Defense4All Application. Defense4All Application modules are initialized
+in the following order: MitigationDriverLocal, global Defense4All
+Application Repos, ODLStatsCollectionRep, ODLDvsnRep, AmsRep,
+StatsCollector, DetectorMgr and RateBasedDetector, AttackDecisionPoint,
+MitigationMgr, DFMgmtPoint. When FrameworkMgmtPoint initializes it
+retrieves from global repos all user configurations in previous
+lifecycles, and re-applies them in all the relevant modules - as if the
+user has just configured them, however with one difference – any
+dynamically added state to configured elements (e.g., PNs) is preserved.
+Similarly, Defense4All Application MgmtPoint re-applies all user
+configurations done in previous lifecycles. This design leaves all
+modules completely stateless, allowing flexibility, consistency and
+robustness in applying user configurations (whether to latest or any
+previous state snapshot).
+
+*Termination* – In this flow first the RestServer is stopped, then the
+Defense4All Application modules, and finally the Framework modules. The
+order of Defense4All Application modules tear-down is: DFMgmtPoint,
+MitigationMgr and MitigationDriverLocal, AttackDecisionPoint,
+DetectionMgr and RateBasedDetector, StatsCollector, AmsRep,
+OdlStatsCollectoinRep, OdlDvsnRep. The order of Framework modules
+tear-down is: FrameworkMgmtPoint, FlightRecorder, RepoFactory and all
+Repos. Each module is expected to store all durable state in relevant
+Repos. Then RepoFactory, flushes all Repos cached state to stable
+storage and/or replicates to other Repo replicas, of there are any.
+
+*Reset* – In this flow all modules are reset according to reset level
+(currently soft, dynamic or factory). The order of modules’ reset is
+identical to that of termination. Reset includes clearing cached
+information as well as fully or selectively information from Repos –
+according to the type of reset.
+
+[[configurations-and-setup-flows]]
+=== Defense4All Flows:Configurations and setup flows[Configurations and
+setup flows]
+
+*OFC (OpenFlowController = ODC)* – When DFMgmtPoint receives from
+DFRestService a request to add OFC, it first records the added OFC in
+OFCs Repo, then notifies ODLStatsCollectionRep and ODLDvsnRep, which in
+turn notifies ODL to initiate connection to added OFC (ODC). ODL
+instantiates a REST client for communication with ODC. NetNode -
+Multiple NetNodes can be added. Each NetNode models a switch or similar
+network device, along with its traffic ports, protected links and
+connections to AMSs. When DFMgmtPoint receives from DFRestService a
+request to add a NetNode, it first records the added NetNode in NetNodes
+Repo, and then notifies ODLStatsCollectionRep and ODLDvsnRep, followed
+by MitigationMgr. ODLStatsCollectionRep and ODLDvsnRep in turn notify
+ODL, and the latter installs low priority flow entries to pass traffic
+between protected links’ port pairs. MitigationMgr notifies
+MitigationDriverLocal, which updates its NetNode-AMS connectivity groups
+for consistent assignment of AMSs to diversion from given NetNodes.
+
+*AMS* – Multiple AMSs can be added. When DFMgmtPoint receives from
+DFRestService a request to add an AMS, it first records the added AMS in
+AMSs Repo, then notifies AMSRep. AMSRep can optionally pre-configure
+protection capabilities in the added AMS, and start monitoring its
+health.
+
+*PN* - Multiple PNs can be added. When DFMgmtPoint receives from
+DFRestService a request to add a PN, it first records the added PN in
+PNs Repo, then notifies MitigationMgr, and finally it notifies the
+DetectionMgr. MitigationMgr notifies MitigationDriverLocal, which in
+turn notifies AMSRep. AMSRep can preconfigure the AMS for this PN, as
+well its EventMgr to accept events related to this PN’s traffic.
+DetectionMgr notifies RateBasedDetector, which in turn notifies
+StatsCollector. StatsCollector queries ODLStatsCollectionRep about
+possible placements of stats collection counters for this PN.
+ODLStatsCollectionRep returns all NetNodes configured for this PN (and
+if none configured it returns all NetNodes currently known to
+Defense4All). StatsCollector “chooses” (this only presently available)
+counter locations option. For each of the NetNodes it then asks
+ODLStatsCollectionRep to create a counter for the subject PN in each of
+the selected NetNodes. The counter is essentially a set of flow entries
+set for the protocols of interest (tcp, udp, icmp, and rest of ip) on
+each north traffic port. The counter is given a priority and this
+constitutes the peacetime traffic floor (to monitor traffic by
+periodically reading all counter flow entry traffic count values).
+Because PN may be re-introduced at restart or a change in network
+topology may require re-calculation of counter locations, it is possible
+that some/all counters may already be in place. Only new counters are
+added. No-longer needed counters are removed. ODLStatsCollectionRep
+configures the flow entries according to NetNode type: for hybrid
+NetNodes the flow entry action is “send to normal” (i.e., proceed to
+legacy routing), while for native NetNodes the action is matching output
+port (in each protected link). OdlStatsCollectionRep invokes ODL to
+create each specified flow entry. The latter invokes FlowEntryMgr and
+Connector to send the request to ODC.
+
+[[attack-detection-flow]]
+=== Defense4All Flows:Attack Detection flow[Attack Detection flow]
+
+Periodically StatsCollector requests ODL StatsCollectionRep to query the
+ODC for the latest statistics for each set counter for each configured
+PN. ODLStatsCollectionRep invokes FlowEntryMgr to obtain statistics in
+each flow entry in a counter. The latter invokes the Connector to obtain
+the desired statistics from the ODC.
+
+ODLStatsCollectionRep aggregates the obtained results in a vector of
+stats (latest bytes and packets readings per each protocol) and returns
+that vector. StatsCollector feeds each counter stats vector to
+DetectionMgr, who forwards the stats vector to RateBasedDetector. The
+latter maintains stats information for every counter as well as
+aggregated counter stats for every PN. Stats information includes time
+of previous reading, and for every protocol - latest rates and
+exponential averages.
+
+The RateBasedDetector checks for significant and prolonged latest rates
+deviations from the averages, and if such deviations are found in the PN
+aggregated level it notifies AttackDecisionPoint about attack detection.
+As long as deviations continue the RateBasedDetector will continue
+notifying AttackDecisionPoint about the detections. It sets an
+expiration time for every detection notification, and repeatable
+notifications essentially prolong the detection expiration.
+
+AttackDecisionPoint honors all detections. If it has already declared an
+attack on that protocol-port, then the AttackDecisionPoint associated
+the additional detection with that existing attack. Otherwise it creates
+a new attack, and notifies MitigationMgr to mitigate that attack (next
+section). Periodically, AttackDecisionPoint checks the status of all
+detections of each live attack. If all detections are expired,
+AttackDecisionPoint declares attack end and notifies MitigationMgr to
+stop mitigating the attack.
+
+[[attack-mitigation-flow]]
+=== Defense4All Flows:Attack Mitigation flow[Attack Mitigation flow]
+
+MitigationMgr, upon receiving mitigate notification from
+AttackDecisionPoint, attempts to find a plugged-in MitigationDriver to
+handle the mitigation. Currently, it requests its only plugged-in
+MitigationDriverLocal.
+
+MitigationDriverLocal checks if there are known, live and available AMSs
+to which attacked (or all) traffic can be diverted from NetNodes through
+which attacked traffic flows. It selects one of the suitable AMSs and
+configures it prior to diverting attack traffic to the selected AMS. For
+example MitigationDriverLocal retrieves from Repo the relevant protocol
+averages and configures them in AMS through the AMSRep.
+
+MitigationDriverLocal then requests ODLDvsnRep to divert attacked PN
+protocol-port (or all PN) traffic from each of the NetNodes through PN
+traffic flows – to the selected AMS.
+
+ODLDvsnRep creates a new highest priority traffic-floor (that contains
+flow entries with priority higher than any flow entry in previously set
+traffic floors). The traffic floor contains all flow entries to divert
+and count traffic from every ingress/northbound traffic port into the
+AMS, and back from AMS to the relevant output (southbound) ports.
+Optionally diversion can be “symmetric” (in both directions), in which
+case flow entries are added to divert traffic from southbound ports into
+the AMS, and back from AMS to northbound ports. Note that StatsCollector
+treats this added traffic floor as any other, and passes obtained
+statistics from this floor to DetectionMgr/RateBasedDetector. Because
+traffic floors are aggregated (in the same NetNode as well as across
+NetNodes) for a given PN the combined rates remain the same as prior to
+diversion. Just like ODLStatsCollectionRep, ODLDvsnRep also utilizes
+lower level modules to install the flow entries in desired NetNodes.
+
+Finally, MitigationDriverLocal notifies AMSRep to optionally start
+monitoring this attack and notify AttackDecisionPoint if the attack
+continues or new attacks develop. AMSRep can do that through
+AMSBasedDetector module.
+
+If MitigationDriverLocal finds no suitable AMSs or fails to configure
+any of its mitigation steps it aborts the mitigation attempt,
+asynchronously notifying MitigationMgr about it. The mitigation then
+remains in status “no-resources”.
+
+When MitigationMgr receives a notification to stop mitigating an attack,
+it forwards this notification to the relevant (and currently the only)
+MitigationDriver – MitigationDriverLocal. The latter reverses the
+actions in mitigation start: It notifies AMSRep to stop monitoring for
+this attack, it cancels diversion for attacked traffic, and finally
+notifies AMSRep to optionally remove pre-mitigation configurations.
+
+Back to Defense4All:User_Guide[Defense4All User Guide Page]

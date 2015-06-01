@@ -1,0 +1,832 @@
+ This page describes an data plane architecture for building a network
+virtualization solution using Open vSwitch. This data plane design is
+used by two renderers: the
+Group_Policy:Architecture/OpenFlow_Renderer[OpenFlow Renderer] and the
+Group_Policy:Architecture/OpFlex_Renderer[OpFlex Renderer].
+
+The design implements an overlay design and is intended to meet the
+following use cases:
+
+* Routing when required between endpoint groups, including serving as a
+distributed default gateway
+* Optional broadcast within a bridge domain.
+* Management of L2 broadcast protocols including ARP and DHCP to avoid
+broadcasting.
+* Layer 2-4 classifiers for policy between endpoint groups, including
+connection tracking/reflexive ACLs.
+* Service insertion/redirection
+
+[[network-architecture]]
+== Network Architecture
+
+[[network-topology]]
+=== Network Topology
+
+File:Overlay design red tunnel.png[framed|Figure 1: An example of a
+supported network topology, with an underlying IP network and
+hypervisors with Open vSwitch. Infrastructure components and elements of
+the underlay network are shown in grey. Three endpoint groups exist with
+different subnets in the same layer 3 context, which are show in red,
+green, and blue. A tunneled path (dotted red line) is shown between two
+red virtual machines on different VM hosts.] The network architecture is
+an overlay network based on VXLAN or similar encapsulation technology,
+with an underlying IP network that provides connectivity between
+hypervisors and the controller. The overlay network is a full-mesh set
+of tunnels that connect each pair of vSwitches.
+
+The "underlay" IP network has no special requirements though it should
+be set up with ECMP to the top-of-rack switch for the best performance,
+but this is not a strict requirement for correct behavior. Also, the
+underlay network should be configured with a path MTU that's large
+enough to accommodate the overlay tunnel headers. For a typical overlay
+network with a 1500 byte MTU, a 1600 byte MTU in the underlay network
+should be sufficient. If this is not configured correctly, the behavior
+will be correct but it will result in fragmentation which could have a
+severe negative effect on performance.
+
+Physical devices such as routers on the IP network are trusted entities
+in the system since these devices would have the ability to forge
+encapsulated packets.
+
+[[control-network]]
+=== Control Network
+
+The security of the system depends on keeping a logically isolated
+control network separate from the data network, so that guests cannot
+reach the control network. Ideally, the network is kept isolated through
+an out-of-band control network. This can be accomplished using a
+separate NIC, a special VLAN, or other mechanism. However, the system is
+also designed to operate in the case where the control traffic and the
+data traffic are on the same layer 2 network and isolation is still
+enforced.
+
+In Figure 1, the control network is shown as 172.16/16. The VM hosts,
+and controllers all have addresses on this network, and communicate
+using OpenFlow and OVSDB on this network. In the example, the router is
+shown with an interface configured on this network as well; this works
+but in practice it is preferable to isolate this network by accessing it
+through a VPN or jump box if needed. Note that there is no requirement
+that the control network be all in one subnet.
+
+The router is also shown with an interface configured on the 10/8
+network. This network will be used for routing traffic destined for
+internet hosts. Both the 172.16/16 and 10/8 networks here are isolated
+from the guest address spaces.
+
+[[overlay-network]]
+=== Overlay Network
+
+Whenever traffic between two guests is in the network, it will be
+encapsulated using a VXLAN tunnel (though supporting additional
+encapsulation formats could be configured in the future). A packet
+encapsulated as VXLAN contains:
+
+* Outer ethernet header, with source and destination MAC
+* Outer IP header, with source and destination IP address
+* Outer UDP header
+* VXLAN header, with a virtual network identifier (VNI). The virtual
+network identifier is a 24-bit field that uniquely identifies an
+endpoint group in our policy model.
+* Encapsulated original packet, which includes:
+** Inner ethernet header, with source and destination MAC
+** (Optional) Inner IP header, with source and destination IP address
+
+[[delivering-packets]]
+=== Delivering Packets
+
+File:Overlay design blue to red tunnel.png[framed|Figure 2: In this
+example, we show the path of traffic from the blue guest 192.168.2.3 and
+the red guest 192.168.1.2. The traffic is encapsulated in a tunnel
+marked with the blue endpoint group's VNI while in transit between the
+two switches. Because two endpoints are in different subnets, the
+traffic is routed in two hops: one the source switch and one on the
+destination switch.]
+File:Overlay design red to outside.png[framed|Figure 3: Communicating
+with outside endpoints requires some special challenges. In this
+example, the red endpoint is communicating with an endpoint on the
+internet through a gateway router. The traffic goes through a DNAT
+translation to an IP allocated to the endpoint for this purpose. The IP
+communication can then be delivered through the IP underlay network.]
+Endpoints can communicate with each other in a number of different ways,
+and each is processed slightly differently. Endpoint groups exist inside
+a particular layer 2 or layer 3 context which represents a namespace for
+their network identifiers. It's only possible for endpoints to address
+endpoints within the same context, so no communication is possible for
+endpoints in different layer 3 contexts, and only layer 3 communication
+is possible for endpoints in different layer 2 contexts.
+
+[[overlay-tunnels]]
+==== Overlay Tunnels
+
+The next key piece of information is the location of the destination
+endpoint. For destinations on the same switch, we can simply apply
+policy (see below), perform any routing action required (see below),
+then deliver it to the local port.
+
+When the endpoints are located on different switches, we need to use the
+overlay tunnel. This is the case shown as a dotted red line in Figure 1.
+After policy is applied to the packet, we encapsulated it in a tunnel
+with the tunnel ID set to a unique ID for the destination endpoint
+group. The outer packet is addressed to the IP address of the OVS host
+that hosts the destination endpoint. This encapsulated packet is now
+sent out to the underlay network, which is just a regular IP network
+that can deliver the packet to the destination switch.
+
+When the encapsulated packet arrives on the other side, the destination
+vSwitch inspects the metadata of the encapsulation header to see if the
+policy has been applied already. If the policy has not been applied or
+if the encapsulation protocol does not support carrying of metadata, the
+policy must be applied at the destination vSwitch. The packet can now be
+delivered to the destination endpoint.
+
+[[bridging-and-routing]]
+==== Bridging and Routing
+
+The system will transparently handle bridging or routing as required.
+Bridging occurs between endpoints in the same layer 2 context, while
+routing will generally be needed for endpoints in different layer 2
+contexts. More specifically, a packet needs to be routed if it is
+addressed to the gateway MAC address. We can simply use a fixed MAC
+address to serve as the gateway everywhere. Packets addressed to any
+other MAC address can be bridged.
+
+Bridged packets are easy to handle, since we don't need to do anything
+special to them to deliver them to the destination. They can be simply
+delivered unmodified.
+
+Routing is slightly more complex, though not massively so. When routing
+locally on a switch, we simply rewrite the destination MAC address to
+the MAC of the destination endpoint, and set the source MAC to the
+gateway MAC, decrement the TTL, and then deliver it to the correct local
+port.
+
+When routing to an endpoint on a different switch, we'll actually
+perform routing in two steps. On the source switch, we will decrement
+TTL and rewrite the source MAC address to the MAC of the gateway router
+(so that both the source and the destination MAC are set to the gateway
+router's MAC). It's then delivered to the destination switch using the
+appropriate tunnel. On the destination switch, we perform a second
+routing action by now rewriting the destination MAC as the MAC address
+of the destination endpoint and decrementing the TTL again. The reason
+why do the routing as two hops is that this avoids the need to maintain
+on every switch the correct MAC address for every endpoint on the
+network. Each switch needs the mappings only for endpoints that are
+directly attached to that switch. A communication pathway requiring this
+routing is shown in Figure 2.
+
+The vSwitch on each host must respond to local ARP requests for the
+gateway IP address and return a logical MAC address representing the L3
+gateway.
+
+[[communicating-with-outside-hosts]]
+==== Communicating with Outside Hosts
+
+Everything up until now is quite simple, but it's possible to conceive
+of situations where endpoints in our network need to communicate over
+the internet or with other endpoints outside the overlay network. There
+are two broad approaches for handling this. In both cases, we allow such
+access only via layer 3 communication.
+
+First, we can map physical interfaces on an OVS system into the overlay
+network. If a router interface is attached either directly to a physical
+interface or indirectly via an isolated network, then the router
+interface can be easily exposed as an endpoint in the network. Endpoints
+can then communicate with this router interface (perhaps after some
+intermediate routing via the distributed routing scheme described above)
+and from there get to the rest of the world. Dedicated OVS systems can
+be thus configured as gateway devices into the overlay network which
+will then be needed for any of this north/south communication. This has
+the advantage of being very conceptually simple but requires special
+effort to load balance the traffic effectively.
+
+Second, we can use a DNAT scheme to allow access to endpoints that are
+reachable via the underlay network. In this scheme, for every endpoint
+that is allowed to communicate to these outside hosts, we allocate an IP
+address from a dedicated set of subnets on the underlay (each network
+segment in the underlay network will require a separate DNAT range for
+switches attached to that subnet). We can perform the DNAT translation
+on the OVS switch and then simply deliver the traffic to the underlay
+network to deliver to the internet host or other host, and perform the
+reverse translation to get back into the overlay network.
+
+For the first implementation, we'll stick with the DNAT scheme and
+consider implementing the gateway-based or other solution.
+
+[[packet-processing-pipeline]]
+== Packet Processing Pipeline
+
+File:Gbp ovs pipeline.png[framed|right|Figure 4: The pipeline for
+processing packets in the data plane is shown. The port security feature
+is shown with a dotted outline to indicate that it is optional.] Here is
+a simplified high-level view of what happens to packets in this network
+when it hits an OVS instance:
+
+1.  If data and management network are shared, determine whether packet
+is targeted for the host system. If so, reinject into host networking
+stack.
+2.  Apply port security rules if enabled on the port to determine if the
+source identifiers (MAC and IP) are allowed on the port
+* For packets received from the overlay: Determine the source endpoint
+group (sEPG) based on the tunnel ID from the outer packet header.
+* For packets received from local ports: Determine sEPG based on source
+port and source identifiers as configured.
+* As an sEPG can only be associated with a single L2 and L3 context, the
+context is determined in this step as well.
+* Unknown source identifiers may result in a packet-in if the network is
+doing learning.
+3.  Handle broadcast and multicast packets while respecting broadcast
+domains.
+4.  Catch any special packet types that are handled specially. This
+could include ARP, DHCP, or LLDP. How these are handled may depend on
+the specific renderer implementation.
+5.  Determine whether the packet will be bridged or routed. If the
+destination MAC address is the default gateway MAC, then the packet will
+be routed, otherwise it will be bridged.
+6.  Determine the destination endpoint group (dEPG) and outgoing port or
+next hop while respecting the L2/L3 context.
+* For bridged packets (L2): Determine based on the destination MAC
+address.
+* For routed packets (L3): Determine based on the destination IP
+address.
+7.  Apply the appropriate set of policy rules based on the active
+subjects for that flow. We can bypass this step if the tunnel metadata
+indicates hat the policy has been applied at the source.
+8.  Apply a routing action if needed by modifying the destination and
+source MAC and decrementing the TTL.
+* For local destination: Rewrite the destination MAC to the MAC address
+for the connected endpoint, source MAC to the MAC of the default
+gateway.
+* For remote destinations: Rewrite the destination MAC to the MAC of the
+next hop, source MAC to the MAC of the default gateway.
+9.  If the next hop is a local port, then it is delivered as-is. If the
+next hop is not local, then the packet is encapsulated and the tunnel ID
+is set to the network identifier for the source endpoint group (sEPG).
+If the packet is a layer 2 broadcast packet, then it will need to be
+written to the correct set of ports, which might be a combination of
+local and multiple remote tunnel endpoints.
+
+[[register-usage]]
+=== Register Usage
+
+The processing pipeline needs to store metadata such as the sEPG, dEPG,
+and broadcast domain. This metadata can be stored in any way supported
+by the switch. OpenFlow provides a dedicated 64 bit metadata field, Open
+vSwitch additionally provides multiple 32 bit registers in form of
+Nicira Extensions. The following examples will use Nicira extensions for
+simplicity. The choice of register usage is an implementation detail of
+the renderer.
+
+[[option-1-register-allocation-using-nicira-extensions]]
+==== Option 1: Register allocation using Nicira Extensions
+
+[cols=",",options="header",]
+|=======================================================================
+|Register |Value
+|`NXM_NX_REG1` |Source Endpoint Group (sEPG) ID
+
+|`NXM_NX_REG2` |L2 context (BD)
+
+|`NXM_NX_REG3` |Destination Endpoint Group (dEPG) ID
+
+|`NXM_NX_REG4` |Port number to send packet to after policy enforcement.
+This is required because port selection occurs before policy enforcement
+in the pipeline.
+
+|`NXM_NX_REG5` |L3 context ID (VRF)
+|=======================================================================
+
+[[option-2-register-allocation-using-openflow-metadata]]
+==== Option 2: Register allocation using OpenFlow metadata
+
+OpenFlow offers a single 64 bit register which can be used to store
+sEPG, dEPG, and BD throughout the lookup process alternatively. The
+advantage over using Nicira extensions is better portability and offload
+capability to hardware.
+
+[cols=",",options="header",]
+|=======================================================================
+|Register |Value
+|metadata[0..15] |Source Endpoint Group (sEPG) ID
+
+|metadata[16..31] |Destination Endpoint Group (dEPG) ID
+
+|metadata[32..39] |L2 context (BD)
+
+|metadata[40..47] |L3 context (VRF)
+
+|metadata[48..63] |Port number to send packet to after policy
+enforcement. This is required because port selection occurs before
+policy enforcement in the pipeline.
+|=======================================================================
+
+[[tablepipeline-names-and-order]]
+=== Table/Pipeline Names and Order
+
+In order to increase readability, the following table names are used in
+the following sections. Their order in the pipeline is as follows:
+
+[cols=",,,,",options="header",]
+|=======================================================================
+|Table |ID |Description |Flow Hit |Flow Miss
+|1 |`PORT_SECURITY` |Optional port security table |Proceed to
+`SEPG_FILTER` |Drop
+
+|2 |`SEPG_FILTER` |sEPG selection |Remember sEPG, BD, and VRF. Then
+proceed to `DEPG_FILTER` |Trigger policy resolution (send to controller)
+
+|3 |`DPEG_FILTER` |dEPG selection |Remember dEPG and output coordinates,
+proceed to `POLICY_ENFORCER` |Trigger policy resolution (send to
+controller)
+
+|4 |`POLICY_ENFORCER` |Policy enforcement |Forward packet |Drop
+|=======================================================================
+
+OpenFlow >=1.1 capable switches can implement the flow miss policy for
+each table directly. Pure OpenFlow 1.0 switches will need to have a
+catch-all flow inserted to enforce the specified policy.
+
+[[port-security]]
+=== Port Security
+
+An optional port security table can be inserted at the very beginning of
+the pipeline. It enforces a list of valid sMAC and sIP addresses for a
+specific port.
+
+`` +
+`priority=30, in_port=TUNNEL_PORT, actions=goto_table:SEPG_FILTER` +
+`priority=30, in_port=PORT1, dl_src=MAC1, action=goto_table:SEPG_FILTER` +
+`priority=30, in_port=PORT2, dl_src=MAC2, ip, nw_src=IP2, actions=goto_table:SEPG_FILTER` +
+`priority=20, in_port=PORT2, dl_src=MAC2, ip, actions=drop` +
+`priority=10, in_port=PORT2, dl_src=MAC2, actions=goto_table:SEPG_FILTER` +
+`priority=30, in_port=PORT3, actions=goto_table:SEPG_FILTER`
+
+The port-security flow-miss policy is set to drop in order for packets
+received on an unknown port or with an unknown sMAC/sIP to be rejected.
+
+The following mode of enforcement are defined:
+
+1.  Whitelisted: The port is allowed to use any addresses. All tunnel
+ports must be whitelisted. The filter is enforced with a single flow
+matching on in_port and redirects to the next table.
+2.  L2 enforcement: Any packet from the port must use a specific sMAC.
+The filter is enforced with a single flow matching on the in_port and
+dl_src and redirects to the next table.
+3.  L3 enforcement: Same as L2 enforcement. Additionally, any IP packet
+from the port must use a specific sIP. The filter is enforced with three
+flows with different priority.
+1.  Any IP packet with correct sMAC and sIP is redirected to the next
+table.
+2.  Any IP packet left over is dropped.
+3.  Any non-IP packet with correct sMAC is redirected to the next table.
+
+[[source-epg-l2l3-domain-selection]]
+=== Source EPG & L2/L3 Domain Selection
+
+The sEPG is determined based on a separate flow table which maps known
+OpenFlow port numbers and tunnel identifiers to a locally unique sEPG
+ID. The sEPG ID is stored in register NXM_NX_REG1 for later use in the
+pipeline. At the same time, the L2 and L3 context is determined and
+stored in register NXM_NX_REG2.
+
+[cols=",",options="header",]
+|===================================================================
+|Field |Description
+|`table=SEPG_TABLE` |Flow must be in sEPG selection table
+|`in_port=$OFPORT` |Flow must match on incoming port
+|`tun_id=$VNI` |If in_port is a tunnel, flow must match on tunnel ID
+|===================================================================
+
+The actions performed are:
+
+1.  Write sEPG ID corresponding to incoming port or tunnel ID to
+register
+2.  Write L2/L3 context ID corresponding to incoming port or tunnel ID
+to registers
+3.  Proceed to dEPG selection
+
+An example flow to map a local port to an sEPG:
+
+`` +
+`table=SEPG_FILTER, in_port=$OFPORT` +
+`actions=load:$SEPG->NXM_NX_REG1[],` +
+`        load:$BD->NXM_NX_REG2[],` +
+`        load:$VRF->NXM_NX_REG5[],` +
+`        goto_table:$DEPG_FILTER`
+
+An example flow to map a tunnel ID to an sEPG:
+
+`` +
+`table=SEPG_FILTER, in_port=TUNNEL_PORT, tun_id=$VNI1,` +
+`actions=load:$SEPG1->NXM_NX_REG1[],` +
+`        load:$BD->NXM_NX_REG2[],` +
+`        load:$VRF->NXM_NX_REG5[],` +
+`        goto_table:$DEPG_FILTER`
+
+A flow hit means that the sEPG is known and the pipeline should proceed
+to the next stage.
+
+A flow miss means that we have received a packet from an unknown EPG:
+
+1.  If the packet was received on a local port then this corresponds to
+the discovery of a new EP for which the Port to EPG mapping has not been
+populated yet. If the network is learned, generate a packet-in to
+trigger policy resolution, otherwise drop the packet.
+2.  If the packet was received from a tunnel then this corresponds to a
+packet for which we have not populated the tunnel ID to EGP mapping yet.
+If the network is learned, generate a packet-in to trigger policy
+resolution, otherwise drop the packet.
+
+[[broadcasting-multicasting]]
+=== Broadcasting / Multicasting
+
+Packets sent to the MAC broadcast addresss (`ff:ff:ff:ff:ff:ff`) must be
+flooded to all ports belonging to the broadcast domain. This is *not*
+equivalent to the OVS flood action as multiple broadcast domains reside
+on the same switch. The respective broadcast domains are modeled using
+OpenFlow group tables as follows:
+
+1.  Upon addition of a new broadcast domain to the local vSwitch:
+* Create a new OpenFlow group table, using the BD ID as group ID
++
+::
+  `ovs-ofctl [...] add-group BRIDGE group_id=$BD, type=all`
+  +
+* Create a flow in the dEPG selection table matching on broadcast
+packets and correctly have them flooded to all group members:
++
+::
+  `priority=10, table=$DEPG_TABLE, reg2=$BD, dl_dst=ff:ff:ff:ff:ff:ff, actions=group:$BD`
+2.  Upon addition/removal of a local port
+* Modify group and add/remove output action to port to account for
+membership change:
++
+::
+  `osvs-ofctl [...] mod-group $BRIDGE [Old entry,] bucket=output:$PORT`
+3.  Upon addition/removal of a non-local port to the BD
+* Modify group and add/remove output + tunnel action to start/stop
+flooding packets over overlay
+
+XXX: Represent each broadcast/multicast address with a EPG?
+User:Tgraf[tgraf] (User talk:Tgraf[talk]) 10:45, 24 June 2014 (UTC)
+
+[[special-packet-types]]
+=== Special Packet Types
+
+[[arp-responder]]
+==== ARP Responder
+
+In order for the distributed L3 gateway to be reachable, the vSwitch
+must respond to ARP requests sent to the default gateway address. For
+this purpose, a flow is added which translates ARP requests into ARP
+replies and sends them back out the incoming port.
+
+[cols=",",options="header",]
+|=======================================================================
+|Field |Description
+|`priority=20` |Must have higher priority than regular, non-ARP dEPG
+table flows.
+
+|`table=DEPG_FILTER` |Flow must be in dEPG selection table
+
+|`reg5=2` |Must match a specific L3 context (NXM_NX_REG5)
+
+|`arp, arp_op=1` |Packet must be ARP request
+
+|`arp_tpa=GW_IP` |ARP request must be targeted for IP of gateway
+|=======================================================================
+
+The actions performed are:
+
+1.  Set dMAC to original sMAC of packet to reverse direction
+2.  Set sMAC to MAC of gateway
+3.  Set ARP operation to (arp-reply)
+4.  Set target hardware address to original source hardware address
+5.  Set source hardware address to MAC of gateway
+6.  Set target protocol address to original source protocol address
+7.  Set source protocol address to IP of gateway
+8.  Transmit packet back out the incoming port
+
+`` +
+`priority=20, table=DEPG_FILTER, reg5=$VRF,` +
+`arp, arp_op=1, arp_tpa=$GW_ADDRESS,` +
+`actions=move:NXM_OF_ETH_SRC[]->NXM_OF_ETH_DST[],` +
+`        mod_dl_src:$GW_MAC,` +
+`        load:2->NXM_OF_ARP_OP[],` +
+`        move:NXM_NX_ARP_SHA[]->NXM_NX_ARP_THA[],` +
+`        load:''Hex(''$GW_MAC'')''->NXM_NX_ARP_SHA[],` +
+`        move:NXM_OF_ARP_SPA[]->NXM_OF_ARP_TPA[],` +
+`        load:''Hex(''$GW_ADDRESS'')''->NXM_OF_ARP_SPA[],` +
+`        in_port`
+
+[[arp-optimization]]
+==== ARP Optimization
+
+image:Gbp ovs arp optimization.png[Gbp ovs arp optimization.png,title="Gbp ovs arp optimization.png"]
+
+As the MAC / IP pairing of endpoints is known in the network. ARP
+requests can be optimized and translated into unicasts. While it is
+possible to have a local vSwitch become an ARP responder directly, the
+unicast translation offers a minimal aliveness check within the scope of
+the L2 context.
+
+A flow is inserted into the sEPG selection table as follow:
+
+`` +
+`priority=10, arp, arp_op=1, dl_dst=ff:ff:ff:ff:ff:ff, actions=controller`
+
+As the ARP request is received, the packet is sent to the controller.
+The controller/agent resolves the MAC address to the IP address and
+inserts a new DNAT flow to translate subsequent ARP requests for the
+same transport address directly in the vSwitch:
+
+`` +
+`priority=20, arp, arp_op=1, dl_dst=ff:ff:ff:ff:ff:ff,` +
+`  actions=mod_dl_dst:$MAC, output:$OFPORT`
+
+The _OFPORT_ is either a local port or the tunnel port. The latter case
+requires to additional set the tunnel ID as described in previous
+sections.
+
+*Note:* The controller can proactively insert ARP optimization flows for
+local or even remote endpoints to avoid the one time controller round
+trip penalty.
+
+The controller/agent then reinjects the original ARP request back into
+the network via a packet-out OpenFlow message.
+
+[[dhcp-interception]]
+==== DHCP Interception
+
+XXX TODO
+
+[[destination-epg-selection-l2]]
+=== Destination EPG Selection (L2)
+
+The dEPG selection is performed after the sEPG has been determined. The
+mapping occurs in its own flow table which contains both L2 and L3 flow
+entries. This section explains L2 processing, L3 processing is described
+in the next section.
+
+The purpose of flow entries in this table is to map known destination
+MAC addresses in a specific L2 context to a dEPG and to prepare the
+action set for execution after policy enforcement.
+
+[cols=",",options="header",]
+|============================================================
+|Field |Description
+|`priority=10` |Must have lower priority than L3 flows
+|`table=DEPG_FILTER` |Flow must be in dEPG selection table
+|`reg2=2` |Must match on L2 context (NXM_NX_REG2)
+|`dl_dst=MAC` |Packet must match on destination MAC of the EP
+|============================================================
+
+The actions performed are:
+
+1.  Write dEPG ID corresponding to dMAC to register to allow matching on
+it during policy enforcement
+2.  Write expected outgoing port number to register. This can be a local
+or a tunnel port.
+3.  If outgoing port is a tunnel, also include an action to set the
+tunnel ID and tunnel destination to map the sEPG to the tunnel ID.
+4.  Proceed to policy enforcement
+
+Example flow for a local endpoint mapping:
+
+`` +
+`table=$DEPG_FILTER, reg2=$BD, dl_dst=$MAC,` +
+`actions=load:$DEPG->NXM_NX_REG3[],` +
+`        load:$OFPORT->NXM_NX_REG4[],` +
+`        goto_table:$ENFORCER_TABLE`
+
+Example flow for a remote endpoint mapping:
+
+`` +
+`table=$DEPG_FILTER, reg2=$BD, dl_dst=$MAC,` +
+`actions=load:$DEPG->NXM_NX_REG3[],` +
+`        load:$TUNNEL_PORT->NXM_NX_REG4[],` +
+`        move:NXM_NX_REG1[]->NXM_NX_TUN_ID[],` +
+`        load:$TUNNEL_DST->NXM_NX_TUN_IPV4_DST[],` +
+`        goto_table:$ENFORCER_TABLE`
+
+A flow hit indicates that both the sEPG and dEPG are known at this point
+at the packet can proceed to policy enforcement.
+
+A flow miss indicates that the dEPG is not known. If the network is in
+learning mode, generate a packet-in, otherwise drop the packet.
+
+[[destination-epg-selection-l3]]
+=== Destination EPG Selection (L3)
+
+Much like L2 flows in the dEPG selection table, L3 flows map known
+destination IP addresses to the corresponding dEPG and outgoing port
+number.
+
+Additionally, flow hits will result in a routing action performed.
+
+[cols=",",options="header",]
+|=======================================================================
+|Field |Description
+|`priority=15` |Must have higher priority than L2 but lower than ARP
+flows.
+
+|`table=DEPG_FILTER` |Flow must be in dEPG selection table
+
+|`reg5=2` |Must match on L3 context (NXM_NX_REG5)
+
+|`dl_dst=GW_MAC` |Packet must match MAC of gateway
+
+|`nw_dst=PREFIX` |Packet must match on a IP subnet
+|=======================================================================
+
+The actions performed are:
+
+1.  Write dEPG ID corresponding to destination subnet to register to
+allow matching on it during policy enforcement
+2.  Write expected outgoing port number to register. This can be a local
+or a tunnel port
+3.  If outgoing port is a tunnel, also include an action to set the
+tunnel ID and tunnel destination to map the sEPG to the tunnel ID.
+4.  Modify destination MAC to the nexthop. The nexthop can be the MAC of
+the EP or another router.
+5.  Set source MAC to MAC of local default gateway
+6.  Decrement TTL
+7.  Proceed to policy enforcement
+
+Example flow for a local endpoint over L3:
+
+`` +
+`table=DEPG_TABLE, reg5=$VRF, dl_dst=$ROUTER_MAC, ip, nw_dst=$PREFIX,` +
+`actions=load:$DEPG->NXM_NX_REG3[],` +
+`        load:$OFPORT->NXM_NX_REG4[],` +
+`        mod_dl_dst:$DST_EP_MAC,` +
+`        mod_dl_src:$OWN_ROUTER_MAC,` +
+`        dec_ttl,` +
+`        goto_table:$POLICY_ENFORCER`
+
+Example flow for a remote endpoint over L3:
+
+`` +
+`table=DEPG_TABLE, reg5=$VRF, dl_dst=$ROUTER_MAC, ip, nw_dst=$PREFIX,` +
+`actions=load:$DEPG->NXM_NX_REG3[],` +
+`        load:$TUNNEL_PORT->NXM_NX_REG4[],` +
+`        move:NXM_NX_REG1[]->NXM_NX_TUN_ID[],` +
+`        load:$TUNNEL_DST->NXM_NX_TUN_IPV4_DST[],` +
+`        mod_dl_dst:$NEXTHOP,` +
+`        mod_dl_src:$OWN_ROUTER_MAC,` +
+`        dec_ttl,` +
+`        goto_table:$POLICY_ENFORCER`
+
+[[policy-enforcement]]
+=== Policy Enforcement
+
+Given the sEPG, BD/VRF, and dEPG are known at this point, the policy is
+enforced in a separate flow table by matching on the sEPG and dEPG as
+found in the respective registers. Additional filters may be provided as
+specified by the policy.
+
+[cols=",",options="header",]
+|==================================================================
+|Field |Description
+|`table=POLICY_ENFORCER` |Flow must be in policy enforcement table.
+|`reg1=$SEPG` |Must match on sEPG of packet
+|`reg3=$DEPG` |Must match on dEPG of packet
+|==================================================================
+
+The policy may require to match on additional fields such as L3 ports,
+TCP flags, labels, conditions, etc.
+
+The actions performed on flow hit depend on the specified policy and are
+described in the next section.
+
+Example of a flow in the policy enforcement table:
+
+`` +
+`table=$POLICY_ENFORCER reg1=$SEPG, reg3=$DEPG, tcp_dst=DPORT/MASK,` +
+`actions=output:NXM_NX_REG4[]`
+
+A flow miss indicates that no policy has been specified or the policy
+has not been populated. Depending on whether the policy population is
+proactive or reactive, the action on flow miss is either drop or
+notification of the controller/agent to trigger policy resolution.
+
+[[policy-actions-packet-rewrite]]
+=== Policy Actions & Packet Rewrite
+
+The policy may specify multiple actions which are to be performed on
+matching policy classifiers. The following actions are supported:
+
+[[accept]]
+==== Accept
+
+Forward/route the packet as previously selected in the dEPG selection
+table. This translates to executing the queued up action set and
+forwarding the packet to the port number stored in `NXM_NX_REG4` which
+represents the L2 nexthop.
+
+Basic example flow to allow an sEPG talk to a dEPG:
+
+`` +
+`table=$POLICY_ENFORCER reg1=$SEPG, reg3=$DEPG,` +
+`actions=output:NXM_NX_REG4[]`
+
+[[drop]]
+==== Drop
+
+Disregard any previous forwarding or routing decision and drop the
+packet:
+
+`` +
+`table=$POLICY_ENFORCER reg1=$SEPG, reg3=$DEPG,` +
+`actions=clear_actions, drop`
+
+[[log]]
+==== Log
+
+The logging action is an extension to the drop action. It will send
+packet to the controller for logging purposes. The controller will then
+drop the packet.
+
+`` +
+`table=$POLICY_ENFORCER reg1=$SEPG, reg3=$DEPG,` +
+`actions=clear_actions, controller:[...]`
+
+[[set-qos]]
+==== Set QoS
+
+The *Set QoS* action allows to modify the QoS mark of a packet. This
+includes the DiffServ field as well as ECN information. Note that this
+action may only be applied to IP packets.
+
+This action is typically followed by an allow or redirect action.
+
+`` +
+`table=$POLICY_ENFORCER reg1=$SEPG, reg3=$DEPG,` +
+`actions=mod_nw_tos:TOS, mod_nw_ecn:ECN, ...`
+
+[[redirect-service-redirection]]
+==== Redirect / Service Redirection
+
+Service insertion or redirection can be defined as an action between
+EPGs in the policy. It may occur transparently, i.e. without changing
+the packet in any way, or non-transparently by explicitly redirecting
+the packet to the service node.
+
+[[non-transparent-service-insertion]]
+===== Non-transparent Service Insertion
+
+Non-transparent service insertion is used to redirect packets to a
+service such as a web proxy which requires the packet to be addressed to
+the service. The vSwitch forwarding behavior to achieve this is
+identical to a L2/L3 switching/routing action to any other EP.
+
+The specific action chain will depend on whether the service is located
+within the same BD or whether routing is required. The controller/agent
+is aware of the location of both EPs and will insert the required action
+set. The following is an example for a L2 non-transparent service
+redirection:
+
+`` +
+`table=$POLICY_ENFORCER reg1=$SEPG, reg3=$DEPG,` +
+`actions=mod_dl_dst:$MAC_OF_SERVICE,` +
+`        load:$TUNNEL_PORT->NXM_NX_REG4[],` +
+`        move:NXM_NX_REG1[]->NXM_NX_TUN_ID[],` +
+`        load:$TUNNEL_DST->NXM_NX_TUN_IPV4_DST[],` +
+`        action:output:NXM_NX_REG4[]`
+
+[[transparent-service-insertion]]
+===== Transparent Service Insertion
+
+Transparent service insertion is used to redirect packets to a service
+such as a firewall which does not require a packet to be specifically
+addressed to the service. The service will be applied to all packets on
+the virtual network. This requires that the service only sees packets to
+which the service should be applied.
+
+The required forwarding behavior is to encapsulate the packet with the
+appropriate VNID. There is no need to rewrite any of the L2 headers.
+
+`` +
+`table=$POLICY_ENFORCER reg1=$SEPG, reg3=$DEPG,` +
+`actions=load:$TUNNEL_PORT->NXM_NX_REG4[],` +
+`             move:$VNI_OF_SERVICE->NXM_NX_TUN_ID[],` +
+`             load:$TUNNEL_DST->NXM_NX_TUN_IPV4_DST[],` +
+`             output:$NXM_NX_REG4[]`
+
+The redirect action in the policy will specify the VNID and VTEP to be
+used.
+
+TBD: Does the pipeline always stop after a redirect action has been
+processed?
+
+[[mirror]]
+==== Mirror
+
+This action causes the packet to be cloned and forwarded to an
+additional port (port mirroring).
+
+TBD
+
+[[service-insertion]]
+== Service Insertion
+
+XXX TODO

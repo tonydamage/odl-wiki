@@ -1,0 +1,233 @@
+[[open-virtual-switch]]
+= Open Virtual Switch
+
+* http://mininet.org - virtual network, based on ubuntu, using
+openvswitch driver
+* http://openvswitch.org - driver for virtual openflow switch
+* *OFS* = openflow switch specification
+
+[[usage]]
+== Usage
+
+The easiest way to setup a virtual network of openflow switches is to
+run mininet virtual machine (based on ubuntu). When logged in the
+mininet VM various topologies of virtual network could be instantiated
+and also connected to controller.
+
+* login to mininet VM (user *mininet*, pwd *mininiet*)
+* start mininet
+
+`sudo mn --topo single,3  --controller 'remote,ip=``' --switch ovsk`
+
+* play with mininet
+
+`# print topology` +
+`net` +
+`# ping all hosts` +
+`pingall` +
+`# open xterm to host h1 (see topology)` +
+`xterm h1`
+
+[[versions-and-features]]
+== Versions and features
+
+Currently available there is VM of mininet-2.0.0, which contains
+openvswitch driver 1.4.3, fully supporting OFS-1.0.
+
+At http://openvswitch.org there is already version 1.10.0 released,
+providing experimental support of OFS-1.3.
+
+[[update-openvswitch-driver-to-version-1.10.0-howto]]
+== Update openvswitch driver to version 1.10.0 HOWTO
+
+If you have mininet-2.0.0 already running, please proceed to Stage 2.
+
+[[stage-1]]
+=== Stage 1
+
+* download mininet image 2.0.0
+(https://github.com/downloads/mininet/mininet/mininet-2.0.0-113012-amd64-ovf.zip)
+* the image is in vmware format I guess, but can by simply imported into
+virtualbox
+* start mininet-2.0.0, login as mininet, password mininet
+
+[[stage-2]]
+=== Stage 2
+
+* uninstall packages openvswitch-common and openvswitch-switch (there
+should be version 1.4.3 officially in ubuntu repo, so in case of
+emergency these can be always installed again)
+* download latest release of openvswitch:
+http://openvswitch.org/releases/openvswitch-1.10.0.tar.gz
+* there are install howtos, take a look at INSTALL.Debian
+* there are some new packages to be installed (apt-get install
+build-essential fakeroot)
+* run dpkg-checkbuilddeps to check, if all dependencies are installed
+* here comes the long step 4. from INSTALL.Debian
+* if everything compiled successfully, you should have these deb files
+in parent folder:
+
+`openvswitch-common_1.10.0-1_amd64.deb` +
+`openvswitch-controller_1.10.0-1_amd64.deb` +
+`openvswitch-datapath-dkms_1.10.0-1_all.deb` +
+`openvswitch-datapath-source_1.10.0-1_all.deb` +
+`openvswitch-dbg_1.10.0-1_amd64.deb` +
+`openvswitch-ipsec_1.10.0-1_amd64.deb` +
+`openvswitch-pki_1.10.0-1_all.deb` +
+`openvswitch-switch_1.10.0-1_amd64.deb` +
+`openvswitch-test_1.10.0-1_all.deb` +
+`ovsdbmonitor_1.10.0-1_all.deb` +
+`python-openvswitch_1.10.0-1_all.deb`
+
+* now install fresh openvswitch driver
+
+`dpkg -i openvswitch-common_1.10.0-1_amd64.deb` +
+`dpkg -i openvswitch-switch_1.10.0-1_amd64.deb`
+
+* now mininet should be using openvswitch 1.10.0, this can be simply
+tested by running ODL-controller and let mininet to connect to it.
+* to use OF-1.3 following parameter has to be passed to openvswitch
+startup command:
+
+`protocols=OpenFlow13`
+
+[[stage-3]]
+=== Stage 3
+
+I made following change to node.py file (mininet python class, be sure
+to modify the distributed file, not the one in
+/home/mininet/mininet/...) in order to control the protocol version
+using cmd parameter:
+
+---------------------------------------------------------------------------------------------------------------------------
+--- ../mininet/build/lib.linux-x86_64-2.7/mininet/node.py       2012-11-30 22:30:07.000000000 -0800
++++ /usr/local/lib/python2.7/dist-packages/mininet-2.0.0-py2.7.egg/mininet/node.py      2013-07-25 05:40:26.179978120 -0700
+@@ -901,6 +904,11 @@
+            failMode: controller loss behavior (secure|open)"""
+         Switch.__init__( self, name, **params )
+         self.failMode = failMode
++        protKey = 'protocols'
++        if self.params and protKey in self.params:
++            print 'have protocol params!'
++            self.opts += protKey + '=' + self.params[protKey]
++
+ 
+     @classmethod
+     def setup( cls ):
+@@ -955,8 +964,9 @@
+         # Annoyingly, --if-exists option seems not to work
+         self.cmd( 'ovs-vsctl del-br', self )
+         self.cmd( 'ovs-vsctl add-br', self )
++        print 'OVSswitch opts: ',self.opts
+         self.cmd( 'ovs-vsctl -- set Bridge', self,
+-                  'other_config:datapath-id=' + self.dpid )
++                  self.opts+' other_config:datapath-id=' + self.dpid )
+         self.cmd( 'ovs-vsctl set-fail-mode', self, self.failMode )
+         for intf in self.intfList():
+             if not intf.IP():
+---------------------------------------------------------------------------------------------------------------------------
+
+[[start-and-test-modified-mininet]]
+=== Start and test modified mininet
+
+The mn session can now be started:
+
+`sudo mn --topo single,3  --controller 'remote,ip=``' --switch ovsk``,protocols=OpenFlow``10`
+
+or
+
+`sudo mn --topo single,3  --controller 'remote,ip=``' --switch ovsk``,protocols=OpenFlow``13`
+
+To test the version of used protocol by switch "s1":
+
+`ovs-ofctl -O OpenFlow10 show s1` +
+`ovs-ofctl -O OpenFlow13 show s1`
+
+[[update-to-openvswitch-1.11.0]]
+= Update to openvswitch 1.11.0
+
+Although I have failed to build deb-packages on the same virtual
+machine, they can be build on other (up-to-date) debian based x86_64
+machine and then copied and installed here.
+
+* uninstall previous version of openvswitch (openvswitch-switch and
+openvswitch-common)
+* download *openvswitch-1.11.0* sources from
+http://openvswitch.org/releases/openvswitch-1.11.0.tar.gz
+* build deb-packages as instructed in INSTALL.Debian
+* install created openvswitch-1.11.0 package (openvswitch-switch and
+openvswitch-common)
+* no changes required in mininet-2.0.0 (protocols parameter is accepted
+by openvswitch-1.11.0 too), so changes done for previous update (1.10.0)
+are working also for 1.11.0
+
+[[updating-from-old-1.4.-openvswitch]]
+== Updating from old (1.4.*) openvswitch
+
+The original instuctions are valid, just use the link to updated version
+of openvswitch. All other steps are expected to work:
+
+* uninstall default version
+* download updated version of openvswitch-1.11.0
+* unpack + build deb-packages using INSTALL.Debian isntructions
+* install created openvswitch-1.11.0 package (openvswitch-switch and
+openvswitch-common)
+* change mininet-2.0.0 scripts according to diff mentioned in
+link:#Stage_3[ Stage 3]
+
+[[ubuntu-server-13.10-mininet-2.1.0-openvswitch-2.0.0]]
+= Ubuntu Server 13.10, Mininet 2.1.0 + Openvswitch 2.0.0
+
+* download Ubuntu server 13.10 from http://releases.ubuntu.com/saucy/
+and install it, and get git (sudo apt-get install git)
+* get mininet 2.1.0 source code from repository via (more detailed
+description is located at http://mininet.org/download/, section Option
+2)
+
+`git clone git://github.com/mininet/mininet` +
+`cd mininet` +
+`git checkout -b 2.1.0 2.1.0`
+
+* install it using
+
+`util/install.sh -nfv`
+
+* to test mininet installation you can check
+
+`sudo mn --version` +
+`sudo mn --test pingall`
+
+* reinstall openvswitch using guide at
+https://github.com/mininet/mininet/wiki/Installing-new-version-of-Open-vSwitch
+, but use version 2.0.0 instead of 1.10.0
+(http://openvswitch.org/releases/openvswitch-2.0.0.tar.gz)
+* modify source code of mininet node.py file in similar manner as is
+described in link:#Stage_3[ Stage 3],
+
+`--- /root/mininet/build/lib.linux-x86_64-2.7/mininet/node.py    2013-11-22 03:35:12.000000000 -0800` +
+`+++ /usr/local/lib/python2.7/dist-packages/mininet-2.1.0-py2.7.egg/mininet/node.py      2013-11-22 06:17:07.350574387 -0800` +
+`@@ -952,6 +952,10 @@` +
+`            datapath: userspace or kernel mode (kernel|user)"""` +
+`         Switch.__init__( self, name, **params )` +
+`         self.failMode = failMode` +
+`+       protKey = 'protocols'` +
+`+       if self.params and protKey in self.params:` +
+`+               print 'have protcol params!'` +
+`+               self.opts += protKey + '=' + self.params[protKey]` +
+`         self.datapath = datapath` +
+`  ` +
+`@@ -1027,8 +1031,9 @@` +
+`         if self.datapath == 'user':` +
+`             self.cmd( 'ovs-vsctl set bridge', self,'datapath_type=netdev' )` +
+`         int( self.dpid, 16 ) # DPID must be a hex string` +
+`+        print 'OVSswitch opts: ',self.opts` +
+`         self.cmd( 'ovs-vsctl -- set Bridge', self,` +
+`-                  'other_config:datapath-id=' + self.dpid )` +
+`+                  self.opts+' other_config:datapath-id=' + self.dpid)` +
+`         self.cmd( 'ovs-vsctl set-fail-mode', self, self.failMode )` +
+`         for intf in self.intfList():` +
+`             if not intf.IP():`
+
+* you can then try commands from link:#Start_and_test_modified_mininet[
+Start and test modified mininet]
+

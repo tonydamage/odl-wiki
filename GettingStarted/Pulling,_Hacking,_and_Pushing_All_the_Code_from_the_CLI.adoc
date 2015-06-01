@@ -1,0 +1,334 @@
+[[intro]]
+== Intro
+
+OpenDaylight has currently 12 projects, each with their own repo. This
+page tries to give you a quick start guide to pulling, hacking, and
+pushing the code from each of them.
+
+For a quick reference on some commonly used git commands, check out the
+link:GIT Cheat Sheet[GIT Cheat Sheet].
+
+[[make-sure-you-have-an-account]]
+== Make sure you have an account
+
+While you can pull code anonymously, if you want to push it (or edit the
+wiki) you will need to
+https://identity.opendaylight.org/carbon/user-registration/index.jsp?region=region1&item=user_registration_menu[get
+an account].
+
+[[gerrit-setup]]
+== Gerrit Setup
+
+Code reviews are enabled through Gerrit.
+OpenDaylight Controller:Gerrit Setup[Set up Gerrit] for use if you wish
+to use ssh. If you wish to use https,
+OpenDaylight Controller:Setting up HTTP in Gerrit[Set up Gerrit to use
+HTTPS].
+
+Note: You will need to perform the
+OpenDaylight Controller:Gerrit Setup[Gerrit Setup] before you can access
+git via ssh as described below.
+
+[[pull-code-via-git-cli]]
+== Pull code via git CLI
+
+Pull the code by cloning the controller repository.
+
+First, all the lines below use the $ODL_USERNAME environment variable,
+so your life will be *way* easier of you set it with:
+
+--------------------------------------------------------------------------
+export ODL_USERNAME=<username for the account you created at OpenDaylight>
+--------------------------------------------------------------------------
+
+Then you will want to check out the code from each of the repos for each
+project. You can, of course select any one of the projects if you are
+only looking for one.
+
+You have two choices for your method of engagement, you can use:
+
+1.  ssh on port 29418 (blocked by some firewalls)
+2.  https
+
+[[pull-code-via-ssh]]
+=== Pull code via ssh
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------
+for PROJECT in aaa affinity bgpcep controller defense4all dlux docs groupbasedpolicy integration l2switch \
+lispflowmapping odlparent opendove openflowjava openflowplugin opflex ovsdb packetcable reservation sdninterfaceapp sfc snbi snmp4sdn toolkit ttp vtn yangtools; \
+do git clone ssh://${ODL_USERNAME}@git.opendaylight.org:29418/${PROJECT}.git; \
+done
+------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+[[pull-code-with-https]]
+=== Pull code with https
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------
+for PROJECT in aaa affinity bgpcep controller defense4all dlux docs groupbasedpolicy integration l2switch \
+lispflowmapping odlparent opendove openflowjava openflowplugin opflex ovsdb packetcable reservation sdninterfaceapp sfc snbi snmp4sdn toolkit ttp vtn yangtools; \
+do git clone https://git.opendaylight.org/gerrit/p/${PROJECT}.git; \
+done
+------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+[[hack-the-code]]
+== Hack the Code
+
+[[build-the-code]]
+=== Build the code
+
+Note that the code is structured by project, and each project has its
+own subdirectory. You must explicitly enter each subdirectory and build
+in that directory to build that project. In the example below, we show
+how to build ALL of the projects, but you can just build say the base
+controller by entering the controller directory and building there.
+
+You are going to want to increase the memory available to maven, the
+settings on the Jenkins build server are:
+
+--------------------------------------------------
+export MAVEN_OPTS="-Xmx1024m -XX:MaxPermSize=256m"
+--------------------------------------------------
+
+Below is the top level build line for each project:
+
+-------------------------------------------
+(cd affinity;mvn clean install)
+(cd bgpcep;mvn clean install)
+(cd controller;mvn clean install)
+# Need a line for Defense4All
+(cd lispflowmapping;mvn clean install)
+# Need a line for OpenDove
+(cd openflowjava;mvn clean install)
+(cd openflowplugin;mvn clean install)
+(cd ovsdb/commons/parent;mvn clean install)
+(cd vtn;mvn clean install)
+(cd yangtools;mvn clean install)
+-------------------------------------------
+
+[[run-the-controller]]
+=== Run the controller
+
+-------------------------------------------------------------------------------------------------------------------------------------------------
+Note that the base below runs only the BASE controller project. It does not necessarily invoke other projects that might have been built as they 
+sometimes need special command line arguments to invoke. For example, the open flow 1.3 plugin requires a special command line argument 
+to invoke. Please refer to each project's wiki for information on this.
+
+cd controller/opendaylight/distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/
+./run.sh
+-------------------------------------------------------------------------------------------------------------------------------------------------
+
+And point your browser at http://localhost:8080/
+
+image:OpenDaylight - Login.jpg[OpenDaylight - Login.jpg,title="OpenDaylight - Login.jpg"]
+
+There is much much more complete documentation on running the controller
+in the OpenDaylight Controller:Installation[Installation Guide].
+
+[[pushing-your-changes]]
+== Pushing your changes
+
+[[pull-a-topic-branch]]
+=== Pull a topic branch
+
+Your life will be much much happier if you pull topic branch before you
+start hacking :) Not only does topic branch eliminate possible unrelated
+dependencies so that your patch will no longer be blocked by others'
+pending patches, but it would be also easier to filter a topic on
+Gerrit, e.g. "topic:featureA". The following command does:
+
+1.  switch to master branch.
+2.  pull remote branches to local.
+3.  rebase local master branch with remote to work on the latest code
+base.
+4.  checkout a new topic branch off master and start working on the
+topic branch.
+
+------------------------------------
+git checkout master
+git remote update
+git rebase origin/master
+git checkout -b <name of your topic>
+------------------------------------
+
+[[install-git-review]]
+=== Install git-review
+
+Git-review is a great tool to simplify the hassle of using several git
+commands to submit a patch for review. Refer to
+link:Git-review_Workflow[How to install and push codes with git-review]
+After initializing git-review, both commit-msg hook and a remote repo
+named gerrit will be created and a patch can be submitted to Gerrit with
+a single "git review" command.
+
+[[commit-the-code-via-git-cli]]
+=== Commit the code via git CLI
+
+Note: To be accepted, all code must come with a
+http://elinux.org/Developer_Certificate_Of_Origin[developer certificate
+of origin] as expressed by having a Signed-off-by. This means that you
+are asserting that you have made the change and you understand that the
+work was done as part of an open-source license.
+
+----------------------------------------------------------------------------
+Developer's Certificate of Origin 1.1
+
+        By making a contribution to this project, I certify that:
+
+        (a) The contribution was created in whole or in part by me and I
+            have the right to submit it under the open source license
+            indicated in the file; or
+
+        (b) The contribution is based upon previous work that, to the best
+            of my knowledge, is covered under an appropriate open source
+            license and I have the right under that license to submit that
+            work with modifications, whether created in whole or in part
+            by me, under the same open source license (unless I am
+            permitted to submit under a different license), as indicated
+            in the file; or
+
+        (c) The contribution was provided directly to me by some other
+            person who certified (a), (b) or (c) and I have not modified
+            it.
+
+        (d) I understand and agree that this project and the contribution
+            are public and that a record of the contribution (including all
+            personal information I submit with it, including my sign-off) is
+            maintained indefinitely and may be redistributed consistent with
+            this project or the open source license(s) involved.
+----------------------------------------------------------------------------
+
+Mechanically you do it this way
+
+--------------------
+git commit --signoff
+--------------------
+
+or in a shorter version:
+
+-------------
+git commit -s
+-------------
+
+You will be prompted for a commit message, and if you are fixing a
+bugzilla bug, you can add that to your commit message as well and it
+will get linked from the Gerrit:
+
+-------------------------------------------------------------------
+Fix for bug 2.
+
+Signed-off-by: Ed Warnicke <eaw@cisco.com>
+
+# Please enter the commit message for your changes. Lines starting
+# with '#' will be ignored, and an empty message aborts the commit.
+# On branch master
+# Changes to be committed:
+#   (use "git reset HEAD <file>..." to unstage)
+#
+#       modified:   README
+#
+-------------------------------------------------------------------
+
+If you wish to add the signoff to the commit message on your every
+commit without the need to specify -s or --signoff, add the following
+lines in the end of .git/hooks/commit-msg, after the line
+"add_ChangeId":
+
+`  SOB=$(git var GIT_AUTHOR_IDENT | sed -n 's/^`latexmath:[$.*>$]`.*$/Signed-off-by: \1/p')` +
+`  grep -qs "^$SOB" "$1" || echo "$SOB" >> "$1"`
+
+Make sure your credentials (name, email) are configured properly in git.
+They can be configured by adding the following settings:
+
+`  git config --global user.name "John Doe"` +
+`  git config --global user.email johndoe@example.com`
+
+[[pull-the-code-changes-via-git-cli]]
+=== Pull the code changes via git CLI
+
+Use the following commands to get the latest changes from the remote
+repository
+
+-------------------------------------------------------------------------------------------
+git checkout <name of the topic branch you want to work on>
+git remote update
+git rebase origin/master (or other branches than master: git rebase origin/stable/hydrogen)
+-------------------------------------------------------------------------------------------
+
+[[push-the-code-via-git-cli]]
+=== Push the code via git CLI
+
+Use git review to push your changes to Gerrit for review.
+
+----------
+git review
+----------
+
+You will get a message pointing you to your gerrit request like:
+
+-----------------------------------------------------
+remote: Resolving deltas: 100% (2/2)
+remote: Processing changes: new: 1, refs: 1, done    
+remote: 
+remote: New Changes:
+remote:   http://git.opendaylight.org/gerrit/64
+remote: 
+-----------------------------------------------------
+
+[[first-push]]
+=== First push
+
+Usually the project is cloned via anonymous access (https..) and before
+first push the *remote gerrit* definition should be fixed (example shows
+the *controller* project): Normally, "remote gerrit" will be set when
+initializing git-review by "git review -s" command, but if you get the
+error "We don't know where your gerrit is." do the following:
+
+--------------------------------------------------------------------------------
+git remote add gerrit ssh://<username>@git.opendaylight.org:29418/controller.git
+# Verify new remote URL
+git remote -v
+# gerrit  ssh://<username>@git.opendaylight.org:29418/controller.git (fetch)
+# gerrit  ssh://<username>@git.opendaylight.org:29418/controller.git (push)
+git review -s
+--------------------------------------------------------------------------------
+
+Another issue might be the *user email and name*. In case the local
+commit was made with incorrect configuration. Before the local commit
+can be pushed into gerrit, configuration and commit must be fixed:
+
+----------------------------------------------------------------------------
+# change user name/email in global git config
+git config --global user.name "Firstname Surname"
+git config --global user.email "your.email@mailserver.com" 
+
+# change user/email in local commit
+git commit --amend --author="Firstname Surname <your.email@mailserver.com>" 
+----------------------------------------------------------------------------
+
+[[seeing-your-change-in-gerrit]]
+=== Seeing your change in Gerrit
+
+Follow the link you got above to see your commit in Gerrit:
+
+image:Gerrit Code Review.jpg[Gerrit Code Review.jpg,title="Gerrit Code Review.jpg"]
+
+Note the Jenkins Controller User has verified your code, and at the
+bottom is a link to the Jenkins build.
+
+Once your code has been reviewed and submitted by a committer it will be
+merged into the authoritative repo, which would look like this:
+
+image:Gerrit Merged.jpg[Gerrit Merged.jpg,title="Gerrit Merged.jpg"]
+
+[[amending-your-commit]]
+=== Amending your Commit
+
+If you wish to 'amend' your commit and push a new PatchSet to your
+existing Gerrit, you can make your changes, add them, and run:
+
+------------------
+git commit --amend
+git review
+------------------
+
+GettingStarted:PushAndFix[ Push + fix scenario]

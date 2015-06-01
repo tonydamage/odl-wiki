@@ -1,0 +1,235 @@
+[[python-test-scripts]]
+= Python test-scripts
+
+[[prerequisite]]
+== Prerequisite
+
+* Linux based OS (these instructions cover debian 7 - wheezy)
+* Java 1.7+
+* python (v 2.6)
+* openvswitch (v 2.0.0)
+* mininet (v 2.1.0)
+* controller (supporting openflow 1.3)
+
+[[installation]]
+== Installation
+
+Install python tools (don't forget to build them with python2.6 not
+default python)
+
+* wget https://bitbucket.org/pypa/setuptools/raw/bootstrap/ez_setup.py
+* python2.6 ez_setup.py
+
+* wget https://raw.github.com/pypa/pip/master/contrib/get-pip.py
+* python2.6 get-pip.py
+
+See OpenDaylight_OpenFlow_Plugin::MininetFromScratch.
+
+[[wireshark]]
+=== Wireshark
+
+Install Wireshark
+
+* apt-get install wireshark
+* make yourself standard user again (CTRL^D)
+* sudo dpkg-reconfigure wireshark-common
+* sudo usermod -a -G wireshark $USER
+* sudo reboot
+
+Add openflow13 dissector to wireshark
+
+* mkdir /home/mininet/.wireshark/plugins/
+* copy file openflow.so to this directory //TODO add attachment
+
+[[controller]]
+=== Controller
+
+[[install-java-jdk-and-set-java_home]]
+==== Install Java JDK and set JAVA_HOME
+
+* apt-get install openjdk-7-jdk
+* export JAVA_HOME=/usr/lib/jvm/java-7-openjdk-amd64/jre/bin/java
+
+[[download-unzip-and-run-integration-build]]
+==== Download, unzip and run integration build
+
+* find latest integration/distribution/base build on
+http://nexus.opendaylight.org/content/repositories/opendaylight.snapshot/org/opendaylight/integration/distributions-base[nexus]
+* download it (using e.g. wget ) and unzip it (using e.g. unzip )
+* start controller:
+
+`cd opendaylight` +
+`./run.sh -of13`
+
+[[clone-openflowplugin-project]]
+==== Clone openflowplugin project
+
+`git clone `https://git.opendaylight.org/gerrit/p/openflowplugin.git[`https://git.opendaylight.org/gerrit/p/openflowplugin.git`]
+
+[[tests]]
+== Tests
+
+* locations: openflowplugin/test-scripts
+* content directory
+** xmls (switch configuration input in xml form)
+** openvswitch
+** *runnable files*:
+*** odl_crud_tests.py
+*** stress_test.py
+*** oper_data_test.py
+*** sw_restart_test.py
+
+[[general]]
+== General
+
+The tests are designed for running on Linux based machines with
+installed ovs and mininet python scripts. All scripts has to be started
+with same permission as mininet (*sudo*). Otherwise the scripts can not
+start mininet. All runnable scripts contains a *help* description for
+input parameters for a quick orientation. Basic parameters for all
+runnable scripts:
+
+* `--help` : dump help
+* `--mnport` : it is a controller port listener for the openflow switch
+communications. The parameter is used for configuration startup of the
+Mininet. A default value is *6653*.
+* `--odlhost` : it is a controller IP address. The parameter is used for
+configuration startup of the Mininet and for the rest address builders.
+A default value is *127.0.0.1* (localhost).
+* `--odlport` : it is a controller port listener for a http REST
+communication. The parameter is used for the rest address builders.
+
+[[odl-test-odl_crud_tests.py]]
+== ODL Test (odl_crud_tests.py)
+
+The test scripts are designed like CRUD (Create Read Update Delete)
+End-to-End black-box test suite for testing the switch configuration
+inputs/outputs via RESTconf. (It could work with mininet [opf13] by
+CPqD,OVS only.)
+
+All inputs are readed from xml files
+
+* file prefix f*.xml -> Flow ;
+* file prefix g*.xml -> Group ;
+* file prefix m*.xml -> Meter ;
+
+Note: _The Groups and the Meters are supported by CPqD only yet._
+
+The test are using:
+
+* RESTfull (GET, PUT, POST (create data only), DELETE)
+* RESTconf POST sal-services
+
+The test life cycle:
+
+* read input and put in to controller via REST (_PUT | POST | POST
+sal-add_)
+* get stored data via REST from config DataStore and compare input vs
+output (_GET_)
+* get stored data via REST from operational DataStore and compare input
+vs output (_GET_)
+* modify input and the update put in to controller via REST (_PUT | POST
+sal-update_)
+* delete input via REST (_DELETE | POST sal-remove_)
+* validate the delete process in config DS and operational DS (_GET_)
+
+Parameters:
+
+* `--odlhost` : the odl controller host (default value is 127.0.0.1)
+* `--odlport` : the odl RESTconf listening port (default value is 8080)
+* `--loglev` : the logging level definition (default value is DEBUG)
+_debug level contains request/response payload_
+* `--mininet` : OpenVSwitch or CPqD (default OVS)
+* `--fxmls` : the number specifies a Flow test xml file from xmls
+directory (pattern: f\{nr}.xml) (e.g. 1,3,34). This parameter has no
+default value. The script is testing all f_.xml files from xmls
+directory without --fxmls parameter. 0 means no test. The parameter is
+relevant for (OVS and CPqD)
+* `--mxmls` : the number specifies a Meter test xml file from xmls
+directory (pattern: m\{nr}.xml) (e.g. 1,3). This parameter has no
+default value. The script is testing all m_.xml files from xmls
+directory without --mxmls parameter. 0 means no test. The parameter is
+relevant for (CPqD only)
+* `--gmls` : the number specifies a Group test xml file from xmls
+directory (pattern: g\{nr}.xml) (e.g. 1,3). This parameter has no
+default value. The script is testing all g_.xml files from xmls
+directory without --gxmls parameter. 0 means no test. The parameter is
+relevant for (CPqD only)
+* `--confresp` : (configuration response) - define a delay to the
+Configruation Data Store (default = 0 sec.) Increase this value is
+important for a weaker controller machine
+* `--operresp` : (operation response) - define a delay to the Operation
+Data Store (defalut = 3 sec.) Increase this value is important for a
+weaker controller machine or a weaker network
+* `--coloring` : switcher for enable/disable coloring logged output
+
+Node: _Script has a file and the consolle logging output handlers (file
+crud_test.log)_
+
+_cmd example:_
+
+`python odl_crud_tests.py --mininet 2 --fxmls 1 --gxmls 0 --mxmls 3 --loglev 2`
+
+_cmd means:_ script expects ODL Controller RESTconf listener in
+127.0.0.1:8080, script expects Mininet by CPqD (gxmls and mxmls params
+are not ignored) and script create the tests for f1.xml and m3.xml and
+script shows only INFO and ERROR logging messages which are colorized.
+
+*Attention* (27-05-2014): _The device Errors listener are not supported
+yet (because is not finished), so we're recommended to use a wireshark
+tool for an investigation of an unexpected behavior_
+
+[[stress-test-stress_test.py]]
+== Stress Test (stress_test.py)
+
+The test is simulating multiple connections for the repeatable
+END-TO-END add flow test scenario. The flow pattern is same (look in to
+openvswitch.flow_tools.py). The script is changing a flow_id value only.
+The test life cycle:
+
+* initialize mininet and thread pool
+* the incremental add flow's group (in every thread from thread pool)
+* check nr. of flows (validate numbers of flows with expected calculated
+values and make report)
+* get all flows from switch directly by command line
+* get all flows from configuration DataStore
+* get all flows from operational DataStrore
+* incremental delete flow's groups (in every thread from thread pool)
+* final report
+
+Parameters:
+
+* `--threads` : number of threads which should be used for multiple
+connection simulation in the thread pool. The default value is 50
+* `--flows` : number of flows which should be used for add connection
+samples
+
+[[operational-data-test-oper_data_test.py]]
+== Operational Data Test (oper_data_test.py)
+
+The test checks controller's operational store. The Flow addition action
+and deletion action from Data Store. When flow is added via REST, it is
+added to config store and then pushed to switch. When it's successfully
+pushed to switch, it is also moved to operational store. Same goes with
+deletion. You can specify number of flows added by parameter
+
+* `--flows` : number of the flows which are add to switch. The default
+value is 100
+
+[[switch-restart-sw_restart_test.py]]
+== Switch restart (sw_restart_test.py)
+
+The test for a flow addition to switch after the switch has been
+restarted. After switch is restarted, it should get flow configuration
+from controller operational datastore. Speed by which is configuration
+pushed to restarted switch may vary so you can specifiy wait time, and
+number of retries by wait time, and number of retries by
+
+* `sw_restart_test.py --wait WAIT_TIME` (default is 30)
+* `sw_restart_test.py --retry NO_RETRIES` (default is 1)
+
+You can also specify that flows are added by xmls from /xmls folder. If
+you don't specify this parameter, default xml template will be used
+
+* `sw_restart_test.py --xmls XMLS` (default is generic template)
+

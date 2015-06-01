@@ -1,0 +1,253 @@
+__TOC__
+
+[[overview]]
+= Overview
+
+This wiki page is intended to walk users through our ping 2.0 example at
+a high level, which illustrates how to:
+
+* Create a list of items
+* Create a single RPC implementation, which takes the ID of a list item
+to perform an action on it.
+* Create new instances of Opendaylight nodes
+(Opendaylight-Inventory:Nodes:Node)
+* Augment the Opendaylight nodes that are created with additional
+attributes and meta data
+* Interactions with read/writing to config / operational data store via
+code
+* Listening to and reacting to changes in data in the data store (i.e.
+listening for nodes to be created)
+* Mounting RPC calls onto a single, specific node.
+* Mount a Data Reader onto a single, specific node (to intercept and
+handle read requests instead of sending the read request to a data
+store).
+
+*Through out these examples we will reference the example code
+available. The example code has a large number of comments embedded
+inline which help to explain what is required and how to use it.*
+Additionally we will be glossing over some of the pom requirements for
+building yang models etc, as well as the config sub system, both of
+which we are described in the
+OpenDaylight_Controller:MD-SAL:Toaster_Step-By-Step[Toaster
+Step-By-Step].
+
+[[downloading-the-ping-2.0-source]]
+= Downloading the Ping 2.0 Source
+
+Presently the Ping 2.0 source is not in master yet. You can find it on
+this gerrit: https://git.opendaylight.org/gerrit/#/c/7249/
+
+Once the source is downloaded, copy the
+src/main/resources/configuration/initial/06-icmpdiscovery.xml to the
+same directory under your running distribution. Copy the .jar file to
+the plugin directory. Restart the controller.
+
+`$ cp opendaylight/md-sal/samples/pingDiscovery/src/main/resources/configuration/initial/06-icmpdiscovery.xml opendaylight/distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/configuration/initial/` +
+`$ cp opendaylight/md-sal/samples/pingDiscovery/target/sample-pingDiscovery-1.1-SNAPSHOT.jar opendaylight/distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/plugins/org.opendaylight.controller.samples.sample-pingDiscovery-1.1-SNAPSHOT`
+
+[[architecture]]
+= Architecture
+
+There are two major parts to our system:
+
+* Discovery of devices by ICMP (ping)
+
+:* Using the IP addresses to a device, which are provided by the user
+via an RPC call, we will check to see if the IPs are contactable. For
+each contactable device, we will create an Opendaylight-Inventory node
+to represent that device. Additionally, we will augment the node with an
+attribute that will store the IP address.
+
+* Modeling, and Mounting of capabilities to discovered devices
+
+:* When a device is created, we will mount an additional module onto the
+node to add additional capabilities to that specific device.
+
+[TODO: Embed image]
+
+[[getting-started]]
+= Getting Started
+
+The best way to learn what is happening is to review the code and the
+embedded comments (we tried to add more comments than we needed to
+really make things clear). Start with the
+`IcmpDiscoveryProviderModule.java` class and follow the logic out from
+there.
+
+[[deploying-the-example]]
+== Deploying the Example
+
+To deploy the example, you should run a maven build, and then copy the
+target jar into the distribution direction (see toaster example for
+details on build, run directory etc).
+
+[[to-start-a-discovery]]
+== To Start a Discovery
+
+Perform the following RESTCONF call:
+
+---------------------------------------------------------------------------
+     URL: http://localhost:8080/restconf/operations/icmp-discovery:discover
+     METHOD: POST
+     HEADER: Content-Type: application/json
+     BODY:
+      {
+         "input": {
+                id: "discProf1",
+                ip-list: ["192.168.1.1", "192.168.1.2"],
+                timeout-seconds: "6"
+         }
+     }
+---------------------------------------------------------------------------
+
+example of above using curl:
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+curl -v -i -H "Content-Type: application/json" -X POST -d '{ "input" : { id: "discProf1", ip-list: ["192.168.1.1", "192.168.1.2"], timeout-seconds: "6" } }' http://localhost:8080/restconf/operations/icmp-discovery:discover
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+This will create a discovery profile with ID "discProf1", and will
+immediately attempt to ping the multiple IP addresses. +
+ +
+:_Note: Any delay noticed is due to the rather inefficient single
+threaded "ping" logic, and is not representative of delays in MD-SAL_ +
+ +
+At this point if you would like to restart the same discovery profile a
+second time, you simply have to send the discovery request with just the
+"ID" of the profile specified. If you provide new IP addresses, the new
+ones will be merged into the existing addresses. All of this logic is
+managed by the `IcmpDiscoveryServiceImpl` and `IcmpProfileManagerImpl`
+classes. The IcmpDiscoveryServiceImpl receives the initial notification
+and calls into the profile manager to do most of the complex work.
+
+[[creating-devices]]
+== Creating Devices
+
+When a device responds to an ICMP ping in the discover code, it calls
+into the DeviceManager which creates an OpendaylightInventory:Nodes:Node
+in the datastore. In addition to creating basic node, we also augment
+the attributes (leafs) on the node to add one important one that we need
+for future communications with the device - IPAddress. This augmentation
+is defined in the ip_addressable_device.yang file, specifically this
+section: `
+     augment /inv:nodes/inv:node {
+  
+        leaf ipaddress {
+           type inet:ip-address;
+           config false;
+        }
+    }
+` You can see from this code snippet, that use the keyword augment to
+identify the location in the yang datamodel tree where we want to
+augment, and then add any additional leafs, lists or child containers
+that we want. Now that your device has been created, you can use the
+following restconf call to view the node, along with the augmented IP
+address:
+
+`
+  URL: http://localhost:8080/restconf/config/opendaylight-inventory:nodes
+  METHOD: GET
+`
+
+You should see a node created named 'ping_' where is the IP that
+returned successfully.
+
+[TODO: Input augmentation image]
+
+[[listening-for-nodes-to-be-created]]
+== Listening for Nodes to be Created
+
+We leveraged the `DataChangeListener` interface and registered our
+`DeviceMountHandlerImpl` as a listener for changes to our augmented
+Nodes:Node. This way we will get notified anytime a change is made to
+the IP address on a node. In our case, when we detect that a node is
+created we go ahead and mount the dependent RPCs and DataReaders onto
+the newly created node. Using this method, we could actually place this
+DataChangeListener in a completely different project allowing for a
+decoupled design.
+
+[[mounting-an-rpc-call]]
+== Mounting an RPC Call
+
+RPC calls are mounted onto a path in the tree. In our case, we are
+mounting the RPC call onto a specific node, namely
+`http://localhost:8080/restconf/operations/opendaylight-inventory:nodes/node/ping_192.168.1.1/yang-ext:mount/icmpdata:sendPingNow`.
+In this case, we are mounting our implementation onto the node
+'ping_192.168.1.1'. This is all done via the `DeviceMountHandlerImpl`.
+
+Now, in our case, we want every node, which has the IP_Addressable
+augmentation, and there for we register a *new* PingableDeviceHandler
+(which extends RPCImplementation) for each instance or node created.
+However, there is nothing preventing us from reading some attribute from
+the node, which we could then use to dynamically register different
+intelligence on that node depending on what it supported for a
+southbound protocol. For example, perhaps a node only supports SNMP - we
+could then register an SNMP "ping" rpc implementation instead of an ICMP
+ping implementation. +
+ +
+To actually perform the mounting, you need to get ahold of the
+MountProvisionService, which is done by registering a "Provider" with
+Dom Registery. The Dom Registry dependency is injected using the
+configuration sub-system (see toast step-by-step for details on the
+config sub-system). The icmp-discovery-provider.yang defines the
+injected services in our case, and the 06-icmp-discovery.xml file in the
+configuration/initial of the deployed directory is what sets up the
+services in the system. +
+ +
+Once you have the MountProvisionService, you first create a mount point
+using, and then add in the supported RPC implementations. Check out the
+`DeviceMountHandlerImpl` for the specific details and method calls. +
+ +
+The last step is to create a java class which implements the
+`RpcImplementation` interface. This interface simply has a method
+"invokeRpc" on it which is called anytime anyone invokes the RPC. Check
+out the `PingableDeviceHandler` for details.
+
+To try out this RPC, perform this RESTCONF call: `
+   URL: http://localhost:8080/restconf/operations/opendaylight-inventory:nodes/node/ping_192.168.1.1/yang-ext:mount/icmpdata:sendPingNow
+   METHOD: POST
+`
+
+You should see returned the round trip time, in MS, for the ping to
+occur, or -1 if the device is not reachable.
+
+[[mounting-a-datareader]]
+== Mounting a DataReader
+
+In addition to mounting singleton RPC calls, you may also want to mount
+a module (or attributes). Specifically, you may want to allow the user
+to request a read via rest conf, and have that read get routed to the
+real device you are modeling, instead of having that read handled via
+the controller. Another possibility is that you want to intercept that
+read and perform some translation or other function in the controller.
+
+In either case, to perform this task, we mount a `DataReader` object
+onto our mountpoint in much the same way that we mounted an RPC
+implementation, except we use the `registerConfigurationReader` and
+`registerOperationalReader` methods on the mount instance to mount the
+data reader for both the operation and configuration data store.
+
+::
+  _Note: You can have different objects, or the same object handling the
+  read for config and operational data. It depends on your model for
+  performing the reads._
+
+To test out reading, you can perform this RESTCONF call: `
+    URL: http://localhost:8080/restconf/operational/opendaylight-inventory:nodes/node/ping_192.168.1.1/yang-ext:mount/icmpdata:icmpdata
+    METHOD: GET
+` In our example we only supported the operational data store, but
+supporting the config data store is done in the same way. Additionally,
+in our example when the read for the isAvailable attribute comes in, we
+intercept that read and calculate it on the fly by performing a real
+live read to the device. You can see this example by checking out the
+`PingableDeviceHandler` class.
+
+[[autocloseable]]
+== AutoCloseable
+
+You will notice that there are a lot of closeables getting based around.
+Every registration method with MD-SAL returns an autocloseable object.
+When close is called, the logic unregisters from MD-SAL and will no
+longer receive notifications. So make sure that you store all of the
+registration objects so you can unregister them correctly when the
+bundle is shutting down.

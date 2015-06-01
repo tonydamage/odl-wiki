@@ -1,0 +1,781 @@
+[[developing-yang-applications-in-java-using-opendaylight]]
+= Developing YANG applications in Java Using OpenDaylight
+
+[[introduction]]
+== Introduction
+
+This purpose of this tutorial is to provide a quick jump start for
+developing YANG applications based on Java and using OpenDaylight
+YangTools, the MD-SAL and the Restconf infrastructure.
+
+We will explore the application generator, which sets up your
+application development environment for use with OpenDaylight and
+generates a skeleton application that consists of:
+
+* *A YANG model* - that defines a *task* service, which provides an RPC
+to enter a new task entry (the *saveEntry* RPC) into the service and an
+operational data that lists all saved task entries. The *task* service's
+operational data is grafted into OpeDaylight's Operational Data Tree
+* Two *Java applications*:
+** *A Provider* - An application that implements the that task service;
+it provides the implentation for the the *saveEntry* RPC builds the task
+services operational data in ODL's Operational Data Tree. Note that out
+of the box the task service provider *does not store* operational data
+in Operational Data Tree - we will build that functionality in course of
+this tutorial.
+** *A Consumer* - An application that uses the generated Java Binding
+classes to invoke the *saveEntry* RPC.
+* A *Web application* that uses Restconf to put new entries into the
+*task* service (via the *saveEntry* RPC ) and read the task service's
+operational data.
+
+[[prerequisities]]
+== Prerequisities
+
+* Java 7 +
+* Maven 3.0+ +
+* Eclipse
+
+[[step-by-step-tutorial]]
+== Step-by-Step Tutorial
+
+[[generating-the-application-skeleton]]
+=== 1. Generating the Application Skeleton
+
+Run the following commands to start the generation of the application
+skeleton:
+
+-----------------------------------------------------------------------------------------------------------
+git clone https://git.opendaylight.org/gerrit/p/toolkit.git && cd toolkit && mvn clean install -D skipTests
+-----------------------------------------------------------------------------------------------------------
+
+This will compile the extensions for maven that will be used to generate
+the base applications.
+
+Next, go to the directory where you want your application code to live,
+and run:
+
+-----------------------------------------------------------------------------------------------------------
+mvn archetype:generate -DarchetypeGroupId=org.opendaylight.toolkit  -DarchetypeArtifactId=md-sal-app-simple
+-----------------------------------------------------------------------------------------------------------
+
+This command is longer, but will download all the necessary dependencies
+and bootstrap your OpenDaylight development environment.
+
+The command will ask a few questions about a few properties in your
+application:
+
+1.  *groupId* - the group ID for your application; usually it is the
+reverse DNS for your app, eg. *com.example.yangapp* +
+2.  *artifactId* - the name of your application component; usually it is
+separated with dashes and must be unique within the groupId. Let's use
+*yang-demo-app* for artifactId. This is also the name of the folder in
+which your application code will reside. +
+3.  *version* - the version of your application. the '-SNAPSHOT' suffix
+means a development version. Press enter to use the default version. +
+4.  *package* - the package name which will be used for generated
+sources. Press enter to use the default. +
+5.  For all additional details, press enter to continue with defaults.
+
+The archetype will generate the initial structure required to generate
+the project.
+
+Next, go into the *generate* directory which is inside the folder named
+after your artifacId, and run *mvn clean install -Dgen* there, to finish
+the code generation:
+
+-------------------------
+cd yang-demo-app/generate
+mvn clean install -Dgen
+-------------------------
+
+This will generate the following additional sources:
+
+* *yang-demo-app/model* - YANG Model, project is configured to
+generate +
+ Java sources describing data structures from YANG models located in +
+ yang-demo-app/model/src/main/yang. +
+* *yang-demo-app/provider* - Component responsible for implementing RPC
+in model, +
+and exporting operational state of component using MD-SAL. +
+* *yang-demo-app/consumer* - Sample app which uses MD-SAL to invoke
+RPCs +
+* *yang-demo-app/web* - Sample web app which uses RESTCONF to invoke
+RPCs +
+ described in YANG Model and retrieving operational state.
+
+After that you may delete whole generate folder.
+
+-----------
+cd ..
+rm generate
+-----------
+
+[[compiling-your-application-from-the-command-line]]
+=== 2. Compiling your Application from the Command Line
+
+In order to compile your skeleton application, you need to go to the
+root folder of your project (*yang-demo-app*) and run the following
+maven command:
+
+-----------------
+mvn clean install
+-----------------
+
+This will parse the YANG model, generate all sources from YANG files and
+compile the initial sample code for you. It will also prepare your
+application project for import into Eclipse (see the next step).
+
+[[importing-the-application-project-into-eclipse]]
+=== 3. Importing the Application Project into Eclipse
+
+1.  Start Eclipse +
+2.  Go to File->Import +
+3.  Select General->Existing Maven Projects +
+4.  Click Browse and select directory with sources of your app +
+5.  Eclipse will scan folder and provide you with list of projects +
+6.  Click Finish
+
+[[exploring-the-yang-to-java-mapping]]
+=== 4. Exploring the YANG to Java Mapping
+
+The model that defines the RPC and the data tree is present in
+
+--------------------------------------------
+yang-demo-app/model/src/main/yang/task.yang 
+--------------------------------------------
+
+The OpenDaylight YANG Tools will parse this YANG file and generate
+various Java classes that represent data structures and RPCs defined in
+the YANG model.
+
+For example, the RPC statement *saveEntry* in the YANG model
+
+-----------------------------------------------------------------------
+rpc saveEntry {
+    description &quot; Method to add a new entry into datastore.&quot;;
+    input {
+    ...
+-----------------------------------------------------------------------
+
+is mapped onto the following Java method call in the *TaskService*
+interface:
+
+------------------------------------------------------------------------------
+/**
+   Method to add a new entry into datastore.
+**/
+Future&lt;RpcResult&lt;java.lang.Void&gt;&gt; saveEntry(SaveEntryInput input);
+------------------------------------------------------------------------------
+
+A call to the *saveEntry* Java method represents an invocation of the
+Yang *saveEntry* RPC.
+
+The YANG *input* statement (i.e. the payload of the RPC) is mapped onto
+the *SaveEntryInput* interface. The tools also generate the
+*SaveEntryInputBuilder* and *SaveEntryInputImpl* helper classes, which
+can be used to create or parse the input of the *saveEntry* RPC.
+*SaveEntryInputImpl* is the implementation of the *SaveEntryInput*
+interface, *SaveEntryInputBuilder* is to create instances of
+*SaveEntryInputImpl*.
+
+As a rule of thumb, YANG Tools generate an Interface/Builder pair for
+each container, list, case and augmentation statement in the YANG
+file(s) defining YANG-modeled payload.
+
+For following data tree statements
+
+------------------------------------------------------------------------------
+container task {
+      description
+        &quot;Top-level container for all application database objects.&quot;;
+      list entry {
+------------------------------------------------------------------------------
+
+YANGTools generated the Java interfaces *Task* and *Entry* for the
+container *task* and list *entry*. Builders for the data tree were also
+generated.
+
+The complete specification of YANG-to-Java mapping can be found here:
+YANG_Tools:YANG_to_Java_Mapping[ YANG_Tools:YANG_to_Java_Mapping]
+
+[[implementing-the-provider]]
+=== 5. Implementing the Provider
+
+The implementation of our provider is in *TaskProvider.java* (if you
+named your app yang-demo-app, the file is in the app
+yang-demo-app-provider project). This class implements the generated
+*TaskService* interface. To provide the RPC service, the *saveEntry*
+method must be provided. We will explore the RPC iservice mplementation
+later in the tutorial; let's first explore how to write data into the
+Operational Data Tree in the MD-SAL Data Store.
+
+[[writing-data-to-the-operational-data-tree]]
+==== 5.1. Writing Data to the Operational Data Tree
+
+[[constructing-data]]
+===== 5.1.1 Constructing Data
+
+In this example, when the Provider is first started, we want it to write
+the first entry into the top level container task in the operational
+data tree. This will basically provide some test data for Restconf
+clients right when the app is started, without having to enter data via
+RPC.
+
+For that we will create an entry in the task list maintained in the
+modify the TaskProvider implementation. We want to do this at startup so
+we will modify the *setDataService* method in *TaskProvider.java*, which
+is called only once when the app gets access to the data store service
+(basically, when MD-SAL tells the app that "the data store is ready to
+use").
+
+First, we are going to construct the entry in the Task Service, which
+will be:
+
+`
+      // Construct the builder of item of entry list
+      EntryBuilder entryBuilder = new EntryBuilder();
+      // Set the key of list item to hello-ietf
+      entryBuilder.setEntryId(new EntryId("hello-ietf"));
+      // Set the title leaf to Hello IETF: Java
+      entryBuilder.setTitle("Hello IETF: Java");
+      // Set the decription of entry
+      entryBuilder.setDesc("Entry written from Java code.");
+      // We build our first entry
+      Entry firstEntry = entryBuilder.build();
+`
+
+Now we have our first entry . The yang model specifies that the entry is
+encapsulated by in the container *task*. So lets construct the
+container:
+
+----------------------------------------------------------------------------------------
+      // Construct builder for the task container
+      TaskBuilder taskBuilder = new TaskBuilder();
+      // We create the list of entries
+      List<Entry> entryList = Collections.singletonList(firstEntry);
+      // Sets entry list in task builder to the one that we created in the previous step
+      taskBuilder.setEntry(entryList);
+      // We build the task container
+      Task task = taskBuilder.build();
+----------------------------------------------------------------------------------------
+
+We built the task container, which contains our first entry, using
+classes generated by YANG Tools. This object is equivalent to the
+following XML:
+
+---------------------------------------------------------
+&lt;task&gt;
+  &lt;entry&gt;
+    &lt;entry-id&gt;hello-ietf&lt;/entry-id&gt;
+    &lt;title&gt;Hello IETF from Java&lt;/title&gt;
+    &lt;desc&gt;Entry written from java code&lt;/desc&gt;
+  &lt;/entry&gt;
+&lt;/task&gt;
+---------------------------------------------------------
+
+The next step is to write the data we just created (entry wrapped in a
+container) to the Operational Data Tree in the MD-SAL Data Store.
+
+[[writing-data-to-the-operational-data-tree-1]]
+===== 5.1.2 Writing Data to the Operational Data Tree
+
+In order to write data to the MD-SAL Data Store (from where it can be
+read by other components and applications, such as Restconf) we need to
+allocate a transaction, write the data to the data tree and commit the
+transaction.
+
+A transaction is allocated by invoking one of the *new(Transaction
+Type)Transaction()* methods on a *DataBroker* instance. The application
+skeleton generated from the archetype already implements access to a
+Data Broker; we will use it to allocate a new WriteOnlyTransaction. We
+are using the WriteOnlyTransaction because we will only be writing data.
+
+-----------------------------------------------------------------------
+      // Allocates our first write only transaction
+      WriteTransaction firstTx = dataService.newWriteOnlyTransaction();
+-----------------------------------------------------------------------
+
+All data operations are done inside a transaction and always take at
+least two arguments: the type of the logical data store type and the
+instance identifier that identifies the location in data tree that the
+data operation is manipulating or reading.
+
+Classes generated from a YANG model could be used to construct an
+instance identifier (think of instance identifier as a REST/Restconf
+URI) in a type-safe way. Yang Tools will will issue a compile time error
+if your path is incorrect according to its specification in the YANG
+model.
+
+Since we are going to write our top container task, the path is
+relatively simple.
+
+----------------------------------------------------------------------------
+      // We create the Instance Identifier path to the task container
+      // This is equivalent to the restconf path '/task:task'
+      InstanceIdentifier<Task> path = InstanceIdentifier.create(Task.class);
+----------------------------------------------------------------------------
+
+Let's do the actual write of data; we will do a PUT operation for the
+task container.
+
+-----------------------------------------------------------------------
+      // We put top container into OPERATIONAL store on path /task:task
+      firstTx.put(LogicalDatastoreType.OPERATIONAL, path, task);
+-----------------------------------------------------------------------
+
+The call specified the *OPERATIONAL* data store, and used the path and
+task objects created earlier in the tutorial.
+
+The last step to write the data is to commit the transaction. Your data
+is not visible to others until you commit transaction and that
+transaction is processed by the data store.
+
+-----------------------------------------------------------
+      // We submit transaction to be committed to datastore
+      firstTx.commit();
+-----------------------------------------------------------
+
+[[summary]]
+===== 5.1.3 Summary
+
+We modified method body setDataService for learning purposes to write
+initial Hello IETF entry into operational data store.
+
+Resulting method body should be:
+
+----------------------------------------------------------------------------
+    public void setDataService(DataBroker dataService) {
+      this.dataService = dataService;
+
+      // Construct builder of item of entry list
+      EntryBuilder entryBuilder = new EntryBuilder();
+      // Set key of list item to  hello-ietf
+      entryBuilder.setEntryId(new EntryId("hello-ietf"));
+      // Set title leaf to Hello IETF: Java
+      entryBuilder.setTitle("Hello IETF: Java");
+      // Set decription of entry
+      entryBuilder.setDesc("Entry written from Java code.");
+      
+      // We build our first entry
+      Entry firstEntry = entryBuilder.build();
+
+      // Construct builder for task container
+      TaskBuilder taskBuilder = new TaskBuilder();
+      // We create list of entries
+      List<Entry> entryList = Collections.singletonList(firstEntry);
+      // Sets entry list in task builder to one, we previously created
+      taskBuilder.setEntry(entryList);
+      // We build task container
+      Task task = taskBuilder.build();
+
+      // Allocates our first write only transaction
+      WriteTransaction firstTx = dataService.newWriteOnlyTransaction();
+
+      // We create Instance Identifier path to task container
+      // This is equivalent of restconf path /task:task
+      InstanceIdentifier<Task> path = InstanceIdentifier.create(Task.class);
+      
+      // We put top container into OPERATIONAL store on path /task:task
+      firstTx.put(LogicalDatastoreType.OPERATIONAL, path, task);
+      // We submit transaction to be commited to datastore
+      firstTx.commit();
+    }
+----------------------------------------------------------------------------
+
+[[implementation-of-the-rpc-saveentry]]
+==== 5.2 Implementation of the RPC saveEntry
+
+Notice that our generated skeleton for TaskProvider is s implementing
+the *TaskService* interface which requires it to implement the
+_'saveEntry_ method'. This method is actually the implementation of
+saveEntry RPC. User supplied input will be available via provided
+instance of *SaveEntryInput*.
+
+This method will be invoked if someone invokes the *saveEntry* RPC using
+Restconf or when the method _'saveEntry_ is invoked f,rom a Java client.
+
+----------------------------------------------------------------------------
+@Override
+public Future&lt;RpcResult&lt;Void&gt;&gt; saveEntry(SaveEntryInput input) {
+    log.debug(&quot;Saving the entry&quot;);
+    if(input == null || input.getEntryId() == null) {
+    ...
+----------------------------------------------------------------------------
+
+The generated skeleton of the application contains a base implementation
+of the *saveEntry* method. The generated method translates
+*SaveEntryInput* into an Entry object and creates the *SaveEntry*
+task,which is scheduled to be executed asynchronously using an executor;
+The implementation of the *SaveEntry* task provided in the skeleton does
+not write data data into operational data tree.
+
+We are going to modify the *SaveEntry* task to write data into
+operational data tree, so the provider's operational data can be
+accessed by clients (data consumers) by reading data tree using Java
+APIs and Restconf.
+
+[[registering-the-rpc-implementation]]
+===== 5.1 Registering the RPC Implementation
+
+To be exposed the RPC implementation to Restconf or other Java
+consumers, the implementations must be registered with MD-SAL. The RPC
+registration code is generated in the application skeleton - in the
+*TaskProviderModule* - look for the *addRpcImplementation* method on
+*RpcProviderRegistry*. that we are implementing RPCs defined in
+*TaskService* interface.
+
+------------------------------------------------------------------------------------------
+        RpcProviderRegistry rpcRegistryDependency = getRpcRegistryDependency();
+        final BindingAwareBroker.RpcRegistration<TaskService> rpcRegistration =
+                                rpcRegistryDependency
+                                    .addRpcImplementation(TaskService.class, appProvider);
+------------------------------------------------------------------------------------------
+
+Invoking the *close()* method on returned rpcRegistration, unregisters
+our implementation from the MD-SAL. After a registration is closed, no
+one will be able to invoke our RPC using MD-SAL or Restconf.
+
+[[modifying-the-generated-rpcs-to-write-entries-into-the-md-sal-data-tree]]
+===== 5.2 Modifying the Generated RPCs to Write Entries into the MD-SAL
+Data Tree
+
+In order to modify the *SaveEntry* task we need to modify method
+*call()*, which is invoked once that task is processed by an executor.
+
+Note that there is already some code in the call method's body, but we
+will not need it in this tutorial,so just delete everything inside call
+method except for the *return* statement.
+
+-----------------------------------------------------------------------------------------
+      @Override
+      public RpcResult<Void> call() throws InterruptedException {
+          return Rpcs.<Void> getRpcResult(true, null, Collections.<RpcError> emptySet());
+      }
+-----------------------------------------------------------------------------------------
+
+This return statement returns successful RPC result with no data and
+errors associated with it.
+
+As we learned before in order to write data, we need write transaction,
+which we will use to modify data tree.
+
+---------------------------------------------------------------------
+      @Override
+      public RpcResult<Void> call() throws InterruptedException {
+         WriteTransaction tx = dataService.newReadWriteTransaction();
+---------------------------------------------------------------------
+
+To write the data, we need to construct an instance identifier for the
+entry that we are going to add. Notice that the generated skeleton
+already has been already constructed entry for us, so we only need to
+construct instance identifier, which will be equivalent of restconf path
+/task:task/entry/(entry-id)
+
+------------------------------------------------------------------------------------------------------------------
+        // Each entry will be identifiable by a unique key, we have to create that identifier
+        InstanceIdentifier<Entry> path = InstanceIdentifier.create(Task.class).child(Entry.class, entry.getKey());
+------------------------------------------------------------------------------------------------------------------
+
+You could see we used same pattern as before, but we added
+*.child(Entry.class, entry.getKey())* part. This means that we are
+referencing list item entry in task container with key from our builded
+entry. Next we need to PUT this entry to data tree and commit
+transaction.
+
+--------------------------------------------------------------
+        tx.put(LogicalDatastoreType.OPERATIONAL, path, entry);
+        tx.commit();
+--------------------------------------------------------------
+
+We should end-up with call() method like this:
+
+---------------------------------------------------------------------------------------------------------------------
+      @Override
+      public RpcResult<Void> call() throws InterruptedException {
+         WriteTransaction tx = dataService.newReadWriteTransaction();
+        // Each entry will be identifiable by a unique key, we have to create that identifier
+        InstanceIdentifier<Entry> path = InstanceIdentifier.create(Task.class).child(Entry.class, entry.getKey());
+        tx.merge(LogicalDatastoreType.OPERATIONAL, InstanceIdentifier.create(Task.class), new TaskBuilder().build());
+        tx.put(LogicalDatastoreType.OPERATIONAL, path, entry);
+        tx.commit();
+        return Rpcs.<Void> getRpcResult(true, null, Collections.<RpcError> emptySet());
+      }
+---------------------------------------------------------------------------------------------------------------------
+
+So our implementation of *saveEntry* RPC takes and SaveEntryInput
+translated it into item of list entry and writes that to operational
+data store using path pointing directly to write place.
+
+So now is part to compile our code, install is into controller and give
+it a test ride.
+
+[[recompiling-the-application]]
+=== 6. Recompiling the Application
+
+Go to the root folder of your application (yang-demo-app) and type::
+
+-----------------
+mvn clean install
+-----------------
+
+[[downloading-an-opendaylight-distribution]]
+=== 7. Downloading an Opendaylight Distribution
+
+This archetype is targeted for Helium release, you could download latest
+development snapshot from:
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+https://jenkins.opendaylight.org/integration/view/Integration%20jobs/job/integration-master-project-centralized-integration/lastSuccessfulBuild/artifact/distributions/base/target/distributions-base-0.2.0-SNAPSHOT-osgipackage.zip
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+After downloading distribution unzip it to folder of your choice.
+
+[[installing-your-application-in-opendaylight]]
+=== 8. Installing your Application in OpenDaylight
+
+Copy all compiled JAR files from your project to the plugins folder in
+the target OpenDaylight distribution. In case of our sample application
+this files are:
+
+---------------------------------------------------------
+./provider/target/yang-demo-app-provider-1.0-SNAPSHOT.jar
+./consumer/target/yang-demo-app-consumer-1.0-SNAPSHOT.jar
+./model/target/yang-demo-app-model-1.0-SNAPSHOT.jar
+./web/target/yang-demo-app-web-1.0-SNAPSHOT.jar
+---------------------------------------------------------
+
+E.g.
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ cp ./provider/target/yang-demo-app-provider-1.0-SNAPSHOT.jar ./consumer/target/yang-demo-app-consumer-1.0-SNAPSHOT.jar ./model/target/yang-demo-app-model-1.0-SNAPSHOT.jar ./web/target/yang-demo-app-web-1.0-SNAPSHOT.jar ../opendaylight/plugins
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+You need also copy configuration for your sample provider application to
+configuration/initial folder of Opendaylight Distribution.
+
+-------------------------------------------------------------------------------
+./provider/src/main/resources/configuration/initial/05-provider-task-sample.xml
+-------------------------------------------------------------------------------
+
+For example:
+
+------------------------------------------------------------------------------------------------------------------------
+cp ./provider/src/main/resources/configuration/initial/05-provider-task-sample.xml ../opendaylight/configuration/initial
+------------------------------------------------------------------------------------------------------------------------
+
+You have all setup to run your sample application.
+
+The consumer configuration is located in
+
+-------------------------------------------------------------------------------
+./consumer/src/main/resources/configuration/initial/06-consumer-task-sample.xml
+-------------------------------------------------------------------------------
+
+This configuration tells the Config Subsystem how to start your
+application, and enumerates which MD-SAL services are required by your
+application.
+
+[[running-the-application]]
+=== 9. Running the Application
+
+Go to your OpenDaylight installation folder and run *./run.sh* (on Linux
+/ MAC) or *./run.bat* on Windows to start Opendaylight.
+
+During the startup your components will be picked-up by Opendaylight
+infrastructure and registered with the system:
+
+* The YANG models are discovered by MD-SAL, which updates the MD-SAL
+data store and Restconf ito support your model
+* The Provider and Consumer bundles and their respective configurations
+are discovered by the Config Subsystem,which starts them based on the
+content of the configuration files.
+* The Provider registers itself with the MD-SAL as an implementation of
+RPC +
+* The Web Bundle is picked up by the Webserver (Tomcat) and is available
+via a browser (this is for UI, Restconf integration is provided by
+MD-SAL).
+
+In the log (/logs/opendaylight.log) you should see something like this:
+
+-----------------------------------------------------------------------------------------------------------
+15:31:06.395 CEST [config-pusher] INFO  o.o.c.c.y.c.t.i.TaskProviderModule - TaskProvider (...) initialized
+-----------------------------------------------------------------------------------------------------------
+
+This means that your application was started.
+
+[[using-the-application-via-web-user-interface]]
+=== 10. Using the Application via Web User interface
+
+Go to:
+
+-------------------------------------------------------
+http://localhost:8080/controller/web/yang-demo-app/view
+-------------------------------------------------------
+
+The User interface is pretty self explanatory: you may add data using
+the *Add Entry* button. A list of all task entries stored by your
+Provider is shown.
+
+You should be able to see our hello-ietf entry, which we created and
+stored in the Operational Data Tree from a Java code module.
+
+Note that Add Entry issues and RPC in background using Restconf to your
+provider and also uses Restconf to retrieve all data stored by the
+Provider.
+
+[[accessing-the-task-service-through-restconf]]
+=== 11. Accessing the 'Task' Service through Restconf
+
+[[retrieving-operational-data-for-the-task-provider]]
+==== Retrieving Operational Data for the Task Provider
+
+To retrieve all tasks from restconf, simply issue a GET request for the
+following URL:
+
+----------------------------------------------------
+http://localhost:8080/restconf/operational/task:task
+----------------------------------------------------
+
+If your provider is already started, you should be able to see the
+initial entry, which we wrote in the Data Store from the Java code
+developed in .
+
+[[retrieving-data-in-json-format]]
+===== Retrieving data in JSON Format
+
+If you change *Accept* header to *application/json* or
+*application/yang.data+json* you will retrieve the JSON representation
+of the data stored in he Data Store.
+
+--------------------------------------------------------------------
+{
+    &quot;task&quot;: {
+        &quot;entry&quot;: [
+            {
+                &quot;title&quot;: &quot;test&quot;,
+                &quot;entry-id&quot;: &quot;34701633593067530&quot;,
+                &quot;desc&quot;: &quot;description&quot;
+            }
+        ]
+    }
+}
+--------------------------------------------------------------------
+
+[[invoking-rpc-on-provider]]
+==== Invoking RPC on provider
+
+[[invoking-rpc-using-xml-payload]]
+===== Invoking RPC using XML payload
+
+In order to invoke *saveEntry* RPC from our initial sample model using
+Restconf +
+we need to make *POST* request for saveEntry RPC URL
+
+-----------------------------------------------------------
+POST /restconf/operations/task:saveEntry HTTP/1.1
+Content-Type: application/xml
+Accept: application/xml
+
+&lt;input&gt;
+  &lt;entryId&gt;10&lt;/entryId&gt;
+  &lt;entryField&gt;
+    &lt;key&gt;title&lt;/key&gt;
+    &lt;value&gt;From IETF&lt;/value&gt;
+  &lt;/entryField&gt;
+  &lt;entryField&gt;
+    &lt;key&gt;desc&lt;/key&gt;
+    &lt;value&gt;Example Demonstrated on IETF&lt;/value&gt;
+  &lt;/entryField&gt;
+&lt;/input&gt;
+-----------------------------------------------------------
+
+This RPC is then delivered to our provider in form of Java generated
+classes, +
+which it stores into operational data store.
+
+If you issue following GET for
+http://localhost:8080/restconf/operational/task:task +
+you will see your entry added there.
+
+[[invoking-rpc-using-json-payload]]
+===== Invoking RPC using JSON Payload
+
+For JSON URL is same, you need only to change Content-Type and Accept
+headers +
+to *application/json* or corresponding ones as per Restconf draft.
+
+---------------------------------------------------------
+POST /restconf/operations/task:saveEntry HTTP/1.1
+Content-Type: application/json
+Accept: application/json
+
+{  
+   &quot;input&quot;:{  
+      &quot;entryField&quot;:[  
+         {  
+            &quot;key&quot;:&quot;title&quot;,
+            &quot;value&quot;:&quot;From IETF&quot;
+         },
+         {  
+            &quot;key&quot;:&quot;desc&quot;,
+            &quot;value&quot;:&quot;Payload in JSON&quot;
+         }
+      ],
+      &quot;entryId&quot;:&quot;12&quot;
+   }
+}
+---------------------------------------------------------
+
+[[invoking-rpc-via-java]]
+=== 11. Invoking RPC via Java
+
+*TaskConsumerImpl* shows how RPCs are invoked from Java Code.
+
+In order to invoke any RPC from YANG module, user code must obtain
+implementation +
+from MD-SAL using RpcConsumerRegistry:
+
+----------------------------------------------------------------------------------
+TaskService service = getRpcRegistryDependency().getRpcService(TaskService.class);
+----------------------------------------------------------------------------------
+
+Returned service is not our provider, but implementation provided by
+MD-SAL, +
+which makes sure reference to actual implementation is never leaked
+and +
+may translate data to different payload format if necessary (e.g.
+Netconf XML).
+
+In order to construct input consumer uses *SaveEntryInputBuilder* +
+to construct RPC input.
+
+-----------------------------------------------------------------
+SaveEntryInputBuilder inputbuilder = new SaveEntryInputBuilder();
+...
+inputbuilder.setEntryField(fields);
+-----------------------------------------------------------------
+
+Finally we are invoking RPC and blocking for result to be delivered:
+
+-----------------------------------------------------------------------------
+RpcResult&lt;Void&gt; result = service.saveEntry(inputbuilder.build()).get();
+-----------------------------------------------------------------------------
+
+[[summary-1]]
+== Summary
+
+This tutorial showed up how to use archetype and Opendaylight to
+create +
+simple YANG-modeled application, install it into system and use it via +
+Restconf and Java.
+
+[[further-reading]]
+== Further Reading
+
+* https://www.youtube.com/watch?v=IMKFMJ-toGA[Original Presentation of
+Archetype] +
+*
+https://wiki.opendaylight.org/view/OpenDaylight_Controller:MD-SAL#Tutorials[Other
+MD-SAL Tutorials]
+

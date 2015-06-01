@@ -1,0 +1,91 @@
+[[introduction]]
+== Introduction
+
+HostTracker is an attempt to bring the ideas of the AD-SAL hosttracker
+and hosttracker_new bundles to the MD-SAL. See below for a guide to
+pulling and running the MdHostTracker code within the
+L2 Switch:Main[l2switch] base distribution.
+
+[[user-guide]]
+== User Guide
+
+The HostTracker code is currently hosted on l2switch project, you can
+clone the code:
+
+`   git clone `https://git.opendaylight.org/gerrit/p/l2switch.git[`https://git.opendaylight.org/gerrit/p/l2switch.git`]
+
+Once you've cloned the code you can build it:
+
+`   mvn clean install`
+
+You should also be able to import the code to Eclipse with no problems
+via Import > Existing Maven Project(s), use the pom.xml in the
+hosttracker's directory (l2switch/hosttracker/pom.xml). If for some
+reason you get errors resolving generated classes add the generated
+source path to the project's source directories via Project Preferences
+> Java Build Path > Source > Add folder... The path you're looking for
+is _src/main/yang-gen-code_.
+
+HostTracker depends on the L2 Switch:Main[l2switch] addresstracker for
+its observations, so we will run within the L2 Switch:Main[l2switch]
+distribution for testing. Build l2switch as you usually would (mvn clean
+install) and the hosttracker model and implementation bundles are inside
+the plugins' folder, in the directory:
+
+`   ~/path/to/l2switch/distribution/base/target/distributions-l2switch-base-0.1.0-SNAPSHOT-osgipackage/opendaylight/`
+
+Now you're ready to run the distribution, to test with mininet run
+
+`   ./run.sh -start` +
+`   sudo mn  --topo single,3 --mac --switch ovsk --controller remote`
+
+To see learned hosts visit:
+http://localhost:8080/restconf/operational/host-tracker-service:hosts/
+You should see something similar to this:
+
+`{` +
+` "hosts": {` +
+`   "host": [` +
+`     {` +
+`       "attachment-point": [` +
+`         "/opendaylight-inventory:nodes/opendaylight-inventory:node/opendaylight-inventory:node-connector[opendaylight-inventory:id='openflow:2:2']"` +
+`       ],` +
+`       "id": "00:00:00:00:00:02",` +
+`       "addresses": [` +
+`         {` +
+`           "first-seen": 1406859679128,` +
+`           "mac": "00:00:00:00:00:02",` +
+`           "last-seen": 1406859679344,` +
+`           "ip": "10.0.0.2"` +
+`         },` +
+`         {` +
+`           "first-seen": 1406859538941,` +
+`           "mac": "00:00:00:00:00:02",` +
+`           "last-seen": 1406859546912,` +
+`           "ip": "fe80:0:0:0:200:ff:fe00:2"` +
+`         }` +
+`       ]` +
+`     },` +
+`     {` +
+`       "attachment-point": [` +
+`         "/opendaylight-inventory:nodes/opendaylight-inventory:node/opendaylight-inventory:node-connector[opendaylight-inventory:id='openflow:1:1']"` +
+`       ],` +
+`       "id": "00:00:00:00:00:01",` +
+`       "addresses": [` +
+`         {` +
+`           "first-seen": 1406859679111,` +
+`           "mac": "00:00:00:00:00:01",` +
+`           "last-seen": 1406859679324,` +
+`           "ip": "10.0.0.1"` +
+`         },` +
+`         {` +
+`           "first-seen": 1406859538114,` +
+`           "mac": "00:00:00:00:00:01",` +
+`           "last-seen": 1406859546120,` +
+`           "ip": "fe80:0:0:0:200:ff:fe00:1"` +
+`         }` +
+`       ]` +
+`     }` +
+`   ]` +
+` }` +
+`}`

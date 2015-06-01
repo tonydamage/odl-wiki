@@ -1,0 +1,99 @@
+With the release of hydrogen, it is necessary that all project create a
+stable/hydrogen branch to support bug fixes in both the master branch
+and any stable branch. This page walks the reader through how to do
+this, using the gerrit and jenkins web interfaces and the OpenDOVE
+project as a sample.
+
+[[step-1-create-branch-in-gerrit]]
+=== Step 1: Create branch in Gerrit
+
+* In Gerrit, select Projects/List
+* Select your project and then Branches
+
+image:Stability Screenshot1.png[Stability Screenshot1.png,title="Stability Screenshot1.png"]
+
+* At the bottom, enter "stable/hydrogen" and the SHA of revision to
+branch from
+
+image:Stability Screenshot2.png[Stability Screenshot2.png,title="Stability Screenshot2.png"]
+
+[[step-2-update-pom-files]]
+=== Step 2: Update Pom Files
+
+* Checkout new branch
+* Edit pom files and update versions and dependencies by adding
+"-1-SNAPSHOT"
+
+image:Stability_Screenshot3.png[Stability_Screenshot3.png,title="Stability_Screenshot3.png"]
+
+image:Stability Screenshot4.png[Stability Screenshot4.png,title="Stability Screenshot4.png"]
+
+* Commit and then push to refs/for/stable/hydrogen
+
+[[step-3-reconfigure-jenkins-merge-job-for-master-branch-only]]
+=== Step 3: Reconfigure Jenkins Merge Job for Master Branch Only
+
+Today's Jenkins *-merge job are set up to run regardless of the branch
+that is merged to. This has the side effect of making archived artifcats
+(e.g. enunciated APIs and javadocs) ephermeal in that as development
+continues, the apis of a stable branch can be lost. To avoid this, we
+reconfigure the existing Jenkin's merge job to work (and trigger from)
+the master branch only.
+
+* select *-merge job for your project and the configure link
+* Change the branch to build from origin/$GERRIT_BRANCH to origin/master
+
+image:Stability Screenshot5.png[Stability Screenshot5.png,title="Stability Screenshot5.png"]
+
+* Change the branch of the gerrit trigger from ** to **/master
+
+image:Stability_Screenshot6.png[Stability_Screenshot6.png,title="Stability_Screenshot6.png"]
+
+* Click Save or Apply
+
+[[step-4-create-new-jenkins-merge-job-for-stablehydrogen-branch]]
+=== Step 4: Create new jenkins merge Job for Stable/Hydrogen Branch
+
+* Create new jenkins job (call it *-merge-hydrogen-stable) and choose
+*-merge to copy from
+* Change the branch to build from origin/master to
+origin/stable/hydrogen
+
+image:Stability Screenshot7.png[Stability Screenshot7.png,title="Stability Screenshot7.png"]
+
+* Change the branhc for the gerrit trigger from **/master to
+**/stable/hydrogen
+
+image:Stability_Screenshot8.png[Stability_Screenshot8.png,title="Stability_Screenshot8.png"]
+
+* Click Save or Apply
+
+[[step-5-finish-branch-creation]]
+=== Step 5: Finish branch creation
+
+* Approve patch set created in #2 for merge into stable/hydrogen branch
+* Master branch enunciated APIs available from
+
+https://jenkins.opendaylight.org/[`https://jenkins.opendaylight.org/`]`/job/``-merge/lastSuccessfulBuild/artifact`
+
+* Hydrogen APIs available from
+
+https://jenkins.opendaylight.org/[`https://jenkins.opendaylight.org/`]`/job/``-merge-hydrogen-stable/lastSuccessfulBuild/artifact`
+
+[[step-6-how-to-cherry-pick-patches-from-master-to-stable-branch-via-gerrit]]
+=== Step 6: How to Cherry Pick Patches from Master to Stable Branch via
+Gerrit
+
+* Select the patch that you want to cherry pick from Master to Stable
+Branch
+* Locate the Cherry Pick To button
+
+image:Stability_Screenshot9.png[Stability_Screenshot9.png,title="Stability_Screenshot9.png"]
+
+* Start to fill in re and select "refs/heads/master"
+
+image:Stability_ScreenShot10.png[Stability_ScreenShot10.png,title="Stability_ScreenShot10.png"]
+
+* Click Cherry Pick Change
+
+image:Stability_ScreenShot11.png[Stability_ScreenShot11.png,title="Stability_ScreenShot11.png"]

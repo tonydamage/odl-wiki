@@ -1,0 +1,115 @@
+[[introduction]]
+== Introduction
+
+The purpose of the Verify Job is to run on every Gerrit Patchset
+submitted and automatically carry out the 'Verify' step so that the
+reviewer can be assured that the build continues to work and tests
+continue to pass and need only focus on reading the code.
+
+[[caveats]]
+== Caveats
+
+*Note:* to complete these steps you will need to be a committer on the
+project for which you are doing it.
+
+*Note:* in all examples given below, *repo_name* is used a stand in for
+the repo name of your project and *project_name* is the name of your
+project. Please substitute appropriately.
+
+[[detailed-steps]]
+== Detailed Steps
+
+1.  Navigate to the Jenkins for your project by going to
+http://jenkins.opendaylight.org/repo_name/
+2.  Log in
++
+::
+  image:Jenkins Verify Job Setup - Log In.jpg[Jenkins Verify Job Setup - Log In.jpg,title="fig:Jenkins Verify Job Setup - Log In.jpg"]
+3.  Click on "New Job"
++
+::
+  image:Jenkins Verify Job - New Job.jpg[Jenkins Verify Job - New Job.jpg,title="fig:Jenkins Verify Job - New Job.jpg"]
+4.  Name your Job repo_name-verify (examples: controller-verify,
+vtn-verify, etc).
++
+::
+  image:Jenkins Verify Job - Job Name.jpg[Jenkins Verify Job - Job Name.jpg,title="fig:Jenkins Verify Job - Job Name.jpg"]
+5.  Select *Build a maven2/3 project* as your Job Type and click *OK*.
++
+::
+  image:Jenkins Verify Job - Job Type.jpg[Jenkins Verify Job - Job Type.jpg,title="fig:Jenkins Verify Job - Job Type.jpg"]
+6.  Enter a Description like "Build OpenDayLight project_name in order
+to verify a patch submitted to Gerrit"
++
+::
+  image:Jenkins Verify Job - Description.jpg[Jenkins Verify Job - Description.jpg,title="fig:Jenkins Verify Job - Description.jpg"]
+7.  Discard Old Builds
+1.  Check "Discard Old Builds"
+2.  Select "Log Rotation"
+3.  Enter 40 in "Max # of builds to keep"
++
+::
+  image:Jenkins Verify Job - Discard Old Builds.jpg[Jenkins Verify Job - Discard Old Builds.jpg,title="fig:Jenkins Verify Job - Discard Old Builds.jpg"]
+8.  Git Setup
+1.  In the "Source Code Management" select "Git"
+2.  Enter your repo URL, which should be
+"ssh://git.opendaylight.org:29418/repo_name.git"
+3.  Click "Advanced"
++
+::
+  image:Jenkins Verify Job - Git 1.jpg[Jenkins Verify Job - Git 1.jpg,title="fig:Jenkins Verify Job - Git 1.jpg"]
+4.  Enter "$GERRIT_REFSPEC" in "Refspec"
++
+::
+  image:Jenkins Verify Job - Git 2.jpg[Jenkins Verify Job - Git 2.jpg,title="fig:Jenkins Verify Job - Git 2.jpg"]
+5.  Enter "origin/$GERRIT_BRANCH" into "Branches to Build" and click
+"Advanced"
++
+::
+  image:Jenkins Verify Job - Git 3.jpg[Jenkins Verify Job - Git 3.jpg,title="fig:Jenkins Verify Job - Git 3.jpg"]
+6.  Scroll down and click "Wipe out workspace before build"
+7.  Select "Gerrit Trigger" for "Choosing Strategy"
++
+::
+  image:Jenkins Verify Job - Git 4.jpg[Jenkins Verify Job - Git 4.jpg,title="fig:Jenkins Verify Job - Git 4.jpg"]
+9.  Scroll down to Build Trigger
+1.  Scroll down to "Build Triggers" and select *only* "Gerrit event"
+2.  In the "Gerrit Trigger"-> "Trigger On" section click "Add" and
+select "Patchset Created"
++
+::
+  image:Jenkins Verify Job - Gerrit Trigger 1.jpg[Jenkins Verify Job - Gerrit Trigger 1.jpg,title="fig:Jenkins Verify Job - Gerrit Trigger 1.jpg"]
+3.  In the "Gerrit Trigger"-> "Trigger On" section click "Add" and
+select "Draft Published"
++
+::
+  image:Jenkins Verify Job - Gerrit Trigger 2.jpg[Jenkins Verify Job - Gerrit Trigger 2.jpg,title="fig:Jenkins Verify Job - Gerrit Trigger 2.jpg"]
+4.  In the "Gerrit Trigger"-> "Gerrit Project" section select "Path" and
+enter "repo_name" and the select "Path" again and enter "**".
++
+::
+  image:Jenkins Job Verify - Gerrit Trigger 3.jpg[Jenkins Job Verify - Gerrit Trigger 3.jpg,title="fig:Jenkins Job Verify - Gerrit Trigger 3.jpg"]
+10. Scroll down to Build
+1.  Select "Maven Version 3.0.4"
+2.  Enter your "Root Pom" (for example:
+opendaylight/distribution/opendaylight/pom.xml in controller)
+3.  Enter "Goals and Options": "-Dmaven.repo.local=$WORKSPACE/.m2repo
+-Dorg.ops4j.pax.url.mvn.localRepository=$WORKSPACE/.m2repo clean
+install"
+4.  Click "Advanced"
++
+::
+  image:Jenkins Verify Job - Build 1.jpg[Jenkins Verify Job - Build 1.jpg,title="fig:Jenkins Verify Job - Build 1.jpg"]
+5.  In "MAVEN_OPTS" enter "-Xmx1024m -XX:MaxPermSize=256m"
+6.  Check "Send e-mail for each failed module"
++
+::
+  image:Jenkins Verify Job - Build 2.jpg[Jenkins Verify Job - Build 2.jpg,title="fig:Jenkins Verify Job - Build 2.jpg"]
+11. Scroll down to "Build Settings"
+1.  Check "E-mail Notifications"
+2.  Enter "repo_name-jenkins@lists.opendaylight.org" into "Recipients"
++
+::
+  image:Jenkins Verify Job - Build Settings.jpg[Jenkins Verify Job - Build Settings.jpg,title="fig:Jenkins Verify Job - Build Settings.jpg"]
+12. Click "Save"
+

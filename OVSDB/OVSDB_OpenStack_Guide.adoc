@@ -1,0 +1,330 @@
+[[opendaylight-ovsdb-openstack-ml2-integration]]
+= OpenDaylight OVSDB OpenStack ML2 Integration
+
+We want to preface this instructional that we have just finished
+development and are still very much debugging the OVSDB and OpenFlow
+v1.3 plugin. Also, using DevStack requires a high level of the Linux OS
+and troubleshooting skills. The purpose of this guide is to describe the
+steps necessary to create a development/test environment for the
+OpenDaylight OVSDB project.
+
+Installing the Operating System
+
+Install Fedora Minimal
+
+- Boot from the Fedora Net Install .iso - Select the minimal package -
+Select your hard disk layout - Follow the rest of the on-screen
+instructions
+
+`Turn off SElinux and Firewall`
+
+While this is probably not recommended in production, disabling the
+firewall and setting SElinux to permissive will reduce variables when
+running in to issues.
+
+----------------------------------------------------------------------------------------
+   sudo setenforce 0
+    cat /etc/selinux/config | sed s/=enforcing/=disabled/ | sudo tee /etc/selinux/config
+    sudo systemctl disable firewalld.service
+    sudo systemctl stop firewalld.service 
+----------------------------------------------------------------------------------------
+
+Install useful packages
+
+The "standard" group includes utilities like wget, unzip etc..
+
+`   sudo yum -y install @standard`
+
+[[install-the-opendaylight-controller]]
+== Install the OpenDaylight controller
+
+Install pre-requisites
+
+`  $ sudo yum install java-1.7.0-openjdk`
+
+Download The OpenDaylight Virtualization Distribution
+
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ $ wget http://nexus.opendaylight.org/content/repositories/opendaylight.release/org/opendaylight/integration/distributions-virtualization/0.1.0/distributions-virtualization-0.1.0-osgipackage.zip
+   $ unzip distributions-virtualization-0.1.0-osgipackage.zip
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Run the Controller
+
+` $   cd opendaylight`
+
+OpenFlow v1.0
+
+` $  ./run.sh -XX:MaxPermSize=384m -virt ovsdb`
+
+OpenFlow v1.3
+
+`  $ echo "of.listenport=6653" >> configuration/config.ini` +
+`  $ echo "ovsdb.of.version=1.3" >>  configuration/config.ini` +
+`  $ ./run.sh -XX:MaxPermSize=384m -virt ovsdb -of13`
+
+[[install-devstack]]
+== Install Devstack
+
+Install Open vSwitch
+
+`   sudo yum -y installl openvswitch` +
+`   sudo systemctl enable openvswitch.service` +
+`   sudo systemctl start openvswitch.service`
+
+* Note Open vSwitch is installed by DevStack but it is always a good
+idea to verify the proper kernel modules are installed
+
+`$ lsmod | grep openvswitch` +
+`openvswitch            66772  0 ` +
+`vxlan                  37238  1 openvswitch` +
+`gre                    13888  1 openvswitch` +
+`libcrc32c              12603  1 openvswitch`
+
+Fix /etc/hosts
+
+sudo vi /etc/hosts
+
+`    Remove hostname from 127.0.0.1` +
+`   127.0.0.1   localhost localhost.localdomain localhost4 localhost4.localdomain4` +
+`   ::1         localhost localhost.localdomain localhost6 localhost6.localdomain6` +
+`    Add hostname here...` +
+`   10.10.0.23  devstack-compute2`
+
+Install DevStack pre-reqs
+
+sudo yum -y install @c-development sudo yum -y libxml2-devel
+libxslt-devel bc
+
+Install DevStack
+
+` $  cd ~/` +
+`  $ git clone `git://github.com/openstack-dev/devstack.git[`git://github.com/openstack-dev/devstack.git`] +
+`  $ cd devstack` +
+`  $ git remote add opendaylight `https://github.com/CiscoSystems/devstack.git[`https://github.com/CiscoSystems/devstack.git`] +
+`  $ git fetch opendaylight` +
+`  $ git checkout opendaylight` +
+`  $ git pull`
+
+`Edit your local.conf files`
+
+Download the templates:
+
+- [Controller Node](https://gist.github.com/8672938) - [Compute
+Node](https://gist.github.com/8672961)
+
+Edit them for each compute node, changing the following:
+
+- `HOST_IP`
+
+- `HOST_NAME`
+
+- `SERVICE_HOST`
+
+- `SERVICE_HOST_NAME`
+
+- `url` in the `[ml2_odl]` section
+
+> Note: Use an IP address, not an FQDN for the `url`
+
+Start DevStack
+
+`   ./stack.sh`
+
+Make sure you start the DevStack Control Node before the Compute Nodes.
+To get attach to the screen sessions use:
+
+`   screen -x stack`
+
+or:
+
+`   ./rejoin_stack.sh`
+
+Re-stacking
+
+If you need to restack.
+
+`   ./unstack.sh`
+
+Unstack sometimes leaves processes hanging. It's therefore recommended
+to use s script to tidy up after an `./unstack` This
+[Gist](https://github.com/amotoki/devstack-tools/blob/master/devstack-cleaner.sh)
+is a good example.
+
+This also delete any VM's still in KVM and cleans up OVS bridges. The
+following command will reset the OVS manager:
+
+`   sudo ovs-vsctl set-manager ptcp:6640`
+
+I've also found that the libvirt logs can take up a fair amount of disk
+space so it is recommended to compress or remove these after a couple of
+restacks.
+
+Finally,
+
+` ./stack.sh`
+
+Using Devstack
+
+Getting Your Credentials
+
+On the DevStack Control Node:
+
+`   . ./openrc admin admin`
+
+Creating Neutron Networks
+
+You can create a few networks for you VMs like so...
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ $  neutron net-create my-private-net
+    neutron subnet-create $(neutron net-list | grep 'my-private-net' | awk '{print $2}') 10.254.0.0/24 --name my-private-subnet --ip-version 4 --gateway 10.254.0.1 --allocation-pool start=10.254.0.2,end=10.254.0.254
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Booting Nova Guest VMs
+
+Once you have created your networks, you can create some VMs. To create
+multiple VM's at once, we use the `--num-instances flag`
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ $   nova boot --flavor m1.nano --image $(nova image-list | grep 'cirros-0.3.1-x86_64-uec\s' | awk '{print $2}') --nic net-id=$(neutron net-list | grep my-private-net | awk '{print $2}')  --num-instances 3 vm 
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Verifying the configuration
+
+Now to test that the OVSDB plugin has set the tunnels up correctly:
+
+If we run the following command on the compute nodes...
+
+`   sudo ovsdb-client dump | grep gre`
+
+> Note: Change `gre` to `vxlan` if you are using VXLAN tunnels
+
+...we can see that we have some tunnels set up. On my Compute node 1, I
+have tunnels to the other 2 compute nodes, and to the Controller node
+
+We can find the any VM's by running the following command...
+
+`   sudo ovsdb-client dump | grep tap`
+
+This will give show the entries in the Port and Interface tables for the
+VM's we created. The `vm_id` field is the UUID of the node in nova.
+
+To check the flow tables, we can use:
+
+`   sudo ovs-ofctl dump-flows br-tun`
+
+Pinging between VM's
+
+On the DevStack Control Node we can issue a `nova list`
+
+`   nova list` +
+`   vm-142477fd-f1f1-43fd-a614-3bedb8715350 | ACTIVE`
+
+This will show our running VM's. Now we can get to the console by using
+`nova get-vnc-console` using the `Name` from teh output above.
+
+`   nova get-vnc-console vm-142477fd-f1f1-43fd-a614-3bedb8715350 novnc`
+
+This will generate a URL like this:
+
+`   +-------+----------------------------------------------------------+` +
+`   | Type  | Url                                                      |` +
+`   +-------+----------------------------------------------------------+` +
+`   | novnc | `http://10.10.0.21:6080/vnc_auto.html?token=ab628572-2c04[`http://10.10.0.21:6080/vnc_auto.html?token=ab628572-2c04`]` |` +
+`   +-------+----------------------------------------------------------+`
+
+Opening the URL in a browser will open a console to the VM. At the
+prompt, log in to cirros using the credential `cirros` and `cubswin:)`
+
+Now we can attempt to ping the other VMs.
+
+`   ping 10.254.0.3` +
+`   ping 10.254.0.2`
+
+If the pings succeed, then congratulations are in order. Everything
+works!
+
+You can also source pings from the namespace L3 DHCP or L3 gateway
+address or any other shell command that is applicable like the
+following:
+
+`$ip netns list` +
+`qrouter-1fbed97e-c642-44c7-a9f5-f476f477c7a7` +
+`qdhcp-58e717fc-0ea1-4845-9fe5-9ca2159b55f3`
+
+`$ sudo ip netns exec qrouter-1fbed97e-c642-44c7-a9f5-f476f477c7a7 ping x.x.x.x` +
+
+Using the REST API
+
+The OVSDB REST API can be used to perform CRUD operations on any of the
+tables of an Open vSwitch instance. Usage examples can be found in the
+[Postman
+Collection](https://www.getpostman.com/collections/4fe7530a669dc9da93e4)
+
+Possibly Useful Aliases Used for Troubleshooting and Verification
+
+The following aliases can be added to a users ~/.bashrc
+
+After adding them to .bashrc refresh the shell with:
+
+`$ source ~/.bashrc`
+
+------------------------------------------------------------------
+#####################################
+#  Fedora ~/.bashrc lazy aliases   #
+#####################################
+
+### OVS Aliases ###
+alias novh='nova hypervisor-list'
+alias novm='nova-manage service list' 
+alias ovstart='sudo /usr/share/openvswitch/scripts/ovs-ctl start' 
+alias ovs='sudo ovs-vsctl show'
+alias ovsd='sudo ovsdb-client dump'
+alias ovsp='sudo ovs-dpctl show'
+alias ovsf='sudo ovs-ofctl '
+alias logs="sudo journalctl -n 300 --no-pager"
+alias ologs="tail -n 300 /var/log/openvswitch/ovs-vswitchd.log"
+alias vsh="sudo virsh list"
+alias ovap="sudo ovs-appctl fdb/show "
+alias ovapd="sudo ovs-appctl bridge/dump-flows "
+alias dpfl=" sudo ovs-dpctl dump-flows "
+alias ovtun="sudo ovs-ofctl dump-flows br-tun"
+alias ovint="sudo ovs-ofctl dump-flows br-int"
+alias ovap="sudo ovs-appctl fdb/show "
+alias ovapd="sudo ovs-appctl bridge/dump-flows "
+alias ovl="sudo ovs-ofctl dump-flows br-int"
+alias dfl="sudo ovs-ofctl -O OpenFlow13 del-flows "
+alias ovls="sudo ovs-ofctl -O OpenFlow13  dump-flows br-int"
+alias dpfl="sudo ovs-dpctl dump-flows "
+alias ofport=" sudo ovs-ofctl -O OpenFlow13 dump-ports br-int"
+alias del=" sudo ovs-ofctl -O OpenFlow13 del-flows "
+alias delman=" sudo ovs-vsctl del-manager"
+# Replace the IP with the ODL controller or OVSDB manager address
+alias addman=" sudo ovs-vsctl set-manager tcp:10.0.2.15:6640"
+alias prof="vi ~/.bash_profile"
+alias src="source ~/.bashrc"
+alias vsh="sudo virsh list"
+alias ns="sudo ip netns exec "
+------------------------------------------------------------------
+
+Using the Remote Debugger
+
+To use the remote debugger, you must add one of the following flags when
+starting your controller
+
+`   -debug`
+
+To wait for the debugger, use:
+
+`   -debugsuspend`
+
+To set up your IDE follow these instructions:
+
+*
+http://dtucker.co.uk/programming/remote-debugging-opendaylight-with-intelli[Debugging
+with Intellij]
+*
+http://alagalah.wordpress.com/2013/12/14/debugging-opendaylight-in-eclipse/[Debugging
+with Eclipse]
+

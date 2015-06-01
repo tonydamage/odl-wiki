@@ -1,0 +1,104 @@
+[[stable-releases]]
+== Stable Releases
+
+Each OpenDaylight major release needs a mechanism for delivering
+bugfixes to our users. Here is a first attempt at describing this
+process. Actual automation details aren't pulled into this draft. Any
+and all feedback welcomed.
+
+[[stable-branch]]
+== Stable Branch
+
+A Stable Release is built from a stable branch in each project. Each
+stable branch should have at least one committer, preferably two, on it
+(the committer need not be a committer on the main branch). The final
+change in each project's repository leading up to a major release is the
+automated update from the maven release plugin's prepare goal. This
+updates all artifacts produced from the project to a release
+(non-SNAPSHOT) version. This commit should be the base for a stable
+branch (and we can automate creation of this branch).
+
+*The branch should be named stable/$MAJOR_RELEASE, e.g. stable/helium*
+
+For example, the controller should have a branch as if it were created
+from this simple git command:
+
+`git branch stable/helium 48350c456393c0fe530dc29642c7d95c11a8a70a` +
+
+A release on the stable branch can use the same release:prepare and
+release:perform goals, simply done on the stable branch and incrementing
+artifact release and -SNAPSHOT version numbers to account for stable
+branch numbering.
+
+[[artifact-version-numbers]]
+== Artifact Version Numbers
+
+This touches on the first issue. The artifact verion numbers we
+currently use are . Ideally we'd use 'incremental' to identify an
+artifact's update along the stable branch, however, we've already used
+it across major release (for example, artifact version 0.5.1 in Helium
+release updated to 0.5.2-SNAPSHOT for post Helium). Current proposal is
+to add a numerical build number as a suffix, for example 0.5.1-1 (and of
+course -1-SNAPSHOT during developing the -1 stable release).
+
+*Stable Artifact Version Numbers should add the suffix -N (where N
+starts with 1 and increments for each successive stable release) and
+-N-SNAPSHOT while developing the -N stable release*
+
+For future releases, perhaps we can adopt a more disciplined artifact
+versioning. Something like .
+
+[[stable-patch-criteria]]
+== Stable Patch Criteria
+
+A Stable Patch should contain only important bugfixes that have
+corresponding bugs opened in our Bugzilla and the Bugzilla ID should be
+included in the git commit message. The definition of an important
+bugfix is something that is best described with guidelines, where
+utlimate discretion must be left to the stable branch committer(s). The
+purpose of a Stable Patch is to improve stability not increase risk of
+regression. Therefore, a stable fix must meet these criteria:
+
+* the fix (or something like it) must already be committed to the master
+branch
+** the fix should be cherry picked from upstream
+* the fix must fix a real bug (not theoretical issue) that is being
+triggered by users or can be easily shown triggerable, such as:
+** data corruption
+** security vulnerability
+** functionality broken w/ no manageable workaround
+** regression
+* the fix must have a Bugzilla entry opened
+* the fix should be small and self-contained
+* the fix must not include changes irrelevant to the bug
+* the fix must be tested (addition of test case encouraged)
+* the fix must not change APIs or add new features
+
+The Stable Patch committer is responsible for vetting a fix according to
+the above guidelines. However, the original bug reporter, patch author,
+and patch reviewers (or anybody in the community) should share the
+responsible for bringing the fix to the attention of the stable branch
+committers. This is a process that should be automated during the
+initial upstream review.
+
+[[stable-release-criteria]]
+== Stable Release Criteria
+
+The Stable Release should come at regular intervals after the preceeding
+major release and continue until at least the next major release. The
+timing should be driven by a combination of:
+
+* critical fix comes in which effectively flushes the patch queue (e.g.
+security vulnerability)
+* time (been a while, flush the queue, assuming there is one)
+* patch queue length (not been that long, but lots of changes queued up)
+
+*We will start off as ASAP, learn from that, and aim for regular time
+based after that*
+
+Since we are delivering the major release as editions I expect we'll do
+the same here. However, we could consider releasing per project more
+frequently.
+
+[[helium-stable-release-info]]
+== Helium Stable Release Info

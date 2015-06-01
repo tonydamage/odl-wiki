@@ -1,0 +1,226 @@
+[[intro]]
+== Intro
+
+This is an overview on how to hack the Integration code
+
+[[make-sure-you-have-an-account]]
+== Make sure you have an account
+
+In order to push code you will need to
+https://identity.opendaylight.org/carbon/user-registration/index.jsp?region=region1&item=user_registration_menu[get
+an account].
+
+[[gerrit-setup]]
+== Gerrit Setup
+
+Code reviews are enabled through Gerrit.
+OpenDaylight Controller:Gerrit Setup[Set up Gerrit] for use if you wish
+to use ssh. If you wish to use https,
+OpenDaylight Controller:Setting up HTTP in Gerrit[Set up Gerrit to use
+HTTPS].
+
+Note: You will need to perform the
+OpenDaylight Controller:Gerrit Setup[Gerrit Setup] before you can access
+git via ssh as described below.
+
+[[pull-code-via-git-cli]]
+== Pull code via git CLI
+
+Pull the code by cloning the controller repository.
+
+First, all the lines below use the $ODL_USERNAME environment variable,
+so your life will be *way* easier of you set it with:
+
+--------------------------------------------------------------------------
+export ODL_USERNAME=<username for the account you created at OpenDaylight>
+--------------------------------------------------------------------------
+
+Then you will want to check out the code from each of the repos for each
+project. You can, of course select any one of the following lines if you
+are only looking for one project. Each line does three things:
+
+1.  Clone the git repo
+2.  Setup the Gerrit ChangeId commit hook
+3.  Setup pushes to go back to HEAD:refs/for/master as Gerrit requires
+
+You have two choices for your method of engagement, you can use:
+
+1.  ssh on port 29418 (blocked by some firewalls)
+2.  https
+
+[[pull-code-via-ssh]]
+=== 1. Pull code via ssh
+
+---------------------------------------------------------------------------------
+git clone ssh://${ODL_USERNAME}@git.opendaylight.org:29418/integration.git
+cd integration
+scp -p -P 29418 ${ODL_USERNAME}@git.opendaylight.org:hooks/commit-msg .git/hooks/
+chmod 755 .git/hooks/commit-msg
+git config remote.origin.push HEAD:refs/for/master
+---------------------------------------------------------------------------------
+
+[[pull-code-with-https]]
+=== 2. Pull code with https
+
+----------------------------------------------------------------------------------------
+git clone https://git.opendaylight.org/gerrit/p/integration.git
+cd integration
+curl -o .git/hooks/commit-msg https://git.opendaylight.org/gerrit/tools/hooks/commit-msg
+chmod 755 .git/hooks/commit-msg
+git config remote.origin.push HEAD:refs/for/master
+----------------------------------------------------------------------------------------
+
+[[pull-the-code-changes]]
+=== Pull the code changes
+
+Use git pull to get the latest changes from the remote repository
+
+---------
+git pull 
+---------
+
+[[hack-the-code]]
+== Hack the Code
+
+Integration repo is made of 3 folders:
+
+* distributions: release vehicles generation code
+* packaging: Linux package generation code (rpm)
+* test: this is where we store the test code
+
+First make sure your credentials (name, email) are configured properly
+in git. They can be configured by adding the following settings:
+
+--------------------------------------------------
+git config --global user.name "John Doe"
+git config --global user.email johndoe@example.com
+--------------------------------------------------
+
+To check the changes you are doing
+
+----------------------------------------------------------------------------
+git status
+# On branch master
+# Untracked files:
+#   (use "git add <file>..." to include in what will be committed)
+#
+#       test1
+nothing added to commit but untracked files present (use "git add" to track)
+----------------------------------------------------------------------------
+
+Do not forget to add the changes to git
+
+-----------------------------------------------
+git add -A
+git status
+# On branch master
+# Changes to be committed:
+#   (use "git reset HEAD <file>..." to unstage)
+#
+#       new file:   test1
+#
+-----------------------------------------------
+
+[[commit-the-code-via-git-cli]]
+== Commit the code via git CLI
+
+You do it this way
+
+--------------------
+git commit --signoff
+--------------------
+
+or in a shorter version:
+
+-------------
+git commit -s
+-------------
+
+You will be prompted for a commit message, and if you are fixing a
+bugzilla bug, you can add that to your commit message as well and it
+will get linked from the Gerrit:
+
+-------------------------------------------------------------------
+Fix for bug 2.
+
+Signed-off-by: Ed Warnicke <eaw@cisco.com>
+
+# Please enter the commit message for your changes. Lines starting
+# with '#' will be ignored, and an empty message aborts the commit.
+# On branch master
+# Changes to be committed:
+#   (use "git reset HEAD <file>..." to unstage)
+#
+#       modified:   README
+#
+-------------------------------------------------------------------
+
+[[push-the-code-via-git-cli]]
+== Push the code via git CLI
+
+Use git push to push your changes back to the remote repository. Also it
+is good idea to update your local repository before you push, especially
+if some time passed since last git pull.
+
+--------
+git push
+--------
+
+You will get a message pointing you to your gerrit request like:
+
+-----------------------------------------------------
+remote: Resolving deltas: 100% (2/2)
+remote: Processing changes: new: 1, refs: 1, done    
+remote: 
+remote: New Changes:
+remote:   http://git.opendaylight.org/gerrit/64
+remote: 
+-----------------------------------------------------
+
+[[seeing-your-change-in-gerrit]]
+=== Seeing your change in Gerrit
+
+Follow the link you got above to see your commit in Gerrit:
+
+image:Gerrit Code Review.jpg[Gerrit Code Review.jpg,title="Gerrit Code Review.jpg"]
+
+Note the Jenkins Integration User has verified your code, and at the
+bottom is a link to the Jenkins build.
+
+Remember that your code must be reviewed at least by one committer
+(different than you) before merging to master. You can add reviewers for
+your code by using the buttom on the Review table.
+
+Once your code has been reviewed and submitted by a committer it will be
+merged into the authoritative repo, which would look like this:
+
+image:Gerrit Merged.jpg[Gerrit Merged.jpg,title="Gerrit Merged.jpg"]
+
+[[unstage-your-changes]]
+=== Unstage your changes
+
+If you wish to 'reset' your last commit use:
+
+------------------------
+git reset --soft 'HEAD^'
+------------------------
+
+[[amending-your-commit]]
+=== Amending your Commit
+
+If you wish to 'amend' your commit and push a new PatchSet to your
+existing Gerrit, you can make your changes, add them, and run:
+
+------------------
+git add
+git commit --amend
+git push
+------------------
+
+[[more-information]]
+=== More Information
+
+Please check the https://wiki.opendaylight.org/view/GIT_Cheat_Sheet[GIT
+Cheat Sheet] wiki
+
+Category:Integration Group[Category:Integration Group]

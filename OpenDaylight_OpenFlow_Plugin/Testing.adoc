@@ -1,0 +1,171 @@
+[[ofplugin-testing]]
+= OFPlugin testing
+
+[[openflow-plugin-provides-following-features]]
+== OpenFlow Plugin provides following features
+
+1.  Connection handshake with switches supporting 1.3 and 1.0 using OF
+Library API's.
+2.  Capability exchange with Switch.
+3.  Handled multiple connections from switches.
+4.  Handle multiple Auxiliary and Main connection from switches.
+5.  Role request.
+6.  Error handling.
+7.  Support OF CRUD operation for Flow, group, meter, stats, etc.
+8.  Packet processing.
+9.  Support discovery service for topology.
+10. Handle and propagate switch events.
+
+[[openflow-plugin-dependencies]]
+== OpenFlow Plugin Dependencies
+
+1.  MD-SAL
+2.  Hard-SAL
+3.  OF Library.
+
+So dependencies should be created in Jenkins as to run integration tests
+when any dependencies changes.
+
+[[openflow-plugin-needs-to-be-integrated-with-following-modules]]
+== Openflow Plugin needs to be integrated with following modules
+
+1.  Integration with Library.
+2.  Integration with MD-SAL.
+3.  Integration with Hard-SAL.
+4.  MD-SAL, Library and plugin integration.
+
+[[so-each-of-the-above-integration-scenarios-will-have-different-features-to-be-tested]]
+== So each of the above integration scenario's will have different
+features to be tested
+
+[[integration-with-library]]
+=== Integration with Library
+
+:* Connection handshake with switch(Version bitmap and Hello message
+exchange.
+
+:* Capability exchange.
+
+:* Handle multiple connection.
+
+:* Handle TCP/TLS/UDP connection.
+
+:* Certificate Management though its Library functionality but still it
+would be good to do integration testing.
+
+:* Error Handling.
+
+:* Event Management.
+
+:* Packet processing.
+
+[[easy-way-to-setup-osgi-context-with-felix]]
+==== Easy way to setup osgi context with felix
+
+For testing purposes OFPlugin and OFLibrary could be started together
+inside of OSGI context. *Requirements:*
+
+* maven >= 3.0.4
+* java JDK 1.7
+* access to http://nexus.opendaylight.org
+* http://felix.apache.org[felix-framework] (look for
+org.apache.felix.main.distribution)
+
+*Instructions:*
+
+* place this pom.xml in empty folder **:
+
+ +
+`       ``4.0.0` +
+`       ``org.opendaylight.openflowplugin` +
+`       ``openflowplugin-felix-easy` +
+`       ``0.1-SNAPSHOT` +
+`       ``pom` +
+`   ` +
+`     ` +
+`       ``org.opendaylight.openflowplugin` +
+`       ``openflowplugin` +
+`       ``0.0.1-SNAPSHOT` +
+`       ``test` +
+`     ` +
+`     ` +
+`       ``org.opendaylight.openflowjava` +
+`       ``openflow-protocol-impl` +
+`       ``0.1-SNAPSHOT` +
+`       ``test` +
+`     ` +
+`   ` +
+`   ` +
+`     ` +
+`       ``opendaylight-release` +
+`       ``opendaylight-release` +
+`       `http://nexus.opendaylight.org/content/repositories/opendaylight.release/[`http://nexus.opendaylight.org/content/repositories/opendaylight.release/`] +
+`     ` +
+`     ` +
+`       ``opendaylight-snapshot` +
+`       ``opendaylight-snapshot` +
+`       `http://nexus.opendaylight.org/content/repositories/opendaylight.snapshot/[`http://nexus.opendaylight.org/content/repositories/opendaylight.snapshot/`] +
+`     ` +
+`   ` +
+ +
+`   ` +
+`     ` +
+`       ``central2` +
+`       ``central2` +
+`       `http://nexus.opendaylight.org/content/repositories/central2/[`http://nexus.opendaylight.org/content/repositories/central2/`] +
+`     ` +
+`     ` +
+`       ``opendaylight-snapshot` +
+`       ``central2` +
+`       `http://nexus.opendaylight.org/content/repositories/opendaylight.snapshot/[`http://nexus.opendaylight.org/content/repositories/opendaylight.snapshot/`] +
+`     ` +
+`   ` +
+
+* in ** run: `mvn dependency:copy-dependencies -DoutputDirectory=deps`
+* copy jars from */deps* into */bundle/*
+* create log4j.xml file containing:
+
+ +
+`   ` +
+`       ` +
+`           ` +
+`       ` +
+`   ` +
+`   ` +
+`       ` +
+`       ` +
+`   ` +
+`   ` +
+`       ` +
+`       ` +
+`   ` +
+`   ` +
+`       ` +
+`       ` +
+`   ` +
+
+* in ** run:
+`java -Dlog4j.configuration=file://<absolute path to log4j.xml> -jar bin/felix.jar`
+* now the OFLibrary should be listening in default port (6653) - here
+you can connect with switch, communication will be logged into console
+
+[[integration-with-md-sal]]
+=== Integration with MD-SAL
+
+:* Registration of RPC method with MD-SAL.
+
+:* Routing the call to right RPC by MD-SAL.
+
+:* Switch notification from plugin to SAL.
+
+:* MD-SAL routing the notification to all registered modules.
+
+[[integration-with-hard-sal]]
+=== Integration with Hard-SAL
+
+Will be same as "Integration with MD-SAL.
+
+[[md-sal-library-and-plugin-integration]]
+=== MD-SAL, Library and plugin integration
+
+All the above scenario 1 and 2 have to combined and tested.

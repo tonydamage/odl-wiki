@@ -1,0 +1,124 @@
+This page contains proposed solution for JMX Wrapper over MD-SAL
+datastore.
+
+[[motivation]]
+= Motivation
+
+Config subsystem, currently in use in controller, will be replaced by an
+instance of MD-SAL. The config subsystem is backed by JMX and allows for
+remote access via JMX(in addition to NETCONF). To preserve the remote
+access using JMX, a JMX wrapper for MD-SAL has to be defined
+(https://bugs.opendaylight.org/show_bug.cgi?id=570).
+
+[[initial-thoughts]]
+= Initial thoughts
+
+1.  Implementing JMX Wrapper a full blown interface over MD-SAL would be
+time consuming and complex.
+2.  Implementing read-only JMX wrapper over MD-SAL is possible and easy
+to implement.
+3.  Implementing write JMX wrapper over MD-SAL is possible with
+trade-offs between complexity and user friendliness.
+
+[[mapping-between-normalizednode-and-jmx]]
+= Mapping between NormalizedNode and JMX
+
+The crucial part of this solution is the mapping between JMX MXBeans and
+NormalizedNodes (NormalizedNodes contain data within the new datastore
+for MD-SAL https://bugs.opendaylight.org/show_bug.cgi?id=499).
+
+[[yang-schema]]
+== Yang schema
+
+Every configurable module(plugin, application) that is managed by the
+configuration subsystem has to provide a schema that describes its
+configuration and operation data.
+
+Example schema:
+
+------------------------------------------------------------------------
+module test-app{
+    namespace "urn:opendaylight:params:xml:ns:yang:controller:test:app";
+    prefix "app";
+
+    ...
+
+    container container {
+        leaf uint32 {
+            type uint32;
+            config true;
+        }
+
+        leaf decimal64 {
+            type decimal64 {
+                fraction-digits 2;
+            }
+            config true;
+        }
+
+        leaf boolean {
+            type boolean;
+        }
+    }
+}
+------------------------------------------------------------------------
+
+*CONSTRAINT*: One top level container containing both configurational
+and operational data - Listening to configuration changes on mutliple
+subtrees using one listener is not currently supported in MD-SAL
+datastore and application itself would not be able to properly react to
+configuration changes.
+
+[[mapping-to-jmx-mxbeans]]
+== Mapping to JMX MXBeans
+
+For data present in md-sal described by above schema, JMX Wrapper would
+create 2 MXBeans.
+
+* Config Bean with ObjectName
+"org.opendaylight.controller:application=test-app,tenant=t1,type=config"
+with 2 read/write attributes: uint32, decimal64.
+* Runtime Bean with ObjectName
+"org.opendaylight.controller:application=test-app,tenant=t1,type=state"
+with 2 read/write attributes: uint32, decimal64 and 1 read-only
+attribute: boolean.
+
+Object names contain the information about application name, tenant it
+belongs to(multitenancy support planned) and the type of bean which can
+be:
+
+* config bean that contains configurational, editable data (same as data
+from NETCONF get-config rpc)
+* state bean that contains state, read-only data in addition to
+configurational data (same as data from NETCONF get rpc)
+
+[[nested-container-like-schema-nodes]]
+=== Nested container-like schema nodes
+
+Mapping between MD-SAL (NormalizedNode structure) and JMX edit config
+requests is pretty straightforward for simple, flat schema as in example
+above. However for nested container-like schema nodes (container, list,
+choice...) the JMX wrapper would have to perform various tasks in order
+to transform data from JMX, merge with current data and store in MD-SAL.
+
+There are 2 extreme solutions for how to solve this problem:
+
+1.  1 Config MXBean with one Composite attribute representing the whole
+container from schema.
+2.  1 Root config MXBean with new MXBean for every container-like node.
+Referencing child MXBeans using ObjectName attribute. With possible
+support to create and delete nested MXBeans.
+
+The first approach is user unfriendly but easier to implement while
+approach 2 is very user friendly but difficuilt to implement.
+
+A reasonable solution would be to provide only one MXBean with structure
+similar to DOM XML node (or former yang-data-api) with simple node and
+container-like node only. This solution would be user friendly when
+modifying attributes on level 1, but it would also support modification
+on nested attributes (if replacing whole container-like child node). The
+complexity of the solution would be manageable. JMX Wrapper could use
+DOM structure or former yang-data-api as the backing for MXBean and
+would transform to NormalizedNodes using existing infrastructure
+whenever necessary. This solution would not support creation of deletion
+of child nodes, but it could be implemented as various operations.

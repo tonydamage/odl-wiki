@@ -1,0 +1,177 @@
+[[overview]]
+= Overview
+
+Address tracker is L2 Switch component that observes address tuples on a
+switch's port a.k.a node connector. These observations are made
+currently based on packets received by controller. In L2switch currently
+ARP, IPV4 & IPV6 packets are tapped to make address observations.
+
+[[model]]
+= Model
+
+The yang model for address tracker is essentially an augmentation of a
+node connector from inventory data model.
+
+--------------------------------------------------------------------------------------------------------------------------------
+module address-tracker {
+  yang-version 1;
+  namespace "urn:opendaylight:address-tracker";
+  prefix address-tracker;
+
+  import yang-ext {
+    prefix ext;
+    revision-date "2013-07-09";
+  }
+  import ietf-inet-types {
+    prefix inet;
+    revision-date 2010-09-24;
+  }
+  import ietf-yang-types {
+    prefix yang;
+    revision-date 2010-09-24;
+  }
+  import opendaylight-inventory {
+    prefix inv;
+    revision-date 2013-08-19;
+  }
+
+  description
+    "Address Tracker Data Model";
+
+  revision 2014-06-17 {
+    description
+      "Address Tracker module draft.";
+  }
+
+  grouping address-node-connector {
+    list addresses {
+      key "first-seen";
+      leaf mac {
+        type yang:mac-address;
+        description "MAC address";
+      }
+      leaf ip {
+        type inet:ip-address;
+        description "IPv4 or IPv6 address";
+      }
+      leaf vlan {
+        type uint16;
+        description "VLAN id";
+      }
+      leaf first-seen {
+        type int64;
+        description "Timestamp (number of ms since January 1, 1970, 00:00:00 GMT) of observing this address for the first time";
+      }
+      leaf last-seen {
+        type int64;
+        description "The most recent timestamp (tnumber of ms since January 1, 1970, 00:00:00 GMT) of observing this address";
+      }
+    }
+  }
+
+  augment "/inv:nodes/inv:node/inv:node-connector" {
+    ext:augment-identifier "address-capable-node-connector";
+    uses address-node-connector;
+  }
+}
+--------------------------------------------------------------------------------------------------------------------------------
+
+[[how-does-it-look-in-data-store]]
+= How does it look in data store?
+
+If you want to view the addresses tracked on any particular port / node
+connector. The following rest conf request should show that.
+
+-----------------------------------------------------------------------------------------------------------------------
+HTTP GET
+URL http://localhost:8080/restconf/operational/opendaylight-inventory:nodes/node/openflow:1/node-connector/openflow:1:1
+-----------------------------------------------------------------------------------------------------------------------
+
+For example this would return.
+
+---------------------------------
+{
+    "node-connector": [
+        {
+            "id": "openflow:1:1",
+---------------------------------
+
+----------------------------------------------------------------
+            "address-tracker:addresses": [
+                {
+                    "address-tracker:last-seen": 1404918398057,
+                    "address-tracker:ip": "10.0.0.1",
+                    "address-tracker:first-seen": 1404918392926,
+                    "address-tracker:mac": "f2:0c:dd:80:9f:f7"
+                }
+            ],
+----------------------------------------------------------------
+
+------------------------------------------------------------------------------------
+            "opendaylight-port-statistics:flow-capable-node-connector-statistics": {
+                "opendaylight-port-statistics:duration": {
+                    "opendaylight-port-statistics:nanosecond": 333000000,
+                    "opendaylight-port-statistics:second": 17
+                },
+                "opendaylight-port-statistics:receive-crc-error": 0,
+                "opendaylight-port-statistics:packets": {
+                    "opendaylight-port-statistics:received": 9,
+                    "opendaylight-port-statistics:transmitted": 8
+                },
+                "opendaylight-port-statistics:transmit-drops": 0,
+                "opendaylight-port-statistics:receive-frame-error": 0,
+                "opendaylight-port-statistics:transmit-errors": 0,
+                "opendaylight-port-statistics:receive-errors": 0,
+                "opendaylight-port-statistics:receive-drops": 0,
+                "opendaylight-port-statistics:receive-over-run-error": 0,
+                "opendaylight-port-statistics:bytes": {
+                    "opendaylight-port-statistics:received": 658,
+                    "opendaylight-port-statistics:transmitted": 532
+                },
+                "opendaylight-port-statistics:collision-count": 0
+            }
+        }
+    ]
+}
+------------------------------------------------------------------------------------
+
+[[how-to-access-via-code]]
+= How to access via code?
+
+Here is java code snippet on how these address observations can be read
+from the data store.
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+      // acquire DataBroker service from Bindingaware context 
+      DataBroker dataService = consumerContext.<DataBroker>getSALService(DataBroker.class);
+
+     // Read existing address observations from data tree
+      ReadWriteTransaction readWriteTransaction = dataService.newReadWriteTransaction();
+
+      NodeConnector nc = null;
+      try {
+        Optional<DataObject> dataObjectOptional = readWriteTransaction.read(LogicalDatastoreType.OPERATIONAL, nodeConnectorRef.getValue()).get();// not recommended option, one should implement listener on retuned ListenableFuture
+        if(dataObjectOptional.isPresent())
+          nc = (NodeConnector) dataObjectOptional.get(); 
+      } catch(Exception e) {
+        _logger.error("Error reading node connector {}", nodeConnectorRef.getValue());
+        readWriteTransaction.commit();
+        throw new RuntimeException("Error reading from operational store, node connector : " + nodeConnectorRef, e);
+      }
+      if(nc == null) {
+        readWriteTransaction.commit();
+        return;
+      }
+      // Get the Augmentation from node connector
+      AddressCapableNodeConnector acnc = (AddressCapableNodeConnector) nc.getAugmentation(AddressCapableNodeConnector.class); 
+      if(acnc != null && acnc.getAddresses() != null) {
+        // get address list from augmentation.
+        List<Addresses>  addresses = acnc.getAddresses();
+        for(Addresses address:addresses) {
+          address.getMac();// to get MAC address observed on this port
+          address.getIp();// to get IP address observed on this port
+          address.getFirstSeen(); // first time the tuple was observed on this port
+          address.getLastSeen(); // latest time the tuple was observed on this port
+        }
+      }
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------

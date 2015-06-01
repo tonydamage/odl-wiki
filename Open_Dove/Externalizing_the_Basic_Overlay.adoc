@@ -1,0 +1,80 @@
+The instructions on the page assume that the example in
+Open Dove:Configuring a basic Overlay[Open Dove:Configuring a basic
+Overlay] has been completed. The steps in this example enables traffic
+from virtual network 1 to exit the overlay via the oDGW.
+
+[[create-external-network]]
+== Create External Network
+
+Submit POST request to http://:8080/controller/nb/v2/neutron/networks
+with the following JSON body:
+
+`{ "networks": [` +
+` { "id": "``", "name": "``", "tenant_id": "``", "router:external": true }` +
+`]}`
+
+*Important!* The last token (router:external) is necessary to
+distinguish this network from the other internal networks.
+
+[[create-external-subnet]]
+== Create External Subnet
+
+Submit POST request to http://:8080/controller/nb/v2/neutron/subnets
+with the following JSON body:
+
+`{ "subnet" :` +
+` { "id": "``",` +
+`   "network_id": "``",` +
+`   "name": "``",` +
+`   "gateway_ip": "``",` +
+`   "cidr": "``",` +
+`   "tenant_id": "``" }` +
+`}`
+
+*Important!*: OpenDOVE will allocate addresses for the external
+interface, SNAT pools, and Forwarding Rules from the cidr block defined
+in this subnet, so be sure it's big enough and the addresses aren't
+being used by others!
+
+[[create-ports]]
+== Create Ports
+
+Submit POST request to http://:8080/controller/nb/v2/neutron/ports with
+the following JSON body:
+
+`{ "ports": [` +
+`  { "id": "``",` +
+`    "network_id": "``",` +
+`    "name": "``",` +
+`    "mac_address": "``",` +
+`    "fixed_ips": [{ "subnet_id": "``" , "ip_address": "``" }],` +
+`    "tenant_id": "``" },` +
+`  { "id": "``",` +
+`"network_id": "``",` +
+`"name": "``",` +
+`"mac_address": "``",` +
+`"fixed_ips": [{ "subnet_id": "``", "ip_address": "``" }],` +
+`"tenant_id": "``" } ]`
+
+}
+
+[[create-router]]
+== Create Router
+
+Submit POST request to http://:8080/controller/nb/v2/neutron/routers
+with the following JSON body:
+
+`{ "router": { "id": "``", "name": "``", "admin_state_up": true } }`
+
+[[attach-interfaces-to-router]]
+== Attach Interfaces to Router
+
+Submit two PUT requests to
+http://:8080/controller/nb/v2/neutron/routers/internal_router_id_3/add_router_interface
+For the first, use this JSON body:
+
+`{ "id": "``", "tenant_id": "``", "port_id": "``", "subnet_id": "``" }`
+
+and for the second, use this JSON body:
+
+`{ "id": "``", "tenant_id": "``", "port_id": "``", "subnet_id": "``" }`

@@ -1,0 +1,1325 @@
+[cols="^",]
+|=======================================================================
+|*User Guide*
+
+|OpenDaylight SDN Controller Platform (OSCP):Installation[Installation] +
+OpenDaylight SDN Controller Platform (OSCP):Clustering[Clustering &
+HA] +
+OpenDaylight SDN Controller Platform (OSCP):Management[Management
+Integration] +
+OpenDaylight SDN Controller Platform (OSCP):Troubleshooting[Troubleshooting] +
+OpenDaylight SDN Controller Platform (OSCP):Main[Back to Top]
+|=======================================================================
+
+[cols="^",]
+|=======================================================================
+|'''Programmer Guide '''
+
+|OpenDaylight SDN Controller Platform (OSCP):Overview[Overview] +
+OpenDaylight SDN Controller Platform (OSCP):Rest Reference[REST
+Reference] +
+OpenDaylight SDN Controller Platform (OSCP):Module Loading System[Module
+Loading System] +
+OpenDaylight SDN Controller Platform (OSCP):Tutorial-Writing a Module[Tutorial-Writing
+a Module] +
+OpenDaylight SDN Controller Platform (OSCP):Main[Back to Top]
+|=======================================================================
+
+[[introduction]]
+= Introduction
+
+This document describes the REST API for the OpenDaylight SDN Controller
+Platform. The REST API provides access to the network database that
+includes configuration data for the controller (e.g. static flow table
+entries), data for dynamically discovered network entities (e.g.
+switches, hosts), and statistics and logging data.
+
+The REST API is implemented in a separate process (i.e. "sdncon") from
+the OpenFlow controller (i.e. sdnplatform). sdnplatform has its own REST
+API for obtaining certain information, much of which is also available
+through the console API through proxied calls. This document only
+describes the sdncon network database REST API, not the sdnplatform REST
+API.
+
+By default the firewall on the controller blocks access to the REST API.
+If the application accessing the REST API is running on a remote
+machine, then the firewall settings on the controller machine need to be
+configured to allow access:
+
+1.  ssh to the controller machine: "ssh admin@". This will put you in
+the CLI. 2.
+2.  Enable remote access to the REST API (i.e. port 80): "enable;
+firewall allow web".
+
+Earlier releases of the controller used port 8000 for accessing the REST
+API. This port is still supported for backward compatibility. To
+configure the firewall to allow access on that port use the "firewall
+allow rest" command from the CLI. Use of this port is deprecated,
+though, so you should convert any code or scripts that use port 8000 to
+use port 80 instead (i.e. no explicit port specified in the URL).
+
+In many of the URL examples in the rest of the document "localhost" is
+used as the domain name in the URL. This works if the REST call is made
+from the controller itself. If you're accessing it remotely use the
+actual IP address or host name of the controller, not "localhost".
+
+xxxxxxxxx
+
+[[querying-items]]
+== Querying Items
+
+Items are queried using the HTTP GET method. The form of the URL is:
+"http://<domain-or-ip-address>/rest/v1/model/<data-type>/<optional-id>?<optional-query-params>".
+You can optionally include a trailing slash at the end of the path
+portion of the URL.
+
+The data types currently supported are:
+
+* *controller-node*: Read-only. The individual controller
+nodes/instances in the overall controller platform
+* *controller-alias*: Configure an alias/hostname for a controller node
+* *controller-interface*: Configure network interfaces for a controller
+* *controller-domain-name-server*: Configure the DNS servers for a
+controller node
+* *firewall-rule*: Configure firewall rules on controller interfaces
+* *global-config*: Configure global properties for the HA cluster
+* *feature*: Configure features that have been enabled on the controller
+* *topology-config*: Configure topology discovery properties
+* *snmp-server-config*: Configure SNMP server
+* *tacacs-plus-config*: Configure TACACS+ server
+* *tacacs-plus-host*: Configure TACACS+ hosts
+* *image-drop-user*: Configure password for upload of upgrade images
+* *switch*: Read-only. The switches associated with this controller
+* *switch-alias*: Configure an alias for a switch
+* *switch-config*: Per-switch configuration for Controller
+* *switch-interface-config*: Per-switch interface configuration for
+Controller
+* *switch-interface-alias*: Configure an alias for a switch interface
+* *port*: Read-only. The port info for the switches
+* *port-alias*: The port info for the switches
+* *port-channel*: Create port channels
+* *port-channel-config*: Configure port channels
+* *link*: Read-only. The links between switches
+* *flow-entry*: The statically configured flow table entries
+* *host-config*: Per-host configuration
+* *host-alias*: Configure aliases for hosts
+* *host-security-ip-address*: Configure ip address for spoofing
+protection
+* *host-security-attachment-point*: Configure attachment point for
+spoofing protection
+* *vns-definition*: Define Big Virtual Switches (VNS)
+* *vns-interface-rule*: Define interface rules for VNS
+* *vns-interface-config*: Per-interface configuration for interfaces
+created by VNS rules
+* *vns-access-list*: ACLs for VNS
+* *vns-access-list-entry*: Individual entries in a VNS ACL
+* *vns-interface-access-list*: Associate an VNS interface config object
+with an ACL
+
+·       *vns-interface-rule-network-service-node-mapping*: Associate a
+network service with a VNS
+
+* *address-space*: Define an address space
+* *address-space-identifier-rule*: Define a membership rule for an
+address space
+* *vlan-config*: Configure VLANs to use with address-spaces
+* *network-service*: Define a network service
+* *network-service-node*: Define a network service node
+* *network-service-ip*: Associate an IP address with a network service
+* *network-service-mapping*: Associate a network service with a VNS
+* *bigtap-interface*: Define a tap interface
+* *bigtap-interface-config*: Configure a tap interface
+* *bigtap-policy*: Define a tap policy
+* *bigtap-policy-delivery-interface*: Configure delivery interfaces for
+a tap policy
+* *bigtap-policy-match*: Configure a match criteria for a tap policy
+* *bigtap-policy-network-identifier*: Configure a VLAN for a tap
+policy's traffic
+* *bigtap-policy-receive-interface*: Configure receive interfaces for a
+tap policy
+* *bigtap-policy-service*: Configure a service for tap policy
+* *bigtap-service*: Define a tap service for tapped traffic
+* *bigtap-service-preinterface*: Configure the pre-interface for a tap
+service
+* *bigtap-service-postinterface*: Configure the post-interface for a tap
+service
+* *tag*: Create a host tag
+* *tag-mapping*: map a host tag to a host
+* *vcenter*: Configure a vCenter instance
+* *dvs*: Configure a distributed virtual switch (DVS) associated with a
+vcenter
+* *dvs-port-group*: Configure a port group that will be created on a DVS
+by the controller
+
+Experiment with queries for each of the types and look at what fields
+are there. The fields should be pretty self-explanatory for
+controller-node, host, and link. For switch, port and flow-entry you can
+look at the descriptions of the ofp_switch_features, ofp_phy_port and
+ofp_match structs in the OpenFlow spec. The fields in the REST API data
+types pretty much mirror those structs.
+
+If the optional ID and query params are omitted, then the REST API
+returns a list of all of the items of the given data type. The format of
+the return data is JSON. So, for example, to get all of the controller
+nodes:
+
+[cols=",",]
+|=======================================================================
+a|
+*URL*
+
+ |http://<host-name-or-ip>/rest/v1/model/controller-node
+
+a|
+*Return Text*
+
+ |[\{"ntp-server": "0.acme.pool.ntp.org", "time-zone":
+"America/Los_Angeles", "logging-level": "notice", "logging-enabled":
+false, "domain-name": "acme.com", "default-gateway": "192.168.2.1",
+"logging-server": "", "domain-lookups-enabled": true, "id":
+"02a32314-7a75-44fe-9412-6bcb36b25367"}]
+|=======================================================================
+
+If you know the unique ID of a data item you can retrieve just that item
+by including the optional ID in the URL path:
+
+[cols=",",]
+|=======================================================================
+a|
+*URL*
+
+ |http://<host-name-or-ip>/rest/v1/model/switch/00:00:00:00:00:00:00:01
+
+a|
+*Return Text*
+
+ |\{"tables": 1, "socket-address": "/192.168.2.104:50663",
+"connected-since": "2012-07-16 03:46:28.572000", "capabilities": 71,
+"active": true, "controller": "02a32314-7a75-44fe-9412-6bcb36b25367",
+"actions": 2367, "ip-address": "192.168.2.104", "dpid":
+"00:00:00:00:00:32:90:11", "tunneling-capable": false, "buffers": 256}
+|=======================================================================
+
+Note that this returns a single item, not a list of items (i.e. no
+enclosing square brackets)
+
+The unique ID fields for the different data types are:
+
+[cols=",,",]
+|=======================================================================
+a|
+*Data Type*
+
+ a|
+*ID Field Name*
+
+ a|
+*Description*
+
+|controller-node |id |GUID value assigned during initial controller
+setup
+
+|controller-alias |alias |Name of the controller alias
+
+|controller-interface |id |<controller-id>|Ethernet|<interface-number>
+
+|controller-domain-name-server |id |<controller-id>|<sequence-number>
+
+|firewall-rule |id |<controller-interface-id>|<port-number>|<protocol>
+
+|switch |dpid |Datapath ID of the switch
+
+|switch-alias |id |Name of the switch alias
+
+|switch-config |switch |<switch DPID>
+
+|switch-interface-config |id |<switch DPID>|<interface-name>
+
+|switch-interface-alias |id |Name of the switch interface alias
+
+|port |id |<switch DPID>:<port #>
+
+|port-alias |id |Name of port alias
+
+|port-channel |id |Port channel name
+
+|port-channel-config |id |<switch DPID>|<OF-port-name>
+
+|link |id |<src switch DPID>-<src port>-<dst switch DPID>-<dst port>
+[Note: there are dashes between the components of the ID]
+
+|flow-entry |name |User-defined name of the static flow entry
+
+|host-config |mac |<host MAC address>
+
+|host-alias |id |Name of the host alias
+
+|vns-definition |id |Name of the VNS
+
+|vns-interface-rule |id |<VNS name>|<rule-id>
+
+|vns-interface-config |id |<VNS name>|<interface-name>
+
+|vns-access-list |id |<VNS Name>|<ACL name>
+
+|vns-access-list-entry |id |<vns-acl-id>|<rule-id>
+
+|vns-interface-access-list |id
+|<vns-interface-id>|<vns-acl-id>|<in-or-out>
+
+|tag |id |<namespace>|<name>|<value>
+
+|tag-mapping |id |<tag-id>|<host MAC>
+
+|vcenter |id |Name for the vCenter instance
+
+|dvs |id |<vcenter-id>|<datacenter-name>|<dvs-id>
+
+|dvs-port-group |id |<dvs-id>|<port-group-id>
+|=======================================================================
+
+You can also do more complex queries using the optional query params.
+Note that if you do a query with the query params you should not set the
+optional ID in the URL path; those query modes are mutually exclusive.
+The format of the query params is the same as for standard query params:
+a semicolon-separated list of <name>=<value> pairs. In the simplest case
+the <name> is the name of a field in the data type being queried and the
+<value> is the value of that field you want to filter the query with.
+For example, to get all of the links coming from connected to the switch
+whose DPID is 00:00:00:00:00:73:28:04:
+
+`$ curl '`http://localhost/rest/v1/model/link?src-switch=00:00:00:1c:73:10:3e:24[`http://localhost/rest/v1/model/link?src-switch=00:00:00:1c:73:10:3e:24`]`' | python -mjson.tool` +
+`   ``% Total``    ``% Received % Xferd``  ``Average Speed``   ``Time``    ``Time``     ``Time``  ``Current` +
+`                                  ``Dload``  ``Upload``   ``Total``   ``Spent``    ``Left``  ``Speed` +
+` 100``   ``736``    ``0``   ``736``    ``0``     ``0``  ``11461``      ``0 --:--:-- --:--:-- --:--:-- 11682` +
+` [` +
+`     ``{` +
+`         ``"dst-port": 18,` +
+`         ``"dst-port-state": 0,` +
+`   ``      ``"dst-switch": "00:00:00:1c:73:10:3e:24",` +
+`         ``"id": "00:00:00:1c:73:10:3e:24-17-00:00:00:1c:73:10:3e:24-18",` +
+`         ``"link-type": "internal",` +
+`         ``"src-port": 17,` +
+`         ``"src-port-state": 0,` +
+`         ``"src-switch": "00:00:00:1c:73:10:3e:24"` +
+`     ``},` +
+`     ``{` +
+`         ``"dst-port": 17,` +
+`         ``"dst-port-state": 0,` +
+`         ``"dst-switch": "00:00:00:1c:73:10:3e:24",` +
+`         ``"id": "00:00:00:1c:73:10:3e:24-18-00:00:00:1c:73:10:3e:24-17",` +
+`         ``"link-type": "internal",` +
+`         ``"src-port": 18,` +
+`    ``     ``"src-port-state": 0,` +
+`         ``"src-switch": "00:00:00:1c:73:10:3e:24"` +
+`     ``},` +
+`     ``{` +
+`         ``"dst-port": 24,` +
+`         ``"dst-port-state": 0,` +
+`         ``"dst-switch": "00:00:00:00:00:73:28:04",` +
+`         ``"id": "00:00:00:1c:73:10:3e:24-3-00:00:00:00:00:73:28:04-24",` +
+`         ``"link-type": "internal",` +
+`         ``"src-port": 3,` +
+`         ``"src-port-state": 0,` +
+`         ``"src-switch": "00:00:00:1c:73:10:3e:24"` +
+`     ``}` +
+` ]`
+
+If you include multiple name/value pairs then the return text is the
+list of items that satisfies all of the conditions (i.e. the conditions
+are AND'd together).
+
+You can also do more complex filtering operations using a special form
+of the name in the name/value pairs: <field-name>__<operation>. Note
+that that's a double underscore between the field name and the
+operation. For example to get all of the hosts whose MAC address starts
+with 00:00:00 you can use the startswith operation:
+
+`$ curl '`http://localhost/rest/v1/model/switch?dpid__startswith=00:00:19[`http://localhost/rest/v1/model/switch?dpid__startswith=00:00:19`]`' | python -mjson.tool` +
+`   ``% Total``    ``% Received % Xferd``  ``Average Speed``   ``Time``    ``Time``     ``Time``  ``Current` +
+`                                  ``Dload``  ``Upload``   ``Total``   ``Spent``    ``Left``  ``Speed` +
+` 100``   ``321``    ``0``   ``321``    ``0``     ``0``   ``4700``      ``0 --:--:-- --:--:-- --:--:--``  ``4791` +
+` [` +
+`     ``{` +
+`         ``"actions": 2049,` +
+`      ``   ``"active": true,` +
+`         ``"buffers": 256,` +
+`         ``"capabilities": 71,` +
+`         ``"connected-since": "2012-07-12 22:03:05.461000",` +
+`         ``"controller": "02a32314-7a75-44fe-9412-6bcb36b25367",` +
+`         ``"dpid": "00:00:19:21:68:00:20:27",` +
+`         ``"ip-address": "192.168.2.27",` +
+`         ``"socket-address": "/192.168.2.27:60766",` +
+`         ``"tables": 1,` +
+`         ``"tunneling-capable": false` +
+`     ``}` +
+` ]`
+
+The supported filtering operations are:
+
+[cols=",",]
+|=======================================================================
+a|
+*Operation Name*
+
+ a|
+*Description*
+
+|exact |Exact match of specified value. Equivalent to setting the name
+to just the field name
+
+|iexact |Case insensitive match of the specified value
+
+|contains |The field contains the specified value, case-sensitive
+
+|icontains |The field contains the specified value, case-insensitive
+
+|startswith |The field starts with the specified value, case-sensitive
+
+|istartswith |The field starts with the specified value,
+case-insensitive
+
+|endswith |The field ends with the specified value, case-sensitive
+
+|iendswith |The field ends with the specified value, case-insensitive
+
+|gt |The field is greater than the specified value
+
+|gte |The field is greater than or equal to the specified value
+
+|lt |The field is less than the specified value
+
+|lte |The field is less than or equal to the specified value
+
+|regex |The field matches the specified regular expression,
+case-sensitive
+
+|iregex |The field matches the specified regular expression,
+case-insensitive
+|=======================================================================
+
+The syntax of the regular expressions for the regex and iregex
+operations is the Python regular expression syntax.
+
+There are also some special query parameters that can be used to affect
+how the results are returned from a query:
+
+[cols=",",]
+|=======================================================================
+a|
+*Query Parameter Name*
+
+ a|
+*Description*
+
+|callback |Return query results in the JSONP format with the specified
+value as the JSONP function name. Google "JSONP" for more info on why
+you'd want to use this feature.
+
+|nolist |If specified value is true (or True or 1), then return a single
+item, not a list (i.e. no enclosing square brackets]. This returns an
+error if there's not exactly one item that satisfies the query
+parameters.
+
+|orderby |Order the results by the specified value. The value is a
+comma-separated list of field names to use to sort the results, in
+decreasing precedence. So, for example, to order the results from a host
+query first on the switch, then on the ingress port, the orderby value
+would be "switch,ingress-port".
+|=======================================================================
+
+[[creating-items]]
+== Creating Items
+
+New items are created using the HTTP PUT method with a URL path of:
+"/rest/v1/model/<data-type>". The PUT data is the JSON formatted data
+for the item (or items) to be created. Each item is a JSON object (i.e.
+comma-separated list of field name/value pairs bracketed with curly
+brackets) with the fields of the given data type specified. In some
+cases some of the fields are optional and can be omitted. [TBD: Need
+descriptions of which fields are optional for each of the data types.]
+You can insert multiple items in a single REST call by specifying a JSON
+array of objects (i.e. comma-separated list of JSON objects bracketed
+with square brackets). Basically the format of the data is the same as
+you see when you query for items as described in the previous section.
+
+Note that this use of the PUT method to create items isn't the
+conventional REST way of creating items (normal way is to use the POST
+method). But using the POST method with POST parameters it wouldn't be
+possible to create multiple items in one call, which is why we use the
+PUT method instead.
+
+Most of the data types (controller-node, switch, port, link, etc)
+currently exposed in the REST API aren't intended to be modified by
+third party apps, only by the controller. An
+authentication/authorization model for the REST API is under development
+that will prevent unprivileged apps from modifying specific types of
+data.
+
+For now the main thing that third party apps will modify/create are the
+static flow table entries.
+
+[[updating-items]]
+== Updating Items
+
+Items are updated using the HTTP PUT method. The difference between
+updating vs. creating is that the item (or items) to be updated must be
+specified using either the optional ID component of the URL path or
+query parameters. If you use the optional ID in the URL path, then only
+that single item is updated. If you use query parameters, then any items
+matching the query parameter conditions are updated. The PUT data is a
+JSON object that includes the field names/values to be updated. The
+return value is JSON text. If the update succeeded, the JSON will be an
+object with a field named "description" describing the result of the
+operation. The description may be null in some cases for successful
+operations. If there was an error there is also an "error_type" field.
+See the "Error Handling" section below for information about how errors
+are handled.
+
+For example, to set the an alias for a switch whose dpid is
+00:00:00:00:00:00:01
+
+[cols=",",]
+|====================================================
+a|
+*URL*
+
+ |http://localhost/rest/v1/model/switch-alias/myalias
+a|
+*PUT Data*
+
+ |\{"switch":"00:00:00:00:00:00:01"}
+|====================================================
+
+[[deleting-items]]
+== Deleting Items
+
+Items are deleted using the HTTP DELETE method. Similar to updating
+items you specify the item(s) to be deleted using either the optional ID
+component in the URL path (to delete a single item) or the optional
+query parameters (to delete multiple items). Just to repeat the earlier
+warning: The only data type you should delete currently is the
+flow-entry data type. Bad things will probably happen if you delete
+switch, port, host, link info out from under the controller. If the
+delete succeeded, the JSON will be an object with a field named
+"description" describing the result of the operation. The description
+may be null in some cases for successful operations. If there was an
+error there is also an "error_type" field. See the "Error Handling"
+section below for information about how errors are handled.
+
+For example to delete the flow entry named "testping":
+
+[cols=",",]
+|===================================================
+a|
+*URL*
+
+ |http://localhost/rest/v1/model/flow-entry/testping
+|===================================================
+
+[[proxied-sdnplatform-apis]]
+== Proxied sdnplatform APIs
+
+There are also a number of APIs in provided which simply proxy to an
+equivalent API running in sdnplatform. The semantics and exact return
+value of each of these APIs varies significantly (unifying and
+simplifying this API is currently being worked on). Here, we'll simply
+provide a couple of key useful ones and some simple examples.
+
+[[devices]]
+=== Devices
+
+This is proxied from the sdnplatform device API which is present in the
+open source sdnplatform. Possible paramters are "mac", "ipv4", "dpid",
+"port", "mac__startswith", "ipv4startswith", "dpidstartswith", and
+"port__startswith". Note that depending on your configuration, it's
+possible to have multiple distinct devices in the system that share a
+MAC address, so the return value is always a list.
+
+`$ curl '`http://localhost/rest/v1/device?mac=00:0c:29:69:e1:10[`http://localhost/rest/v1/device?mac=00:0c:29:69:e1:10`]`' | python -mjson.tool` +
+`   ``% Total``    ``% Received % Xferd``  ``Average Speed``   ``Time``    ``Time``     ``Time``  ``Current` +
+`                                  ``Dload``  ``Upload``   ``Total``   ``Spent``    ``Left``  ``Speed` +
+` 100``   ``179``    ``0``   ``179``    ``0``     ``0``   ``1854``      ``0 --:--:-- --:--:-- --:--:--``  ``1864` +
+` [` +
+`     ``{` +
+`         ``"attachmentPoint": [` +
+`             ``{` +
+`                 ``"errorStatus": null,` +
+`                 ``"port": 9,` +
+`                 ``"switchDPID": "00:00:19:21:68:00:20:27"` +
+`             ``}` +
+`         ``],` +
+`         ``"ipv4": [` +
+`             ``"172.18.1.102"` +
+`         ``],` +
+`         ``"lastSeen": 1342198497188,` +
+`         ``"mac": [` +
+`             ``"00:0c:29:69:e1:10"` +
+`         ``],` +
+`         ``"vlan": []` +
+`     ``}` +
+` ]`
+
+[[vns]]
+=== VNS
+
+This is not present in the open source sdnplatform. Possible parameters
+are "name" and "name__startswith".
+
+`$ curl '`http://localhost/rest/v1/vns?name=default[`http://localhost/rest/v1/vns?name=default`]`' | python -mjson.tool` +
+`   ``% Total``  ``  ``% Received % Xferd``  ``Average Speed``   ``Time``    ``Time``     ``Time``  ``Current` +
+`                                  ``Dload``  ``Upload``   ``Total``   ``Spent``    ``Left``  ``Speed` +
+` 100``   ``169``    ``0``   ``169``    ``0``     ``0``   ``2592``      ``0 --:--:-- --:--:-- --:--:--``  ``2640` +
+` [` +
+`     ``{` +
+`         ``"active": true,` +
+`         ``"arpManagerMode": "flood-if-unknown",` +
+`         ``"broadcastMode": "forward-to-known",` +
+`         ``"dhcpIp": 0,` +
+`         ``"dhcpManagerMode": "flood-if-unknown",` +
+`         ``"name": "default",` +
+`         ``"priority": 1000` +
+`     ``}` +
+` ]`
+
+[[vns-interfaces]]
+=== VNS Interfaces
+
+This is not present in the open source sdnplatform. Possible parameters
+are "vns", "name", "vns__startswith", and "name__startswith".
+
+`$ curl '`http://localhost/rest/v1/vns/interface?vns=default&name=default[`http://localhost/rest/v1/vns/interface?vns=default&name=default`]`' | python -mjson.tool` +
+`   ``% Total``    ``% Received % Xferd``  ``Average Speed``   ``Time``    ``Time``     ``Time``  ``Current` +
+`                                  ``Dload``  ``Upload``   ``Total``   ``Spent``    ``Left``  ``Speed` +
+` 100``   ``243``    ``0``   ``243``    ``0``     ``0``   ``2384``      ``0 --:--:-- --:--:-- --:--:--``  ``2405` +
+` [` +
+`     ``{` +
+`         ``"lastSeen": 1342199069856,` +
+`      ``   ``"name": "default",` +
+`         ``"parentVNS": {` +
+`             ``"active": true,` +
+`             ``"arpManagerMode": "flood-if-unknown",` +
+`             ``"broadcastMode": "forward-to-known",` +
+`             ``"dhcpIp": 0,` +
+`             ``"dhcpManagerMode": "flood-if-unknown",` +
+`  ``           ``"name": "default",` +
+`             ``"priority": 1000` +
+`         ``},` +
+`         ``"parentRule": null` +
+`     ``}` +
+` ]` +
+` bsn@beta-controller-b:~$ curl '`http://localhost/rest/v1/vns/interface?vns=default&name=default/00:0c:29:10:56:20[`http://localhost/rest/v1/vns/interface?vns=default&name=default/00:0c:29:10:56:20`]`' | python -mjson.tool` +
+`   ``% Total``    ``% Received % Xferd``  ``Average Speed``   ``Time``    ``Time``     ``Time``  ``Current` +
+`                                  ``Dload``  ``Upload``   ``Total``   ``Spent``    ``Left``  ``Speed` +
+` 100``   ``261``    ``0``   ``261``    ``0``     ``0``   ``2629``      ``0 --:--:-- --:--:-- --:--:--``  ``2636` +
+` [` +
+`     ``{` +
+`         ``"lastSeen": 1342197609281,` +
+`         ``"name": "default/00:0c:29:10:56:20",` +
+`         ``"parentVNS": {` +
+`             ``"active": true,` +
+`             ``"arpManagerMode": "flood-if-unknown",` +
+`             ``"broadcastMode": "forward-to-known",` +
+`             ``"dhcpIp": 0,` +
+`          ``   ``"dhcpManagerMode": "flood-if-unknown",` +
+`             ``"name": "default",` +
+`             ``"priority": 1000` +
+`         ``},` +
+`         ``"parentRule": null` +
+`     ``}` +
+` ]`
+
+[[devicevns-interface-mappings]]
+=== Device/VNS Interface Mappings
+
+Lets you know to which VNS a device has been mapped. Possible parameters
+match those of the device API.
+
+`$ curl '`http://localhost/rest/v1/vns/device-interface?mac=00:0c:29:69:e1:10[`http://localhost/rest/v1/vns/device-interface?mac=00:0c:29:69:e1:10`]`' | python -mjson.tool` +
+`   ``% Total``    ``% Received % Xferd``  ``Average Speed``   ``Time``    ``Time``     ``Time``  ``Current` +
+`                                  ``Dload``  ``Upload``   ``Total``   ``Spent``    ``Left``  ``Speed` +
+` 100``   ``460``    ``0``   ``460``    ``0``     ``0``   ``7044``      ``0 --:--:-- --:--:-- --:--:--``  ``7187` +
+` [` +
+`     ``{` +
+`         ``"device": {` +
+`             ``"attachmentPoint": [` +
+`                 ``{` +
+`                     ``"errorStatus": null,` +
+`              ``       ``"port": 9,` +
+`                     ``"switchDPID": "00:00:19:21:68:00:20:27"` +
+`                 ``}` +
+`             ``],` +
+`             ``"ipv4": [` +
+`                 ``"172.18.1.102"` +
+`             ``],` +
+`             ``"lastSeen": 1342199464155,` +
+`             ``"mac": [` +
+`         ``        ``"00:0c:29:69:e1:10"` +
+`             ``],` +
+`             ``"vlan": []` +
+`         ``},` +
+`         ``"iface": [` +
+`             ``{` +
+`                 ``"lastSeen": 1342199465319,` +
+`                 ``"name": "default/00:0c:29:69:e1:10",` +
+`                 ``"parentVNS": {` +
+`           ``          ``"active": true,` +
+`                     ``"arpManagerMode": "flood-if-unknown",` +
+`                     ``"broadcastMode": "forward-to-known",` +
+`                     ``"dhcpIp": 0,` +
+`                     ``"dhcpManagerMode": "flood-if-unknown",` +
+`                   ``  ``"name": "default",` +
+`                     ``"priority": 1000` +
+`                 ``},` +
+`                 ``"parentRule": null` +
+`             ``}` +
+`         ``]` +
+`     ``}` +
+` ]` +
+
+[[storing-data-blobs]]
+== Storing Data Blobs
+
+The REST API also supports storing & retrieving arbitrary data blobs
+from the network database. For example, the CLI uses this to
+store/archive configuration scripts in the database. The format of the
+URL for the data blobs is: "http://<domain>/rest/v1/data/<blob-name>".
+To store blob data you use the HTTP PUT method where the PUT data is the
+raw blob data. To retrieve data you use the HTTP GET method. The data
+that's returned is the exact data that was stored in the earlier PUT
+call (i.e. there's no enclosing JSON formatting or anything else).
+
+When storing data the REST API implementation looks for the Content-Type
+header in the HTTP request. If it's specified, then this value is saved
+along with the data and returned as the Content-Type header when the
+data is retrieved. You can also specify a query parameter of "binary"
+set to "true" to indicate that the data is binary data. In this case the
+REST API will set the content type to be "application/octet-stream". If
+neither the Content-Type header nor the binary query parameter is
+specified the data is assumed to be text data and the content type is
+set to "text/plain".
+
+There's no particular format for the blob name imposed by the REST API.
+It can contain alphanumeric characters as well as any of the following
+punctuation characters: "_:./=;-". By convention it's useful to think of
+the name as an absolute path in a virtual file system with '/' as the
+path separator. That way you can group different types of data in
+logical directories and query for data blobs (described below) using the
+startswith filter operation. Currently we don't have any guidelines for
+reserved names in the global namespace, but for now you should prefix
+any blob names with something that you are reasonably certain will be
+globally unique to avoid conflicts with how Big Switch or another third
+party uses the data blob namespace.
+
+You can also query to get a list of blobs matching some specified
+criteria. In this case the URL is
+"http://<domain>/rest/v1/data/?<query-params>" where the query
+parameters specify the criteria similar to querying other types of data
+in the REST API. The following fields are available for querying:
+
+[cols=",",]
+|===============================================
+a|
+*Field Name*
+
+ a|
+*Description*
+
+|name |The name of the data blob
+|content_type |The content type of the data blob
+|===============================================
+
+The return value is a JSON formatted list of data blob references, where
+each blob reference contains the name of the blob and the URL path to
+access that data blob.
+
+For example, to get all of the data blobs whose names starts with
+"/sdnplatform/config/":
+
+[cols=",",]
+|=======================================================================
+a|
+*URL*
+
+ |http://localhost/rest/v1/data/?name__startswith=/sdnplatform/config/
+
+a|
+*Return Text*
+
+ |[\{"name":"/sdnplatform/config/running",
+"url_path":"rest/v1/data/sdnplatform/config/running"},\{"name":"/sdnplatform/config/backup",
+"url_path":"rest/v1/data/sdnplatform/config/backup"}]
+|=======================================================================
+
+[[retrieving-stats-data]]
+== Retrieving Stats Data
+
+The controller collects time-sampled stats from the controller node and
+the switches that are connected to the controller.
+
+These stats data are retrieved using the following URL:
+
+http:///rest/v1/stats/data////?
+
+The return text is a JSON-formatted array of time/value tuples or error
+info (see error handling section below). The time value is an integer
+UTC time in milliseconds since the epoch. The value is dependent on the
+type of stats value being retrieved. For example, the return text for a
+query for the mem-used stat type might be something like:
+
+[[1303307359476, 870156], [1303308019478, 870416], [1303311619488,
+869844]]
+
+The cluster-id is included for multi-tenant and multi-cluster stats
+support from a cloud server. Currently for the local controller we only
+support a single tenant and the cluster ID is hard-coded to be "default"
+
+The target-type is the type of the source of the stats data. The
+target-id identifies a specific instance of the target type. Currently
+there are two target types:
+
+[cols=",,",]
+|=======================================================================
+a|
+*Target Type*
+
+ a|
+*Description*
+
+ a|
+*Target ID*
+
+|controller |Stats associated with a controller node |The ID of the
+controller node. Currently we only support a single node controller, so
+the ID is hard-coded to be "localhost"
+
+|switch |Stats associated with a switch |The DPID of the switch, e.g.
+00:00:00:00:00:00:00:01
+|=======================================================================
+
+The stat-type identifies the specific time series stats data being
+retrieved, e.g. "cpu-user", "OFPacketIn").
+
+The optional-query-params are used to specify the time range for the
+query and how the data is downsampled to return a manageable number of
+data points. The raw sample data for different stat types is sampled at
+frequencies that are configured for the controller process that collects
+stats. Currently these are only configurable by editing a config file on
+the controller system, but eventually we will support configuration via
+the CLI or web UI. The raw sampling frequencies can be as frequent as
+every few seconds. If an application retrieves stats data over a much
+longer period (e.g. days, weeks), then it would be too much data to
+return the raw sample data, so the REST API supports downsampling of the
+data, as specified in the query parameters described below.
+
+The following query params are supported:
+
+[cols=",",]
+|=======================================================================
+a|
+*Query Param*
+
+ a|
+*Description*
+
+|start-time |The start time for the data to return.
+
+|end-time |The end time for the data to return. Time format is the same
+as start-time
+
+|duration |The duration of the time interval of the data to return
+
+|sample-interval |The interval between sample points
+
+|sample-count |The number of sample points returned
+
+|sample-window |The time window around each sample point used to
+calculate the value
+
+|data-format |The format of the returned data
+|=======================================================================
+
+The values of the start-time and end-time parameters are integer values
+in milliseconds. The value is UTC time in milliseconds since the epoch
+(where epoch = Unix epoch = midnight 1/1/1970 UTC). For example, in
+Python this is: "int(time.time()*1000)". In general, the epoch is
+system-dependent, so it may be necessary to adjust the time value to use
+time values that are consistent with what the controller uses. You can
+also use the values "now" or "current" (typically the end-time) to
+specify the current time.
+
+For time intervals (duration, sample-interval, and sample-window) the
+units are, by default, milliseconds, but you can also specify an
+optional units parameters at the end of the value (e.g. 1h = 1 hour).
+The unit suffixes supported are:
+
+[cols=",,",]
+|=======================================================================
+a|
+*Units*
+
+ a|
+*Suffix in the parameter value*
+
+ a|
+*Examples*
+
+|Milliseconds |"ms", "millisecond", "milliseconds" |"60000ms",
+"3600000millisecond"
+
+|Seconds |"s", "sec", "secs", "second", "seconds" |"60s", "300secs"
+
+|Minutes |"m", "min", "mins", "minute", "minutes" |"5m", "30minutes"
+
+|Hours |"h", "hour", "hours" |"1h", "4hour"
+
+|Days |"d", "day", "days" |"1d", "3days"
+
+|Weeks |"w", "week", "weeks" |"1w", "2week"
+|=======================================================================
+
+If you use the duration parameter to specify the time range for the
+query, then you specify either the start-time or end-time, not both. A
+common case is to specify the end-time parameter as "current" and the
+duration parameter as the desired interval.
+
+If neither the start-time nor end-time are specified, then the REST call
+returns the most recently collected sample point. In this case the
+return value is a single data point (e.g. "[1303311619488, 869844]") not
+a list of sample points.
+
+The sample-interval and sample-count params are mutually exclusive.
+Specifying the sample-count is equivalent to specifying a
+sample-interval of: (end-time - start-time) / sample-count. If the
+sample-interval is 0, then the raw data samples are returned. If neither
+the sample-interval nor sample-count params are specifies, then the REST
+call defaults to a sample-count value of 50.
+
+The controller only supports certain pre-defined downsampling intervals.
+These are: 1 minute, 10 minutes, 1 hour, 4 hours, 1 day, 1 week and 4
+weeks. The sample-interval (determined as described above) is rounded
+down to the nearest pre-defined sampling interval.
+
+Currently two data-format values are supported:
+
+[cols=",",]
+|=======================================================================
+a|
+*Data Format*
+
+ a|
+*Description*
+
+|value |The sample value
+
+|rate |The rate at which the sample value is changing (in units per
+millisecond)
+|=======================================================================
+
+The "value" data format returns the value of the sample point. For REST
+calls with downsampling, if the sample-window is 0, then each returned
+value is the value of the raw data point at the beginning of each
+downsampled interval. If the sample-window is non-zero, then the value
+return is the average of all of the raw sample data points over the
+specified window, centered around the time of the returned data point.
+
+The "rate" data format returns the rate at which the sample value is
+changing. If the sample-window is 0, then the rate is calculated using
+the previous sample point, i.e. rate = (current.value - previous.value)
+/ (current.time - previous.time)). The rate is returned in units per
+millisecond, where the units depend on the stats type being returned. If
+the sample-window is non-zero, then the rate is calculated using the
+first and list sample points in the specified window, centered around
+the time of the returned data point.
+
+[[supported-stats-types]]
+=== Supported Stats Types
+
+The following controller-related stat types are supported:
+
+[cols=",",]
+|=======================================================================
+a|
+*Stat Name*
+
+ a|
+*Description*
+
+|cpu-idle |The CPU idle percentage reported by top
+
+|cpu-nice |The CPU nice percentage reported by top
+
+|cpu-user |The CPU user percentage reported by top
+
+|cpu-system |The CPU system percentage reported by top
+
+|mem-used |The memory used reported by top
+
+|mem-free |The memory free reported by top
+
+|swap-used |The swap used reported by top
+
+|disk-root |The disk usage (% free blocks) of the root partition
+
+|disk-log |The disk usage (% free blocks) of the log partition
+
+|disk-boot |The disk usage (% free blocks) of the boot partition
+
+|sdnplatform-cpu |The CPU usage of the sdnplatform OpenFlow controller
+process
+
+|database-cpu |The CPU usage of the database process that stores network
+and stats data
+
+|apache-cpu |The CPU usage of the Apache process that supports the REST
+API and web UI
+
+|cli-cpu |The CPU usage of the CLI process
+
+|statd-cpu |The CPU usage of the statd daemon process that collects
+system and switch stats
+|=======================================================================
+
+The following switch-related stat types are supported:
+
+[cols=",",]
+|=======================================================================
+a|
+*Stat Name*
+
+ a|
+*Description*
+
+|OFPacketIn |The count of OpenFlow packet in events received by the
+controller from the switch
+
+|OFFlowMod |The count of OpenFlow flow mod commands sent from the
+controller to the switch
+
+|OFActiveFlow |The number of active flow entries for the switch
+|=======================================================================
+
+The values are counters since the last time the controller was
+restarted.
+
+The flow mod counter includes commands that add or delete flow mods on
+the switch. Due to the way the controller handles flow mods there are
+typically 3 flow mod commands per packet in event that is forwarded.
+
+For the OFPacketIn counter there are also subcounters for specific L3
+and L4 packet types. The format of these counter names are:
+
+[cols=",,",]
+|=======================================================================
+a|
+*Stat Name*
+
+ a|
+*Description*
+
+ a|
+*Examples*
+
+|OFPacketIn__L3_<type> |Subcounter for a particular L3 packet type
+|OFPacketIn__L3_IPv4, OFPacketIn__L3_ARP
+
+|OFPacketIn__L4_<type> |Subcounter for a particular L4 packet type
+|OFPacketIn__L4_ICMP, OFPacketIn__TCP
+|=======================================================================
+
+Note that it's a double underscore between the "OFPacketIn" and the
+L3/L4 name.
+
+[[getting-target-instance-info]]
+=== Getting Target Instance Info
+
+For a given target type (i.e. either "controller" or "switch") it's
+useful to get a list of the instances of that target type that have
+stats data:
+
+[cols=",",]
+|=======================================================================
+a|
+*URL*
+
+
+|http://<host-name-or-ip>/rest/v1/stats/target/<cluster-id>/<target-type>
+
+a|
+*Return Text*
+
+ |\{"<target-id>": \{"controller": "localhost", "last-updated":
+1311204432931}, "<target-id>": \{"controller": "localhost",
+"last-updated": 1311204432931}}
+|=======================================================================
+
+As described above, use "default" for the cluster-id when using the REST
+API with the local controller. For the "controller" target type, this
+isn't all that useful right now, because there's only the single
+"localhost" controller instance, but this will be important in the
+future when a logical controller is composed of multiple controller node
+instances. For the "switch" target type you can retrieve the switches
+that have stats data. Then you can use the REST API to get the stats
+types that have been written for a given target (described next) to
+iterate over all of the stats types for all of the targets. The
+controller attribute is the controller node that most recently updated
+that stats value. Again, this isn't all that useful now for a single
+local controller, but is more important in the context of a multi-node
+controller.
+
+[[getting-stats-type-index-info]]
+=== Getting Stats Type Index Info
+
+For a given target type and ID you can use the stats index REST API to
+get all of the stats types that have been written for that target:
+
+[cols=",",]
+|=======================================================================
+a|
+*URL*
+
+
+|http://<host-name-or-ip>/rest/v1/stats/index/<cluster-id>/<target-type>/<target-id>
+
+a|
+*Return Text*
+
+ |\{"<base-stats-type>": \{"last-updated": 1311204432931, "parameters":
+\{"<parameter-name>": \{"last-updated": 1311204432931},
+"<parameter-name>": \{"last-updated": 1311204432931}}}}
+|=======================================================================
+
+As described above, use "default" for the cluster-id when using the REST
+API with the local controller. The target-type is either "controller" or
+"switch". The target-id is "localhost" for the controller target type or
+the switch DPID for the switch target type. The base-stats-type in the
+return text is one of the stats type listed in the supported stats type
+section. The parameters attribute in the return text refers to the
+subcounters listed above for the L3/L4 stats. So in that case the
+base-stats-type is OFPacketIn and the parameter-name is the L3_<type> or
+L4_<type> part. The last-updated attribute is the most recent time (in
+milliseconds since the epoch) when a new stats value was added.
+
+[[examples]]
+=== Examples
+
+To get the latest mem-used
+
+[cols=",",]
+|=====================================================================
+a|
+*URL*
+
+ |http://<ip>/rest/v1/stats/data/default/controller/localhost/mem-used
+|=====================================================================
+
+To get the last hour of mem-used:
+
+[cols=",",]
+|=======================================================================
+a|
+*URL*
+
+
+|http://<ip>/rest/v1/stats/data/default/controller/localhost/mem-used?end-time=now&duration=1h
+|=======================================================================
+
+To get the most recent OFPacketIn value for switch
+00:00:00:00:00:73:28:02:
+
+[cols=",",]
+|=======================================================================
+a|
+*URL*
+
+
+|http://<ip>/rest/v1/stats/data/switch/default/00:00:00:00:00:73:28:02/OFPacketIn
+|=======================================================================
+
+To get the last day of OFPacketIn:
+
+[cols=",",]
+|=======================================================================
+a|
+*URL*
+
+
+|http://<ip>/rest/v1/stats/data/default/switch/00:00:00:00:00:73:28:02/OFPacketIn?end-time=now&duration=1d
+|=======================================================================
+
+To get the last day of OFPacketIn rates:
+
+[cols=",",]
+|=======================================================================
+a|
+*URL*
+
+
+|http://<ip>/rest/v1/stats/data/default/switch/00:00:00:00:00:73:28:02/OFPacketIn?end-time=now&duration=1d&data-format=rate
+|=======================================================================
+
+[[configuring-a-vns]]
+== Configuring a VNS
+
+The REST API can be used to create/update a VNS. This typically consists
+of creating instances of several different models:
+
+* The top level VNS object
+* One or more VNS interface rules
+* One or more ACLs
+* Tags
+
+[[creating-vns-objects]]
+=== Creating VNS Objects
+
+To create the top-level VNS use a HTTP PUT to the following URL:
+
+[cols=",",]
+|=========================================
+a|
+*URL*
+
+ |http://<ip>/rest/v1/model/vns-definition
+|=========================================
+
+The data for the PUT method is a JSON object with the following fields:
+
+[cols=",",]
+|=======================================================================
+a|
+*Field name*
+
+ a|
+*Description*
+
+|id |String value for the unique name for the VNS. The name can be up to
+32 characters long. Allowed characters are alphanumeric characters, '_',
+and '-'.
+
+|active |Boolean value for whether the VNS is active/enabled in the
+controller. Default value (i.e. if omitted from PUT data) is false.
+
+|priority |Integer value for the priority of this VNS relative to other
+VNSs. Interface rules for VNSs with higher priority values take
+precedence over interface rules for VNSS with lower priority values.
+Default value is 32768.
+
+|arp-mode |String enumerated value for how the VNS handles ARP packets.
+Allowed values are "always-flood", "flood-if-unknown", and
+"drop-if-unknown". Default value if "flood-if-unknown".
+
+|dhcp-mode |String enumerated value for how the VNS handles DHCP
+packets. Allowed values are 'bridge' and 'none'. Default value is
+"none".
+
+|dhcp-ip |String value for the IP address of the DHCP server. Used if
+the dhcp-mode is set to 'bridge'. Default value is "".
+
+|dhcp-helper |String value for the IP address of the DHCP helper. Used
+if the dhcp-mode is set to 'bridge'. Default value is "".
+
+|dhcp-vlan |Integer value for the VLAN tag that is added to or stripped
+from DHCP packets. Default value is 0 (i.e. no tagging).
+|=======================================================================
+
+[[creating-vns-interface-rules]]
+=== Creating VNS Interface Rules
+
+Once you've created the top-level VNS definition you can create rules
+that map hosts/ports to interfaces for the VNS. To create a VNS
+interface rule use a HTTP put to the following URL:
+
+[cols=",",]
+|=============================================
+a|
+*URL*
+
+ |http://<ip>/rest/v1/model/vns-interface-rule
+|=============================================
+
+The data for the PUT method is a JSON object with the following fields:
+
+[cols=",",]
+|=======================================================================
+a|
+*Field name*
+
+ a|
+*Description*
+
+|id |Unique name for the interface rule. The format of the id is
+<VNS-id>|<interface-id> where the VNS id is the id field of the parent
+VNS and the interface id is either a non-negative integer or a string
+identifier (allowed characters are A-Z, a-z, 0-9, - and _). Note that
+the | character in the id is the actual | character used as a separator
+character in the compound key formed from the VNS id and the interface
+ID (i.e. it's not being used as a regex alternation operator).
+
+|vns |The VNS id of the parent VNS
+
+|description |Arbitrary string description/comment for the rule. Does
+not affect behavior of the rule.
+
+|allow-multiple |Boolean value for whether or not this rule allows a
+host to be associated with multiple VNSs. Default is false.
+
+|active |Boolean value for whether or not the rule is active
+
+|priority |Integer value for the priority of the rule relative to other
+rules in assigning host, port, switches to VNS interfaces. Higher number
+means higher priority. Default is 32768.
+
+|mac |String value for the MAC address to match against in applying the
+rule. Default is "" (i.e. don't match on MAC address)
+
+|ip-subnet |String value for the IP address (with optional CIDR mask) to
+match against in applying the rule. Default is "" (i.e. don't match on
+IP).
+
+|switch |The DPID of the switch to match against in applying the rule.
+Default is "" (i.e. don't match on DPID).
+
+|ports |Comma-separated list of ports from the switch specified in the
+"switch" field to match against in applying the rule. The ports are the
+physical port names, not the OpenFlow port numbers. Port ranges can be
+specified with a dash (e.g. A10-A20). Default is "" (i.e. match any port
+on the specified switch).
+|=======================================================================
+
+If multiple match fields (i.e. mac, ip-subnet, switch, ports) are
+specified then they must all match for the rule to be applied.
+
+[[error-handling]]
+== Error Handling
+
+If there's an error processing the REST request, then the REST API
+returns an appropriate HTTP error code and the body of the response is a
+JSON object containing several fields:
+
+[cols=",",]
+|=======================================================================
+a|
+*Field Name*
+
+ a|
+*Description*
+
+|error_type |The type of the error/exception. This maps to the name of
+the exception that was thrown by the REST implementation.
+
+|description |A human-readable description of the error
+
+|model_error (optional) |The model-level validation error
+
+|field_errors (optional) |The per-field validation errors
+|=======================================================================
+
+The model_error and field_errors fields are only set if the error
+occurred during validation of the input data when creating or updating a
+data item. You get these errors if the format of the input doesn't match
+the expected format of the field you're setting (e.g. trying to set an
+IP address field to something that doesn't have the format of an IP
+address).
+
+Category:OpenDaylight SDN Controller Platform[Category:OpenDaylight SDN
+Controller Platform]

@@ -1,0 +1,249 @@
+[[overview]]
+== Overview
+
+[[rpcs]]
+== RPCs
+
+[[rpc-routing]]
+=== RPC Routing
+
+[[rpc-routing-by-type]]
+==== RPC Routing by type
+
+This is default RPC routing behaviour, which assumes only one
+implementation per RPC Type, which is selected purely on message type.
+
+[[rpc-routing-by-payload]]
+==== RPC Routing by payload
+
+RPC Routing by payload, is defined by use of extensions from yang-ext
+module, which defines which leaf from payload is used for routing.
+
+[[api-definition]]
+==== API Definition
+
+[[implementations]]
+==== Implementations
+
+* Brokers / Registry
+
+:* sal-binding-broker:
+org.opendaylight.controller.sal.binding.impl.RpcProviderRegistryImpl -
+(Binding version)
+
+:* sal-dom-broker:
+org.opendaylight.controller.sal.dom.broker.impl.SchemaAwareRpcBroker -
+(DOM version)
+
+* RPC Content-based Routers (instances for RPC type / module)
+
+:* sal-dom-broker:
+org.opendaylight.controller.sal.dom.broker.impl.SchemaAwareRpcBroker.RpcSelector
+
+:* sal-binding-broker:
+org.opendaylight.controller.sal.binding.codegen.impl.RpcRouterCodegenInstance
+- State management of routing table for particular module RPCs
+
+::* sal-binding-broker:
+org.opendaylight.controller.sal.binding.codegen.impl.RuntimeCodeGenerator
+- Generation of implementation proxy, which provides content-based
+routing without using reflection, serialization/deserialization
+
+[[notifications]]
+== Notifications
+
+[[implementation]]
+=== Implementation
+
+* *Brokers / Registry*
+
+:*sal-binding-broker:
+org.opendaylight.controller.sal.binding.impl.NotificationBrokerImpl -
+(Binding Version)
+
+:*sal-dom-broker:
+org.opendaylight.controller.sal.dom.broker.impl.NotificationRouterImpl -
+(DOM Version)
+
+* *Runtime Generation of Invocation* Helpers
+
+:* sal-binding-broker:
+org.opendaylight.controller.sal.binding.codegen.impl.RuntimeCodeGenerator
+
+[[data-tree-related-messaging]]
+== Data Tree Related Messaging
+
+[[concepts]]
+=== Concepts
+
+* *Data Operations*
+
+:* *Read* node / subtree - retrieves data from data tree from location
+represented by supplied _Instance Identifier_
+
+:* Modifications
+
+::* *Put* node / subtree - writes data in data tree to specified
+location, which is represented by _Instance Identifier_. If data does
+not exists it creates them, otherwise replaces then.
+
+::* *Merge* node / subtree - writes data in data tree to specified
+location, which is represented by _Instance Identifier_. If data does
+not exists it creates then, otherwise adds missing nodes, and replaces
+conflicting leave nodes.
+
+::* *Delete* node / subtree - removes all data / subtree from data tree
+from location, which is represented by _Instance Identifier_.
+
+* *Transaction* - Stable view of data tree, which may be modified and
+submitted to be propoted to global state.
+* *Transaction Chain* - Series of linked transactions, which are stable,
+each transaction is based on previous one.
+* *Data Change Event* - event, which captures change in data tree /
+subtree, which was triggered by successful application of modifications
+from _Transaction_ on global data tree.
+
+[[transactions]]
+=== Transactions
+
+Transactions provide stable view of data tree, which may be read-only or
+modificable by clients.
+
+[[read-only-transaction]]
+==== Read-only Transaction
+
+Read-only transactions provides immutable view of data tree, which could
+be consumed by clients.
+
+View of data tree is snapshot of data tree state, when transaction was
+allocated.
+
+[[write-only-transaction]]
+==== Write-only Transaction
+
+Write-only transactions provides mutable view of data tree, which could
+be consumed by clients.
+
+Preconditions for mutation of data tree are captured from snapshot of
+data tree state, when transaction was allocated.
+
+[[read-write-transaction]]
+==== Read-write Transaction
+
+Read-write transactions provides mutable view of data tree, which could
+be consumed by clients.
+
+Initial state of data tree is snapshot of data tree state, taken when
+transaction was allocated.
+
+Preconditions for mutation of data tree are captured from snapshot of
+data tree state, when transaction was allocated.
+
+Reads provides access to new mutated data tree as if mutations already
+happened.
+
+[[code-design]]
+=== Code Design
+
+[[implementations-1]]
+==== Implementations
+
+* *Brokers*
+
+:* *Async Data Brokers* (helium API):
+
+::* sal-dom-broker:
+org.opendaylight.controller.md.sal.dom.broker.impl.DOMDataBrokerImpl
+
+::* sal-binding-broker:
+org.opendaylight.controller.md.sal.binding.impl.ForwardedBindingDataBroker
+
+:* *Backwards-compatibility brokers* (hydrogen APIs)
+
+::* sal-dom-broker:
+org.opendaylight.controller.md.sal.dom.broker.impl.compat.BackwardsCompatibleDataBroker
+
+::* sal-binding-broker:
+org.opendaylight.controller.md.sal.binding.impl.ForwardedBackwardsCompatibleDataBroker
+
+* *Data Store*
+
+::
+  sal-dom-broker:
+  org.opendaylight.controller.md.sal.dom.store.impl.InMemoryDOMDataStore
+
+* *Transactions*
+
+:* *Data Store transactions*
+
+::* sal-dom-broker:
+org.opendaylight.controller.md.sal.dom.store.impl.AbstractDOMStoreTransaction
+
+:* *Async Data Broker transactions* (helium API)
+
+::*
+o.o.c.sal.dom.broker.impl.DOMDataBrokerImpl.AbstractCompositeTransaction
+- Composite transaction which consists of multiple DOM Store
+transactions, each for particular conceptual data tree.
+
+::* sal-binding-broker:
+org.opendaylight.controller.md.sal.binding.impl.AbstractForwardedTransaction
+
+:* *Backwards-compatible transaction* (hydrogen APIs)
+
+::* sal-dom-broker:
+org.opendaylight.controller.md.sal.dom.broker.impl.compat.BackwardsCompatibleTransaction
+
+::*sal-binding-broker:
+org.opendaylight.controller.md.sal.binding.impl.ForwardedBackwardsCompatibleDataBroker
+
+[[data-change-events]]
+=== Data Change Events
+
+Data change events are asynchronous events, which capture change in data
+tree / subtree, which was triggered by successful application of
+modifications from _Transaction_ on global data tree.
+
+Data change events are generated and triggered purely on subcription
+based models, where consumers are required to subscribe for particular
+subtree of data tree in order to start receiving data changes.
+
+Data Change event does not contain state of whole data tree, but only
+state for subtree for which it was generated.
+
+[[implementations-2]]
+==== Implementations
+
+* *Transfer objects:*
+
+:* *Async Data APIs* (helium APIs)
+
+::*sal-dom-broker:
+org.opendaylight.controller.md.sal.dom.store.impl.DOMImmutableDataChangeEvent
+
+::* sal-binding-broker:
+org.opendaylight.controller.md.sal.binding.impl.AbstractForwardedDataBroker
+
+:* *Backwards-compatible implementation* (hydrogen API)
+
+::*sal-dom-broker:
+org.opendaylight.controller.md.sal.dom.broker.impl.compat.TranslatingDataChangeEvent
+
+::*sal-binding-broker:
+org.opendaylight.controller.md.sal.binding.impl.LegacyDataChangeEvent
+
+* *Subscription management / registry*
+
+:*sal-dom-broker:
+org.opendaylight.controller.md.sal.dom.store.impl.InMemoryDOMDataStore
+
+::*sal-dom-broker:
+org.opendaylight.controller.md.sal.dom.store.impl.tree.ListenerTree
+
+* *Production of data change events*
+
+:*sal-dom-broker:
+org.opendaylight.controller.md.sal.dom.store.impl.InMemoryDOMDataStore
+
+::* sal-dom-broker:
+org.opendaylight.controller.md.sal.dom.store.impl.ResolveDataChangeEventsTask

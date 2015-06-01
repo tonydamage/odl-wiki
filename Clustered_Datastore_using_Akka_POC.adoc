@@ -1,0 +1,187 @@
+[[this-wiki-captures-the-akka-persistence-poc-done-towards-the-goal-of-using-the-same-for-md-sal-clustered-datastore]]
+== This wiki captures the Akka Persistence POC done towards the goal of
+using the same for MD-SAL clustered Datastore
+
+'''Test Setup: '''
+
+Test were run from command line using mvn exec plugin ( check the last
+column in the table below) -- Had to increase the VM params to_'
+-Xmx1500m -XX:MaxPermSize=512m_' to not run into OOM errors
+
+'''Results: '''
+
+The persistence and snapshot based recovery results are captured below
+(*Note that the numbers were taken with just the test program running on
+my Laptop i.e. without other Apps -- I have seen it varies heavily if it
+is run along with other Apps*)
+
+[cols=",,",options="header",]
+|=======================================================================
+|`               Test Scenario`
+|`               Using Java Serialization`
+|`                        POC Program Command to execute`
+|`                   1. Persisting of 150k families structure ` +
+`                   (countinously sending one persist message per family) `
+|`                   Persisting and updating Shard  state took (150K TreeMap with 10 entries each) ` +
+`                     ` +
+`                   Try 1: ` +
+`                     ` +
+`                   Time taken : 17.5 secs ` +
+`                   Journal Size : 248MB ` +
+`                     ` +
+`                   Time taken: 18.secs  ` +
+`                   Journal Size : 248MB ` +
+`                     ` a|
+*mvn clean install exec:java
+-Dexec.mainClass="org.opendaylight.controller.datastore.clustered.Main"
+-Dexec.args="p 150000 1"*
+
+`                   where the command arguments ` +
+`                                               ` +
+`* p - is for persist,` +
+`* 150000 -- indicate that many family models -- aka TreeMap wth 10 entries each,` +
+`* 1 - indicate just one run ` +
+`                     ` +
+`                   Journal directory is  : ` +
+`                   target/org/opendaylight/controller/datastore/clustered/shard/journal `
+
+|`               2. Recovering form just Journal containing 150K families (TreeMap with 10 entries each)`
+|`                   Try 1 : ` +
+`                     ` +
+`                   Time Taken :  ~14.4 secs ` +
+`                   Journal Size : 248MB ` +
+`                     ` +
+`                   Try 2: ` +
+`                     ` +
+`                   Time Taken: ~14.7 secs ` +
+`                   Journal Size : 248MB ` +
+`                     ` a|
+*Note:* since we are recovering we are not using "mvn clean install" as
+it would clean up the target directory where we have the Journal
+
+`                      `*`mvn` `exec:java`
+`-Dexec.mainClass="org.opendaylight.controller.datastore.clustered.Main"`
+`-Dexec.args="r` `150000` `1"`*` ` +
+`                     ` +
+`                    where`
+
+* r -- is for recovery from journal,
+* 150000 - ignored for now,
+* 1 -- is ignored for now,
+
+|`               2. Taking snapshot of 150k families entries (using Java Serialization)`
+|`                   Snapshot( 1.5M TreeMap entries-- refer family structure below) : took ` +
+`                     ` +
+`                   Try 1:` +
+`               ~7 seconds` +
+`                      ` +
+`                   Snapshot size: ` +
+`                   131MB ` +
+`                     ` +
+`                   Try 2: ` +
+`                   ~7.2 seconds ` +
+`                     ` +
+`                   Snapshot Size: ` +
+`                   131MB ` +
+`                     ` +
+`                     ` a|
+*mvn clean install exec:java
+-Dexec.mainClass="org.opendaylight.controller.datastore.clustered.Main"
+-Dexec.args="ps 150000 1"*
+
+`                    where `
+
+* ps-- is for persist and snapshot
+* 150000 -- indicate that many family models -- aka TreeMap wth 10
+entries each +
+* 1 - indicate just one run,
+
+`                       Snapshot directory is ` +
+`                       akka-stuff/akka-persistence/target/org/opendaylight/controller/datastore/clustered/shard/snapshots` +
+`                           `
+
+|`               3. Pure Snapshot recovery of size 131MB ( the Journal entries are emptied to have a pure snapshot based recovery -- Java serialization was used)`
+|`                   Try 1 : ` +
+`                     ` +
+`                   ~5.9 secs ` +
+`                     ` +
+`                   Snapshot Size: ` +
+`                   131 MB ` +
+`                     ` +
+`                   Try 2: ` +
+`                   ~6.9 secs ` +
+`                     ` +
+`                   Snapshot Size: ` +
+`                   131 MB ` +
+`                     ` +
+`                     ` +
+`                     ` a|
+*Note:* since we are snapshot recovering we are not using "mvn clean
+install" as it would clean up the target directory where we have the
+Journal
+
+`                      `*`mvn` `exec:java`
+`-Dexec.mainClass="org.opendaylight.controller.datastore.clustered.Main"`
+`-Dexec.args="sr` `150000` `1"`*` ` +
+`                           where `
+
+* sr - to recover from latest snapshot
+* 150000 -- is ignored for now
+* 1 - is ignored for now
+
+| | |
+|=======================================================================
+
+*Test Data*
+
+The following family information in form of tree is used for persisting
+
+Family has the following structure
+
+Family
+
+-- name:attribute +
+ --age: attribute +
+ list children +
+ child 1 +
+ --name:attribute +
+ --age: attribute +
+ list grand-children +
+ grand child 1 +
+ -- name:attribute +
+ -- age:attribute +
+ +
+ grand child 2 +
+ --name:attribute +
+ --age: attribute +
+ +
+ child 2 +
+ --name:attribute +
+ --age: attribute +
+ list grand-children +
+ grand child 3 +
+ -- name:attribute +
+ -- age:attribute +
+ +
+ grand child 4 +
+ --name:attribute +
+ --age: attribute
+
+child 3 +
+ --name:attribute +
+ --age: attribute +
+ list grand-children +
+ grand child 5 +
+ -- name:attribute +
+ -- age:attribute +
+ +
+ grand child 6 +
+ --name:attribute +
+ --age: attribute +
+ +
+ '''Note1 : The above structure results in about 10 entries in a
+TreeMap/family and for 150k families it results in 1.5million TreeMap
+entries '''
+
+`     ` +
+

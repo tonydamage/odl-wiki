@@ -1,0 +1,72 @@
+[[introduction]]
+== Introduction
+
+Currently, projects within OpenDaylight tend to use SNAPSHOT versions,
+and to depend on each others SNAPSHOT versions. This creates problems
+because:
+
+1.  *API-ALIGNMENT*: Versions don't necessarily correlate with API
+versions
+2.  *PROJECT-CONSUMPTION-CONTROL*:Dependent projects do not have much
+control over the rate at which they receive change
+
+[[proposed-solutions]]
+== Proposed Solutions
+
+Current proposed solutions would be for projects to
+
+1.  Change version on a bundle whenever that bundles API changes
+2.  Change version on a bundle as part of a weekly build process
+3. 
+CrossProject:HouseKeeping Best Practices Group:Versioning:Automated Weekly Releases[
+Automated Weekly Releases]
+
+[[challenges-with-proposed-solutions]]
+== Challenges with Proposed Solutions
+
+1.  *GRANULARITY-FRAGILITY* :We have a large number of bundles in
+OpenDaylight, and if their versions are reved granularly, then dependent
+projects would need
+
+to keep up with these revisions manually, which is quite fragile.
+
+1.  *MANUAL-FRAGILITY* Reving bundle versions manually on API change is
+unreliable (humans screw up)
+
+1.  *LAG-FRAGILITY* Projects falling to far behind in keeping up with
+dependencies introduce large subsequent integration risks. There is also
+a large risk
+
+in falling behind unintentionally if done manually.
+
+[[possible-solutions-to-explore-to-overcome-challenges]]
+== Possible solutions to explore to overcome challenges
+
+One possible solution to explore would be for projects to use the maven
+http://maven.apache.org/guides/introduction/introduction-to-dependency-mechanism.html#Importing_Dependencies[import
+pom] mechanism, with each project providing such a pom representing a
+particular version of their project, with the granular bundle versions
+managed within it. This could be rolled up to an OpenDaylight over all
+pom. These could all be 'released' weekly via a Jenkins Job. This
+addresses the potential issues in this manner:
+
+1.  *GRANULARITY-FRAGILITY*: Rolls up the fine grained details to a
+project level, and finally and ODL level.
+2.  _'MANUAL-FRAGILITY_: By having weekly release versions that run as
+part of the weekly Jenkins Jobs, we remove the need for an individual
+developer to 'get it right' in reving bundle versions when an API
+changes.
+3.  _'LAG-FRAGILITY_: It becomes possible to automate the process of
+checking to see if a project has fallen more than a few weeks behind
+overall ODL, and to ask them about it to see if it was intentional or
+oversite.
+
+This would also appear to solve:
+
+1.  *API-ALIGNMENT*: This gets solved somewhat (good enough?), because
+if an API change occurs, it will settle into a release version within a
+week.
+2.  *PROJECT-CONSUMPTION-CONTROL*: A Project can control what its
+consuming by simply delaying until its ready grabbing the next weekly
+release.
+

@@ -1,0 +1,285 @@
+__TOC__
+
+[[what-is-pax-exam]]
+== What is Pax Exam
+
+Pax Exam is an OSGi testing framework that allows specific bundles to be
+activated together to write integration tests. While stand-alone JUnit
+tests can only cover the logic within a single bundle, the integration
+tests will handle the bundle dependencies to provide more complete
+system testing.
+
+[[creating-integration-tests]]
+== Creating Integration Tests
+
+Integration tests should be in a separate bundle under the main bundle's
+directory, just like API and Implementation. For example, the
+statisticsmanager bundle is in statisticsmanager/api,
+statisticsmanager.implementation is in statisticsmanager/implementation,
+and statisticsmanager.integrationtest is in
+statisticsmanager/integrationtest.
+
+*Maven pom setup*
+
+In the pom file of the integration test, all of the bundles needed must
+be listed in the dependencies list.
+
+----------------------------------------------------
+ <dependencies>
+    <dependency>
+      <groupId>org.opendaylight.controller</groupId>
+      <artifactId>protocol_plugins.stub</artifactId>
+      <version>0.4.0-SNAPSHOT</version>
+    </dependency>
+     ...
+  </dependencies>
+----------------------------------------------------
+
+Properties also need to be added in order to use the Jacoco plugin to
+generate integration test results, and then have Sonar find the results.
+
+----------------------------------------------------------------------
+   <build>
+    <pluginManagement>
+      <plugins>
+        <plugin>
+          <groupId>org.jacoco</groupId>
+          <artifactId>jacoco-maven-plugin</artifactId>
+          <version>0.5.3.201107060350</version>
+        </plugin>
+      </plugins>
+    </pluginManagement>
+    <plugins>
+      <plugin>
+        <groupId>org.jacoco</groupId>
+        <artifactId>jacoco-maven-plugin</artifactId>
+        <version>0.5.3.201107060350</version>
+        <configuration>
+          <destFile>../implementation/target/jacoco-it.exec</destFile>
+          <includes>org.opendaylight.controller.*</includes>
+        </configuration>
+        <executions>
+          <execution>
+            <id>pre-test</id>
+            <goals>
+              <goal>prepare-agent</goal>
+            </goals>
+          </execution>
+          <execution>
+            <id>post-test</id>
+            <configuration>
+              <skip>true</skip>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+   </build>
+----------------------------------------------------------------------
+
+The implementation bundle needs to know to look for the jacoco-it.exec.
+This is done by adding a few sonar properties. If standard JUnit tests
+are also in this bundle, the plugins shown above are also needed here,
+but without the jacoco-it.exec destination.
+
+--------------------------------------------------------------------------------
+ <properties>
+    <!-- Sonar properties using jacoco to retrieve integration test results -->
+    <sonar.java.coveragePlugin>jacoco</sonar.java.coveragePlugin>
+    <sonar.dynamicAnalysis>reuseReports</sonar.dynamicAnalysis>
+    <sonar.jacoco.Reportpath>target/jacoco.exec</sonar.jacoco.Reportpath>
+    <sonar.jacoco.itReportPath>target/jacoco-it.exec</sonar.jacoco.itReportPath>
+    <sonar.language>java</sonar.language>
+--------------------------------------------------------------------------------
+
+*Writing tests*
+
+All of the test bundles will have the BundleContext injected, which is
+needed to access other bundles and their services. In order to get a
+bundle registered in the BundleContext, they need to be configured using
+the mavenBundle()in the config() method. In addition to these, there are
+a few system properties and packages needed.
+
+Note: All of the org.opendaylight.controller bundles being used with
+mavenBundle() should also be added to the pom.xml to ensure that the jar
+has already been built before attempting to use it.
+
+----------------------------------------------------------------------------------------------
+  (PaxExam.class)
+  public class StatisticsManagerIntegrationTest {
+    ...
+    
+    private BundleContext bc;
+     ...
+   
+    public Option[] config() {
+        return options(
+                systemProperty("logback.configurationFile").value(
+                        "file:" + PathUtils.getBaseDir()
+                                + "/src/test/resources/logback.xml"),
+                // To start OSGi console for inspection remotely
+                systemProperty("osgi.console").value("2401"),
+                // Set the systemPackages (used by clustering)
+                systemPackages("sun.reflect", "sun.reflect.misc", "sun.misc"),
+                // List framework bundles
+                mavenBundle("equinoxSDK381", "org.eclipse.equinox.console",
+                        "1.0.0.v20120522-1841"),
+                mavenBundle("equinoxSDK381", "org.eclipse.equinox.util",
+                        "1.0.400.v20120522-2049"),
+                mavenBundle("equinoxSDK381", "org.eclipse.osgi.services",
+                        "3.3.100.v20120522-1822"),
+                mavenBundle("equinoxSDK381", "org.eclipse.equinox.ds",
+                        "1.4.0.v20120522-1841"),
+                mavenBundle("equinoxSDK381", "org.apache.felix.gogo.command",
+                        "0.8.0.v201108120515"),
+                mavenBundle("equinoxSDK381", "org.apache.felix.gogo.runtime",
+                        "0.8.0.v201108120515"),
+                mavenBundle("equinoxSDK381", "org.apache.felix.gogo.shell",
+                        "0.8.0.v201110170705"),
+                // List logger bundles
+                mavenBundle("org.slf4j", "slf4j-api", "1.7.2"),
+                mavenBundle("org.slf4j", "log4j-over-slf4j", "1.7.2"),
+                mavenBundle("ch.qos.logback", "logback-core", "1.0.9"),
+                mavenBundle("ch.qos.logback", "logback-classic", "1.0.9"),
+              
+                ...
+                mavenBundle("org.opendaylight.controller", "sal",
+                        "0.5.0-SNAPSHOT"),
+                mavenBundle("org.opendaylight.controller",
+                        "sal.implementation", "0.4.0-SNAPSHOT"),
+                mavenBundle("org.opendaylight.controller", "statisticsmanager",
+                        "0.4.0-SNAPSHOT"),
+                mavenBundle("org.opendaylight.controller", "statisticsmanager.implementation",
+                                "0.4.0-SNAPSHOT"),
+               ...
+                mavenBundle("org.jboss.spec.javax.transaction",
+                        "jboss-transaction-api_1.1_spec", "1.0.1.Final"),
+                mavenBundle("org.apache.commons", "commons-lang3", "3.1"),
+                mavenBundle("org.apache.felix",
+                        "org.apache.felix.dependencymanager", "3.1.0"),
+                junitBundles());
+          )
+     }
+}
+    
+----------------------------------------------------------------------------------------------
+
+The bundle interfaces are then accessible by using the ServiceReference
+retrieved from the bundle context.
+
+---------------------------------------------------------------------
+ ServiceReference r = bc.getServiceReference(IStatisticsManager.class
+                .getName());
+        if (r != null) {
+            this.manager = (IStatisticsManager) bc.getService(r);
+        }
+        // If StatisticsManager is null, cannot run tests.
+        assertNotNull(this.manager);
+---------------------------------------------------------------------
+
+If the service could not be found, that means that one of the interfaces
+the service needs is missing. This is either because a needed bundle
+wasn't included at all, or because an implementation of one of those
+interfaces is missing. The Activator in each of the bundles will show
+what interfaces they depend on.
+
+Once the setup is complete and the services are available, integration
+tests can be written. Each test method should have the annotation just
+like a normal JUnit test.
+
+*Karaf and PAX-EXAM*
+
+Testing of one or multiple features and combinations can easily be done
+via PAX-Exam using Karaf based extensions to PAX-Exam 3...
+
+`
+ @RunWith(PaxExam.class)
+ public class DefaultServiceIT {
+ 
+    @Inject
+    private BundleContext bundleContext;
+ 
+    @Inject
+    private ConfigurationAdmin configurationAdmin;
+ 
+    @Configuration
+    public Option[] config() {
+        return new Option[] {
+                // Provision and launch a container based on a distribution of Karaf (Apache ServiceMix).
+                karafDistributionConfiguration()
+                    .frameworkUrl(
+                             maven()
+                                     .groupId("org.opendaylight.controller")
+                                     .artifactId("distribution-karaf")
+                                     .type("zip")
+                                     .version("0.4.2"))
+                    .karafVersion("3.0.1")
+                    .name("OpenDaylight")
+                    .unpackDirectory(new File("target/pax"))
+                    .useDeployFolder(false),
+                // It is really nice if the container sticks around after the test so you can check the contents
+                // of the data directory when things go wrong.
+                keepRuntimeFolder(),
+                // Don't bother with local console output as it just ends up cluttering the logs
+                configureConsole().ignoreLocalConsole(),
+                // Force the log level to INFO so we have more details during the test.  It defaults to WARN.
+                logLevel(LogLevel.INFO),
+                // Provision the example feature exercised by this test
+                features(
+                        "mvn:org.opendaylight.controller/features-base/0.6.2-SNAPSHOT/xml/features",
+                        "odl-base-all"),
+                // Remember that the test executes in another process.  If you want to debug it, you need
+                // to tell Pax Exam to launch that process with debugging enabled.  Launching the test class itself with
+                // debugging enabled (for example in Eclipse) will not get you the desired results.
+                //debugConfiguration("5000", true),
+                };
+    }
+ 
+    @Test
+    public void test() throws Exception {
+ 
+        ...
+    }
+`
+
+*Protocol Plugins Stub*
+
+In normal operation, protocol plugins implement SAL's interfaces in
+order to connect its nodes with the controller. For integration testing,
+there will be no nodes to connect to, so the protocol_plugins.stub
+bundle is used instead. These stubs can be written to return preset data
+for testing purposes.
+
+*Test VMs*
+
+Also for testing purposes, plugins and other e2e apps may require some
+device simulation (like mininet). For this purpose, projects can request
+a VM integrated in their project Jenkins they can use to provide the
+required simulation. The request will be done through Linux Foundation
+helpdesk (helpdesk@opendaylight.org)
+
+*Running Tests*
+
+Pax-Exam integration tests can be run in the same way as the unit tests.
+On Eclipse, select the integration test file, and go to Run As...JUnit
+Test.
+
+image:JUnit.jpg[JUnit.jpg,title="JUnit.jpg"]
+
+[[integration-testing-coverage-results]]
+== Integration Testing Coverage Results
+
+After the test is in the repository and the next sonar run is completed,
+the integration test coverage percentage can be seen. In this example,
+StatisticsManager had 28.9% coverage from JUnit testing, and the
+integration tests were able to get a complete 100% coverage.
+
+image:Sonar_results.jpg[Sonar_results.jpg,title="Sonar_results.jpg"]
+
+[[northbound-integration-tests]]
+== Northbound Integration Tests
+
+For more information on writing integration tests for the northbound
+API, visit this page:
+OpenDaylight Controller:Northbound Integration Tests[Northbound
+Integration Tests]

@@ -1,0 +1,398 @@
+[[introduction]]
+= Introduction
+
+Key distribution in a scaled network has always been a challenge, as
+part of the SNBI project we intend to simplify the process of
+bootstrapping network devices with the keys required for secure
+communication. SNBI enables not only boot strapping devices with the
+required keys, but enables connectivity to the network devices by
+assigning unique IPv6 addresses. Admission control of devices into a
+specific domain is achieved using the combination of Black/white list of
+authorized devices and the device IEEE802.1 AR certificates.
+
+[[architecture-and-design]]
+= Architecture and Design
+
+The diagram below represents the various modules involved. The
+description of each of the module will be done below.
+
+image:SNBI.png[SNBI.png,title="SNBI.png"]
+
+[[controller-components]]
+== Controller Components
+
+[[snbi-south-plugin]]
+=== SNBI South Plugin
+
+image:SNBI header.png[SNBI header.png,title="fig:SNBI header.png"] The
+SNBI south plugin involves the following set of modules.
+
+[[snbi-sockets]]
+==== SNBI Sockets
+
+SNBI uses application layer sockets to sends and receive packets. SNBI
+operates on top of UDP port 8888, and appends an SNBI header to all the
+packets that are sent out on the socket. The SNBI header is used to
+identify the type of message being exchanged.
+
+::
+  *_Version:_* A 4 bit version indicates SNBI protocol version.
+  +
+  *_reserved:_* A 4 bit reserved field, it is not used currently.
+  +
+  *_protocol type:_* A 8 bit protocol type field, the protocol type
+  identifies what type of protocol information is being exchanged.
+  Examples of protocol types are Adjacency Discovery, Bootstrap etc.
+  +
+  *_Flags:_* A 8 bit flags field, this is reserved and is not being
+  used.
+  +
+  *_Message type:_* A 16 bit message type field. The field identifies
+  the message type for each protocol type. The various message types for
+  each protocol type will be described further below.
+
+image:Snbi_ND.png[Snbi_ND.png,title="Snbi_ND.png"]
+
+[[neighbour-discovery]]
+==== Neighbour Discovery
+
+The first step towards accommodating devices into a secure network is
+Neighbour Discovery. SNBI performs neighbour discovery of SNBI agents by
+periodically transmitting ND packets to a multicast IPv6 address
+"0xFF02::1". The source IPv6 address for these packets will be the
+linklocal IPv6 address of the interface on which the packets are being
+transmitted. All SNBI agents listens to this multicast stream to receive
+ND packets. Information such as Neighbour ID, Domain, Credentials,
+Capabilities etc are packed in the form of TLVs and are exchanged
+between SNBI agents and the information received from various SNBI
+agents an ND table is constructed to maintain the adjacency information.
+Further the registrar module will authorize the SNBI agent discovered
+into the domain.Neighbour Discovery is periodic and bidirectional, ND
+packets are transmitted every 10 seconds. A 40 second refresh timer is
+associated with each discovered neighbour. -- *ND HELLO Msg*.Upon expiry
+of the refresh timer, the Neighbour Adjacency is no longer valid and is
+removed from the ND table.The certificate information (SUDI) exchanged
+by the SNBI agents are further validated and accepted into the domain by
+the SNBI registrar in the controller.Any new SNBI agent which is still
+not part of the SNBI domain, exchanges ND packets with default(empty)
+domain name. Once the device is accepted into the domain, the ND packets
+contain the domain name they the device belongs to.It should be possible
+that the same is SNBI neighbour is discoverable on multiple links, the
+expiry of one doesn't automatically remove the other from the ND
+table.Once a device is discovered, the protocol tries to fetch the
+device domain certificate if the device is already
+bootstrapped.Following is the packet format of the message that is used
+for Neighbour Discovery.
+image:ND+cert Req.png[ND+cert Req.png,title="fig:ND+cert Req.png"] The
+diagram above depicts the message flow for L3 neighbour discovery and
+certificate exchange. After a neighbour is discovered the protocol
+verifies if the device is already bootstrapped by requesting for the
+device domain certificate. -- *CERT REQ/RESP msg.*. If the device is not
+bootstrapped, then the proxy device initiates the bootstrap of the new
+device.
+image:BS NBR invite.png[BS NBR invite.png,title="fig:BS NBR invite.png"]
+
+[[bootstrap]]
+==== BootStrap
+
+Bootstrapping a device is all about the following in sequence.
+
+::
+  - Authenticate a Device.
+  +
+  - Allocate appropriate device ID and IPv6 address to uniquely identify
+  the device in the network.
+  +
+  - Allocate required keys by installing a Device Domain Certificate.
+  +
+  - Accommodating the device into the domain.
+  +
+  - The new device is deemed outside the domain until it is
+  bootstrapped.
+  +
+  - The Forwarding element which discovered the new device acts as the
+  proxy and proxies all request to the registrar.
+
+[[neighbour-invite-phase]]
+===== Neighbour Invite phase
+
+BootStrap connect message is initiated by the proxy device on behalf of
+the New device -- *NEIGHBOUR CONNECT Msg.*. The message is sent to the
+registrar to authenticate the device. The source IPv6 address is the
+proxy IPv6 address.The destination IPv6 address is the registrar IPv6
+address. UDI here is the new device UDI which is used to authenticate
+using a white list at the registrar. The SNBI Registrar provides
+appropriate device ID and IPv6 address to uniquely identify the device
+in the network and then invites the device to join the domain. --
+NEIGHBOUR INVITE Msg. Once the new device is authenticated, its invited
+to join the domain. The Src IPv6 address is the registrar IPv6 address.
+The Dest IPv6 address is the proxy IPv6 address. The UDI is the UDI of
+the new device being invited. SNBI RA signature is the signed hash of
+the message by the RA. Once the proxy device receives the Invite message
+from the SNBI RA, it forwards the message to the new device using the
+linklocal address. image:BS.png[BS.png,title="fig:BS.png"]
+
+[[neighbour-reject]]
+===== Neighbour Reject
+
+If the Device UDI is not in the white list of devices, then the device
+is rejected and is not accepted into the domain. The proxy device just
+updates its Db with the reject information but still maintains the
+Neighbour relationship.
+
+image:Bs reject.png[Bs reject.png,title="fig:Bs reject.png"]image:Bs rej flow.png[Bs rej flow.png,title="fig:Bs rej flow.png"]
+
+[[neighbour-bootstrap-phase]]
+===== Neighbour BootStrap Phase
+
+Once the new device gets a neighbour invite message, it tries to boot
+strap itself by generating a key pair. Generate a Certificate Sign
+Request(CSR) PKCS10 request and gets it signed by the CA running at SNBI
+Registrar. -- *BS REQ Msg.* Once the certificate is enrolled and signed
+by the CA, the generated x.509 certificate is returned back to the new
+device to complete the bootstrap process. -- *BS RESP Msg.*
+
+[[network-time-protocol]]
+=== Network Time Protocol
+
+NTP is used for clock synchronization of network devices, and is capable
+of delivering accurate and reliable time. NTP is required for SNBI to
+work effectively because of the expiry time associated with certificates
+that the CA offers to valid devices. Certificates allocated are valid
+for only certain periods of time and devices with different clocks could
+misinterpret the start time / end time of certificates, therefore
+devices in the network need to be clock synchronized with the CA
+authorizing the certificates. An NTP server would run at the SNBI RA
+(controller) which is clock synchronized with the CA offering the
+certificates, rest of the devices in the network then clock synchronize
+themselves with the SNBI RA. For now we will inherit the host clocks to
+into the containers running SNBI agents. The idea is SNBI will manage
+the containers but the host itself will be configured and managed by an
+administrator.
+
+[[registrar-yang-definition]]
+=== Registrar YANG Definition
+
+`` +
+`module snbi {` +
+`    //The yang version - today only 1 version exists. If omitted defaults to 1.` +
+`    yang-version 1; ` +
+`` +
+`    //a unique namespace for this SNBI module, to uniquely identify it from other modules that may have the same name.` +
+`    namespace "http://netconfcentral.org/ns/snbi";` +
+`    ` +
+`    //a shorter prefix that represents the namespace for references used below` +
+`    prefix snbi;` +
+`    ` +
+`    //Defines the organization which defined / owns this .yang file.` +
+`    organization "Netconf Central";` +
+`    ` +
+`    //defines the primary contact of this yang file.` +
+`    contact "snbi-dev";` +
+`    ` +
+`    //provides a description of this .yang file.` +
+`    description "YANG version for SNBI.";` +
+`` +
+`    //defines the dates of revisions for this yang file` +
+`    revision "2024-07-02" {` +
+`        description "SNBI module";` +
+`    }` +
+`    ` +
+`    typedef UDI {` +
+`        type string;` +
+`        description "Unique Device Identifier";` +
+`    }` +
+`        ` +
+`    container snbi-domain {` +
+`        leaf domain-name {` +
+`            type string;` +
+`            description "The SNBI domain name";` +
+`        }` +
+`        ` +
+`        list device-list {` +
+`            key "list-name";` +
+`    ` +
+`            leaf list-name {` +
+`                type string;` +
+`                description "Name of the device list";` +
+`            }` +
+`            ` +
+`            leaf list-type {` +
+`                type enumeration {` +
+`                    enum "white";` +
+`                }` +
+`                description "Indicates the type of the list";` +
+`            }` +
+`            ` +
+`            leaf active {` +
+`                type boolean;` +
+`                description "Indicates whether the list is active or not";` +
+`            }` +
+`            ` +
+`            list devices {` +
+`                key "device-identifier";` +
+`                leaf device-identifier {` +
+`                    type union {` +
+`                        type UDI;` +
+`                    }` +
+`                }` +
+`             }` +
+`         }` +
+`    }` +
+`}`
+
+[[forwarding-element-components]]
+== Forwarding Element Components
+
+The SNBI functions in the Forwarding Elements will be implemented inside
+lightweight portable foundations.
+
+[[portable-foundation]]
+=== Portable Foundation
+
+The SNBI portable foundation can use any light weight portable container
+technology that provides a protected and isolated application execution
+enviroment. The current SNBI implementation will utilize Docker, a light
+weight container mechanism supported by the current Linux kernels.
+
+Docker is relatively new. As a light weight VM, it has many desirable
+features in dependency management, packaging, deployment, and
+portability. Docker initial aimed mostly at web applications that could
+use TCP port forwarding for all the networking needs. As a result,
+Docker 1.0's built-in networking function relies on a linux kernel
+bridge named docker0, to connect all containers to a NAT function in the
+kernel, through which the containers reach the outside world. There are
+a few alternative networking methods to replace the default Docker
+networking mechanism, by utilizing network functions inside the current
+linux kernel. SNBI will utilize a modified networking model to connect
+Docker containers.
+
+[[docker-as-building-block-for-snbi-portable-foundation]]
+=== Docker as Building Block for SNBI Portable Foundation
+
+The portable foundation can be used not only for SNBI, but also for
+other applications. For this reason, networking connectivities among the
+containers should allow as much flexibility as existed today among
+network devices, or among the virtual machines. Today, in mid 2014,
+there are known methods to connect multiple Docker containers in
+arbitrary logical topologies utilizing linux kernel bridges and various
+configuration techniques. Some of the techniques bring flexibility at
+the cost of efficiency, others have resource efficiency but are more
+limited on the types of connevity that can be achieved.
+
+For SNBI development, it is expected that flexible and efficient
+inter-container networking methods will appear in the future, and the
+SNBI implementation will accommodate any new networking mechanism
+underneath the container. The current SNBI development will utilize the
+following test topology.
+
+image:Docker-snbi1.jpg[Docker-snbi1.jpg,title="Docker-snbi1.jpg"]
+
+In the above topology, all hosts will reside in a VM on a physical
+machine, where each VM runs a ubuntu14.04LTS server. All VMs will
+connect to a layer 2 switch created by the hypervisor, which provids
+network connectivity for all SNBI containers. More general and arbitrary
+topologies will be utilized in the future.
+
+[[supplying-udi-for-a-portable-foundation-running-snbi]]
+=== Supplying UDI for a Portable Foundation Running SNBI
+
+A host may use a SNBI portable foundation to bootstrap its network stack
+and let the portable foundation assume the host's identity. Or a
+portable foundation may act as an independent virtual device not
+connected to the host in identify. A portable foundation can either use
+the host's UDI, or a UDI derived from the host's UDI, or a ID from a
+pool of 802.1AR ID's, or a manually created ID. The exact type of UDI
+will depend on the specific application running inside the portable
+foundation.
+
+A Yang model representation of the UDI is presented by the host to the
+SNBI portable foundation. Such that the SNBI function performs the
+bootstrap operations the same way no matter which type of UDI is
+presented from the host, and from which source the UDI was provided.
+
+For efficiency reasons, in this phase, the SNBI project will utilize the
+RESTconf transport to present a UDI from the host into the container.
+
+The following picture illustrates a general communication model for a
+portable foundation to communicate with the host platform. UDI is one
+parameter among many that can be communicated via this communication
+channel.
+
+image:Container host comm.jpg[Container host comm.jpg,title="Container host comm.jpg"]
+
+[[provisioning-the-snbi-portable-foundation]]
+=== Provisioning the SNBI Portable Foundation
+
+A linux Container Provisioning Agent (CPA) will run on the host OS. The
+CPA maintains a meta-data data base for all containers running on the
+host. The meta-data base contains information about the resource
+requirements, the UDI, the host client container identifier (CID), and
+networking setup for each container. The CPA offers a RESTful API to
+clients running inside the containers.
+
+When a new container needs to be added to a host, the CPA will collect
+all properties needed for this container from the meta-database, use
+docker to start the container, and pass needed parameters, such as the
+CID, via environment variables into the container. For the current test
+topology, all containers will be started with the --net="host" option,
+such that the applications inside the container have full access to the
+host networking interfaces.
+
+When the SNBI application starts up inside the container, it will use
+the CID to issue request to the CPA on the host to obtain its Unique
+Device Identifier (UDI). The SNBI FE function proceeds to the bootstrap
+phase with this identifier. Once the container device is authenticated,
+a global IPv6 address will be assigned to the SNBI interface that is
+reachable via the interface that ran the neighbor discovery.
+
+[[controller---forwarding-element-communications-overview]]
+== Controller - Forwarding-Element Communications Overview
+
+image:Controller-fe-communication-channels.png[Controller-fe-communication-channels.png,title="Controller-fe-communication-channels.png"]
+
+The picture above outlines the different communication mechanisms SNBI
+leverages:
+
+* *SNBI between controller and portable foundation/container*: The
+SNBI-plugin on the Controller and the SNBI agent on the "first hop"
+Forwarding Element establish a DTLS/SSL connection to secure their
+communication. It is assumed that the device/server which runs the
+Controller runs an instance of the portable foundation/container. This
+will allow for the full benefit of SNBI, i.e. SNBI automatically
+establishes secure IP connectivity throughout the network without a need
+to pre-configure any IP connectivity between the devices in the network.
+If the Controller is hosted on a device which does not run an instance
+of an SNBI-agent within a portable foundation, then IP connectivity
+between the Controller and the "first hop" Forwarding Element which runs
+an instance of an SNBI-agent within a portable foundation needs to be
+configured by other means (e.g. manually). It is recommended to always
+host the Controller on a device (server) which also runs an instance of
+the SNBI-agent within the portable foundation.
+* *SNBI agent discovery*: SNBI-agents discover each other through the
+above described discovery protocol.
+* *Secure communication between devices*: SNBI-agents establish a secure
+channel among themselves, which is typically an IPsec connection. Once
+the secure channel, i.e. IPsec connection, is established other services
+running on the same host (be it a forwarding element or a controller)
+can leverage the secure IP connectivity for their means. In the above
+picture, an example "protocol x plugin" leverages the secure channel to
+communicate between different instances of protocol x. Example protocols
+which could use the secure channel include e.g. OpenFlow, Netconf, etc.
+- which would not need to bother any more establishing their own secure
+transport (e.g. using DTLS/SSL). That said, any protocol can of course
+establish its own additional secure transport on top of the already
+secure connectivity provided by SNBI.
+* *Configuration control between SNBI-agent and underlying host OS*: A
+SNBI-agent hosted in a portable foundation/container controls and
+retrieves certain configuration parameters through a RESTconf/Netconf
+interface. This includes the establishment and configuration of the
+secure channel (i.e. the IPsec connection), routing table control, as
+well as the retrieval of a UDI (see above). The configuration interface
+between container and underlying host is based on standard IETF YANG
+models (e.g. RFC 7223 for interface configuration,
+draft-ietf-netmod-routing-cfg for route management, etc.). This approach
+decouples the underlying host and its configuration specifics from the
+portable foundation/container hosting environment and allows for
+simplified portability of the portable foundation.
+

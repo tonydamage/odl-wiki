@@ -1,0 +1,298 @@
+[[introduction]]
+== Introduction
+
+BGP/PCEP protocol library is a project aiming to provide Java-based
+implementation of https://tools.ietf.org/html/rfc4271[Border Gateway
+Protocol] and https://tools.ietf.org/html/rfc5440[Path Computation
+Element Protocol].
+
+ +
+ By enabling the Controller to utilize more standardized ways of talking
+to the underlying network, it can be deployed in a wider variety of
+scenarios.
+
+ +
+ BGP is the core protocol holding together the Internet in its current
+shape and form, which is extensible enough to provide functions well
+outside of its original purpose. With the advent of
+https://tools.ietf.org/html/draft-ietf-idr-ls-distribution-03[Link State
+and TE Information draft], BGP can be used to safely distribute IGP
+information to entities outside of usual IGP peering. The Controller is
+a prime example of a network entity which can benefit from this
+information, as it can directly use it as a source of topology
+information.
+
+ +
+ PCEP is a protocol originally designed for offloading optimal path
+computation in MPLS-TE networks from the head-end router to a dedicated
+accelerator (called Path Computation Element, or PCE) residing on the
+control plane. While the original specification called for a
+router-driven operation, the recently adopted
+https://tools.ietf.org/html/draft-ietf-pce-stateful-pce-04[Stateful PCE
+extension] aligns the protocol for use by the Controller.
+
+[[release-deliverables]]
+== Release Deliverables
+
+[cols=",",options="header",]
+|=======================================================================
+|Name |Description
+|BGP-LS a|
+* Definition of a topology model exposed by BGP/LS
+* Implementation of a BGP protocol library, supporting
+https://tools.ietf.org/html/rfc4271[BGP-4],
+https://tools.ietf.org/html/rfc4724[Graceful Restart],
+https://tools.ietf.org/html/rfc4760[Multiprotocol
+extensions], https://tools.ietf.org/html/draft-ietf-idr-ls-distribution[BGP/LS],
+https://tools.ietf.org/html/rfc1997[Communities],
+https://tools.ietf.org/html/rfc4360[Extended Communities]
+and https://tools.ietf.org/html/rfc6793[4-Byte AS numbers] (NEW speaker
+only)
+* Implementation of a BGP RIB, allowing for redundant data sources, but
+limited to listener-only functionality
+
+|PCEP a|
+* Definition of a network-wide path programming model exposed by PCEP
+* Implementation of a PCEP protocol library, supporting
+https://tools.ietf.org/html/rfc5440[PCEP],
+https://tools.ietf.org/html/rfc5541[Objective functions],
+https://tools.ietf.org/html/rfc5455[Diffserv],
+https://tools.ietf.org/html/draft-ietf-pce-stateful-pce[Stateful
+extensions], https://tools.ietf.org/html/rfc5557[GCO]
+and https://tools.ietf.org/html/draft-crabbe-pce-pce-initiated-lsp[PCE-initiated
+LSPs]
+
+|Models a|
+* Model of a PCEP message in YANG. +
+* Model of a PCEP tunnel in YANG. +
+* Model of a BGP-LS NLRI in YANG. +
+
+|=======================================================================
+
+[[release-milestones]]
+== Release Milestones
+
+[cols=",,",options="header",]
+|=======================================================================
+|Milestone |Offset 0 Date |Deliverables
+|M1 |7/22/2013 a|
+[cols=",,",options="header",]
+|==========================================
+|Name |Status |Description
+|Release Plan |Done |Candidate Release Plan
+|==========================================
+
+|M2 |8/21/2013 a|
+[cols=",,",options="header",]
+|=======================================================================
+|Name |Status |Description
+|Release Plan |Done |Final Release Plan
+
+|Migration of Framework to NETTY |Done |NETTY framework is an
+asynchronous event-driven network application framework +
+for rapid development of maintainable high performance protocol servers
+& clients. Our +
+client-server communication is mostly hand-written using java NIO
+directly. The code is +
+robust and not bug free (there is known issue when BGP client constantly
+receives messages, +
+the socket gets congested and does not send KeepAlive messages,
+therefore the connection +
+drops unexpectedly). Migration to NETTY was suggested to avoid such
+issues and maintain +
+less code on our side. First part of the migration is to switch the core
+of the client-server +
+communication to NETTY. This should not affect the protocols itself.
+After the core +
+communication is switched to NETTY, the protocols can be switched too. +
+
+|Migration of BGP to NETTY +
+|https://bugs.opendaylight.org/show_bug.cgi?id=44[Bug44] +
+ Done
+
+|Migration of PCEP to NETTY +
+|https://bugs.opendaylight.org/show_bug.cgi?id=43[Bug43] +
+ Done
+
+|Write pcep-message.yang + |Done |To integrate with MD-SAL, we need to
+write YANG models representing BGP-LS/PCEP +
+concepts. BGP: we need YANG model for BGP-LS NLRI. This model was
+already started and needs +
+to be finished. The last part for BGP is to integrate with YANG models
+provided by IETF +
+draft-clemm-yang-network-topo-00. PCEP: we need a model representing
+PCEP messages and PCEP +
+tunnels. +
+
+|Finalize bgp-ls-nlri.yang + |Done
+
+|Write pcep-tunnel.yang + |Done
+
+|DTO Generation + |Done + |Wiring yangtools DTO generation into build
+system. +
+|=======================================================================
+
+|M3 |9/18/2013 a|
+[cols=",,",options="header",]
+|=======================================================================
+|Name |Status |Description
+|Switch BGP to generated DTOs +
+|https://bugs.opendaylight.org/show_bug.cgi?id=45[Bug45] +
+ Done |In this stage of the project, the YANG models are finalized and
+the generation +
+of the DTOs should be provided by Yang tools. Therefore it is the time
+and place to integrate +
+the generated DTOs with the code. +
+
+|Integrate BGP RIB with MD-SAL
+|https://bugs.opendaylight.org/show_bug.cgi?id=46[Bug46] +
+ Done
+|=======================================================================
+
+|M4 |10/16/2013 a|
+[cols=",,",options="header",]
+|=======================================================================
+|Name |Status |Description
+|API Freeze | + |Integrate PCEP with more general overlay model. +
+
+|Switch PCEP to generated DTOs
+|https://bugs.opendaylight.org/show_bug.cgi?id=47[Bug47] +
+ Done
+|=======================================================================
+
+|M5 |11/13/2013 a|
+[cols=",,",options="header",]
+|=======================================================================
+|Name |Status |Description
+|Code Freeze | + | +
+Writing end-to-end tests and user-facing documentation. +
+
+|BGP tests |https://bugs.opendaylight.org/show_bug.cgi?id=49[Bug49] +
+ Done
+
+|PCEP tests + |https://bugs.opendaylight.org/show_bug.cgi?id=50[Bug50] +
+
+|Documentation +
+|https://bugs.opendaylight.org/show_bug.cgi?id=51[Bug51] +
+
+|Implement BGP topology provider +
+|https://bugs.opendaylight.org/show_bug.cgi?id=108[Bug108] +
+ Done || +
+After sourcing topology data from BGP/LS and discriminating it in
+bgp-rib-impl +
+component, we need to transform this data into a topology model. +
+ +
+The base topology models are defined in +
+http://tools.ietf.org/html/draft-clemm-netmod-yang-network-topo-00 and
+already +
+imported into topology-api artifact. Evolve those models such that they
+are +
+usable with MD-SAL and create a model-to-model transformation
+artifact, +
+topology-provider-bgp, which will consume the Local RIB produced by +
+bgp-rib-impl and will provide an L3 IGP topology view of that data. +
+
+|End-to-end integration tests +
+|https://bugs.opendaylight.org/show_bug.cgi?id=110[Bug110] + || Design
+and implement test cases for the entire protocol stack. This involves
+a +
+mock PCEP and BGP speakers, who feed some information into a
+completely-assembled +
+MD-SAL container and then inquiring the data service to see if
+correctly-modeled +
+information is there and no anomalies are detected in the system. +
+
+|Integrate PCEP with Tunnels +
+|https://bugs.opendaylight.org/show_bug.cgi?id=48[Bug48] +
+ Done || Integrate PCEP with more general overlay model. +
+|=======================================================================
+
+|RC0 |11/20/2013 a|
+[cols=",",options="header",]
+|=================
+|Name |Description
+|RC0 |bugfixing +
+|=================
+
+|RC1 |11/27/2013 a|
+[cols=",",options="header",]
+|=================
+|Name |Description
+|RC1 |bugfixing
+|=================
+
+|RC2 |12/4/2013 a|
+[cols=",",options="header",]
+|==========================================
+|Name |Description
+|Release Review |Release Review Description
+|==========================================
+
+|Formal Release |12/9/2013 a|
+[cols=",",options="header",]
+|=========================================
+|Name |Description
+|Deliverable Name |Deliverable Description
+|=========================================
+
+|=======================================================================
+
+[[expected-dependencies-on-other-projects]]
+== Expected Dependencies on Other Projects
+
+[cols=",,,",options="header",]
+|=======================================================================
+|Depends On |Dependency Description |Needed By |Is in Other Project
+Release Plan
+|OpenDaylight Controller + |Generate DTOs from provided YANG models. +
+|M3 +
+|https://wiki.opendaylight.org/view/OpenDaylight_Controller:Release_Plan_2013[wiki.opendaylight.org/view/OpenDaylight_Controller:Release_Plan_2013] +
+|=======================================================================
+
+[[compatibility-with-previous-releases]]
+== Compatibility with Previous Releases
+
+[[themes-and-priorities]]
+== Themes and Priorities
+
+* Definition of a topology model exposed by BGP/LS
+* Definition of a network-wide path programming model exposed by PCEP
+* Implementation of a BGP protocol library, supporting
+https://tools.ietf.org/html/rfc4271[BGP-4],
+https://tools.ietf.org/html/rfc4724[Graceful Restart],
+https://tools.ietf.org/html/rfc4760[Multiprotocol
+extensions], https://tools.ietf.org/html/draft-ietf-idr-ls-distribution[BGP/LS],
+https://tools.ietf.org/html/rfc1997[Communities],
+https://tools.ietf.org/html/rfc4360[Extended Communities]
+and https://tools.ietf.org/html/rfc6793[4-Byte AS numbers] (NEW speaker
+only)
+* Implementation of a BGP RIB, allowing for redundant data sources, but
+limited to listener-only functionality
+* Implementation of a PCEP protocol library, supporting
+https://tools.ietf.org/html/rfc5440[PCEP],
+https://tools.ietf.org/html/rfc5541[Objective functions],
+https://tools.ietf.org/html/rfc5455[Diffserv],
+https://tools.ietf.org/html/draft-ietf-pce-stateful-pce[Stateful
+extensions], https://tools.ietf.org/html/rfc5557[GCO]
+and https://tools.ietf.org/html/draft-crabbe-pce-pce-initiated-lsp[PCE-initiated
+LSPs]
+
+ +
+
+[[versioning]]
+== Versioning
+
+*https://git.opendaylight.org/gerrit/gitweb?p=bgpcep.git;a=shortlog;h=refs%2Fheads%2Frelease-0.1.0[0.1.0]*
+- initial code drop +
+*https://git.opendaylight.org/gerrit/gitweb?p=bgpcep.git;a=shortlog;h=refs%2Fheads%2Frelease-0.2.0[0.2.0]*
+- project switched to NETTY +
+*0.3.0* - integrated with generated DTOs
+
+ +
+
+[[other]]
+== Other
+
+*Primary Setup Contact* : Dana Kutenicsova (dkutenic@cisco.com) +
+ *CI Resource* : Dana Kutenicsova (dkutenic@cisco.com) +
+

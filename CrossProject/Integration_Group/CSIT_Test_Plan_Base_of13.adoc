@@ -1,0 +1,291 @@
+[[base-edition-test-plan]]
+= Base Edition Test Plan
+
+[[test-steps]]
+== Test Steps
+
+* Start Opendaylight Controller at 10.125.136.52 using Base Edition with
+-of13 option
+* Start mininet for OF13 simulation (i.e. mininet> sudo mn
+--controller=remote,ip=10.125.136.52 --topo tree,2 --switch
+ovsk,protocols=OpenFlow13)
+** This generates 3 nodes: SW1 (openflow:1), SW2 (openflow:2), SW3
+(openflow:3)
+** SW1 has 2 ports: 1,2 that connects to SW2 and SW3
+** SW2 has 3 ports: 1 to host1 (10.0.0.1), 2 to host2 (10.0.0.2) and 3
+to SW1
+** SW3 has 3 ports: 1 to host3 (10.0.0.3), 2 to host4 (10.0.0.4) and 3
+to SW1
+* Run the suite below
+* Start mininet for OF10 simulation (i.e. mininet> sudo mn
+--controller=remote,ip=10.125.136.52 --topo tree,2)
+** This generates 3 nodes: SW1 (openflow:1), SW2 (openflow:2), SW3
+(openflow:3)
+** SW1 has 2 ports: 1,2 that connects to SW2 and SW3
+** SW2 has 3 ports: 1 to host1 (10.0.0.1), 2 to host2 (10.0.0.2) and 3
+to SW1
+** SW3 has 3 ports: 1 to host3 (10.0.0.3), 2 to host4 (10.0.0.4) and 3
+to SW1
+* Run the suite below
+
+[[test-content]]
+== Test Content
+
+[[restconf]]
+=== RESTCONF
+
+* RESTCONF Inventory
+** List connections (i.e. GET
+http://10.125.136.52:8080/controller/nb/v2/connectionmanager/nodes)
+** Get nodeconnector for a node (i.e. GET
+http://10.125.136.52:8080/restconf/operational/opendaylight-inventory:nodes/node/openflow:1)
+
+* RESTCONF Flows
+** For OF13 simulation - Add a flow (i.e. PUT
+http://10.125.136.52:8080/restconf/config/opendaylight-inventory:nodes/node/openflow:1/table/2/flow/152
++ link:flow body[flow body])
+** For OF10 simulation - Add a flow (i.e. PUT
+http://10.125.136.52:8080/restconf/config/opendaylight-inventory:nodes/node/openflow:1/table/2/flow/152
++ link:flow body[flow body])
+** Verify the flow config (i.e. GET
+http://10.125.136.52:8080/restconf/config/opendaylight-inventory:nodes/node/openflow:1/table/2)
+** Verify the flow operational (i.e. GET
+http://10.125.136.52:8080/restconf/operational/opendaylight-inventory:nodes/node/openflow:1/table/2)
+** Verify the flow operational (i.e. GET
+http://10.125.136.52:8080/restconf/operational/opendaylight-inventory:nodes/node/openflow:1/table/2)
+** Remove a flow (i.e. GET
+http://10.125.136.52:8080/restconf/config/opendaylight-inventory:nodes/node/openflow:1/table/2/flow/152)
+** Verify the flow config (i.e. GET
+http://10.125.136.52:8080/restconf/config/opendaylight-inventory:nodes/node/openflow:1/table/2)
+and check the flow doesn't exists
+** Verify the flow operational (i.e. GET
+http://10.125.136.52:8080/restconf/operational/opendaylight-inventory:nodes/node/openflow:1/table/2)
+and check the flow doesn't exists
+
+[[network-service-functions]]
+=== Network Service Functions
+
+* Topology Manager (Builds network topology)
+** show topology (i.e. GET
+http://10.125.136.52:8080/controller/nb/v2/topology/default)
+** add userlink (i.e. PUT
+http://10.125.136.52:8080/controller/nb/v2/topology/default/userLink/link1
++ CrossProject:Integration_Group:REST_Body#UserLink_Body[userlink
+body]), list userlinks and get topology
+** remove userlink (i.e. DELETE
+http://10.125.136.52:8080/controller/nb/v2/topology/default/userLink/link1),
+list userlinks and get topology
+
+* Switch Manager (Handles SB devices Information)
+** list all nodes and their properties (i.e. GET
+http://10.125.136.52:8080/controller/nb/v2/switchmanager/default/nodes)
+** add property "description" to SW2 (i.e. PUT
+http://10.125.136.52:8080/controller/nb/v2/switchmanager/default/node/MD_SAL/openflow:2/property/description/Switch2)
+and list nodes
+** remove SW2 property "description" to a node (i.e. DELETE
+http://10.125.136.52:8080/controller/nb/v2/switchmanager/default/node/MD_SAL/openflow:2/property/description)
+and list nodes
+** list all connectors and properties for SW2 (i.e. GET
+http://10.125.136.52:8080/controller/nb/v2/switchmanager/default/node/MD_SAL/openflow:2)
+** add property "bandwidth" to a SW2 connector (i.e. PUT
+http://10.125.136.52:8080/controller/nb/v2/switchmanager/default/nodeconnector/MD_SAL/openflow:2/MD_SAL/openflow:2:2/property/bandwidth/1000)
+and list SW2 connectors
+** remove property "bandwidth" to a SW2 connector (i.e. DELETE
+http://10.125.136.52:8080/controller/nb/v2/switchmanager/default/nodeconnector/MD_SAL/openflow:2/MD_SAL/openflow:2:2/property/bandwidth)
+and list SW2 connectors
+
+* Statistics Manager
+** show flow stats (i.e. GET
+http://10.125.136.52:8080/controller/nb/v2/statistics/default/flow)
+** show port stats (i.e. GET
+http://10.125.136.52:8080/controller/nb/v2/statistics/default/port)
+** show table stats (i.e. GET
+http://10.125.136.52:8080/controller/nb/v2/statistics/default/table)
+
+* Forwarding Rules Manager (Installs Flows on SB devices)
+** add flow1 to reach host1 (i.e. PUT
+http://10.125.136.52:8080/controller/nb/v2/flowprogrammer/default/node/MD_SAL/openflow:2/staticFlow/flow1
++ CrossProject:Integration_Group:REST_Body#Flow1_Body[flow1 body]) and
+list flows
+** show flow stats (i.e. GET
+http://10.125.136.52:8080/controller/nb/v2/statistics/default/flow) and
+check flow is present
+** remove flow1 (i.e. DELETE
+http://10.125.136.52:8080/controller/nb/v2/flowprogrammer/default/node/MD_SAL/openflow:2/staticFlow/flow1)
+and list flows
+** show flow stats (i.e. GET
+http://10.125.136.52:8080/controller/nb/v2/statistics/default/flow) and
+check flow is not present
+
+* Configuration (Handles controller configuration)
+** add flow1 to reach host1 (i.e. PUT
+http://10.125.136.52:8080/controller/nb/v2/flowprogrammer/default/node/MD_SAL/openflow:2/staticFlow/flow1
++ CrossProject:Integration_Group:REST_Body#Flow1_Body[flow1 body])
+** save configuration (i.e. POST
+http://10.125.136.52:8080/controller/nb/v2/switchmanager/default/save)
+** restart controller
+** list flows after controller restart (i.e. GET
+http://10.125.136.52:8080/controller/nb/v2/flowprogrammer/default) and
+check flow is present
+** show flow stats after controller restart (i.e. GET
+http://10.125.136.52:8080/controller/nb/v2/statistics/default/flow)
+** remove flow1 (i.e. DELETE
+http://10.125.136.52:8080/controller/nb/v2/flowprogrammer/default/node/MD_SAL/openflow:2/staticFlow/flow1)
+** show flow stats (i.e. GET
+http://10.125.136.52:8080/controller/nb/v2/statistics/default/flow) and
+check flow is not present
+
+* Host Tracker (Tracks connected hosts) and Simple Forwarding (creates
+flows for connected hosts)
+** list hosts (i.e. GET
+http://10.125.136.52:8080/controller/nb/v2/hosttracker/default/hosts/active)
+** add static host (i.e. PUT
+http://10.125.136.52:8080/controller/nb/v2/hosttracker/default/address/10.1.0.4
++ CrossProject:Integration_Group:REST_Body#Host1_Body[host1 body]) and
+list hosts
+** show flow stats (i.e. GET
+http://10.125.136.52:8080/controller/nb/v2/statistics/default/flow) and
+check flow for host is present
+** remove static host1 (i.e. DELETE
+http://10.125.136.52:8080/controller/nb/v2/hosttracker/default/address/10.1.0.4)
+and list hosts
+** show flow stats (i.e. GET
+http://10.125.136.52:8080/controller/nb/v2/statistics/default/flow) and
+check flow for host is not present
+
+* ARP Handler (Handles ARP messages according to subnet network
+configuration)
+** list subnets (i.e. GET
+http://10.125.136.52:8080/controller/nb/v2/subnetservice/default/subnets)
+** ping on mininet (i.e. mininet> h1 ping -c 3 h4), verify it works
+** list hosts (i.e. GET
+http://10.125.136.52:8080/controller/nb/v2/hosttracker/default/hosts/active),
+check h1 and h4 are present
+** add subnet gateway (i.e. PUT
+http://10.125.136.52:8080/controller/nb/v2/subnetservice/default/subnet/test
++ CrossProject:Integration_Group:REST_Body#Subnet_Body[subnet body]) and
+list subnets
+** list hosts (i.e. GET
+http://10.125.136.52:8080/controller/nb/v2/hosttracker/default/hosts/active),
+check h1 and h4 are not present
+** remove subnet gateway (i.e. DELETE
+http://10.125.136.52:8080/controller/nb/v2/subnetservice/default/subnet/test)
+and list subnets
+
+* Forwarding Manager (Installs Route and tracks next-hop)
+** add static route with next-hop h2 (i.e. PUT
+http://10.125.136.52:8080/controller/nb/v2/staticroute/default/route/route1
++ CrossProject:Integration_Group:REST_Body#Route_Body[route body]) and
+list routes
+** list hosts (i.e. GET
+http://10.125.136.52:8080/controller/nb/v2/hosttracker/default/hosts/active),
+check h2 is present
+** remove static route (i.e. DELETE
+http://10.125.136.52:8080/controller/nb/v2/staticroute/default/route/route1)
+and list routes
+** list hosts (i.e. GET
+http://10.125.136.52:8080/controller/nb/v2/hosttracker/default/hosts/active),
+check h2 is not present
+* Container Manager (Manages Network Slicing)
+** list containers (i.e. GET
+http://10.125.136.52:8080/controller/nb/v2/containermanager/containers)
+** create container cont1 including SW2 port1, SW3 port1 (i.e. PUT
+http://10.125.136.52:8080/controller/nb/v2/containermanager/container/cont1
++ CrossProject:Integration_Group:REST_Body#Container1_Body[container1
+body]) and list containers
+** add flowspecs to cont1 (i.e. PUT
+http://10.125.136.52:8080/controller/nb/v2/containermanager/container/cont1/flowspec/h1toh3
++ CrossProject:Integration_Group:REST_Body#Flowspec_Body[flowspec body])
+** list cont1 flowspecs (i.e. GET
+http://10.125.136.52:8080/controller/nb/v2/containermanager/container/cont1/flowspecs)
+** add node connectors SW1 port1,2 SW2 port3 SW3 port3 to cont1 (i.e.
+PUT
+http://10.125.136.52:8080/controller/nb/v2/containermanager/container/cont1/nodeconnector
++
+CrossProject:Integration_Group:REST_Body#Nodeconnector_Body[nodeconnector
+body]) )
+** list cont1 connectors (i.e. GET
+http://10.125.136.52:8080/controller/nb/v2/containermanager/container/cont1/nodeconnectors)
+** add all flows (6) needed in container cont1 so that h1 can ping h3
+** list flows in container cont1 (i.e. GET
+http://10.125.136.52:8080/controller/nb/v2/flowprogrammer/cont1)
+** ping on mininet (i.e. mininet> h1 ping -c 3 h3), verify it works
+** show cont1 flow stats (i.e. GET
+http://10.125.136.52:8080/controller/nb/v2/statistics/cont1/flow) and
+check packet count=3
+** create container cont2 including SW1 port1,2 SW2 ports2,3 SW3 port2,3
+and flowspecs (i.e. PUT
+http://10.125.136.52:8080/controller/nb/v2/containermanager/container/cont2
++ CrossProject:Integration_Group:REST_Body#Container2_Body[container2
+body]) and list containers
+** add all flows (6) needed in container cont2 so that h2 can ping h4
+** list flows in container cont2 (i.e. GET
+http://10.125.136.52:8080/controller/nb/v2/flowprogrammer/cont2)
+** ping on mininet (i.e. mininet> h2 ping -c 3 h4), verify it works
+** show cont2 flow stats (i.e. GET
+http://10.125.136.52:8080/controller/nb/v2/statistics/cont2/flow) and
+check packet count=3
+** remove cont1 node connectors SW1 port1,2 SW2 port3 SW3 port3 (i.e.
+DELETE
+http://10.125.136.52:8080/controller/nb/v2/containermanager/container/cont1/nodeconnector
++
+CrossProject:Integration_Group:REST_Body#Nodeconnector_Body[nodeconnector
+body]) and list cont1 connectors
+** remove cont1 flow spec (i.e. DELETE
+http://10.125.136.52:8080/controller/nb/v2/containermanager/container/default/flowspec/toh3)
+and list cont1 flowspecs
+** remove container cont1 (i.e. PUT
+http://10.125.136.52:8080/controller/nb/v2/containermanager/container/cont1)
+and list containers
+** remove container cont2 (i.e. PUT
+http://10.125.136.52:8080/controller/nb/v2/containermanager/container/cont2)
+and list containers
+
+* Clustering Manager (Manages shared cache across controller instances)
+** Will be added later
+
+* Netconf (Generates RESTCONF NB API from Netconf Yang models)
+** Will be added later
+
+[[ovsdb-plugin]]
+=== OVSDB Plugin
+
+* Connection Manager (Handles SB devices connection) and BridgeDomain
+(Controls OVSDB plugin)
+** List connections (i.e. GET
+http://10.125.136.52:8080/controller/nb/v2/connectionmanager/nodes)
+** Connect to mininet OVS (i.e. PUT
+http://10.125.136.52:8080/controller/nb/v2/connectionmanager/node/MININET/address/10.125.136.53/port/6640/)
+and list connections
+** Create bridge s4 (i.e. POST
+http://10.125.136.52:8080/controller/nb/v2/networkconfig/bridgedomain/bridge/OVS/MININET/s4
++ CrossProject:Integration_Group:REST_Body#Bridge_Body[bride body])
+** Delete s1 port s1-eth1 (i.e. DELETE
+http://10.125.136.52:8080/controller/nb/v2/networkconfig/bridgedomain/port/OVS/MININET/s1/s1-eth1)
+** Delete s2 port s2-eth3 (i.e. DELETE
+http://10.125.136.52:8080/controller/nb/v2/networkconfig/bridgedomain/port/OVS/MININET/s2/s2-eth3)
+** Create s4 port s4-eth1 and connect to s2 port s2-eth3 (i.e. POST
+http://10.125.136.52:8080/controller/nb/v2/networkconfig/bridgedomain/port/OVS/MININET/s4/s4-eth1
++ CrossProject:Integration_Group:REST_Body#Port1_Body[port1 body])
+** Create s2 port s2-eth3 and connect to s4 port s4-eth1 (i.e. POST
+http://10.125.136.52:8080/controller/nb/v2/networkconfig/bridgedomain/port/OVS/MININET/s2/s2-eth3
++ CrossProject:Integration_Group:REST_Body#Port2_Body[port2 body]))
+** Delete s1 port s1-eth2 (i.e. DELETE
+http://10.125.136.52:8080/controller/nb/v2/networkconfig/bridgedomain/port/OVS/MININET/s1/s1-eth2)
+** Delete s3 port s3-eth3 (i.e. DELETE
+http://10.125.136.52:8080/controller/nb/v2/networkconfig/bridgedomain/port/OVS/MININET/s3/s3-eth3)
+** Create s4 port s4-eth2 and connect to s3 port s3-eth3 (i.e. POST
+http://10.125.136.52:8080/controller/nb/v2/networkconfig/bridgedomain/port/OVS/MININET/s4/s4-eth2
++ CrossProject:Integration_Group:REST_Body#Port3_Body[port3 body]))
+** Create s3 port s3-eth3 and connect to s4 port s4-eth2 (i.e. POST
+http://10.125.136.52:8080/controller/nb/v2/networkconfig/bridgedomain/port/OVS/MININET/s3/s3-eth3
++ CrossProject:Integration_Group:REST_Body#Port4_Body[port4 body]))
+** show topology (i.e. GET
+http://10.125.136.52:8080/controller/nb/v2/topology/default)
+** Ping on mininet (i.e. mininet> h1 ping -c 3 h4), verify it works
+** Restore original topology
+** Disconnect mininet OVS (i.e. DELETE
+http://10.125.136.52:8080/controller/nb/v2/connectionmanager/node/OVS/MININET)
+and list connections
+
+Category:Integration Group[Category:Integration Group]

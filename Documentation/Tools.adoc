@@ -1,0 +1,154 @@
+*Back to CrossProject:Documentation_Group[ main Documentation Group
+page]*
+
+The following instructions work with Mac OS X and (probably) Linux.
+Instructions for Windows clients are awaiting a volunteer.
+
+[[getting-ready]]
+= Getting Ready
+
+Before you begin this procedure, be sure to complete the following
+prerequisites:
+
+* Install https://maven.apache.org/download.cgi[Maven].
+* Install the GitHub client:
+** https://help.github.com/articles/set-up-git#platform-linux[Linux]
+** https://help.github.com/articles/set-up-git#platform-mac[Mac OS X]
+** https://help.github.com/articles/set-up-git#platform-windows[Windows]
+
+[[git-cheat-sheet]]
+== Git Cheat Sheet
+
+For a quick overview of Git commands, check out the
+link:GIT Cheat Sheet[ Git Cheat Sheet]. For more specifics, see below.
+
+[[gerrit-setup]]
+== Gerrit Setup
+
+Creating a Gerrit account, including registering a public/private key
+pair, is required for using Git over SSH as documented below. Gerrit is
+also used for code reviews. If you don't already have an account with
+established keys, follow the documentation on
+OpenDaylight Controller:Gerrit Setup[setting up Gerrit].
+
+[[pull-code-via-git-cli]]
+== Pull code via Git CLI
+
+Pull the code by cloning the controller repository:
+
+--------------------------------------------------------------
+git clone ssh://<username>@git.opendaylight.org:29418/docs.git
+--------------------------------------------------------------
+
+Note that the command above assumes you've registered a Gerrit account
+and have a valid keypair for authentication. The public key should be
+known to Gerrit, and the private key should be on your local system at
+~/.ssh/id_rsa.pub.
+
+If you just want to do an anonymous git clone, you can use HTTPS:
+
+--------------------------------------------------------
+git clone https://git.opendaylight.org/gerrit/p/docs.git
+--------------------------------------------------------
+
+[[setup-gerrit-change-id-commit-msg-hook-default-push-location]]
+== Setup Gerrit Change-id Commit Msg Hook & default push location
+
+The following Git hook automatically inserts a unique Change-Id tag in
+the footer of each commit message. Git doesn't track hooks, so after
+pulling the project you'll want to go ahead and grab this one manually.
+Using this hook is optional, but highly recommended for tracking
+changes.
+
+----------------------------------------------------------------------------
+cd docs
+scp -p -P 29418 <username>@git.opendaylight.org:hooks/commit-msg .git/hooks/
+chmod 755 .git/hooks/commit-msg
+git config remote.origin.push HEAD:refs/for/master
+----------------------------------------------------------------------------
+
+[[building-and-editing-odl-documentation]]
+= Building and Editing ODL Documentation
+
+1.  Change to the proper manuals directory and use the *mvn install*
+command to compile the desired documentation.
+2.  Access the compiled guides at
+_./manuals/install-guide/target/docbkx/webhelp/_
+3.  Find ASCIIDoc formatting information here:
+_http://powerman.name/doc/asciidoc_
+
+[[pushing-changes-for-review]]
+= Pushing changes for review
+
+After making any local changes to the docs and that PDF builds properly
+in target/docbkx/webhelp you can push your changes for review.
+
+Like many OpenDaylight Projects we suggest the use of git review tool to
+help in pushing your changes for review by other committers. git-review
+is a command-line tool for Git / Gerrit. It makes it easier to configure
+your git clone, to submit a change or to fetch an existing one. The
+upstream project is led by Openstack. Not to be confused with the
+unrelated Facebook project.
+
+[[installation]]
+== Installation
+
+Before you start, make sure you already have your account and SSH keys
+set up in Gerrit. See OpenDaylight_Controller:Gerrit_Setup for
+instructions.
+
+To install git-review, please see the instructions
+http://www.mediawiki.org/wiki/Gerrit/git-review#Installation|here[1]
+
+[[initial-setup]]
+== Initial Setup
+
+Clone your git repository, and in the root directory enter the following
+git review -s This will set up your connection to Gerrit via git-review
+
+[[submitting-patches]]
+== Submitting Patches
+
+Once you've added and committed your changes, you can use git-review to
+publish to Gerrit
+
+`
+git review
+`
+
+Git-review will rebase your changes against the master branch in Gerrit
+before pushing. It will also notify you of merge conflicts so you can
+manually resolve them. You can disable the rebase by using the -R or
+--no-rebase flags.
+
+By default, the Gerrit topic will be the name of your local branch. You
+can change this using the -t or --topic flags. `
+git review -t topic
+`
+
+[[reviewing-patches]]
+== Reviewing Patches
+
+If you are downloading code to make changes or test functionality you
+can use the you can do so as follows:
+
+`
+git review -d 6150<br>
+git commit --amend<br>
+git review -t <original-topic> -f<br>
+`
+
+If you wish to diff between two patch sets you can do so using
+git-review
+
+`
+git review -m 6150,3
+`
+
+Will diff between Patch Set 3 of change 6150 and the latest Patch Set.
+
+[[publishing-odl-documentation]]
+= Publishing ODL Documentation
+
+Documentation will be deployed via site-deploy jobs to a maven site and
+available online.

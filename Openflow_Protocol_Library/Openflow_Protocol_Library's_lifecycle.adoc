@@ -1,0 +1,104 @@
+[[librarys-lifecycle]]
+== Library's lifecycle
+
+Steps (after the library's bundle is started):
+
+* [1] Plugin configures the Library (adress, ports, encryption, ...)
+* [2] Plugin injects its SwitchConnectionHandler into the Library
+* [3] Plugin starts the Library
+* [4] Library creates configured protocol handler (e.g. TCP Handler)
+* [5] TCP Handler creates Publishing Channel Initializer on new /
+incoming switch connection
+* [6] Publishing Channel Initializer asks plugin whether to accept
+incoming connection
+* [7] Plugin responds:
+** true - continue building pipeline
+** false - reject connection / disconnect channel
+* [8] Library notifies Plugin with onSwitchConnected(ConnectionAdapter)
+notification, announcing that pipeline handlers needed for communication
+have been created and Plugin can start communication
+* [9] Plugin registers its system and message listeners
+* [10] Plugin shutdowns the Library when desired
+
+image:Library lifecycle.png [ center | Library's
+lifecycle,title=" center | Library's lifecycle"]
+
+[[integration-with-plugin]]
+== Integration with Plugin
+
+[cols=",",]
+|=======================================================================
+|*Plugin* a|
+*SwitchConnectorHandler*
+
+* onSwitchConnected(_ConnectionAdapter_) [4]
+
+::
+  ;;
+    `connectionAdapter.setMessageListener(ofProtocolListener)` [5]
+    +
+    `connectionAdapter.setSystemListener(systemListener)` [5]
+
+* accept(_InetAddress_)
+
+::
+  ;;
+    //policy logic
+
+'''''
+
+*OFProtocolListener*
+
+* onHelloMessage(message)
+* ...
+
+'''''
+
+*SystemListener*
+
+* onDisconnectEvent(event)
+
+'''''
+
+call particular rpc method on particular instance of _ConnectionAdapter_
+to send message to particular switch [6][7]
+
+|*Library* a|
+*SwitchConnectionProvider*
+
+* config() [1]
+* startup() [2]
+* shutdown() [8]
+* setSwitchConnectionHandler(_SwitchConnectionHandler_) [1]
+
+'''''
+
+*ConnectionAdapter* extends OFProtocolService
+
+* disconnect()
+* sendMessage() -- via RPC (OFProtocolService)
+* isAlive()
+* setOFProtocolListener(_OFProtocolListener_) -- place to send message
+notifications
+
+call _OFProtocolListener_ when a message arrives [6][7]
+
+|=======================================================================
+
+[[connection-workflow]]
+==== Connection workflow
+
+1.  @Plugin: config, set _SwitchConnectionHandler_
+2.  @Plugin: startup()
+3.  new switch connects to netty layer
+4.  @Library: onSwitchConnected(new _ConnectionAdapter_...)
+5.  @Plugin: setMessageListener(); setSystemListener();
+6.  @both: send/receive Hello (handshake)
+7.  @both: do some switch exercise
+8.  @Plugin: shutdown
+
+[[openflow-protocol-librarymain-page]]
+== Openflow Protocol Library:Main page
+
+* Openflow Protocol Library:Main[Openflow Protocol Library:Main]
+

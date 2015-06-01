@@ -1,0 +1,250 @@
+[[current-state]]
+== Current state
+
+[[binding-aware-broker]]
+=== Binding-Aware Broker
+
+*Executors:*
+
+* _sal-binding-notification_ Executor
+** 4-32 Threads
+** Limited configurable blocking queue
+** Leaked to clients by directly invoking callbacks
+* _sal-binding-commit_ Executor -
+* 1 Thread
+** unbounded
+** Leaked to clients by directly invoking callbacks, via
+ListenableFuture
+
+[[rpc-invocations]]
+==== RPC Invocations
+
+Callback to RPC implementation is done via caller's thread. No context
+switch is present here. Implementations (providers) are expected to
+return future object with result as soon as possible and do NOT block
+thread for significant amount of time. Callback should end immediatelly
+with Future which should be updated once result is available.
+
+[[blocking-operations]]
+===== Blocking operations
+
+* Potential invocation of RPC, which has Bidning-Independent
+implementation and codecs are not generated.
+
+[[notifications]]
+==== Notifications
+
+Notification delivery to clients are done via
+_sal-binding-notification_. Simultaneous delivery of multiple
+notifications to same listener using multiple threads is not prevented
+on MD-SAL level.
+
+[[blocking-operations-1]]
+===== Blocking operations
+
+* Publishing notification is blocking operation when
+_sal-binding-notification_ queue is full.
+
+[[data-broker]]
+==== Data Broker
+
+[[blocking-operations-2]]
+===== Blocking operations
+
+* Read and Writes to transaction may be blocking operations if codec
+schema for particular data is currently not present in MD-SAL. (Since
+client code is using generated DTOs, assumption is schema will be
+available at some point in the time.
+
+[[binding-independent-broker]]
+=== Binding-Independent Broker
+
+*Executors:*
+
+* Data Broker executor
+** 1 Thread
+** Unbounded queue
+** Leaked to clients by ListenableFuture
+
+* Data store executor
+** 2 Threads
+** Limited configurable blocking queue
+** Leaked to clients by directly invoking callbacks in Data Change
+Events
+
+[[rpc-invocations-1]]
+==== RPC Invocations
+
+Callback to RPC implementation is done via caller's thread. No context
+switch is present here. Implementations (providers) are expected to
+return future object with result as soon as possible and do NOT block
+thread for significant amount of time. Callback should end immediatelly
+with Future which should be updated once result is available.
+
+[[notifications-1]]
+==== Notifications
+
+Notification delivery to clients are done via publisher thread.
+Simultaneous delivery of multiple notifications to same listener using
+multiple threads is not prevented on MD-SAL level.
+
+[[dom-data-broker]]
+==== DOM Data Broker
+
+DOM Data Broker uses unbounded single-threaded executor which only
+purpose is to coordinate three-phase commit on data-stores. Executed
+coordination code invokes asynchronous operations on data stores and
+block until it has result for each invoked operation.
+
+[[data-store]]
+==== Data Store
+
+Data Store uses executor with two threads for:
+
+* Verifying transactions
+* Computing snapshots
+* Replacement of snapshot (synchronous on Datastore level)
+* Delivery of data change events.
+
+[[restconf]]
+==== Restconf
+
+Restconf uses threads provided by HTTP container. Restconf invokes
+asynchronous operations on MD-SAL such as transactions, rpcs invocations
+and block until asychnronous operation ends.
+
+[[potential-problems]]
+== Potential Problems
+
+[[issue-1-deadlock-of-md-sal]]
+=== Issue-1: Deadlock of MD-SAL
+
+MD-SAL itself uses separate threads to participate and work on data, but
+it never invokes potentially blocking operation on critical threads,
+unless we can assume blocking will not happen.
+
+Only possible way to create deadlock on MD-SAL is via client code, which
+uses callback from MD-SAL to operate on MD-SAL. Most simplest scenarios
+are:
+
+* Notification listener receives notification and publish different
+notification back via same thread.
+* Notification listener receives notification, submits transaction,
+blocks on its result.
+* Data Change Listener receives data change event, submits transaction,
+blocks on its result.
+
+[[issue-2-unordered-delivery-of-notifications-to-same-listener]]
+=== Issue-2: Unordered delivery of notifications to same listener
+
+Client code does not have any way to specify if the notifications should
+be ordered, if it supports simultaneous processing of separate
+notifications,so unless client callback is synchronized in client code,
+MD-SAL allows multiple threads to enter callback.
+
+[[possible-solutions]]
+==== Possible solutions
+
+* Explicit actor model (see below)
+* Implicit actor model (see below)
+
+[[issue-3-unordered-delivery-of-rpc-requests-to-same-implementation]]
+=== Issue-3: Unordered delivery of RPC requests to same implementation
+
+Client code does not have any way to specify if the notifications should
+be ordered, if it supports processing simultaneous of separate
+invocations. MD-SAL does not put any constraints on this delivery, so
+unless client callback is synchronized in client code, MD-SAL allows
+multiple threads to enter callback.
+
+[[possible-solutions-1]]
+==== Possible solutions
+
+* Explicit actor model (see below)
+* Implicit actor model (see below)
+
+[[issue-4-blocking-operations-in-data-change-listeners]]
+=== Issue-4: Blocking operations in Data Change Listeners
+
+Currently data change listeners are triggered from data store threads,
+which means if data change listener is blocking this thread no
+operations are possible on data listener.
+
+[[possible-solutions-2]]
+==== Possible solutions
+
+* Explicit actor model (see below)
+* Implicit actor model (see below)
+* Separate executor for notification delivery.
+
+[[improvements]]
+== Improvements
+
+[[actor-model]]
+=== Actor model
+
+In the context of MD-SAL we could identify two types of actors - MD-SAL
+actors and user-supplied actors (consumers / providers).
+
+Internal MD-SAL Candidates for Actors are:
+
+* DOM Broker
+** Schema Service
+** Data Broker
+** Data Stores
+** Rpc Router for particular RPC type (Router-type actor)
+** Notification Broker
+* Binding Broker
+** Binding Mapping Service
+** Data Broker
+** Rpc Router (Router-type actor)
+** Notification Broker
+
+Client-code candidate for actors are:
+
+* RPC Implementation
+* Notification Listener
+* Data Change Listener
+* Schema Context Listener
+
+[[explicit-actor-model]]
+==== Explicit Actor model
+
+Explicit actor model will introduce new term to MD-SAL - Actor - APIs
+needs to be designed (using Akka or creating own abstraction which could
+be backed by Akka or other system), but it SHOULD BE possible to MD-SAL
+clients specify their delivery models.
+
+This will require update of MD-SAL on all levels, but threading model
+will be easier to reason about, it will introduce customizable queue
+behaviour for components and queuing per component (actor) basis.
+
+[[implicit-actor-model]]
+==== Implicit Actor model
+
+Each listener, rpc implementation, etc. which is visible to MD-SAL is
+uniquelly associated with Registration object which uniquely identifies
+instance, registration object could serve as synchronization point (or
+queue holder) for particular component in MD-SAL.
+
+This will require change in Notification Broker and Data Change delivery
+in way, that they will honor per-registration queues or use Registration
+object of listener as synchronization point.
+
+The registration object could also be extended to provide additional
+methods, which will help client code further specify their behaviour
+(e.g. synchronized, unsychronized) etc.
+
+Problem with this approach is one instance may implement multiple
+entry-points with separate registration and it is hard to preserve
+event-ordering behaviour for separate registrations.
+
+[[simple-deadlock-detection]]
+=== Simple Deadlock detection
+
+MD-SAL Threadpools, Future returns from MD-SAL could be wrapped by
+custom facade, which will do a detect if blocking calls are invoked on
+MD-SAL owned thread and then issue a WARN to the console, with
+stacktrace of offending code. Similar approach is used in Netty, but
+Netty throws exception when it detects Netty blocking operation on Netty
+owned threads.

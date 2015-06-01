@@ -1,0 +1,212 @@
+OpenDaylight_Controller:MD-SAL:Architecture:Clustering[MD-SAL Clustering
+High Level Design ] covers the high level design of the Clustered
+Datastore in Helium Release
+
+This wiki captures the detailed design based on our discussions [Note:
+This Wiki is work in progress & will have frequent updates]
+
+[[packaging]]
+== Packaging
+
+The following packages are used for the Clustered Datastore
+
+* org.opendaylight.controller.cluster.datastore
+* org.opendaylight.controller.cluster.rpc
+* org.opendaylight.controller.cluster.notification
+* org.opendaylight.controller.cluster.monitoring
+* org.opendaylight.controller.cluster.common
+
+[[interfaces]]
+== Interfaces
+
+The Akka Actors involed in supporting clustered datastore, the messages
+they exchange and the packages they belong to are explained below.
+
+[[org.opendaylight.controller.cluster.datastore]]
+=== org.opendaylight.controller.cluster.datastore
+
+[[shardmanager]]
+==== ShardManager
+
+ShardManager is an actor that creates the shard/shard replicas on system
+initialization based on configuration. It supports the ability to find a
+Shard and Monitor the Shard's health. It initiates the Shard "Primary"
+election scheme if any its created primary shards goes down. It also
+register to get cluster Node UP/DOWN events
+
+`  Messages/API: ` +
+`         FindPrimary => Address[Shard]`
+
+[[shard]]
+==== Shard
+
+Represents a Shard created by ShardManager based on Shard strategy
+specified in configuration. Methods of Shard provides the
+transaction/change notification registration support.It maintains the
+state whether it is replica or primary shard in addition to being a
+shard store.
+
+`         - primary : boolean` +
+`  Messages/API:` +
+`         - RegisterListener => ListenerRegistration  ` +
+`         - CreateTransactionChain => Address[ShardTransactionChain]` +
+`         - Commit(snapShot : NormalizedNode, compositeTransactionOperation) -- compositeTranscationOperation tracks all the operation that    ` +
+`                                                                               happenned in a Transaction ` +
+`         - Persistent(compositeTransactionOperation)` +
+`         - Persistent(Replicated(compositeTransactionOperation))`
+
+[[shardreplicator]]
+==== ShardReplicator
+
+Shard Replicator gets persistent messages that Shard has applied to its
+store and replicates the same to other Shard Replicas.
+
+`  Messages/API:` +
+`         - Persistent(compositeTransactionOperation)`
+
+[[compositetransactionoperation]]
+==== CompositeTransactionOperation
+
+For each CUD transaction we will capture the TransactionOperation(s) as
+part of this composite object. This will be utilized when transaction is
+committed to have a single persistent message in the persistent Journal
+
+`   Messages/API ` +
+`         - List` +
+`         - add(TransactionOperation)`
+
+[[transactionoperation]]
+==== TransactionOperation
+
+Represents a single operation as part of a transaction. Utilized by
+CompositeTransactionOperation
+
+`   Messages/API ` +
+`         - WriteTransactionOperation(instanceIdentifier, NormalizedNode)` +
+`         - DeleteTransactionOperation(instanceIdentifier)`
+
+[[shardtransaction]]
+==== ShardTransaction
+
+Supports the CRUD operations.
+
+`   Messages/API:  ` +
+`         - Read` +
+`         - Write` +
+`         - Delete` +
+`         - Ready`
+
+[[shardtransactionchain]]
+==== ShardTransactionChain
+
+The current InMemoryDatastore seems to have introduced
+TransactionChaining. This helps in having TransactionChaining on
+Shard(s)?
+
+`    Messages/API ` +
+`         - CreateTransaction`
+
+[[shardcommitcohort]]
+==== ShardCommitCohort
+
+The current InMemoryDatastore supports 3-phase commit cohort.
+Same/Similiar semantics are applied to Shard
+
+`    Messages/API ` +
+`         - CanCommit` +
+`         - PreCommit` +
+`         - Abort` +
+`         - Commit`
+
+[[listenerwrapper]]
+==== ListenerWrapper
+
+`    Messages/API ` +
+`         OnDataChange`
+
+[[listenermanager]]
+==== ListenerManager
+
+`    Messages/API` +
+`         - CreateListenerWrapper => Address[ListenerWrapper]`
+
+[[listenerregistration]]
+==== ListenerRegistration
+
+`    Messages/API ` +
+`         - Close (unregisters)`
+
+[[domstoreproxy]]
+==== DOMStoreProxy
+
+Implements the DOMStore and acts as a proxy.
+
+[[domstoretransactionchainproxy]]
+==== DOMStoreTransactionChainProxy
+
+Implements the DOMStoreTransactionChain . Acts as a proxy
+
+[[domstoretransactionproxy]]
+==== DOMStoreTransactionProxy
+
+Implements the DOMStoreTransaction. Acts as proxy
+
+[[domstorethreephasecommitcohortproxy]]
+==== DOMStoreThreePhaseCommitCohortProxy
+
+Implements the DOMStoreThreePhaseCommitCohort. Acts as a proxy
+
+[[listenerproxy]]
+==== ListenerProxy
+
+This acts as a proxy when the shard primary belongs to a different
+clustered node.
+
+[[listenerregistrationproxy]]
+==== ListenerRegistrationProxy
+
+This acts as a proxy when the shard primary belongs to a different
+clustered node and registration of listener is happenning
+
+[[shardstrategymanager]]
+==== ShardStrategyManager
+
+ShardStrategyManager deals with the various Sharding Strategies
+specified for different module shards
+
+`    Messages/API    ` +
+`         - findStrategy => ShardStrategy`
+
+[[shardstrategy]]
+==== ShardStrategy
+
+`    Messages/API` +
+`         - findShardName => String`
+
+[[moduleshardstrategy]]
+==== ModuleShardStrategy
+
+This is an out-of-box sharding strategy supported wherein Shard is based
+on the yang Module. Only Modules with considerable data will be
+considered for this strategy
+
+[[noshardstrategy]]
+==== NoShardStrategy
+
+This is an out-of-box strategy that indicates all the modules with this
+strategy belong to same Shard.
+
+[[org.opendaylight.controller.cluster.rpc]]
+=== org.opendaylight.controller.cluster.rpc
+
+`    - RemoteRpcBroker` +
+`    - RouteRegistry`
+
+[[org.opendaylight.controller.cluster.notification]]
+=== org.opendaylight.controller.cluster.notification
+
+[[org.opendaylight.controller.cluster.monitoring]]
+=== org.opendaylight.controller.cluster.monitoring
+
+[[org.opendaylight.controller.cluster.common]]
+=== org.opendaylight.controller.cluster.common

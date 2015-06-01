@@ -1,0 +1,290 @@
+[[introduction]]
+== Introduction
+
+[[problem-statement]]
+=== Problem Statement
+
+In decomposed system it is hard for operators to track all processing,
+state changes, message translations and actions which were introduced by
+incoming request.
+
+In order to increase visibility and to provide additional information
+how system process requests, calls between components SHOULD be
+correlated in such way, that it is possible to trace failure or state
+change in component down the line, to original request which triggered
+this state change.
+
+[[challenges-of-current-debugging]]
+==== Challenges of current debugging
+
+Stack traces nor thread dumps contain enough information to figure out
+initial reason why an execution has been started. Logs could be used but
+the process is often painful.
+
+[[multi-process-multi-node-system]]
+==== Multi-process (multi-node) system
+
+Correlation between events in multiple processes or systems is hard to
+be carried out purely based on time-stamps and time-based correlation of
+logs, since these systems may be processing similar requests at same
+time, clocks are desynchronized, etc.
+
+[[use-cases]]
+=== Use cases
+
+* Log analysis:
+
+:* Event correlation in in single system
+
+:* Event correlation in multiple systems
+
+[[design]]
+== Design
+
+Message tracing deals with correlating events, so we selected already
+existing pattern - Correlation ID. One of design requirements is also to
+introduce as few as possible changes to existing API contracts - so we
+decided to use approach of attaching correlation ID to threads and
+provide utilities to work with Correlation ID when switching thread
+context.
+
+Implementation of MD-SAL will be updated to properly handle Correlation
+ID internally, to NOT introduce burden on consumers of MD-SAL APIs.
+
+[[correlation-id]]
+=== Correlation ID
+
+Correlation ID MUST carry following information:
+
+* UUID - universally unique identifier, which identifies request /
+triggering event
+
+During allocation of correlation ID following information SHOULD be
+captured/logged:
+
+* Application Tag - tag which identifies logical component, responsible
+for introducing request / event.
+* Reason - reason why new request / event is triggered
+
+[[intra-jvm-correlation]]
+==== Intra-JVM Correlation
+
+[[thread-name]]
+===== Thread Name
+
+Correlation ID may be attached to thread name (configurable, SUGGESTED
+is to attach) which will make logs and thread dumps more readable. This
+also allows to correlate thread dumps and logs in order to find request,
+which triggered deadlock.
+
+[[utilities-threadlocal]]
+===== Utilities & ThreadLocal
+
+CID should be associated with executing context using utilities (build
+on top of ThreadLocal), so that the ID does not need to be parsed from
+thread name. The utilities working with this ThreadLocal SHOULD also
+provide static utilities for wrapping Futures, Runnables etc so that CID
+is added/removed to thread name and ThreadLocal properly, based on
+execution context.
+
+* *[Devin]*Tom Pantelis provided some feedback in e-mail on this. We
+should consider overriding the before execute and after execute methods
+on a thread pool to do this for folks, so they don't have to explicitly
+copy these correlation IDs etc. This is actually another reason to
+suggest having a common core thread pool easily accessible to users.
+
+[[api-definition]]
+===== API Definition
+
+[[basic-functions]]
+====== Basic functions
+
+* _CorrelationID_ *create*() - Allocates new unique correlatation ID.
+** *[Devin]*The more "human readable" we can make this correlation ID
+the better. i.e. if we can come up with an intelligence but unique
+naming it may prove more useful than a truly UUID
+* _Optional_ *getCurrentThreadCorrelationID*() - Returns correlation ID
+attached to current thread if it is available. Return absent Optional,
+if thread does not have CorrelationID associated with it.
+* _Optional_ *attachToCurrentTread*(_CorrelationID_) - Attaches
+correlation ID to current thread. From now, thread is considered
+executing in context of request to which Correlation ID is associated.
+* void *dettachFromCurrentThread*(_CorrelationID_) - Detaches
+correlation ID from current thread only and only if attached correlation
+id is same as provided. From now, thread is not considered executing in
+context of request to which Correlation ID is associated.
+
+* void *detachCurrentThreadCorrelationID*() - Dettaches current thread
+correlation ID. Thread is considered not executing in correlated mode.
+
+[[utility-functions]]
+====== Utility functions
+
+Static Helper functions for Callable, Runables, etc. returned runnables
+will attach associated correlation-id to executing thread, detach it
+once it is completed (if possible).
+
+* _Runnable_ *toCorrelatedRunnable*(_Runnable,CorelationID_) - Creates
+correlated Runnable, which will attach correlation-id retrieved from
+current thread context and attach it to execution thread during #run()
+invocation.
+* _Callable_ *toCorrelatedCallable*(_Callable,CorrelationID_) - Creates
+correlated Callable, which will execute supplied Callable with supplied
+CorrelationID attached.
+
+and attach it to execution thread during #call() invocation.
+
+* _ListenableFuture_
+*toCorrelatedFuture*(_ListenableFuture,CorrelationID_) - Creates a
+ListenableFuture, which will carry supplied CorrelationID and all user
+registered callback are invoked in the context of supplied
+CorrelationID.
+
+[[instance-functions]]
+=== Instance functions
+
+CorrelationID.attachToCurrentThread() - Attaches correlation ID to
+current thread. CorrelationID.detachFromCurrentThread() - Detaches
+correlation ID from current thread only and only if attached correlation
+id is same.
+
+[[correlation-with-external-protocols]]
+==== Correlation with external protocols
+
+One of use-cases for Correlation ID and message correlation is
+correlation of spanning multiple systems. Not all protocols provides
+correlation capabilities or similar concept, but Correlation ID could be
+retrofitted to some of them.
+
+[[netconf]]
+===== Netconf
+
+Netconf allows client-submitted message-id each rpc invocation.
+Correlation ID is propagated to remote system as part of message-id in
+rpc request.
+
+[[correlation-in-context-of-md-sal]]
+=== Correlation in context of MD-SAL
+
+[[rpcs]]
+==== RPCs
+
+RPC will invoked with attached Correlation ID, which is retrieved from
+invocation thread. In order to assign correlation ID to RPC, client must
+assign Correlation ID to thread, which will invoke RPC.
+
+RPC implementations will receive callback, with Correlation ID of RPC
+already attached to thread from which callback is invoked.
+
+If RPC implementaiton triggers any subsequent requests to other
+components or processing, it is STRONGLY RECOMMENDED to reuse same
+Correlation ID which was attached to Notification.
+
+Same Correlation ID will be associated with returned Future from RPC.
+
+[[notifications]]
+==== Notifications
+
+Notification will be published using Correlation ID, which is assigned
+to thread, which published notification.
+
+Notification callbacks, will be executed with Notification Correlation
+ID attached to callback thread. Correlation ID will be detached from
+that thread, once callback method finished.
+
+If Notification triggers any subsequent requests to other components or
+processing, it is STRONGLY RECOMMENDED to reuse same Correlation ID
+which was attached to Notification.
+
+[[data-transaction]]
+==== Data Transaction
+
+Correlation ID is attached to transaction when transaction is created.
+Correlation ID of thread creating transaction is used. In order to
+change Correlation ID for transaction, client must attach new
+Correlation ID to its thread.
+
+[[data-commit-handlers]]
+==== Data Commit Handlers
+
+Data Commit Handlers callbacks, are executed with Correlation ID of
+triggering transaction attached to callback thread. Correlation ID will
+be detached from thread, once callback method is finished.
+
+If Data Commit Handler acts on this callbacks and invokes other
+components, it is STRONGLY RECOMMENDED to reuse Correlation ID.
+
+[[data-change-events]]
+==== Data Change Events
+
+Data Change Event callback, is executed with Correlation ID of
+triggering transaction attached to callback thread. Correlation ID will
+be detached from that thread, once callback method finished.
+
+If Data Change Listener acts on this data change and invokes other
+components, it is STRONGLY RECOMMENDED to reuse Correlation ID of Data
+Change Event.
+
+[[binding-to-dom-forwarding]]
+==== Binding to DOM forwarding
+
+Each message (rpc, notification) crossing translation barrier will be
+logged, with Correlation ID and information that that message is passed
+to other broker.
+
+Actual contents of logging is based on log level:
+
+* DEBUG: Correlation ID, binding Message type, DOM Message type is
+logged.
+* TRACE: Correlation ID, binding message contents, DOM Message contents
+is logged.
+
+[[restconf]]
+==== Restconf
+
+Restconf is edge API of MD-SAL, which is used by external clients to
+trigger events for MD-SAL.
+
+Restconf MUST and will allocate new Correlation ID for each incoming
+request - RPC, GET, POST, PUT.
+
+[[best-practices-for-correlation]]
+== Best Practices for Correlation
+
+* Any component which starts processing incoming message / request from
+external component (e.g. Openflow plugin packet-in, Restconf request):
+
+:* SHOULD reuse existing remote Correlation ID if it available
+
+:* Allocate new Correlation ID with proper tag, which uniquely identify
+entry-point.
+
+:* SHOULD Log allocation of new Correlation ID and event which triggered
+allocation of new correlation ID.
+
+* Any component which does processing based on incoming request:
+
+:* requests to other in-process components MUST also propagate
+Correlation ID, to these requests.
+
+:* Events triggered by incoming request SHOULD use same Correlation ID.
+
+:* SHOULD log that it started executing in context of request. should be
+logged.
+
+* Any component which uses executor, shared executor MUST make sure,
+execution is processed with correct correlation ID.
+* Any component SHOULD NOT store Correlation ID unless neccessary.
+* Any component SHOULD NOT require Correlation ID be present, in order
+to do its processing. Component may report missing Correlation ID as
+warning.
+
+[[references]]
+== References
+
+* http://java.dzone.com/articles/implementing-correlation-ids-0[DZone:
+Implementing Correlation IDs in Spring Boot (for Distributed Tracing in
+SOA/Microservices)]
+* https://tools.ietf.org/html/rfc4122[RFC 4122: A Universally Unique
+IDentifier (UUID)]
+

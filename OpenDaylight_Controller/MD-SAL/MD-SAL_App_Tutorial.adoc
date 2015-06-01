@@ -1,0 +1,387 @@
+[[background]]
+= Background
+
+[[moving-from-ad-sal-to-md-sal]]
+== Moving from AD-SAL to MD-SAL
+
+The overall Model-Driven SAL (MD-SAL) architecture did not really change
+from the API-Driven SAL (AD-SAL). As with the AD-SAL, plugins can be
+data providers, or data consumers or both (although the AD-SAL did not
+explicitly name them as such). Just like the AD-SAL, the MD-SAL connects
+data consumers to appropriate data providers and (optionally)
+facilitates data adaptation between them.
+
+Now, in the AD-SAL, the SAL APIs, request routing between consumers and
+providers, and data adaptations are all statically defined at
+compile/build time. In the MD-SAL, the SAL APIs and request routing
+between consumers and providers are defined from models, and data
+adaptations are provided by 'internal' adaptation plugins. API code is
+generated from models when a plugin is compiled. The API code is loaded
+into the controller along with the rest of the plugin containing the
+model when the plugin OSGI bundle is loaded into the controller.
+
+The AD-SAL and the MD-SAL are shown side-by-side in the following
+figure:
+
+image:From-AD-SAL-to-MD-SAL.jpg[From-AD-SAL-to-MD-SAL.jpg,title="From-AD-SAL-to-MD-SAL.jpg"]
+
+The AD-SAL provides request routing (selects an SB plugin based on
+service type) and optionally provides service adaptation, if an NB
+(Service, abstract) API is different from its corresponding SB
+(protocol) API. For example, in the above figure the AD-SAL routes
+requests from NB-Plugin 1 to SB Plugins 1 and 2. Note that the plugin SB
+and NB APIs in this example are essentially the same (although both of
+them need to be defined). Request routing is based on plugin type: the
+SAL know which node instance is served by which plugin, and when an NB
+Plugin requests an operation on a given node, the request is routed to
+the appropriate plugin which then routes the request to the appropriate
+node. The AD-SAL can also provide service abstractions and adaptations.
+For example, in the above figure NB Plugin 2 is using an abstract API to
+access services provided by SB Plugins 1 and 2. The translation between
+the SB Plugin API and the abstract NB API is done in the Abstraction
+module in the AD-SAL.
+
+The MD-SAL provides request routing and the infrastructure to support
+service adaptation, but it does not provide service adaptation itself;
+service adaptation is provided by plugins. From the MD-SAL’s point of
+view, an Adaptation Plugin is a regular plugin: it provides data to the
+SAL and consumes data form the SAL through APIs generated from models.
+An Adaptation Plugin basically performs model-to-model translations
+between two APIs. Request Routing in the MD-SAL is done on both protocol
+type and node instances, since node instance data is exported from the
+plugin into the SAL (the model data contains routing information).
+
+The simplest MD-SAL APIs generated from models (*RPCs* and
+*Notifications*, both supported in the yang modeling language) are
+functionally equivalent to AD-SAL function call APIs. Additionally, the
+MD-SAL can *store data* for models defined by plugins: provider and
+consumer plugins can exchange data through the MD-SAL storage (more
+details in later sections). Data in the MD-SAL is accessed through
+getter and setter APIs generated from models. Note that this is in
+contrast to the AD-SAL, which is stateless.
+
+Note that in the above figure, both NB AD-SAL Plugins provide REST APIs
+to controller client applications.
+
+The main function of the MD-SAL is to facilitate the plumbing between
+providers and consumers. A provider or a consumer can register itself
+with the MD-SAL. A consumer can find a provider that it’s interested in.
+A provider can generate notifications; a consumer can receive
+notifications and issue RPCs to get data from providers. A provider can
+insert data into SAL’s storage; a consumer can read data from SAL’s
+storage.
+
+Note that the structure of SAL APIs is different in the MD-SAL than in
+the AD-SAL. The AD-SAL typically has both NB and SB APIs even for
+functions/services that are mapped 1:1 between SB Plugins and NB
+Plugins. For example, in the current AD-SAL implementation of the
+OpenFlow Plugin and applications, the NB SAL APIs used by OF
+applications are mapped 1:1 onto SB OF Plugin APIs. The MD-SAL allows
+both the NB plugins and SB plugins to use the same API generated from a
+model. One plugin becomes an API (service) provider; the other becomes
+an API (service) Consumer. This eliminates the need to define two
+different APIs and to provide three different implementations even for
+cases where APIs are mapped onto each other 1:1. The MD SAL provides
+instance-based request routing between multiple provider plugins.
+
+[[md-sal-the-programmers-view]]
+== MD-SAL: The Programmer's View
+
+The difference between southbound and northbound plugins is that
+southbound plugins talk protocols to network nodes and northbound
+plugins talk application APIs to controller applications. As far as the
+SAL is concerned, there is really no north or south. The SAL is
+basically a data exchange & adaptation mechanism between plugins, and
+the plugin SAL roles (consumer or producer) are defined with respect to
+the data being moved around or stored by the SAL. A producer implements
+an API and provides the API's data; a consumer uses the API and consumes
+the API's data' While 'northbound' and 'southbound' provide a network
+engineer's view of the SAL, 'consumer' and 'producer' provide a software
+engineer's view of the SAL, shown in the following figure:
+
+image:Md-SAL-Software-View.jpg[Md-SAL-Software-View.jpg,title="Md-SAL-Software-View.jpg"]
+
+Note also that since the MD-SAL is the 'plumbing' that connects
+providers and consumers, it can provide the plumbing between providers
+and consumers in different containers. It will be connected to a message
+bus and a shared data store in a cluster of OpenDaylight containers.
+
+[[sample-application-the-learning-switch]]
+= Sample Application: The Learning Switch
+
+[[functionality]]
+== Functionality
+
+* Create a HashMap called mac_to_port
+* On packet_in, parse packet to get source and destination MAC addresses
+* Store in a hashmap mapping between src_mac and in_port
+* Lookup dst_mac in mac_to_port map to find next hop
+* If next hop is found, create flow_mod and send
+* Else, flood like hub.
+
+[[processing-a-packet-system-view]]
+== Processing a Packet: System View
+
+The application's workflow when processing a packet is shown in the
+following figure.
+
+image:MD-SAL-Tutorial-App-Workflow.jpg[MD-SAL-Tutorial-App-Workflow.jpg,title="MD-SAL-Tutorial-App-Workflow.jpg"]
+
+Steps 1-3 in the figure show pkt_in processing. Steps 4-7 show pkt_out
+processing (flooding if not match is found). finally, Steps 8-12 show
+flow programming to the switch.
+
+The sequence details are as follows:
+
+1.  A packet_in is sent from the switch to controller
+2.  The OpenFlow java library parses the packet and translates it into
+an MD-SAL format governed by the OpenFlow protocol model; the OpenFlow
+1.0/1.3 Plugin creates an *MD-SAL Notification* and publishes it into
+the MD-SAL.
+3.  MD-SAL routes the notification to all registered consumers, in this
+case the Learning Switch application
+4.  If the Learning Switch application does not yet have the mapping
+between the mac address and the port, it floods the packet. Flooding is
+done as pkt_out to the switch. The application issues an *MD-SAL RPC*
+(with input parameter that constitutes the pkt_out PDU payload).
+5.  MD-SAL routes the RPC to the OpenFlow 1.0/1.3 Plugin
+6.  The OpenFlow 1.0/1.3 Plugin processes the packet, which is
+eventually translated into an OpenFlow pkto_outPDU in the OpenFlow Java
+library.
+7.  The OpenFlow pkt_out PDU is sent to the switch.
+8.  When the application wants to program a flow, it creates a new flow
+in the *MD-SAL Database*. A new flow is created in the appropriate table
+(Table 0) , which is in the appropriate flow-capable node (i.e switch,
+openflow:1 in the example), which is in the config space of the MD-SAL
+inventory database. The inventory database is a subtree (namespace) of
+the MD-SAL database.
+9.  MD-SAL generates a change notification, which is received by the
+Forwarding Rules Manager (FRM). The FRM listens on flow updates - i.e.
+it registered for MD-SAL change notifications on the config name space
+subtree that corresponds to flows.
+10. The FRM programs the flow. It issues an *MD-SAL RPC* flow
+programming operation.
+11. MD-SAL routes the RPC to the OpenFlow 1.0/1.3 Plugin
+12. The OpenFlow 1.0/1.3 Plugin processes the packet, which is
+eventually translated into an OpenFlow FlowMod PDU in the OpenFlow Java
+library.
+13. The OpenFlow FlowMod PDU is sent to the switch.
+
+[[building-the-application]]
+= Building the Application
+
+* *Prerequisites:*
+** Java 7, Maven 3.0.5 or later, Linux or Mac
+
+* Download the application code from ODL OpenFlow Plugin repo:
+
+--------------------------------------------------------------------
+> git clone https://git.opendaylight.org/gerrit/p/openflowplugin.git
+--------------------------------------------------------------------
+
+* Build the application:
+
+---------------------------------------------
+> cd  openflowplugin/samples/learning-switch/
+> mvn clean install
+---------------------------------------------
+
+* The build creates the ‘learning-switch-0.0.3-SNAPSHOT.jar’ bundle in
+‘openflowplugin/samples/learning-switch/target’
+
+[[analyzing-the-code-in-eclipse]]
+== Analyzing the Code in Eclipse:
+
+Prerequisites: Install maven plugin for Eclipse
+
+[[setting-up-the-environment]]
+= Setting up the Environment
+
+* *Prerequisites:*
+** Java 7, Linux or Mac
+**
+https://www.dropbox.com/s/t66vqfqx57a7nhk/mininet-2.1.0-of1.3.zip[Mininet
+2.1 with OpenFlow 1.3]
+**
+https://nexus.opendaylight.org/content/repositories/opendaylight.release/org/opendaylight/integration/distributions-base/0.1.1/[OpenDaylight
+Base Edition]
+
+* Unzip the downloaded controller package
+* Delete the ‘Simple Forwarding Application’ bundle from the
+distribution:
+
+----------------------------------------------------------------------------------------
+> rm opendaylight/plugins/org.opendaylight.controller.samples.simpleforwarding-0.4.1.jar
+----------------------------------------------------------------------------------------
+
+* Upload the created bundle: put the
+‘learning-switch-0.0.3-SNAPSHOT.jar’ bundle into the
+‘opendaylight/plugins’ folder
+* Update logger configuration:
+* Optionally, add the following line to the 'configuration/logback.xml'
+file:
+
+-----------------------------------------------------------------------------
+<logger name="org.opendaylight.openflowplugin.learningswitch" level="TRACE"/>
+-----------------------------------------------------------------------------
+
+[[starting-up-the-environment]]
+= Starting up the Environment
+
+* Run the controller:
+
+----------------
+> ./run.sh -of13
+----------------
+
+* Check that the application bundle is active. On the controller
+console, type:
+
+---------------
+osgi > lb learn
+---------------
+
+* You should see something like:
+
+--------------------------------------------------------
+START LEVEL 6
+   ID|State      |Level|Name
+  103|Active     |    4|learning-switch (0.0.3.SNAPSHOT)
+osgi> 
+--------------------------------------------------------
+
+* Optionally, check that the controller is listening on Ports 6633 and
+6653.
+** On a Linux console, type:
+
+----------------------------
+> netstat -lnp | grep 'java’
+----------------------------
+
+* ** On a Mac OSX console, type:
+
+----------------------------------
+> lsof -i | grep LISTEN |grep java
+----------------------------------
+
+* Start Mininet:
+
+-------------------------------------------------------------------------------------------------------------------------
+> sudo mn --topo single,10  --controller 'remote,ip=<controller-ip-address>,port=6633' --switch ovsk,protocols=OpenFlow13
+-------------------------------------------------------------------------------------------------------------------------
+
+[[running-the-app]]
+= Running the App
+
+[[workflow]]
+== Workflow
+
+[[learning-switch-startup]]
+=== Learning Switch Startup
+
+* The bundle activator,
+org.opendaylight.openflowplugin.learningswitch.Activator is using
+https://jenkins.opendaylight.org/controller/job/controller-merge/lastSuccessfulBuild/artifact/target/apidocs/org/opendaylight/controller/sal/binding/api/AbstractBindingAwareConsumer.html[AbstractBindingAwareConsumer]
+as its activator base, which registers with OSGi and waits for MD-SAL to
+get initialized and fires off
+https://jenkins.opendaylight.org/controller/job/controller-merge/lastSuccessfulBuild/artifact/target/apidocs/org/opendaylight/controller/sal/binding/api/BindingAwareConsumer.html#onSessionInitialized(org.opendaylight.controller.sal.binding.api.BindingAwareBroker.ConsumerContext)[onSessionInitialized()].
+
+`public class Activator extends AbstractBindingAwareConsumer implements AutoCloseable {` +
+`    @Override` +
+`    public void onSessionInitialized(ConsumerContext session) {` +
+`        [...]` +
+`    }` +
+`}`
+
+* Once MD-SAL is online, we get references to the following services
+registered with MD-SAL:
+**
+https://jenkins.opendaylight.org/controller/job/controller-merge/lastSuccessfulBuild/artifact/target/apidocs/org/opendaylight/controller/sal/binding/api/data/DataBrokerService.html[DataBrokerService]
+**
+https://jenkins.opendaylight.org/controller/job/controller-merge/lastSuccessfulBuild/artifact/target/apidocs/org/opendaylight/controller/sal/binding/api/NotificationService.html[NotificationService]
+** PacketProcessingService
+
+and inject them into a new LearningSwitchManagerMultiImpl instance,
+which we then start.
+
+* During its startup, LearningSwitchManagerMultiImpl hooks up into
+MD-SAL services by:
+** registering a new instance of PacketInDispatcherImpl as a
+https://jenkins.opendaylight.org/controller/job/controller-merge/lastSuccessfulBuild/artifact/target/apidocs/org/opendaylight/controller/sal/binding/api/NotificationListener.html[NotificationListener]
+** creating a FlowCommitWrapperImpl instance, which will store flow
+information into the Configuration data tree
+** creating a MultipleLearningSwitchHandlerFacadeImpl instance, whose
+function is to ensure that a single instance of
+LearningSwitchHandlerSimpleImpl is created for each known switch
+** creating a WakeupOnNode instance and registering it with
+DataBrokerService to have it notified about when FlowCapableNodes change
+in the inventory
+
+[[new-switch-activation]]
+=== New Switch Activation
+
+When OpenFlow plugin discovers sees a new switch connected, it will
+create a new entry for it in the inventory and will start populating the
+inventory with the tables learned from the switch. Each such update
+triggers WakeupOnNode.onDataChanged() callback, which examines the
+inventory entry and looks for presence of a table with id == 0
+(InstanceIdentifier: Nodes/Node/augmentation:FlowCapableNode/Table). As
+soon as it finds it, it will inform
+MultipleLearningSwitchHandlerFacadeImpl about the switch coming online.
+
+MultipleLearningSwitchHandlerFacadeImpl reacts to the new switch by
+inserting a low-priority flow, which will forward all packets to the
+controller, into the configuration data tree. It then notifies the
+per-switch LearningSwitchHandlerSimpleImpl of the location of table 0.
+The store operation will asynchronously trigger FRM, which will push the
+flow onto the switch through the OpenFlow Plugin.
+LearningSwitchHandlerSimpleImpl disconnects WakeupOnNode listener from
+the inventory node of that particular switch, so as to suppress any
+future notifications.
+
+From this point on the new switch is configured and the rest of the
+logic will only react to PacketInNotification events.
+
+[[processing-a-packetinnotification]]
+=== Processing a PacketInNotification
+
+When a PacketIn occurs,
+LearningSwitchHandlerSimpleImpl.onPacketReceived() triggers. It examines
+the packet's source and destination MAC address and creates the source
+MAC to ingress port mapping. It then checks if the destination MAC has a
+port mapping defined. If it does not, it floods the packet to all ports.
+If it there is a mapping, it will check if a flow has been created to
+cover this packet's path towards the port where the destination MAC was
+seen. If not, it creates a flow. In either case it forwards the packet
+through the destination port. This is necessary because flow
+installation has a latency during which we should not be losing packets.
+
+After starting injecting packets, you should see a gradual drop in the
+number of packets being sent to the controller as it builds up the flows
+to cover the traffic hitting the switches.
+
+[[the-testing-scenario]]
+== The Testing Scenario
+
+- build distribution/base - remove
+plugins/org.opendaylight.controller.samples.simpleforwarding-*-SNAPSHOT.jar
+- copy simple learning jar into plugins folder - start controller
+(run.sh) - start wireshark - start mininet+(ovs(OF-1.0|OF-1.3)|cpqd)
+
+` - ovs(OF-1.0) : sudo mn --topo single,10  --controller 'remote,ip=10.0.42.5,port=6633' --switch ovsk,protocols=OpenFlow10` +
+` - ovs(OF-1.3) : sudo mn --topo single,10  --controller 'remote,ip=10.0.42.5,port=6633' --switch ovsk,protocols=OpenFlow13` +
+` - cpqd        : sudo mn --topo single,10  --controller 'remote,ip=10.0.42.5,port=6633' --mac --switch user`
+
+- observe wireshark, wait for flow_mod message - check if flow is pushed
+to switch
+
+` - ovs(OF1.0): sudo ovs-ofctl -O OpenFlow10 dump-flows s1` +
+` - ovs(OF1.3): sudo ovs-ofctl -O OpenFlow13 dump-flows s1` +
+` - cpqd      : sudo dpctl unix:/tmp/s1 stats-flow`
+
+- in mininet enter:
+
+` - h1 ping h2` +
+` - pingall`
+
+- observe ws, flows ..

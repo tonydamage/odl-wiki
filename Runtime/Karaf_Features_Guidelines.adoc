@@ -1,0 +1,247 @@
+[[introduction]]
+== Introduction
+
+This section outlines the guidelines required in creating and
+maintaining Apache Karaf feature files for your projects for use with
+OpenDaylight's Karaf-based distribution.
+
+[[about-features]]
+== About Features
+
+A feature contains a list of bundles or sub-features that acts as an
+atomically installable unit. Features can be either downloaded online
+from the Maven repository or offline via a localized distribution or
+installable .kar artifacts.
+
+[[creating-project-feature-file]]
+== Creating Project Feature File
+
+To create a feature file one must simply list the bundle and sub-feature
+dependencies. It also should provide a description which is used when
+listing features available in the container.
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+<?xml version="1.0" encoding="UTF-8"?>
+<features name="openflowplugin-${project.version}" xmlns="http://karaf.apache.org/xmlns/features/v1.2.0"  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://karaf.apache.org/xmlns/features/v1.2.0 http://karaf.apache.org/xmlns/features/v1.2.0">
+    <feature name='odl-openflowplugin' description="OpenDaylight :: Openflow Plugin :: Plugin" version='${project.version}'>
+        <feature version="${mdsal.version}">odl-mdsal-all</feature>
+        <feature version="${openflowjava.version}">odl-openflowjava</feature>
+        <bundle>mvn:org.opendaylight.openflowplugin/openflowplugin/${project.version}</bundle>
+    </feature>
+</features>
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+[[feature-best-practices]]
+== Feature Best Practices
+
+This section outlines some best practices in naming conventions,
+location and versioning for your feature files.
+
+[[project-location]]
+=== Project Location
+
+It is highly suggested to have features reside under */features* of the
+root directory for a project in order to easily locate them and for
+automation purposes.
+
+[[naming-convention]]
+=== Naming Convention
+
+[[feature-naming]]
+==== Feature Naming
+
+To follow the current naming convention best practices the feature names
+should follow the following format:
+
+*odl--*
+
+The odl prefix is necessary to differentiate ODL specific features from
+any other thirdparty installable features available to karaf. The
+project name helps identify rapidly which project is providing this
+feature and finally the featurename identifies
+
+[[maven-artifactid-naming]]
+==== Maven artifactId Naming
+
+For a features/ maven project a useful naming convention for maven
+artifact naming of:
+
+-----------------------------------------------
+<artifactId>features-<projectname></artifactId>
+-----------------------------------------------
+
+Example:
+
+---------------------------------------
+<artifactId>features-mdsal</artifactId>
+---------------------------------------
+
+[[versioning]]
+=== Versioning
+
+Feature versioning should follow semantic versioning practices which is
+important for any external component depending on this features. As such
+versioning should follow : ...
+
+* A major version increase means that backward compatibility is no
+longer being provided and that there is a major change in the API or
+architecture.
+* A minor version increase means that additional functionality is
+available but not breaking backward compatibility.
+* A micro version increase means a bugfix, patch or other changes to the
+feature that doesn't imply a new functionality.
+
+Feature versioning doesn't need to follow the bundle versioning and
+represents the high-level version of this atomic unit. However where
+applicable it is recommended to follow the bundle versioning if these
+bundle are all linked together to provide a component-level
+functionality.
+
+[[description]]
+=== Description
+
+A feature description is usually a single line item on "what this
+feature install" it is not a substitute for component-level description.
+It is recommended to follow the following format:
+
+OpenDaylight :: :: Small Feature Summary Text
+
+This format is displayed when listing features through the features:list
+command and as such should ideally fit in the terminal screen response
+to that command.
+
+[[granularity]]
+=== Granularity
+
+Features should be provided with appropriate granularity. As such where
+there are different choices of implementation the API should be
+available as a seperate feature on which the implementations would
+depend. The same applies to "add-ons" to a core-level feature to the
+project such as additional protocols, transports etc. which might not be
+required all the time by the users of this component. As such we expect
+projects to provide the appropriate level of granularity to their
+projects.
+
+[[overinclusion]]
+=== Overinclusion
+
+Features should define roughly the minimal shell of things they need to
+function. As such, be cautious to avoiid overinclusion. If you only need
+a single bundle, you probably should declare the bundle, not a -all
+feature.
+
+[[consumability]]
+=== Consumability
+
+You can have a transitive tree of features.xml files. You would like to
+make it easy for folks to consume your feature file as a standalone
+unit. Because one features.xml can depend on features from another, you
+need to make sure to reference it correctly. For example, protocol
+framework below uses features from the config feature:
+
+---------------------------------------------------------------------------------------------------------------------------
+<features name="odl-protocol-framework-${protocol-framework.version}" xmlns="http://karaf.apache.org/xmlns/features/v1.2.0"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://karaf.apache.org/xmlns/features/v1.2.0 http://karaf.apache.org/xmlns/features/v1.2.0">
+  <repository>mvn:org.opendaylight.controller/config-features/${config.version}/xml/features</repository>
+  <feature name='odl-protocol-framework' version='${project.version}'>
+    <bundle>mvn:org.opendaylight.controller/protocol-framework/${protocol-framework.version}</bundle>
+    <feature version='${config.version}'>odl-config-api</feature> <!-- needed by netty-config-api -->
+    <feature version='${config.version}'>odl-config-netty-config-api</feature> <!-- needed by netty-config-api -->
+  </feature>
+</features>
+---------------------------------------------------------------------------------------------------------------------------
+
+The element:
+
+-------------------------------------------------------------------------------------------------------
+<repository>mvn:org.opendaylight.controller/config-features/${config.version}/xml/features</repository>
+-------------------------------------------------------------------------------------------------------
+
+Indicates that this feature file uses features from the config-features
+features.xml and how to get it (via maven).
+
+Of course, you also then want to put in the pom.xml file for your
+features/ a proper dependency as well
+
+----------------------------------------------------
+<dependency>
+      <groupId>org.opendaylight.controller</groupId>
+      <artifactId>config-features</artifactId>
+      <version>${config.version}</version>
+      <classifier>features</classifier>
+      <type>xml</type>
+      <scope>runtime</scope>
+    </dependency>
+----------------------------------------------------
+
+[[cycles]]
+=== Cycles
+
+Try to avoid having cycles between features.xml files (meaning
+A/features.xml uses features from B/features.xml and B/features.xml uses
+features from A/features.xml). This causes problems because you can't
+have maven cyclic dependencies, and users of your features.xml files
+that use maven will then have difficulties.
+
+[[atomicity]]
+=== Atomicity
+
+It should *always* be the case that if a feature is defined, then in a
+blank container with no other features installed that:
+
+-------------------------
+feature:install <feature>
+-------------------------
+
+succeeds in installing at the OSGI level, and *functions* as a feature
+without needing to install any other features.
+
+If you find yourself writing instructions like:
+
+----------------------
+To make this work type
+feature:install foo
+feature:install bar
+----------------------
+
+then you have violated atomicity, and it is probably true that you need
+to fix feature bar to either depend on feature foo, or dependent on
+other things that happen to also be brought in by foo (see
+Overinclusion)
+
+[[complex-situations]]
+=== Complex situations
+
+If your project has the need to have multiple features.xml files, then
+under your /features/ directory have sub-maven modules for each one.
+Example:
+
+controller/features/config/ controller/features/mdsal/
+
+[[component-meta-features]]
+== Component Meta-Features
+
+If the project provides multiple features provide component-level
+meta-features should be provided to provide easy and quick
+component-level installation of the feature. This meta-feature will only
+contain other features that should be logically grouped to provide an
+easy way for other projects to specify their dependency. This is
+especially useful when a feature can have different implementation
+options off a different core and allows projects to specify and quickly
+import the correct 'stack'.
+
+An example meta-feature.
+
+--------------------------------------------------------------------------------------------------------
+  <feature name="odl-adsal-all" description="OpenDaylight AD-SAL All Features" version="${sal.version}">
+      <feature version="${sal.version}">odl-adsal-core</feature>
+      <feature version="${sal.networkconfiguration.version}">odl-adsal-networkconfiguration</feature>
+      <feature version="${sal.connection.version}">odl-adsal-connection</feature>
+      <feature version="${clustering.services.version}">odl-adsal-clustering</feature>
+      <feature version="${configuration.version}">odl-adsal-configuration</feature>
+   </feature>
+--------------------------------------------------------------------------------------------------------
+
+It is customary to create a feature with a *-all* suffix to provide a
+way to quickly install all related features.

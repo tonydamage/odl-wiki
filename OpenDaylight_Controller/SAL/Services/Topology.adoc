@@ -1,0 +1,102 @@
+`   Overview`
+
+`   Topology services allow in SAL to collect topology pieces from different ``Protocol Plugins`` and to dispatch them to who is interested for example to stich them in a common view in a Functional modules like Topology Manager. The chart below describe the actors and how the dispatching should happen. The design principle in the SAL topology service is that the topology stitching is better to be delegated to already does the job, like ``org.opendaylight.controller.topologymanager`` component, so for this reason SAL will mostly be pass-through. The actual topology population will be initiated by the ``Protocol Plugin`` ``because each of them knows how to calculate the topology, to make concrete example:`
+
+*
+`       OpenFlow discover the topology via LLDP injection from the controller`
+*
+`       ONEPK will discover only each node neighbor via local CDP/LLDP process on the node`
+*
+`       PCEP read the topology of an area from OSPF/ISIS databases on the network elements it's attached to.`
+
+`   Given the etherogenous scenario, the differences must be adapted in the protocol plugin in order to give a common view toward SAL and SAL client.`
+
+----------------------------------------------------------------------------------------------
+LEGEND                       ACRONYMS
+ @ indicates an interface      ILTU:     IListenTopoUpdates
+   registered in the OSGi      ITS:      ITopologService
+   service registry            IPOTS:    IPluginOutTopologyService
+                               IPITS:    IPluginInTopologyService
+
+
+                             #                             #
+  +--------+   +--------+    #  +--------+   +--------+    #   +--------+   +--------+
+  |Topology|   | APP    |    #  |Topology|   | APP    |    #   |Topology|   | APP    |
+  |Manager |   |  Y     |    #  |Manager |   |  Y     |    #   |Manager |   |  Y     |
+  |        |   |        |    #  |        |   |        |    #   |        |   |        |
+  +--@-----+   +--@-----+    #  +--@-----+   +--@-----+    #   +--@-----+   +--@-----+
+      ILTU         ILTU      #      ILTU         ILTU      #       ILTU         ILTU
+                             #                             #
+                             #                             #
+                             #                             #
+      ITS                    #      ITS                    #       ITS
+  +--@-------------------+   #  +--@-------------------+   #   +--@-------------------+
+  |       SAL            |   #  |       SAL            |   #   |       SAL            |
+  |                      |   #  |                      |   #   |                      |
+  +------@---------------+   #  +------@---------------+   #   +------@---------------+
+          IPOTS     CONTAINER#          IPOTS     CONTAINER#           IPOTS     CONTAINER
+                         RED #                         BLUE#                         GREEN
+##############################################################################################
+
+
+
+
+
+
+     IPITS  IPITS  IPITS           IPITS  IPITS  IPITS               IPITS  IPITS  IPITS
+     (RED)  (BLUE) (GREEN)         (RED)  (BLUE) (GREEN)         (RED)  (BLUE) (GREEN)
+  +---@-----@------@-------+    +---@-----@------@-------+    +---@-----@------@-------+
+  |                        |    |                        |    |                        |
+  | +-----+ +-----+ +-----+|    | +-----+ +-----+ +-----+|    |                        |
+  | |     | |     | |     ||    | |     | |     | |     ||    |                        |
+  | |Topo | |Topo | |Topo ||    | |Topo | |Topo | |Topo ||    |                        |
+  | |RED  | |BLUE | |GREEN||    | |RED  | |BLUE | |GREEN||    |                        |
+  | +^--+-+ +^--+-+ +^--+-+|    | +^--+-+ +^--+-+ +^--+-+|    |                        |
+  |  |  |    |  |    |  |  |    |  |  |    |  |    |  |  |    |                        |
+  | ++--V----+--V----+--V+ |    | ++--V----+--V----+--V+ |    | +--------------------+ |
+  | | OPENFLOW CORE      | |    | | ONEPK LIBRARY      | |    | | PCEP LIBRARY       | |
+  | |                    | |    | |                    | |    | |                    | |
+  | +--------------------+ |    | +--------------------+ |    | +--------------------+ |
+  +------------------------+    +------------------------+    +------------------------+
+   OpenFlow Protocol Plugin      ONEPK Protocol Plugin         PCEP Protocol Plugin
+----------------------------------------------------------------------------------------------
+
+`   Interface details`
+
+`   The interfaces identified are:`
+
+*
+`       ``IListenTopoUpdates``: an application that wants to keep up to date with the updates coming from SAL it will register in the OSGi service registry this interface (on a per-container base) and SAL will call it providing the update.`
+*
+`       ``ITopologyService``: An application that startup late in the game or restart for example, wants to know the current status of SAL, so can use this interface to get a bunlk sync of the topology status.`
+*
+`       ``IPluginOutTopologyService``: Every time a protocol plugin update the topology, it will call this service provided by SAL so the update can migrate upward.`
+*
+`       ``IPluginInTopologyService``: If SAL startup late in respect to a protocol plugin, or restarts, we need away to sollicit the push of older updates from ``Protocol Plugins`` this interface serve the purpose.`
+
+`   For  Java definition of the interfaces it's better to refer to the source code, in order to avoid having to keep a documentation that may get out-of-date compared to the code. But what we described is the logic. Now to better define it lets explain a common sequence of events as we expect:`
+
+1. 
+`       Protocolo Plugin for OpenFlow in topology Red discover a new link, the plugin will create an Edge data structure and will send it as an update calling the ``IPluginOutTopologyService ``on "container RED" toward SAL.`
+2. 
+`       SAL when receiving the topology update on ``IPluginOutTopologyService`` will invoke all the ``IListenTopoUpdates ``handlers register in the OSGi service registry for the "container RED" and his will use for component like ``org.opendaylight.controller.topologyManager`` to learn a new link in the network from OF`
+3. 
+`       Protocol Plugin for ONEPK discover that a new neighbor for an exiting controlled box is discovered, again the plugin will create an Edge data structure and will send the update calling the ``IPluginOutTopologyService ``on "container RED" toward SAL.`
+4. 
+`       SAL when receiving the topology update on ``IPluginOutTopologyService`` will invoke all the ``IListenTopoUpdates ``handlers register in the OSGi service registry for the "container RED". Now for example ``org.opendaylight.controller.topologyManager`` will be able to add an extra lik to its view in the ONEPK area. Of course the view of the topology can be fragmented if there are not boxes that performa a dual function, meaning ONEPK and OF in our case.`
+
+`   The one described above is the common path I expect to be exercised all the times, however in case of exception like for example:`
+
+*
+`       ``org.opendaylight.controller.topologyManager ``restarting or coming in late`
+* `       SAL restarting or coming in late`
+
+`   there is going to be a need to get the information we may have missed from the other alive components, lets describe such an exception case:`
+
+1. 
+`       ``org.opendaylight.controller.topologyManager ``is deinstalled and reinstalled, maybe because the implementation is being changed`
+2. 
+`       topologyManager calls the interface ``ITopologyService`` (method refresh, or equivalent) in order to trigger the updates`
+3. 
+`       SAL when receiving the refresh request given is a pass-through will call the ``IPluginInTopologyService`` for every ``Protocol Plugin`` in order to sollicit the refresh updates for every piece of topology.`
+

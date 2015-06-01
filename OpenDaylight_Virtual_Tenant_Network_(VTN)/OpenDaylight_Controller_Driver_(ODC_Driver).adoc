@@ -1,0 +1,178 @@
+[[opendaylight-controller-driver-odc-driver]]
+= OpenDaylight Controller Driver (ODC Driver)
+
+The ODC driver module is a sub component of the
+OpenDaylight_Virtual_Tenant_Network_(VTN):VTN_Coordinator[VTN
+coordinator] and provides mechanisms to provision and monitor virtual
+networks and monitor physical networks in the OpenDaylight controller.
+ODC driver is started during startup of
+OpenDaylight_Virtual_Tenant_Network_(VTN):VTN_Coordinator[VTN
+coordinator] It consists of two sub components
+
+:*link:#Common_Driver_Framework_(CDF)[Common Driver Framework (CDF)]
+
+:*link:#ODC_Driver[ODC Driver]
+
+[[block-diagram]]
+== Block Diagram
+
+image:ODC_Driver.PNG[ODC_Driver.PNG,title="ODC_Driver.PNG"]
+
+[[common-driver-framework-cdf]]
+== Common Driver Framework (CDF)
+
+CDF provides a controller independent processing of the messages sent
+from
+OpenDaylight_Virtual_Tenant_Network_(VTN):Unified Provider Logical Layer (UPLL)[UPLL]
+and
+OpenDaylight_Virtual_Tenant_Network_(VTN):Unified Provider Physical Layer (UPPL)[UPPL]
+modules.
+
+The main functions of this module are
+
+:*Isolate the driver modules from processing messages sent by
+OpenDaylight_Virtual_Tenant_Network_(VTN):Unified Provider Logical Layer (UPLL)[UPLL]
+and
+OpenDaylight_Virtual_Tenant_Network_(VTN):Unified Provider Physical Layer (UPPL)[UPPLmodules].
+
+:*Provide interfaces to the driver module to install their commands for
+various operations on the controller (eg: VTN creation).
+
+:*Provide controller management and support different types of
+controllers.
+
+:*Parse Platform messages and invoke driver methods with appropriate
+parameters.
+
+:*Provide interface for different drivers to install command handlers.
+
+:*Simplify transaction processing with simplified transaction functions
+for Vote and Commit.
+
+:*Support for Parallel Update operation across many controllers.
+
+:*The framework can be extended to support all driver modules in a
+common daemon or individual daemons.
+
+CDF is implemented using the following modules
+
+`      vtndrvintf` +
+`      vtncacheutil`
+
+[[vtndrvintf]]
+=== vtndrvintf
+
+:* Implements all the features of CDF as listed above.
+
+[[class-details]]
+==== Class Details
+
+[cols=",",options="header",]
+|=======================================================================
+|Class Name |Description
+|VtnDrvIntf |This class is inherited from Module class and provides the
+entry point for messages from platform. This also provides interfaces to
+add drivers for different types of controllers.
+
+|KtHandler |Abstract interface for handling different message types.
+
+|KtRequestHandler |Template that implements KtHandler to process all
+messages from platform.
+
+|DriverTxnInterface |Common Transaction handling for drivers
+
+|ControllerFramework |This provides methods to add/delete/update
+Controllers of different types to the VTN Coordinator. This also ensures
+periodic monitoring of controllers and takes appropriate actions
+|=======================================================================
+
+[[vtncacheutil]]
+=== vtncacheutil
+
+:* Utility module that provides interfaces for caching configuration
+entries to validate as a whole and then later commit
+
+[[class-details-1]]
+==== Class Details
+
+[cols=",",options="header",]
+|=======================================================================
+|Class Name |Description
+|keytree |cache container that provides interfaces to append config to
+cache. |CommonIterator |Proves methods to iterate the elements in cache,
+the option to iterate in VTN hierarchial order is also available.
+|=======================================================================
+
+[[odc-driver]]
+== ODC Driver
+
+:* The ODC driver module implements the interfaces for controller
+connection management and virtual network provisioning and monitoring in
+the ODC controller.
+
+:* The request will be translated to the appropriate REST APIs and sent
+to the controller.
+
+:* Capable of translating the VTN Operations as Commands to VTN Manager
+in the ODL.
+
+The above features are implemented using these modules
+
+`  restjsonutil` +
+`  odcdriver`
+
+[[restjsonutil]]
+=== restjsonutil
+
+:* Utility Module that provides services for json build/parse and
+handling REST Request/Response.
+
+[[class-details-2]]
+==== Class Details
+
+[cols=",",options="header",]
+|=======================================================================
+|Class Name |Description
+|HttpClient |Interface to set up and maintain a connection to an HTTP
+Web service
+
+|RestClient |Interface to handle Request/Response on a REST Interface
+
+|JsonBuildParse |Interface for building/parsing the json strings for
+communication
+|=======================================================================
+
+[[odcdriver]]
+=== odcdriver
+
+:* Implements the interfaces exposed by CDF
+
+:* Registers the driver for controllers of type : ODC (OpenDaylight
+Controllers)
+
+:* Uses the restjsonutil to communicate
+
+[[class-details-3]]
+==== Class Details
+
+[cols=",",options="header",]
+|=======================================================================
+|Class Name |Description
+|OdcModule |Module implementation of odc driver, registers itself as
+diver for controllers of ODL type.
+
+|ODCController |Implements the various methods according to the features
+of the ODL Controller.
+
+|ODCVTNCommand |Handle Create/Update/Delete/Read requests for VTN from
+platform
+
+|ODCVBRCommand |Handle Create/Update/Delete/Read requests for VBridge
+from platform
+
+|ODCVBRIfCommand |Handle Create/Update/Delete/Read requests for VBridge
+Interfaces from platform.
+|=======================================================================
+
+Category:OpenDaylight Virtual Tenant Network[Category:OpenDaylight
+Virtual Tenant Network]

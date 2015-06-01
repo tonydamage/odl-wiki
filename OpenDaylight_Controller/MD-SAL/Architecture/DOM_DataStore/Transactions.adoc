@@ -1,0 +1,134 @@
+[[current-mode-of-operation]]
+= Current Mode of Operation
+
+[[data-store-read-operation]]
+== Data Store Read Operation
+
+The data store read operation is shown in the following figure:
+
+image:DS-Data-Read-OP.jpg[DS-Data-Read-OP.jpg,title="DS-Data-Read-OP.jpg"]
+
+The sequence is as follows:
+
+1.  baDataBroker.readOperationalData(yang.binding.InstanceIdentifier)
+2.  connector.readOperationalData(...)
+3.  domInstanceIdentifier =
+mappingService.toDataDom(bindingInstanceIdentifier)
+4.  biDataBroker.readOperationalData(domInstanceIdentifier)
+5.  domData = dataStore.readOperationalData(domInstanceIdentifier)
+6.  domData is returned to caller
+7.  domData is returned to caller
+8.  baData = mappingService.toDataObject (bindingInstanceIdentifier,
+domData)
+9.  baData is returned to caller
+10. baData is returned to caller
+11. baData is returned to caller
+
+[[transaction-based-operation]]
+= Transaction-Based Operation
+
+[[create-a-ba-to-dom-transaction]]
+== Create a BA-to-DOM Transaction
+
+First a transaction object needs to be created, as shown in the
+following sequence:
+
+image:DS-Create-Tx.jpg[DS-Create-Tx.jpg,title="DS-Create-Tx.jpg"]
+
+The sequence is as follows:
+
+1.  baDataBroker.beginTransaction()
+2.  connector.beginForwardedTransaction()
+3.  biDataBroker.beginTransaction()
+4.  storeTx = dataStore.beginTransaction() // storeTx contains snapshot
+5.  storeTx is returned to caller
+6.  domTx = createDomTx(storeTx)
+7.  return domTx to caller
+8.  baDomTx = createForwardedTransaction(domTx)
+9.  Return baDomTx to ForwardedDataBroker
+10. Return baDomTx to client
+11. Return baDomTx to client
+
+[[data-read-operation-on-a-transaction]]
+== Data Read Operation on a Transaction
+
+An application can issue multiple reads on a previously created
+transaction, as shown in the following sequence:
+
+image:DS-Data-Read-Tx.jpg[DS-Data-Read-Tx.jpg,title="DS-Data-Read-Tx.jpg"]
+
+The sequence is as follows:
+
+1.  baDomTx.readOperationalData(yang.binding.InstanceIdentifier)
+2.  // lookup in local cache, asume fail – performance optimalization
+3.  domInstanceIdentifier =
+mappingService.toDataDom(bindingInstanceIdentifier)
+4.  domTx.readOperationalData(domInstanceIdentifier)
+5.  domData = storeTx.readOperationalData(domInstanceIdentifier)
+6.  domData is returned to caller
+7.  domData is returned to caller
+8.  baData = mappingService.toDataDom(bindingInstanceIdentifier,
+domData)
+9.  baData is returned to caller
+10. baData is returned to caller
+11. baData is returned to caller
+
+[[cancel-a-transaction]]
+== Cancel a Transaction
+
+An application can cancel a transaction. A transaction is cancelled, for
+example, if all operations on the transaction were read.
+
+image:DS-Cancel-Tx.jpg[DS-Cancel-Tx.jpg,title="DS-Cancel-Tx.jpg"]
+
+The sequence is as follows:
+
+1.  baDomTx.cancel()
+2.  baDomTx clean ups all local state (cache of DTO, references to
+services)
+3.  domTx.cancel()
+4.  dataBroker.cancel(domTx)
+5.  domTx clean ups all local state (cache of DTO, references to
+services)
+6.  storeTx.cancel() // Asynchronous – need to keep track of
+7.  storeTx clean ups all local state (modifications, snapshot)
+
+[[data-write-operation-on-a-transaction]]
+== Data Write Operation on a Transaction
+
+In additions to reads, an application can issue multiple writes on a
+previously created transaction, as shown in the following sequence:
+
+image:DS-Data-Write-Tx.jpg[DS-Data-Write-Tx.jpg,title="DS-Data-Write-Tx.jpg"]
+
+The sequence is as follows:
+
+1.  baDomTx.putOperationalData(yang.binding.InstanceIdentifier,Node)
+2.  // Cache cleanup of subtree and parent nodes
+3.  domII,domData =
+mappingService.toDataDom(bindingInstanceIdentifier,baData)
+4.  domTx.putOperationalData(domInstanceIdentifier,domData)
+5.  storeTx.replaceData(domInstanceIdentifier,domData)
+6.  storeTx updates modification index
+
+[[transaction-commit]]
+== Transaction Commit
+
+The commit operation is shown in the following sequence:
+
+image:DS-Commit-Tx.jpg[DS-Commit-Tx.jpg,title="DS-Commit-Tx.jpg"]
+
+The sequence is as follows:
+
+1.  baDomTx.commit() // Submits to commit queue
+2.  domTx.commit()
+3.  dataBroker.commit(domTx)
+4.  Start of two Phase commit – requestCommit on Commit Handlers
+5.  storeTx.requestCommit() // Asynchronous – need to keep track of
+6.  storeTx creates optimistic snapshot
+7.  dataTx returns goAhead
+8.  End of Two phace commit – finish callback on Commit Handlers
+9.  storeTx.finish()
+10. dataStore.finish(storeTx)
+11. dataStore replaces snapshot
+

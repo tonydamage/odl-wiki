@@ -1,0 +1,102 @@
+[[rpc]]
+== RPC
+
+In YANG, RPCs (Remote Procedure Calls) are used to model any procedure
+call implemented by a Provider (Server), which exposes functionality to
+Consumers (Clients).
+
+In the MD-SAL terminology, the term 'RPC' is used to define the input
+and output for a procedure (function), which is to be provided by a
+Provider and adapted by the MD-SAL.
+
+In context of the MD-SAL, there are three types of RPCs (RPC services):
+
+* OpenDaylight Controller:MD-SAL:Service Types#Global_Service[Global] -
+one service instance (implementation) per controller container / mount
+point
+* OpenDaylight Controller:MD-SAL:Service Types#Routed_Service[Routed] -
+multiple service instances (implementations) per controller container /
+mount point
+* OpenDaylight Controller:MD-SAL:Service Types#Mounted_Service[Mounted]
+- multiple service instances, uniquely identified in the yang data tree.
+
+[[instance-identifier]]
+== Instance Identifier
+
+The Instance Identifier is a unique identifier of an element (location)
+in the yang data tree; basically it is the *path* to the node that
+uniquely identifies all the node's parent nodes. For unique
+identification of list elements it is required to specify key values as
+well.
+
+[[example]]
+=== Example
+
+Consider the following simple YANG model for inventory:
+
+-----------------------------------------------------
+module inventory {
+    namespace &quot;urn:opendaylight:inventory&quot;;
+    prefix inv;
+    revision &quot;2013-06-07&quot;;
+    container nodes {
+        list node {
+            key &quot;id&quot;;
+            leaf &quot;id&quot; {
+                type &quot;string&quot;;
+            }
+        }
+    }
+}
+-----------------------------------------------------
+
+And having one instance of node with name _foo_;
+
+Lets asume we want to create instance identifier for node foo, in
+following bindings/ formats:
+
+* YANG / XML / XPath version
++
+---------------------------------------
+/inv:nodes/inv:node[id=&quot;foo&quot;]
+---------------------------------------
+* Binding Independent version (yang-data-api)
++
+---------------------------------------------------------------------------------------------------------
+import org.opendaylight.yang.common.QName;
+import org.opendaylight.yang.data.api.InstanceIdentifier;
+import org.opendaylight.yang.data
+
+QName nodes = new QName(&quot;urn:opendaylight:inventory&quot;,&quot;2013-06-07&quot;,&quot;nodes&quot;);
+QName node = new QName(&quot;urn:opendaylight:inventory&quot;,&quot;2013-06-07&quot;,&quot;nodes&quot;);
+QName node = new QName(&quot;urn:opendaylight:inventory&quot;,&quot;2013-06-07&quot;,&quot;id&quot;);
+HashMap&lt;QName,Object&gt; nodeFields =  new HashMap&lt;&gt;();
+nodeField.put(idName,&quot;foo&quot;);
+InstanceIdentifier = InstanceIdentifier.builder()
+    .node(nodes)
+    .node(node,nodeFields)
+    .toInstance();
+---------------------------------------------------------------------------------------------------------
++
+*Note:* Last call _toInstance()_ does not return an instance of node,
+but Java version of Instance identifier which uniquely identifies node
+"foo";
+* Binding-Aware version (generated APIs)
++
+------------------------------------------------------------------------------------
+import org.opendaylight.yang.gen.urn.opendaylight.inventory.rev130607.Nodes;
+import org.opendaylight.yang.gen.urn.opendaylight.inventory.rev130607.nodes.Node;
+import org.opendaylight.yang.gen.urn.opendaylight.inventory.rev130607.nodes.NodeKey;
+
+import org.opendaylight.yangtools.yang.binding.InstanceIdentifier;
+
+InstanceIdentifier&lt;Node&gt; identifier = InstanceIdentifier.builder()
+      .node(Nodes.class)
+      .node(Node.class,new NodeKey(&quot;foo&quot;))
+      .toInstance();
+------------------------------------------------------------------------------------
++
+*Note:* Last call _toInstance()_ does not return an instance of node,
+but Java version of Instance identifier of Instance identifier which
+uniquely identifies node "foo";
+

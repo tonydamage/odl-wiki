@@ -1,0 +1,354 @@
+[[pre-requisite-environment]]
+=== Pre-Requisite Environment
+
+See the OVSDB YouTube Channel for getting started videos and other
+tutorials:
+
+* http://www.youtube.com/channel/UCMYntfZ255XGgYFrxCNcAzA[OpenDaylight
+OVSDB YouTube Channel]
+*
+http://networkstatic.net/installing-mininet-opendaylight-open-vswitch/[Preparing
+the OVSDB Development Environment]
+
+[[ovsdb-overview]]
+== OVSDB Overview
+
+The OVSDB protocol uses JSON/RPC calls to manipulate a physical or
+virtual switch that has OVSDB attached to it. nearly all vendors support
+OVSDB in various hardware platforms. The OpenDaylight controller uses
+our native OVSDB implementation to manipulate the Open vSwitch database.
+Mininet is a great tool for students, researchers and devlopers alike. A
+critical component of Mininet is Open vSwitch(OVS) datapath running.
+This is a vanilla OVS implementation. Among other things, it
+differetiates from vanilla OVS by using namespaces to emulates an L3
+host endpoint for reachability testing. This is an actual virtual
+namespace container so it is possible to run services for test/dev
+needs.
+
+[[opendaylight-and-ovsdb-functionality]]
+== OpenDaylight and OVSDB functionality
+
+This tutorial is for developers, those learning the OpenDaylight
+controller or just SDN in general. The following example uses the
+Northbound API to perform some basic management plane functions as
+follows:
+
+* Add/modify/delete Bridges (switches/datapaths).
+* Add/modify/delete ports/interfaces which attach to bridges. Ports can
+be provisioned with any supported characteristics such as VLANs, Tunnel
+Encaps [GRE, VXLAN, (CAPWAP] Tags, Trunks, LACP, external_id etc.
+
+_(Note: CAPWAP is depreciated in OVS but still supported in the OVSDB
+project as long as it is in upstream OVS)_
+
+* Attach ports to a datapath (bridge). In mininet this will create a
+link between two emulated switches.
+* Add/modify/delete the OVSDB manager and the OpenFlow controller
+managing the OVS implementation.
+
+[[pull-the-odl-virtualization-distribution]]
+== Pull the ODL Virtualization Distribution
+
+[[run-opendaylight-ovsdb-plugin-with-openflow-v1.0]]
+=== Run OpenDaylight OVSDB Plugin with OpenFlow v1.0
+
+`curl -O `http://nexus.opendaylight.org/content/repositories/opendaylight.release/org/opendaylight/integration/distributions-virtualization/0.1.1/distributions-virtualization-0.1.1-osgipackage.zip[`http://nexus.opendaylight.org/content/repositories/opendaylight.release/org/opendaylight/integration/distributions-virtualization/0.1.1/distributions-virtualization-0.1.1-osgipackage.zip`] +
+`unzip distributions-virtualization-0.1.1-osgipackage.zip` +
+`cd opendaylight/config.ini` +
+` ./run.sh`
+
+[[opendaylight-ovsdb-plugin-with-openflow-v1.3]]
+=== OpenDaylight OVSDB Plugin with OpenFlow v1.3
+
+`curl -O `http://nexus.opendaylight.org/content/repositories/opendaylight.release/org/opendaylight/integration/distributions-virtualization/0.1.1/distributions-virtualization-0.1.1-osgipackage.zip[`http://nexus.opendaylight.org/content/repositories/opendaylight.release/org/opendaylight/integration/distributions-virtualization/0.1.1/distributions-virtualization-0.1.1-osgipackage.zip`] +
+`unzip distributions-virtualization-0.1.1-osgipackage.zip` +
+
+Open config.ini in an editor and uncomment # ovsdb.of.version=1.3
+
+`cd opendaylight/` +
+`Uncomment:` +
+`# ovsdb.of.version=1.3` +
+` ./run.sh -Xmx2048m -XX:MaxPermSize=512m -virt ovsdb -of13`
+
+[[download-a-test-vm-or-mininet]]
+== Download a Test VM or Mininet
+
+* Download pre-built ODL VM
+
+http://www.opendaylight.org/software/downloads[OpenDaylight Image
+Downloads]
+
+* Download Mininet
+
+http://mininet.org/download/[Mininet.org]
+
+* VirtualBox is free if you need a hypervisor to run the Mininet image.
+There are various disk image formats available for most popular
+platforms.
+
+https://www.virtualbox.org/wiki/Downloads[VirtualBox.org] We recommend
+using Postman for making API calls as you can download the same APIs we
+are using.
+
+https://git.opendaylight.org/gerrit/gitweb?p=ovsdb.git;a=tree;f=resources/commons;h=6c56fbcf6daf619bee1f0562d3cbb06623217493;hb=HEAD[Postman
+API Collections]
+
+Please watch the following video for an example of using Postman for
+OVSDB API calls.
+
+http://www.youtube.com/watch?v=8iWhMVlflwE[OVSDB YouTube Channel]
+
+[[setting-up-the-ovs-manager]]
+== Setting up the OVS Manager
+
+The following is the simple topology which is created by Mininet. In
+this tutorial we will modify the data path using the OVSDB plugin.
+
+image:OVSDB-Mininet-2.jpeg[OVSDB-Mininet-2.jpeg,title="OVSDB-Mininet-2.jpeg"]
+
+In the mininet CLI the only provisioning needed is to enable remote
+management of Open vSwitch. There are two options:
+
+\1. _Passive Listener_ - In the passive management mode, the controller
+will initiate a connection to the OVS element that is listening on a
+specified port using the ovs-vsctl client. ovs-vsctl set-manager
+ptcp:6640
+
+This configuration in the OVS client will appear as follows:
+
+------------------------------------
+mininet-vm:~# ovs-vsctl show
+987c42d0-eab0-43d9-a32b-4246973706c2
+    Manager "ptcp:6640"
+------------------------------------
+
+\2. _Active Manager_ - The OVS element can be set to attach to an active
+Daylight management controller. In this model, the controller is
+listening on a specified port. The IANA registered port for OVS is 6640.
+
+---------------------------------------------------
+sudo ovs-vsctl set-manager tcp:192.168.254.128:6640
+---------------------------------------------------
+
+After the host is connected to the controller. The OVS configuration
+will reflect the established connection with a boolean value in the
+"Manager" table in the "is_connected" column of "true".
+
+------------------------------------
+root@mininet-vm:~# ovs-vsctl show
+987c42d0-eab0-43d9-a32b-4246973706c2
+    Manager "tcp:192.168.254.1:6640"
+        is_connected: true
+------------------------------------
+
+In both scenarios, the initiator sends an echo request in order to
+establish a persistent connection. This connection is refreshed every 5
+seconds. If an echo request times out, the persistent connection will be
+disconnected. The OVS switch will continue to initialize a channel to
+the OVSDB manager using echo requests every 5 seconds as long as the
+manager table is configured to do so.
+
+[[start-and-attach-mininet]]
+== Start and Attach Mininet
+
+Mininet topologies consist of the following:
+
+* Mininet will build a topology using OVS bridges for dataplane that
+appear as an standlone switch.
+* OVS patch ports and virtual Ethernet (veth) ports can be used to
+interconnect the switches (dataplanes). Each link is a shared Ethernet
+segment resembeling a hub.
+* Hosts are run
+
+`Start with the following to spin up 2 hosts and 2 switches. `
+
+---------------------------------------------------------
+mn --controller=remote,ip=192.168.254.128 --topo=linear,2
+---------------------------------------------------------
+
+You should now see a topology of two hosts in the OF controller like
+so: +
+ +
+
+image:OVSDB-Tutorial-1.jpeg[OVSDB-Tutorial-1.jpeg,title="fig:OVSDB-Tutorial-1.jpeg"] +
+
+[[enable-opendaylight-forwarding]]
+== Enable OpenDaylight Forwarding
+
+Next enable a dynamic forwarding app such as the one in the ODL
+controller. Point your browser at http://127.0.0.1:8080 (or any bound
+address). Below the the topology in the picture above is the "Add
+Gateway IP Address" button. Click that an add 10.0.0.254/24 into the
+configuration.
+
+* _Warning_ this will proxy all ARP requests that it receives so ensure
+it is not configured to answer for a production network that falls into
+the network address range of the IP prefix entered.
+
+ +
+
+image:OVSDB-Mininet-3.jpeg[ 360px |center,title=" 360px |center"]
+
+ +
+
+* After you define the gateway proxy address, you should then be able to
+ping between host 1 and host 2 using:
+
+-------
+pingall
+-------
+
+Or
+
+--------------
+pingpair h1 h2
+--------------
+
+* Output should resemble the following:
+
+-------------------------------
+mininet> pingall
+Ping: testing ping reachability
+h1 -> h2 
+h2 -> h1 
+Results: 0% dropped (0/2 lost)
+-------------------------------
+
+More examples on the simple forwarding application here
+OpenDaylight_Controller:Installation#Using_the_Simple_Forwarding_Application[Using
+the OpenDaylight Simple Forwarding Application]
+
+We have 2 options to send management commands via OpenDaylight's OVSDB
+plugin. 1. Preferred : Using REST-API 2. For debugging/troubleshooting
+only : internal OSGi commands
+
+[[connecting-to-the-ovsdb-server]]
+=== Connecting to the OVSDB-SERVER
+
+* REST
+
+----------------------------------------------------------------------------------------------------------
+ 
+PUT http://localhost:8080/controller/nb/v2/connectionmanager/node/MINI1/address/192.168.254.128/port/6640/
+----------------------------------------------------------------------------------------------------------
+
+* OSGi cli :
+
+------------------------------------------------------
+osgi> ovsconnect MINI1 192.168.254.128 6640
+connecting to ovsdb server : 192.168.254.128:6640 ... 
+Node Name: OVS|MINI1
+------------------------------------------------------
+
+[[view-the-bridges-defined-in-the-ovsdb-tables]]
+=== view the bridges defined in the OVSDB tables
+
+* REST
+
+-----------------------------------------------------------------------------
+ 
+GET http://localhost:8080/controller/nb/v2/connectionmanager/bridge/OVS/MINI1
+-----------------------------------------------------------------------------
+
+* OSGi CLI
+
+----------------------------------
+osgi> getBridgeDomains "OVS|MINI1"
+Existing Bridges: [s1, s2, br1]
+----------------------------------
+
+[[delete-connection-between-s1-and-s2]]
+=== Delete connection between s1 and s2
+
+Next we will delete the connections between switch 1 (s1) and switch 2
+(s2) and the connections to the host endpoints as the following diagram
+outlines:
+
+image:OVSDB-Mininet-5.png[OVSDB-Mininet-5.png,title="OVSDB-Mininet-5.png"]
+
+* REST
+
+--------------------------------------------------------------------------------------------------
+DELETE http://localhost:8080/controller/nb/v2/networkconfig/bridgedomain/port/OVS/MINI1/s1/s1-eth2
+--------------------------------------------------------------------------------------------------
+
+* OSGi cli
+
+Using the CLI delete the ports that call the methods located in OVSDB
+project's ConfigurationService.java file.
+
+----------------------------------
+deletePort "OVS|MINI1" s1 s1-eth2
+deletePort "OVS|MINI1" s2 s2-eth2 
+deletePort "OVS|MINI1" s1 s1-eth1
+deletePort "OVS|MINI1" s2 s2-eth1
+----------------------------------
+
+The configuration diff between the OVSDB client output (ovs-vsctl show)
+of the Mininet created ports and the ports added back into the OVSDB
+tables are as follows. +
+
+image:OVSDB-Mininet-4.png[OVSDB-Mininet-4.png,title="fig:OVSDB-Mininet-4.png"] +
+
+* Now try pinging from host1 to host2. This will fail since the link has
+been torn down:
+
+---------------------------------
+mininet> pingpair h1 h2
+h1 -> 
+X 
+h2 -> X 
+ Results: 100% dropped (2/2 lost)
+---------------------------------
+
+* ** Next add the ports back to restablish the detapath between the two
+switches (s1 and s2):
+
+-------------------------------
+addPort "OVS|MINI1" s1 s1-eth1
+addPort "OVS|MINI1" s2 s2-eth1 
+addPort "OVS|MINI1" s1 s1-eth2
+addPort "OVS|MINI1" s2 s2-eth2
+-------------------------------
+
+`*`_`Note`_`* if after you add the ports back to the vSwitch you may need to remove the "Subnet Gateway Configuration" and reapply it the network 10.0.0.0/24 again. This is being investigated. `
+
+* Finally attempt to ping all of the hosts once again:
+
+--------------------------------
+mininet> pingall
+ Ping: testing ping reachability
+h1 -> h2 
+h2 -> h1 
+ Results: 0% dropped (0/2 lost)
+--------------------------------
+
+* More example commands that can be run against the switch running OVSDB
+are the following:
+
+-------------------------------------
+ovsconnect MINI1 192.168.254.128 6640
+addBridge "OVS|MINI1" br0
+addPort "OVS|MINI1" br0 vnic0
+deletePort "OVS|MINI1" s1 s1-eth1
+deletePort "OVS|MINI1" br0 vnic0 
+getBridgeDomains "OVS|MINI1"
+-------------------------------------
+
+* For a complete list of the CLI this can be found using the "help"
+command on the CLI console.
+
+---------------------------------------------------------------------------------------
+ovsconnect <ConnectionName> <ip-address>                        - Connect to OVSDB\n");
+addBridge <Node> <BridgeName>                                   - Add Bridge\n");
+getBridgeDomains <Node>                                         - Get Bridges\n");
+addPort <Node> <BridgeName> <PortName> <type> <options pairs>   - Add Port\n");
+delPort <Node> <BridgeName> <PortName>                          - Delete Port\n");
+addPortVlan <Node> <BridgeName> <PortName> <vlan>               - Add Port, Vlan\n");
+addTunnel <Node> <Bridge> <Port> <tunnel-type> <remote-ip>      - Add Tunnel\n");
+printCache <Node>                                               - Prints Table Cache");
+---------------------------------------------------------------------------------------
+
+For any assistance please join the IRC channel #opendaylight-ovsdb on
+irc.freenode.net or email the ovsdb-dev listserv at
+ovsdb-dev@lists.opendaylight.org

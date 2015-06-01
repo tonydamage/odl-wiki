@@ -1,0 +1,154 @@
+https://nexus.opendaylight.org[Nexus] along with
+OpenDaylight_Controller:Gerrit_Setup[Gerrit] and
+GettingStarted:Project_Main[Jenkins] is at the heart of our continous
+integration. As we are using some of the advanced features of Nexus the
+edition in use by The Linux Foundation for OpenDaylight is the
+Professional edition. That does not, however, mean that you can't setup
+your own local Nexus proxy to help speed up your own builds or the
+builds for developers on your local network if you're wanting to do this
+inside your corporate network. If you're just setting up a proxy the
+http://www.sonatype.org/nexus/[OSS edition] of Nexus will be all you
+really need. If you happen to have a license for the professional
+edition, the details listed here will still be applicable.
+
+To setup a simple proxy to handle your OpenDaylight builds first install
+and start Nexus. See the
+http://books.sonatype.com/nexus-book/reference/_installing_nexus.html[Sonatype
+documentation] on how to actually install and setup Nexus.
+
+Now that you've got your system up and running and have hopefully logged
+into it for the first time it's time to get the repositories configured.
+The rest of this documention will be using the assumption that this is a
+dedicated proxy for OpenDaylight. If you are adding repositories to an
+existing Nexus system to support building OpenDaylight please talk with
+your administrator about adding just what is needed from the following
+information.
+
+The cleanest way to do all of this is to first open the repositories tab
+and and then remove all existing repositories. We'll be adding a couple
+back in but it's cleaner if everything matches.
+
+image:Nexus Cleared Repositories.png[All Repositories
+Cleared|600px,title="All Repositories Cleared|600px"]
+
+Now that you've cleared out the repositories we'll start adding in all
+the repositories that are needed for cleanly building OpenDaylight. All
+repositories added will be added as Proxy Repositories
+
+Let's start with the Maven Central repostory.
+
+Select 'Add...' -> 'Proxy Repository'
+
+image:Nexus Add Proxy Repository.png[Nexus Add Proxy Repository.png,title="Nexus Add Proxy Repository.png"]
+
+You will need to fill in the following information:
+
+*Repository ID:* central +
+*Repository Name:* central +
+*Remote Storage Location:* https://secure.central.sonatype.com/maven2/
+
+Select the 'Save' button as all the rest of the options will be left at
+their defaults.
+
+image:Nexus Central Repository Configuration.png[Nexus Central Repository Configuration.png,title="Nexus Central Repository Configuration.png"]
+
+Now that we've done one repository here is the information for all the
+repositories for which you can just take the defaults with the
+appropriate variables set.
+
+[cols=",,",options="header",]
+|=======================================================================
+|Repository ID |Repository Name |Remote Storage Location
+|central2 |central2 |http://repo2.maven.org/maven2//
+
+|ebr-bundles-external |ebr-bundles-external
+|http://repository.springsource.com/maven/bundles/external/
+
+|ebr-bundles-release |ebr-bundles-release
+|http://repository.springsource.com/maven/bundles/release/
+
+|jboss.releases |jboss.releases
+|https://repository.jboss.org/nexus/content/repositories/releases/
+
+|jsonrpc4j |jsonrpc4j |http://jsonrpc4j.googlecode.com/svn/maven/repo/
+
+|maven-restlet |maven-restlet |http://maven.restlet.org/
+
+|opendaylight.release |opendaylight.release
+|https://nexus.opendaylight.org/content/repositories/opendaylight.release/
+
+|opendaylight.weekly |opendaylight.weekly
+|https://nexus.opendaylight.org/content/repositories/opendaylight.weekly/
+
+|ops4j-releases |ops4j-releases
+|https://oss.sonatype.org/content/repositories/ops4j-releases/
+
+|reficioplugin |reficioplugin |http://repo.reficio.org/maven/
+
+|servicemix |servicemix
+|http://svn.apache.org/repos/asf/servicemix/m2-repo/
+
+|thirdparty |thirdparty
+|https://nexus.opendaylight.org/content/repositories/thirdparty/
+|=======================================================================
+
+There is one more repository that you will want to mirror. This one
+needs a few extra variables set in the configuration.
+
+*Repository ID:* opendaylight.snapshot +
+*Repository Name:* opendaylight.snapshot +
+*Repository Policy:* Snapshot +
+*Remote Storage Location:*
+https://nexus.opendaylight.org/content/repositories/opendaylight.snapshot/
+*Not Found Cache TTL:* 1 (*NOTE:* We have a few proxies on the same
+network as the master Nexus one so having a short negative TTL doesn't
+hurt much here. You can try adjusting this to higher values to help
+improve any negative caching misses)
+
+Now that you've configured all of the repository proxies it's time to
+update the *Public Repositories* meta group.
+
+Select the *Public Repositories* group from the repository list and if
+it is not currently on the *Configuration* tab switch to it.
+
+You will want to press the |< button to move all of the *Available
+Repositories* into the *Ordered Group Repositories* box. After you have
+done that select *opendaylight.snapshot* from the list and press the >
+button to move that back to the *Available Repsositories* section and
+press *Save*
+
+image:Nexus Public Group Configuration.png[Nexus Public Group Configuration.png,title="Nexus Public Group Configuration.png"]
+
+The final step in utilizing this local proxy is modifying your personal
+(or build system's) .m2/settings.xml file to see it as a mirror. The
+following basic settings.xml file should be modified and placed in the
+proper place to make this work for your environment
+
+code,xml--------------------------------------------------------------------------------------------------------------------------
+code,xml
+<settings>
+  <mirrors>
+    <mirror>
+      <id>opendaylight-release-mirror</id>
+      <name>Local Nexus mirror for OpenDaylight builds</name>
+      <url>http://[YOUR_SYSTEM_FQDN][:PORT_IF_NEEDED][/BASE_URI_FRAGMENT]/content/groups/public/</url>
+      <mirrorOf>*,!opendaylight-snapshot,!opendaylight.snapshot</mirrorOf>
+    </mirror>
+    <mirror>
+      <id>opendaylight-snapshot-mirror</id>
+      <name>Local Nexus mirror for OpenDaylight snapshots</name>
+      <url>http://[YOUR_SYSTEM_FQDN][:PORT_IF_NEEDED][/BASE_URI_FRAGMENT]/content/repositories/opendaylight.snapshot</url>
+      <mirrorOf>opendaylight-snapshot,opendaylight.snapshot</mirrorOf>
+    </mirror>
+  </mirrors>
+</settings>
+--------------------------------------------------------------------------------------------------------------------------
+
+A couple of example URLs are as follows:
+
+http://nexus.example.com:8080/nexus/content/groups/public
+
+http://nexus.example.com/content/groups/public
+
+The difference is in the port and base URI fragment but that should help
+get you started.

@@ -1,0 +1,148 @@
+This page describes how to set up a simple three tier network. In it
+there are three virtual networks and policies are configured to support
+connecitivty between virtual networks 1 and 2 and also between virtual
+networks 2 and 3 (but not directly between virtual networks 1 and 3).
+
+[[create-networks]]
+=== Create Networks
+
+Issue a POST request to http://:8080/controller/nb/v2/neutron/networks
+using the following JSON body:
+
+`{ "networks": [` +
+` { "id": "``", "name": "``", "tenant_id": "``" }, ` +
+` { "id": "``", "name": "``", "tenant_id": "``"  },` +
+` { "id": "``", "name": "``", "tenant_id": "``" }` +
+`]}`
+
+The networks can be checked via a GET request to
+http://:8080/controller/nb/v2/opendove/odmc/networks. Make note of the
+network_id that matches up with the network name as these will be used
+later.
+
+[[create-subnets]]
+=== Create Subnets
+
+Each of the networks has a separate subnet defined for VMs. Issue a POST
+request to http://:8080/controller/nb/v2/neutron/subnets with the
+following JSON body:
+
+`{ "subnets": [` +
+` { "id": "``",` +
+`  "network_id": "``",` +
+`  "name": "``",` +
+`  "gateway_ip": "``",` +
+`  "cidr": "``",` +
+`  "tenant_id": "``" },` +
+` { "id": "``",` +
+`  "network_id": "``",` +
+`  "name": "test subnet 2",` +
+`  "gateway_ip": "``",` +
+`  "cidr": "``",` +
+`  "tenant_id": "``" },` +
+` { "id": "``",` +
+`  "network_id": "``",` +
+`  "name": "test subnet 3",` +
+`  "gateway_ip": "``",` +
+`  "cidr": "``",` +
+`  "tenant_id": "``" }` +
+` ] }`
+
+[[create-ports]]
+=== Create Ports
+
+To be able to create connectivity policies, it is first necessary to
+create ports to use for attaching to Neutron routers.
+
+Submit a POST request to http://:8080/controller/nb/v2/neutron/ports
+with the following JSON body:
+
+` {"ports": [` +
+`   {"id": "``",` +
+`    "network_id": "``",` +
+`    "name": "``",` +
+`    "mac_address": "``",` +
+`    "fixed_ips": [{ "subnet_id": "``" , "ip_address": "``" }],` +
+`    "tenant_id": "``" },` +
+`   {"id": "``",` +
+`    "network_id": "``",` +
+`    "name": "``",` +
+`    "mac_address": "``",` +
+`    "fixed_ips": [{ "subnet_id": "``" , "ip_address": "``" }],` +
+`    "tenant_id": "``" },` +
+`   {"id": "``",` +
+`    "network_id": "``",` +
+`    "name": "``",` +
+`    "mac_address": "``",` +
+`    "fixed_ips": [{ "subnet_id": "``" , "ip_address": "``" }],` +
+`    "tenant_id": "``" },` +
+`   {"id": "``",` +
+`    "network_id": "``",` +
+`    "name": "``",` +
+`    "mac_address": "``",` +
+`    "fixed_ips": [{ "subnet_id": "``" , "ip_address": "``" }],` +
+`    "tenant_id": "``" },` +
+`   ] }`
+
+This will create a port on virtual network 1, two ports on virtual
+network two and a port on virtual network 3.
+
+[[deploy-vms-and-attach-to-ovs]]
+=== Deploy VMs and attach to OVS
+
+Deploy three VMs to nodes with OVS and the OVS-Agent. Configure each of
+these to use an address from each of the three networks. Then attach the
+VMs to the OVS-Agent with the following command (repeated for each VM,
+being sure to match interface of the VM that uses an address from subnet
+1 with network_id 1 and so on):
+
+`./add-port `` `
+
+In this command, refers to the interface of the VM *as it appears* to
+the physical host (typically, this will be something like vnet0) and
+refers to the VNID of the network that is used as part of the VxLAN
+encapsulation (this is not the uuid of the Neutron network). To find the
+VNID of a network, use a GET request to
+/controller/nb/v2/opendove/odmc/network
+
+[[create-policies-between-virtual-networks-1-and-2]]
+=== Create Policies between Virtual Networks 1 and 2
+
+To create policies between Virtual Networks 1 and 2, first, issue a POST
+request to http://:8080/controller/nb/v2/neutron/routers with the
+following JSON body:
+
+`{ "router": { "id": "``", "name": "``", "admin_state_up": true } }`
+
+After this, issue two PUT requests to
+http://:8080/controller/nb/v2/neutron/routers//add_router_interface For
+the first use
+
+`{ "id": "``", "tenant_id": "``", "port_id": "``", "subnet_id": "``" }`
+
+and for the second use
+
+`{ "id": "``", "tenant_id": "``", "port_id": "``", "subnet_id": "``" }`
+
+At this point VMs in net 1 and net 2 should be able to ping each other.
+
+[[create-policies-between-virtual-networks-2-and-3]]
+=== Create Policies between Virtual Networks 2 and 3
+
+To create policies between Virtual Networks 2 and 3, first, issue a POST
+request to http://:8080/controller/nb/v2/neutron/routers with the
+following JSON body:
+
+`{ "router": { "id": "``", "name": "``", "admin_state_up": true } }`
+
+After this, issue two PUT requests to
+http://:8080/controller/nb/v2/neutron/routers//add_router_interface For
+the first use
+
+`{ "id": "``", "tenant_id": "``", "port_id": "``", "subnet_id": "``" }`
+
+and for the second use
+
+`{ "id": "``", "tenant_id": "``", "port_id": "``", "subnet_id": "``" }`
+
+At this point VMs in net 2 and net 3 should be able to ping each other.

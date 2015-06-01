@@ -1,0 +1,1508 @@
+[[introduction]]
+== Introduction
+
+I decided to put together a series of live tests due to the difficulties
+I was having understanding OnDataChanged() events.
+
+I will update this page as my tests progress since I detected many other
+inconsistencies but did not have time to perform controlled test and
+capture results in a nice format.
+
+[[first-round-of-tests]]
+== First round of Tests
+
+All test in the first round are based in the module below
+
+[[module-definition]]
+==== Module Definition
+
+--------------------------------------------------------------------------------
+
+module service-function {
+
+  namespace "urn:cisco:params:xml:ns:yang:sfc-sf";
+
+  prefix sfc-sf;
+
+  import ietf-inet-types { prefix inet; }
+  import ietf-yang-types { prefix yang; }
+  import service-function-type {prefix sfc-sft;}
+  import service-locator {prefix sfc-sl;}
+
+  organization "Cisco Systems, Inc.";
+  contact "Reinaldo Penno <repenno@cisco.com>";
+
+
+  description
+    "This module contains a collection of YANG definitions for
+     managing service function."
+
+  revision 2014-07-01 {
+    description
+    "Changes based on Opendaylight Testing.";
+  }
+
+
+  typedef service-function-ref {
+    type leafref {
+      path "/sfc-sf:service-functions/sfc-sf:service-function/sfc-sf:name";
+    }
+    description
+      "This type is used by data models that need to reference
+       configured service functions.";
+  }
+
+  grouping service-function-entry {
+    leaf name {
+      type string;
+      description
+          "The name of the service function.";
+    }
+    leaf type {
+      type string;
+      mandatory true;
+      description
+        "Service Function Type from service-function-type.yang.";
+    }
+    leaf ip-mgmt-address {
+      type inet:ip-address;
+    }
+    container sf-data-plane-locator {
+      uses sfc-sl:data-plane-locator;
+    }
+
+    leaf service-function-forwarder {
+      type string;
+      description
+        "The service function forwarders associated with this Service Function";
+    }
+  }
+
+  container service-functions {
+    description
+      "A network or application based packet
+      treatment, application, compute or storage resource, used
+      singularly or in concert with other service functions within a
+      service chain to enable a service offered by an operator.
+
+      A non-exhaustive list of Service Functions includes: firewalls,
+      WAN and application acceleration, Deep Packet Inspection (DPI),
+      server load balancers, NAT44 [RFC3022], NAT64 [RFC6146], HOST_ID
+      injection, HTTP Header Enrichment functions, TCP optimizer, etc.";
+
+    list service-function {
+      key "name";
+      uses service-function-entry;
+    }
+  }
+}
+--------------------------------------------------------------------------------
+
+I register a dataChangeListener at the "list service-function" level as
+below. *If you register your listener one level above (container), the
+results are very different - and that's another source of confusion (at
+least to me).*
+
+--------------------------------------------------------------------------------------------------------------
+
+public static final InstanceIdentifier<ServiceFunction>  sfEntryIID =
+    InstanceIdentifier.builder(ServiceFunctions.class).child(ServiceFunction.class).build();
+
+
+final ListenerRegistration<DataChangeListener> sfEntryDataChangeListenerRegistration =
+    dataBrokerService.registerDataChangeListener( OpendaylightSfc.sfEntryIID, sfcProviderSfEntryDataListener);
+--------------------------------------------------------------------------------------------------------------
+
+[[creating-a-single-service-function]]
+=== Creating a single Service Function
+
+------------------------------------------------------------------------------------------------------------------------------------
+
+put /config/service-function:service-functions/ 
+
+{
+  "service-functions": {
+    "service-function": [
+      {
+        "ip-mgmt-address": "2001::2",
+        "type": "firewall",
+        "name": "fw-aa",
+        "sf-data-plane-locator": {
+         "ip": "10.0.0.1",
+         "port": "5050"
+        },
+        "service-function-forwarder" : "ovs-1"
+      }
+    ]
+  }
+}
+
+2014-07-07 13:28:16.425 PDT [pool-14-thread-1] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## Start: org.opendaylight.sfc.provider.SfcProviderSfEntryDataListener.onDataChanged(SfcProviderSfEntryDataListener.java:40)
+2014-07-07 13:28:16.433 PDT [pool-14-thread-1] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## getOriginalConfigurationData
+2014-07-07 13:28:16.434 PDT [pool-14-thread-1] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## getUpdatedConfigurationSubtree
+2014-07-07 13:28:16.630 PDT [pool-14-thread-1] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## getCreatedConfigurationData
+014-07-07 13:28:16.687 PDT [pool-14-thread-1] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## getCreatedConfigurationData firewall  fw-aa
+2014-07-07 13:28:16.687 PDT [pool-14-thread-1] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## getUpdatedConfigurationData
+2014-07-07 13:28:16.687 PDT [pool-14-thread-1] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## getUpdatedConfigurationData firewall  fw-aa
+2014-07-07 13:28:16.687 PDT [pool-14-thread-1] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## Stop: org.opendaylight.sfc.provider.SfcProviderSfEntryDataListener.onDataChanged(SfcProviderSfEntryDataListener.java:125)
+------------------------------------------------------------------------------------------------------------------------------------
+
+The code that processes the the PUT above can be found below
+
+--------------------------------------------------------------------------------------------------------
+
+        Map<InstanceIdentifier<?>, DataObject> dataCreatedObject = change.getCreatedConfigurationData();
+        LOG.info("\n########## getCreatedConfigurationData");
+
+        for (Map.Entry<InstanceIdentifier<?>, DataObject> entry : dataCreatedObject.entrySet()) {
+            if( entry.getValue() instanceof  ServiceFunction) {
+                ServiceFunction createdServiceFunction = (ServiceFunction) entry.getValue();
+                LOG.info("\n########## getCreatedConfigurationData {}  {}",
+                            createdServiceFunction.getType(), createdServiceFunction.getName());
+            }
+            //System.out.println(entry.getKey() + "/" + entry.getValue());
+        }
+--------------------------------------------------------------------------------------------------------
+
+The Map we get back contains two elements that are represented in Yang
+by containers. [1] is the entire ServiceFunction and [0] is the data
+plane locator.
+
+---------------------------------------------------------------------------------------------------------------------------------------
+
+dataCreatedObject = {java.util.Collections$UnmodifiableMap@11227} size = 2
+[0] = {java.util.Collections$UnmodifiableMap$UnmodifiableEntrySet$UnmodifiableEntry@11231}"InstanceIdentifier{targetType=interface
+org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sf.rev140701.service.functions.service.function.DataPlaneLocator,
+path=[org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sf.rev140701.Servi...
+[1] = {java.util.Collections$UnmodifiableMap$UnmodifiableEntrySet$UnmodifiableEntry@11234}"KeyedInstanceIdentifier{targetType=interface
+org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sf.rev140701.service.functions.ServiceFunction,
+path=[org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sf.rev140701.ServiceFunctions, ...
+---------------------------------------------------------------------------------------------------------------------------------------
+
+Summary is:
+
+* getCreatedConfigurationData contains service function
+* getUpdatedConfigurationData contains service function
+
+*Some things to notice:*
+
+* Why UpdatedConfigurationData also has service function data? Are they
+the same or not?
+* Having duplicate information in general is confusing. In my
+application I want to know which service functions were created and send
+them to a consumer, but since creation data can be under different APIs
+I need to check both. This means I might send data to the consumer twice
+or not catch creation at all when it is only under "Updated" API.
+
+Keep your answers in mind as we go through other tests...
+
+[[creating-another-single-service-function.]]
+=== Creating another single Service Function.
+
+Since it is a PUT operation expectation is a complete overwrite even
+tough the only difference between the first service function and the
+existing one is the service type.
+
+This means we should get some form of delete plus a create.
+
+------------------------------------------------------------------------------------------------------------------------------------
+    put /config/service-function:service-functions/ 
+
+    {
+      "service-functions": {
+        "service-function": [
+          {
+            "ip-mgmt-address": "2001::2",
+            "type": "firewall-1",
+            "name": "fw-aa",
+            "data-plane-locator": {
+             "ip": "10.0.0.1",
+             "port": "5050"
+            }
+          }
+        ]
+      }
+    }
+
+The onDataChange code was instrumented to exercise most of the available APIs
+
+2014-07-07 13:30:40.589 PDT [pool-14-thread-2] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## Start: org.opendaylight.sfc.provider.SfcProviderSfEntryDataListener.onDataChanged(SfcProviderSfEntryDataListener.java:40)
+2014-07-07 13:30:40.621 PDT [pool-14-thread-2] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## getOriginalConfigurationData
+2014-07-07 13:30:40.628 PDT [pool-14-thread-2] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## getOriginalConfigurationData firewall  fw-aa
+2014-07-07 13:30:40.628 PDT [pool-14-thread-2] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## getUpdatedConfigurationSubtree
+2014-07-07 13:30:40.628 PDT [pool-14-thread-2] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## getCreatedConfigurationData
+2014-07-07 13:30:40.630 PDT [pool-14-thread-2] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## getUpdatedConfigurationData
+2014-07-07 13:30:40.630 PDT [pool-14-thread-2] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## getUpdatedConfigurationData firewall-1  fw-aa
+2014-07-07 13:30:40.630 PDT [pool-14-thread-2] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## Stop: org.opendaylight.sfc.provider.SfcProviderSfEntryDataListener.onDataChanged(SfcProviderSfEntryDataListener.java:125)
+------------------------------------------------------------------------------------------------------------------------------------
+
+Summary is:
+
+* getOriginalConfigurationData has the old service function
+* getUpdatedConfigurationData contains the new service function
+* getCreatedConfigurationData is null
+
+*Some things to notice:*
+
+* Although a PUT is a create, getCreatedConfigurationData is NULL. This
+is not consistent with the first test.
+* getUpdatedConfigurationData contains the new service function. This is
+something I did not expect since everything was overwritten. Nothing was
+"updated".
+
+[[creating-two-service-functions.]]
+=== Creating two Service Functions.
+
+Since it is a PUT this means a complete overwrite even tough the only
+difference between the first service function and the existing one is
+the service type.
+
+The second service-function is completely new.
+
+------------------------------------------------------------------------------------------------------------------------------------
+
+put /config/service-function:service-functions/ 
+
+{
+  "service-functions": {
+    "service-function": [
+      {
+        "ip-mgmt-address": "2001::2",
+        "type": "firewall",
+        "name": "fw-aa",
+        "sf-data-plane-locator": {
+         "ip": "10.0.0.1",
+         "port": "5050"
+        },
+        "service-function-forwarder" : "ovs-1"
+      },
+      {
+        "ip-mgmt-address": "2001::2",
+        "type": "dpi",
+        "name": "dpi-ut",
+        "sf-data-plane-locator": {
+         "ip": "10.0.0.2",
+         "port": "5050"
+        },
+        "service-function-forwarder" : "ovs-2"
+      }
+    ]
+  }
+}
+
+2014-07-07 13:44:18.385 PDT [pool-14-thread-1] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## Start: org.opendaylight.sfc.provider.SfcProviderSfEntryDataListener.onDataChanged(SfcProviderSfEntryDataListener.java:40)
+2014-07-07 13:44:18.415 PDT [pool-14-thread-1] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## getOriginalConfigurationData
+2014-07-07 13:44:18.418 PDT [pool-14-thread-1] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## getOriginalConfigurationData firewall-1  fw-aa
+2014-07-07 13:44:18.418 PDT [pool-14-thread-1] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## getUpdatedConfigurationSubtree
+2014-07-07 13:44:18.419 PDT [pool-14-thread-1] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## getCreatedConfigurationData
+2014-07-07 13:44:18.422 PDT [pool-14-thread-1] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## getCreatedConfigurationData firewall  fw-cc
+2014-07-07 13:44:18.423 PDT [pool-14-thread-1] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## getUpdatedConfigurationData
+2014-07-07 13:44:18.423 PDT [pool-14-thread-1] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## getUpdatedConfigurationData firewall-2  fw-aa
+2014-07-07 13:44:18.423 PDT [pool-14-thread-1] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## getUpdatedConfigurationData firewall  fw-cc
+2014-07-07 13:44:18.449 PDT [pool-14-thread-1] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## Stop: org.opendaylight.sfc.provider.SfcProviderSfEntryDataListener.onDataChanged(SfcProviderSfEntryDataListener.java:125)
+------------------------------------------------------------------------------------------------------------------------------------
+
+*Some things to notice:*
+
+* getUpdatedConfigurationData has the the old service function that was
+"changed" plus the new service function
+* Although a PUT operation is a full delete + create,
+getCreatedConfigurationData only has the firewall fw-cc
+* getUpdatedConfigurationData contains the new service function. This is
+something I did not expect since everything was overwritten. Nothing was
+"updated".
+
+[[deleting-a-single-service-function]]
+=== Deleting a single service function
+
+We are deleting fw-aa
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+2014-07-07 13:56:16.035 PDT [http-bio-8080-exec-9] INFO  o.o.c.sal.restconf.impl.BrokerFacade - Delete Configuration via Restconf:
+(urn:cisco:params:xml:ns:yang:sfc-sf?revision=2014-07-01)service-functions/(urn:cisco:params:xml:ns:yang:sfc-sf?revision=2014-07-01)service-function[{(urn:cisco:params:xml:ns:yang:sfc-sf?revision=2014-07-01)name=fw-aa}]
+2014-07-07 13:56:16.057 PDT [pool-14-thread-2] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## Start: org.opendaylight.sfc.provider.SfcProviderSfEntryDataListener.onDataChanged(SfcProviderSfEntryDataListener.java:40)
+2014-07-07 13:56:16.060 PDT [pool-14-thread-2] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## getCreatedConfigurationData
+2014-07-07 13:56:16.064 PDT [pool-14-thread-2] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## getOriginalConfigurationData firewall-2  fw-aa
+2014-07-07 13:56:16.082 PDT [pool-14-thread-2] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## getUpdatedConfigurationSubtree
+2014-07-07 13:56:16.082 PDT [pool-14-thread-2] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## getCreatedConfigurationData
+2014-07-07 13:56:16.082 PDT [pool-14-thread-2] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## getUpdatedConfigurationData
+2014-07-07 13:56:16.082 PDT [pool-14-thread-2] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## Stop: org.opendaylight.sfc.provider.SfcProviderSfEntryDataListener.onDataChanged(SfcProviderSfEntryDataListener.java:125)
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+This works as expected
+
+*Adding a single service function with inconsistency between path and
+JSON name*
+
+-----------------------------------------------------------------------
+
+put /config/service-function:service-functions/service-function/fw-zz/ 
+
+{
+  "service-function": [
+    {
+      "ip-mgmt-address": "20.0.0.11",
+      "type": "firewall",
+      "name": "fw-yy"
+    }
+  ]
+}
+-----------------------------------------------------------------------
+
+This is the actual Service Function created
+
+---------------------------------------
+
+{
+  "service-functions": {
+    "service-function": [
+      {
+        "ip-mgmt-address": "20.0.0.11",
+        "name": "fw-yy",
+        "type": "firewall"
+      }
+    }
+  }
+}
+---------------------------------------
+
+*Some things to notice:*
+
+* The service function name from the path "fw-zz" was ignored. The
+actually created service function name was "fw-yy"
+
+* There was no callback. *OndataChanged() was _never_ called*. So, which
+InstanceIdentifier should I construct in order to get a callback when a
+service function is created with the full path? This seems like a bug
+https://bugs.opendaylight.org/show_bug.cgi?id=1330
+
+[[adding-a-single-service-function-without-inconsistencies]]
+=== Adding a single service function without inconsistencies
+
+------------------------------------------------------------------------------------------------------------------------------------
+
+put /config/service-function:service-functions/service-function/fw-bb/ 
+
+{
+  "service-function": [
+    {
+      "ip-mgmt-address": "20.0.0.11",
+      "type": "firewall",
+      "name": "fw-bb",
+      "sf-data-plane-locator": {
+        "ip": "10.0.0.1",
+    "port": "5050"
+      },
+      "service-function-forwarder" : "ovs-1"
+    }
+  ]
+}
+
+osgi> 2014-07-08 00:17:07.529 PDT [pool-14-thread-2] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## Start: org.opendaylight.sfc.provider.SfcProviderSfEntryDataListener.onDataChanged(SfcProviderSfEntryDataListener.java:55)
+2014-07-08 00:17:09.522 PDT [pool-14-thread-2] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## getOriginalConfigurationData
+2014-07-08 00:17:12.143 PDT [pool-14-thread-2] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## getUpdatedConfigurationSubtree
+2014-07-08 00:18:03.811 PDT [pool-14-thread-2] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## getCreatedConfigurationData
+2014-07-08 00:18:03.829 PDT [pool-14-thread-2] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## getCreatedConfigurationData firewall  fw-bb
+2014-07-08 00:18:03.829 PDT [pool-14-thread-2] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## getUpdatedConfigurationData
+2014-07-08 00:18:03.832 PDT [pool-14-thread-2] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## getUpdatedConfigurationData firewall  fw-bb
+2014-07-08 00:18:03.832 PDT [pool-14-thread-2] INFO  o.o.s.p.SfcProviderSfEntryDataListener -
+########## Stop: org.opendaylight.sfc.provider.SfcProviderSfEntryDataListener.onDataChanged(SfcProviderSfEntryDataListener.java:140)
+------------------------------------------------------------------------------------------------------------------------------------
+
+Summary is:
+
+* getCreatedConfigurationData contains service function
+* getUpdatedConfigurationData contains service function
+
+[[second-round-of-tests]]
+== Second round of Tests
+
+Tests in the second round are based in the module below. This module is
+more elaborate, containing lists of lists and groupings which brings
+several interesting challenges. *There is really no point in showing a
+simple model where everything works flawlessly*. Real life Yang modules
+are much more complex than the one below so in order to test our design,
+we need to use these modules.
+
+It is very important to notice that the listener is attached to the
+container as below
+
+------------------------------------------------------------------------------------------------------
+
+public static final InstanceIdentifier<ServiceFunctionChains>  sfcIID =
+  InstanceIdentifier.builder(ServiceFunctionChains.class).build();
+
+
+final ListenerRegistration<DataChangeListener> sfcDataChangeListenerRegistration =
+  dataBrokerService.registerDataChangeListener( OpendaylightSfc.sfcIID, sfcProviderSfcDataListener  );
+------------------------------------------------------------------------------------------------------
+
+[[module-definition-1]]
+==== Module Definition
+
+------------------------------------------------------------------------
+
+module service-function-chain {
+
+  namespace "urn:cisco:params:xml:ns:yang:sfc-sfc";
+
+  prefix sfc-sfc;
+
+  import ietf-inet-types { prefix inet; }
+  import ietf-yang-types { prefix yang; }
+  import service-function {prefix sfc-sf; }
+
+
+  organization "Cisco Systems, Inc.";
+  contact "Reinaldo Penno <repenno@cisco.com>";
+
+
+  description
+    "This module contains a collection of YANG definitions for
+     managing service function chains."
+
+  revision 2014-07-01 {
+    description
+    "Revised based on Opendaylight Project feedback";
+  }
+
+  grouping service-function-chain-grouping {
+    list service-function-chain {
+      description
+        "A service chain defines the required functions and
+        associated order (service-function1 --> service-function 2) that
+        must be applied to packets and/or frames.  A service chain does
+        not specify the network location or specific instance of service
+        functions (e.g. firewall1 vs. firewall2).";
+      key "name";
+      leaf name {
+        type string;
+        description
+          "the name of the service function chain";
+      }
+      list sfc-service-function {
+        key "name";
+        leaf name {
+          type string;
+          description
+            "The name of the service function if known,
+            otherwise a generic unique string";
+        }
+        leaf type {
+          type string;
+          mandatory true;
+          description
+            "Service Function Type from service-function-type.yang.";
+        }
+        ordered-by user;
+        description
+          "A list of service functions that compose the service chain";
+      }
+    }
+  }
+
+  // Service Function Chains
+
+  container service-function-chains {
+    uses service-function-chain-grouping;
+  }
+}
+------------------------------------------------------------------------
+
+[[creating-a-single-service-chain]]
+=== Creating a single Service Chain
+
+--------------------------------------------------------------------------------------------------------------------------------------
+
+put /config/service-function-chain:service-function-chains/
+
+{
+  "service-function-chains ": {
+    "service-function-chain": [
+      {
+        "name": "Chain-1",
+        "sfc-service-function" : [
+          {
+          "name" : "dpi-ut",
+          "type" : "dpi"
+          },
+          {
+          "name" : "fw-ca",
+          "type" : "firewall"
+          }
+        ]
+      }
+    ]
+  }
+}
+
+2014-07-09 00:15:25.429 PDT [pool-15-thread-1] INFO  o.o.s.p.SfcProviderSfcDataListener -
+########## Start: org.opendaylight.sfc.provider.SfcProviderSfcEntryDataListener.onDataChanged(SfcProviderSfcEntryDataListener.java:43)
+2014-07-09 00:19:36.022 PDT [pool-15-thread-1] INFO  o.o.s.p.SfcProviderSfcDataListener -
+########## getUpdatedConfigurationData
+2014-07-09 00:19:53.929 PDT [pool-15-thread-1] INFO  o.o.s.p.SfcProviderSfcDataListener -
+########## Updated ServiceFunctionChain name: Chain-1
+2014-07-09 00:19:58.030 PDT [pool-15-thread-1] INFO  o.o.s.p.SfcProviderSfcDataListener -
+########## Updated ServiceFunction name: dpi-ut
+2014-07-09 00:20:15.666 PDT [pool-15-thread-1] INFO  o.o.s.p.SfcProviderSfcDataListener -
+########## Updated ServiceFunction name: fw-ca
+2014-07-09 00:20:31.508 PDT [pool-15-thread-1] INFO  o.o.s.p.SfcProviderSfcDataListener -
+########## getOriginalConfigurationData
+2014-07-09 00:20:34.037 PDT [pool-15-thread-1] INFO  o.o.s.p.SfcProviderSfcDataListener -
+########## getCreatedConfigurationData
+2014-07-09 00:27:08.347 PDT [pool-15-thread-1] INFO  o.o.s.p.SfcProviderSfcDataListener -
+########## Created ServiceFunctionChain name: Chain-1
+2014-07-09 00:27:09.349 PDT [pool-15-thread-1] INFO  o.o.s.p.SfcProviderSfcDataListener -
+########## Created ServiceFunction name: dpi-ut
+2014-07-09 00:27:10.775 PDT [pool-15-thread-1] INFO  o.o.s.p.SfcProviderSfcDataListener -
+########## Created ServiceFunction name: fw-ca
+2014-07-09 00:27:14.331 PDT [pool-15-thread-1] INFO  o.o.s.p.SfcProviderSfcDataListener -
+########## Stop: org.opendaylight.sfc.provider.SfcProviderSfcEntryDataListener.onDataChanged(SfcProviderSfcEntryDataListener.java:98)
+--------------------------------------------------------------------------------------------------------------------------------------
+
+Below you find he code used to actually go through all the data so you
+can do something useful with it.
+
+------------------------------------------------------------------------------------------------------------------------------
+
+    @Override
+    public void onDataChanged(
+            DataChangeEvent<InstanceIdentifier<?>, DataObject> change) {
+
+        Map<InstanceIdentifier<?>, DataObject> dataUpdatedConfigurationObject = change.getUpdatedConfigurationData();
+        LOG.info("\n########## getUpdatedConfigurationData");
+
+        for (Map.Entry<InstanceIdentifier<?>, DataObject> entry : dataUpdatedConfigurationObject.entrySet())
+        {
+            if( entry.getValue() instanceof ServiceFunctionChains) {
+                ServiceFunctionChains updatedServiceFunctionChains = (ServiceFunctionChains) entry.getValue();
+                List<ServiceFunctionChain>  serviceFunctionChainList = updatedServiceFunctionChains.getServiceFunctionChain();
+                for (ServiceFunctionChain serviceFunctionChain : serviceFunctionChainList) {
+                    LOG.info("\n########## Updated ServiceFunctionChain name: {}", serviceFunctionChain.getName());
+                    List<SfcServiceFunction>  SfcServiceFunctionList = serviceFunctionChain.getSfcServiceFunction();
+                    for (SfcServiceFunction sfcServiceFunction : SfcServiceFunctionList) {
+                        LOG.info("\n########## Updated ServiceFunction name: {}", sfcServiceFunction.getName());
+                    }
+                }
+            }
+            //System.out.println(entry.getKey() + "/" + entry.getValue());
+        }
+------------------------------------------------------------------------------------------------------------------------------
+
+[[creating-another-service-function-chain]]
+=== Creating another Service Function Chain
+
+----------------------------------------------------------------------------------------------------------------------------
+
+put /config/service-function-chain:service-function-chains/service-function-chain/Chain-2/
+
+{
+  "service-function-chain": [
+    {
+      "name": "Chain-2",
+      "sfc-service-function" : [
+        {
+        "name" : "nat44-nv",
+        "type" : "napt44"
+        },
+        {
+        "name" : "proxy-or",
+        "type" : "proxy"
+        }
+      ]
+    }
+  ]
+}
+
+osgi> 2014-07-07 21:46:56.655 PDT [pool-14-thread-2] INFO  o.o.s.p.SfcProviderSfcDataListener -
+########## Start: org.opendaylight.sfc.provider.SfcProviderSfcDataListener.onDataChanged(SfcProviderSfcDataListener.java:43)
+2014-07-07 21:46:56.680 PDT [pool-14-thread-2] INFO  o.o.s.p.SfcProviderSfcDataListener -
+########## getUpdatedConfigurationData
+2014-07-07 21:46:56.680 PDT [pool-14-thread-2] INFO  o.o.s.p.SfcProviderSfcDataListener -
+########## getOriginalConfigurationData
+2014-07-07 21:46:56.680 PDT [pool-14-thread-2] INFO  o.o.s.p.SfcProviderSfcDataListener -
+########## getCreatedConfigurationData
+2014-07-07 21:46:56.680 PDT [pool-14-thread-2] INFO  o.o.s.p.SfcProviderSfcDataListener -
+########## Stop: org.opendaylight.sfc.provider.SfcProviderSfcDataListener.onDataChanged(SfcProviderSfcDataListener.java:104)
+----------------------------------------------------------------------------------------------------------------------------
+
+*Oops. Something went wrong. getUpdatedConfigurationData,
+getOriginalConfigurationData nor getCreatedConfigurationData gave me any
+data!*
+
+And the Chain was certainly created
+
+---------------------------------
+
+{
+  "service-function-chains": {
+    "service-function-chain": [
+      {
+        "name": "Chain-1",
+        "sfc-service-function": [
+          {
+            "type": "dpi",
+            "name": "dpi-ut"
+          },
+          {
+            "type": "firewall",
+            "name": "fw-ca"
+          }
+        ]
+      },
+      {
+        "name": "Chain-2",
+        "sfc-service-function": [
+          {
+            "type": "napt44",
+            "name": "nat44-nv"
+          },
+          {
+            "type": "proxy",
+            "name": "proxy-or"
+          }
+        ]
+      }
+    ]
+  }
+}
+---------------------------------
+
+[[retrying-creation-of-another-service-function-chain]]
+==== Retrying creation of another service Function chain
+
+The previous result is certainly bad since in all other tests I got some
+data from at least one of those two APIs. The question is then how to
+get access to the Service Function Chain that was added after the first
+one.
+
+Hummm...Looking around I see that in the first test I get four entries
+in the map set
+
+---------------------------------------------------------------------------------------------------------------------------------------
+dataCreatedConfigurationObject = {java.util.Collections$UnmodifiableMap@11537} size = 4
+[0] = {java.util.Collections$UnmodifiableMap$UnmodifiableEntrySet$UnmodifiableEntry@11541}"KeyedInstanceIdentifier{targetType=interface
+org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.service.function.chain
+.SfcServiceFunction, path=[org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns...
+[1] = {java.util.Collections$UnmodifiableMap$UnmodifiableEntrySet$UnmodifiableEntry@11542}"KeyedInstanceIdentifier{targetType=interface
+org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.service.function.chain
+.SfcServiceFunction, path=[org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns...
+[2] = {java.util.Collections$UnmodifiableMap$UnmodifiableEntrySet$UnmodifiableEntry@11543}"InstanceIdentifier{targetType=interface
+org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.ServiceFunctionChains,
+path=[org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.ServiceFunctionChains]}" -> "Serv...
+[3] = {java.util.Collections$UnmodifiableMap$UnmodifiableEntrySet$UnmodifiableEntry@11544}"KeyedInstanceIdentifier{targetType=interface
+org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.ServiceFunctionChain,
+path=[org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev1407...
+---------------------------------------------------------------------------------------------------------------------------------------
+
+*But only one is instanceof ServiceFunctionChains!* That's the one that
+tripped my code, all the others are the pieces that together make up
+[2].
+
+We are getting closer now. We will redo the second test and pay close
+attention to the object types we get in the map set. The capture of such
+map can be seen below.
+
+---------------------------------------------------------------------------------------------------------------------------------------
+
+dataCreatedConfigurationObject = {java.util.Collections$UnmodifiableMap@11667} size = 3
+[0] = {java.util.Collections$UnmodifiableMap$UnmodifiableEntrySet$UnmodifiableEntry@11679}"KeyedInstanceIdentifier{targetType=interface
+org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.service.function.chain
+.SfcServiceFunction, path=[org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns...
+[1] = {java.util.Collections$UnmodifiableMap$UnmodifiableEntrySet$UnmodifiableEntry@11680}"KeyedInstanceIdentifier{targetType=interface
+org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.ServiceFunctionChain,
+path=[org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev1407...
+[2] = {java.util.Collections$UnmodifiableMap$UnmodifiableEntrySet$UnmodifiableEntry@11681}"KeyedInstanceIdentifier{targetType=interface
+org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.service.function.chain
+.SfcServiceFunction, path=[org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns...
+---------------------------------------------------------------------------------------------------------------------------------------
+
+It is easy to see now why the code did not work. When I add a
+ServiceFunctionChain with the full path the code is not tripped since
+the check is against ServiceFunctionChains (container) and not
+ServiceFunctionChain (list) . _So, although the listener is on the
+container level the actual objects I get on the map set are below the
+container level._ This seems a bug. I should get a data change structure
+with the container (ServiceFunctionChains) + ServiceFunctionChain (list,
+key) + sfc-service-function (list + key). In other words a complete path
+from top to bottom and not a headless path.
+
+*Summary: Since the events between ServiceFunctionChains and
+ServiceFunctionChain are partially overlapping this creates issues. if I
+check for both container and list level objects on the listener callback
+certain objects will be processed multiple times, creating multiple
+messages to possible consumers or inconsistencies. Moreover, what
+happens if I add a single chain with an entire URL such as put
+/config/service-function-chain:service-function-chains/service-function-chain/\{name}/sfc-service-function/\{name}/?
+What kind of events I need to check for and how to make sure I do not
+double or triple process certain object?*
+
+[[discussion]]
+=== Discussion
+
+A possible solution would be to attach the listeners to the list level
+(but see bug https://bugs.opendaylight.org/show_bug.cgi?id=1329[Entry
+deserialization failed]) , or maybe to every level that internally is
+represented by an class. This might or might not work. But the bigger
+question given complex Yang modules is whether such callback design is
+appropriate, and if yes, what sort of guidelines need to be in place.
+
+[[attaching-listeners-to-list-level]]
+== Attaching Listeners to list Level
+
+One of the possible solutions to the problem of headless notifications
+is to attach a data listener to the list level (list
+sfc-service-function) as below. A *headless notification* is a
+notification that does not contain the node to which you attached your
+listener s in the example in the previous sections.
+
+----------------------------------------------------------------------------------------------------------------
+public static final InstanceIdentifier<ServiceFunctionChain>  sfcEntryIID =
+            InstanceIdentifier.builder(ServiceFunctionChains.class)
+                    .child(ServiceFunctionChain.class).build();
+
+final ListenerRegistration<DataChangeListener> sfcEntryDataChangeListenerRegistration =
+  dataBrokerService.registerDataChangeListener( OpendaylightSfc.sfcEntryIID, sfcProviderSfcEntryDataListener  );
+----------------------------------------------------------------------------------------------------------------
+
+This strategy allow you to catch all events at the list level and below.
+
+--------------------------------------------------------------------------------------------------------------------------------------
+
+2014-07-09 00:31:21.568 PDT [pool-15-thread-1] INFO  o.o.s.p.SfcProviderSfcDataListener -
+########## Start: org.opendaylight.sfc.provider.SfcProviderSfcEntryDataListener.onDataChanged(SfcProviderSfcEntryDataListener.java:43)
+2014-07-09 00:31:23.111 PDT [pool-15-thread-1] INFO  o.o.s.p.SfcProviderSfcDataListener -
+########## getUpdatedConfigurationData
+2014-07-09 00:31:32.648 PDT [pool-15-thread-1] INFO  o.o.s.p.SfcProviderSfcDataListener -
+########## Updated ServiceFunctionChain name: Chain-2
+2014-07-09 00:31:34.823 PDT [pool-15-thread-1] INFO  o.o.s.p.SfcProviderSfcDataListener -
+########## Updated ServiceFunction name: nat44-nv
+2014-07-09 00:31:36.199 PDT [pool-15-thread-1] INFO  o.o.s.p.SfcProviderSfcDataListener -
+########## Updated ServiceFunction name: proxy-or
+2014-07-09 00:31:42.059 PDT [pool-15-thread-1] INFO  o.o.s.p.SfcProviderSfcDataListener -
+########## getOriginalConfigurationData
+2014-07-09 00:31:46.589 PDT [pool-15-thread-1] INFO  o.o.s.p.SfcProviderSfcDataListener -
+########## getCreatedConfigurationData
+2014-07-09 00:31:53.805 PDT [pool-15-thread-1] INFO  o.o.s.p.SfcProviderSfcDataListener -
+########## Created ServiceFunctionChain name: Chain-2
+2014-07-09 00:31:54.674 PDT [pool-15-thread-1] INFO  o.o.s.p.SfcProviderSfcDataListener -
+########## Created ServiceFunction name: nat44-nv
+2014-07-09 00:31:55.853 PDT [pool-15-thread-1] INFO  o.o.s.p.SfcProviderSfcDataListener -
+########## Created ServiceFunction name: proxy-or
+2014-07-09 00:31:59.359 PDT [pool-15-thread-1] INFO  o.o.s.p.SfcProviderSfcDataListener -
+########## Stop: org.opendaylight.sfc.provider.SfcProviderSfcEntryDataListener.onDataChanged(SfcProviderSfcEntryDataListener.java:98)
+--------------------------------------------------------------------------------------------------------------------------------------
+
+[[how-to-operate-on-the-datastore-from-within-ondatachanged-context]]
+== How to Operate on the Datastore from within OnDataChanged() context
+
+Use-case: As you process an onDataChanged() event you want to change the
+datastore.
+
+Summary: You can not. There is a single thread that deals with the
+writes and it looks like the notifications as well. So when you are in
+the notification, if you write to the data store and then block that
+thread (say by calling “.get()” on the future) then you will prevent
+your write from completing and this causing a deadlock.
+
+Solution: the code that operates on the data store needs to be executed
+in another thread. In the solution below I used an executor service
+
+--------------------------------------------------------------------------------------------------------------------------
+
+public class SfcProviderSfEntryDataListener implements DataChangeListener  {
+
+....
+
+        Map<InstanceIdentifier<?>, DataObject> dataUpdatedConfigurationObject = change.getUpdatedConfigurationData();
+        LOG.info("\n########## getUpdatedConfigurationData");
+
+        for (Map.Entry<InstanceIdentifier<?>, DataObject> entry : dataUpdatedConfigurationObject.entrySet())
+        {
+            if( entry.getValue() instanceof  ServiceFunction) {
+                ServiceFunction updatedServiceFunction = (ServiceFunction) entry.getValue();
+                //createServiceFunctionTypeEntry(updatedServiceFunction);  <=== This does not work
+                odlSfc.executor.execute(SfcProviderServiceTypeAPI.getSfcProvideCreateServiceType(updatedServiceFunction));
+                LOG.info("\n########## getUpdatedConfigurationData {}  {}",
+                        updatedServiceFunction.getType(), updatedServiceFunction.getName());
+            }
+            //System.out.println(entry.getKey() + "/" + entry.getValue());
+        }
+--------------------------------------------------------------------------------------------------------------------------
+
+[[executor-dispatcher-design]]
+== Executor Dispatcher Design
+
+In my use-case a RESTconf operation could trigger potentially many data
+store operations. After trying many different approaches I settled on a
+Executor Dispatcher design pattern.
+
+https://docs.google.com/drawings/d/1iXlBNqotXJiSbTQy9WcN9Z58sbP-eHD6A7kWIuIj1fw/edit?usp=sharing[ExecutorDispatcher
+Design Pattern]
+
+image:ExecutorDispatcher.png[ExecutorDispatcher.png,title="ExecutorDispatcher.png"]
+
+[[real-world-example-on-data-change-events-and-associated-apis]]
+== Real World Example on Data Change Events and Associated APIs
+
+This section will try do give a clear practical explanation of what of
+what data you get from each of the APIs you can use from within
+OnDataChanged()
+
+* getUpdatedConfigurationData()
+* getOriginalConfigurationData()
+* getCreatedConfigurationData()
+
+Out example will be based on the real model below and code to process
+its events. The DataListener is attached to the container level.
+
+------------------------------------------------------------------------
+
+module service-function-chain {
+
+  namespace "urn:cisco:params:xml:ns:yang:sfc-sfc";
+
+  prefix sfc-sfc;
+
+  import ietf-inet-types { prefix inet; }
+  import ietf-yang-types { prefix yang; }
+  import service-function {prefix sfc-sf; }
+
+
+  organization "Cisco Systems, Inc.";
+  contact "Reinaldo Penno <repenno@cisco.com>";
+
+
+  description
+    "This module contains a collection of YANG definitions for
+     managing service function chains."
+
+  revision 2014-07-01 {
+    description
+    "Revised based on Opendaylight Project feedback";
+  }
+
+  grouping service-function-chain-grouping {
+    list service-function-chain {
+      description
+        "A service chain defines the required functions and
+        associated order (service-function1 --> service-function 2) that
+        must be applied to packets and/or frames.  A service chain does
+        not specify the network location or specific instance of service
+        functions (e.g. firewall1 vs. firewall2).";
+      key "name";
+      leaf name {
+        type string;
+        description
+          "the name of the service function chain";
+      }
+      list sfc-service-function {
+        key "name";
+        leaf name {
+          type string;
+          description
+            "The name of the service function if known,
+            otherwise a generic unique string";
+        }
+        leaf type {
+          type string;
+          mandatory true;
+          description
+            "Service Function Type from service-function-type.yang.";
+        }
+        ordered-by user;
+        description
+          "A list of service functions that compose the service chain";
+      }
+    }
+  }
+
+  // Service Function Chains
+
+  container service-function-chains {
+    uses service-function-chain-grouping;
+  }
+}
+------------------------------------------------------------------------
+
+[[creating-of-a-single-function-chain]]
+=== Creating of a Single Function Chain
+
+In this case we create a singe SFC with a top-level PUT
+
+------------------------------------------------------------
+
+put /config/service-function-chain:service-function-chains/ 
+
+{
+  "service-function-chains ": {
+    "service-function-chain": [
+      {
+        "name": "Chain-1",
+        "sfc-service-function" : [
+          {
+          "name" : "dpi-nv",
+          "type" : "dpi"
+          },
+          {
+          "name" : "fw-ca",
+          "type" : "firewall"
+          }
+        ]
+      }
+    ]
+  }
+}
+------------------------------------------------------------
+
+[[data-from-getupdatedconfigurationdata]]
+==== Data from getUpdatedConfigurationData()
+
+getUpdatedConfigurationData() gets four data items seen in detail below
+
+1.  [0] is a single service function
+2.  [1] is a single service function
+3.  [2] is the entire ServiceFunctionChains (top-level container and
+down)
+4.  [3] is just a single chain, i.e., an entry in the
+ServiceFunctionChain list. We would have included many chains in the
+list.
+
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+dataUpdatedConfigurationObject = {java.util.Collections$UnmodifiableMap@11227} size = 4
+[0] = {java.util.Collections$UnmodifiableMap$UnmodifiableEntrySet$UnmodifiableEntry@11232}"KeyedInstanceIdentifier{targetType=interface org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.service.function.chain.SfcServiceFunction, path=[org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns...
+key: org.opendaylight.yangtools.yang.binding.KeyedInstanceIdentifier = {org.opendaylight.yangtools.yang.binding.KeyedInstanceIdentifier@11233}"KeyedInstanceIdentifier{targetType=interface org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.service.function.chain.SfcServiceFunction, path=[org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns...
+value: org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.service.function.chain.SfcServiceFunctionBuilder$SfcServiceFunctionImpl = {org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.service.function.chain.SfcServiceFunctionBuilder$SfcServiceFunctionImpl@11234}"SfcServiceFunction [_name=dpi-nv, _type=dpi, _key=SfcServiceFunctionKey [_name=dpi-nv], augmentation=[]]"
+_name = {java.lang.String@11260}"dpi-nv"
+_type = {java.lang.String@11261}"dpi"
+_key = {org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.service.function.chain.SfcServiceFunctionKey@11262}"SfcServiceFunctionKey [_name=dpi-nv]"
+augmentation = {java.util.Collections$EmptyMap@11259} size = 0
+
+[1] = {java.util.Collections$UnmodifiableMap$UnmodifiableEntrySet$UnmodifiableEntry@11235}"KeyedInstanceIdentifier{targetType=interface org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.service.function.chain.SfcServiceFunction, path=[org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns...
+key: org.opendaylight.yangtools.yang.binding.KeyedInstanceIdentifier = {org.opendaylight.yangtools.yang.binding.KeyedInstanceIdentifier@11236}"KeyedInstanceIdentifier{targetType=interface org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.service.function.chain.SfcServiceFunction, path=[org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns...
+value: org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.service.function.chain.SfcServiceFunctionBuilder$SfcServiceFunctionImpl = {org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.service.function.chain.SfcServiceFunctionBuilder$SfcServiceFunctionImpl@11237}"SfcServiceFunction [_name=fw-ca, _type=firewall, _key=SfcServiceFunctionKey [_name=fw-ca], augmentation=[]]"
+_name = {java.lang.String@11270}"fw-ca"
+_type = {java.lang.String@11271}"firewall"
+_key = {org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.service.function.chain.SfcServiceFunctionKey@11272}"SfcServiceFunctionKey [_name=fw-ca]"
+augmentation = {java.util.Collections$EmptyMap@11259} size = 0
+
+[2] = {java.util.Collections$UnmodifiableMap$UnmodifiableEntrySet$UnmodifiableEntry@11238}"InstanceIdentifier{targetType=interface org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.ServiceFunctionChains, path=[org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.ServiceFunctionChains]}" -> "Serv...
+key: org.opendaylight.yangtools.yang.binding.InstanceIdentifier = {org.opendaylight.yangtools.yang.binding.InstanceIdentifier@11239}"InstanceIdentifier{targetType=interface org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.ServiceFunctionChains, path=[org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.ServiceFunctionChains]}"
+value: org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.ServiceFunctionChainsBuilder$ServiceFunctionChainsImpl = {org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.ServiceFunctionChainsBuilder$ServiceFunctionChainsImpl@11240}"ServiceFunctionChains [_serviceFunctionChain=[ServiceFunctionChain [_name=Chain-1, _sfcServiceFunction=[SfcServiceFunction [_name=dpi-nv, _type=dpi, _key=SfcServiceFunctionKey [_name=dpi-nv], augmentation=[]], SfcServiceFunction [_name=fw-ca, _type=firew...
+_serviceFunctionChain = {java.util.ArrayList@11258} size = 1
+augmentation = {java.util.Collections$EmptyMap@11259} size = 0
+
+[3] = {java.util.Collections$UnmodifiableMap$UnmodifiableEntrySet$UnmodifiableEntry@11241}"KeyedInstanceIdentifier{targetType=interface org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.ServiceFunctionChain, path=[org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev1407...
+key: org.opendaylight.yangtools.yang.binding.KeyedInstanceIdentifier = {org.opendaylight.yangtools.yang.binding.KeyedInstanceIdentifier@11242}"KeyedInstanceIdentifier{targetType=interface org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.ServiceFunctionChain, path=[org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev1407...
+value: org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.ServiceFunctionChainBuilder$ServiceFunctionChainImpl = {org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.ServiceFunctionChainBuilder$ServiceFunctionChainImpl@11243}"ServiceFunctionChain [_name=Chain-1, _sfcServiceFunction=[SfcServiceFunction [_name=dpi-nv, _type=dpi, _key=SfcServiceFunctionKey [_name=dpi-nv], augmentation=[]], SfcServiceFunction [_name=fw-ca, _type=firewall, _key=SfcServiceFunctionKey [_name=fw-ca],...
+_name = {java.lang.String@11264}"Chain-1"
+_sfcServiceFunction = {java.util.ArrayList@11265} size = 2
+_key = {org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.ServiceFunctionChainKey@11266}"ServiceFunctionChainKey [_name=Chain-1]"
+augmentation = {java.util.Collections$EmptyMap@11259} size = 0
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+[[data-from-getupdatedconfigurationdata-1]]
+==== Data from getUpdatedConfigurationData()
+
+change.getOriginalConfigurationData() is null since there was nothing in
+the datastore tree
+
+[[data-from-getcreatedconfigurationdata]]
+==== Data from getCreatedConfigurationData()
+
+Same as getUpdatedConfigurationData()
+
+[[adding-another-single-function-chain]]
+=== Adding another Single Function Chain
+
+This is where it starts to get interesting. We will add another
+ServiceFunctionChain, i.e., there will no overwrite. Notice the full URI
+for a single ServiceFunctionChain
+
+-------------------------------------------------------------------------------------------
+
+put /config/service-function-chain:service-function-chains/service-function-chain/Chain-2/ 
+
+{
+  "service-function-chain": [
+    {
+      "name": "Chain-2",
+      "sfc-service-function" : [
+        {
+        "name" : "proxy-ny",
+        "type" : "proxy"
+        },
+        {
+        "name" : "napt44-nj",
+        "type" : "napt44"
+        }
+      ]
+    }
+  ]
+}
+-------------------------------------------------------------------------------------------
+
+[[data-from-getupdatedconfigurationdata-2]]
+==== Data from getUpdatedConfigurationData()
+
+getUpdatedConfigurationData() gets four data items seen in detail below
+
+1.  [0] is a single service function
+2.  [1] This is very interesting. This is entire ServiceFunctionChains
+top-level container again.
+3.  [2] is a single service function
+4.  [3] is just a single chain, i.e., an entry in the
+ServiceFunctionChain list. We would have included many chains in the
+list.
+
+Notice that the order of the map entries are different from before.
+
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+dataUpdatedConfigurationObject = {java.util.Collections$UnmodifiableMap@11615} size = 4
+[0] = {java.util.Collections$UnmodifiableMap$UnmodifiableEntrySet$UnmodifiableEntry@11619}"KeyedInstanceIdentifier{targetType=interface org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.service.function.chain.SfcServiceFunction, path=[org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns...
+key: org.opendaylight.yangtools.yang.binding.KeyedInstanceIdentifier = {org.opendaylight.yangtools.yang.binding.KeyedInstanceIdentifier@11620}"KeyedInstanceIdentifier{targetType=interface org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.service.function.chain.SfcServiceFunction, path=[org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns...
+value: org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.service.function.chain.SfcServiceFunctionBuilder$SfcServiceFunctionImpl = {org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.service.function.chain.SfcServiceFunctionBuilder$SfcServiceFunctionImpl@11621}"SfcServiceFunction [_name=napt44-nj, _type=napt44, _key=SfcServiceFunctionKey [_name=napt44-nj], augmentation=[]]"
+_name = {java.lang.String@11656}"napt44-nj"
+_type = {java.lang.String@11657}"napt44"
+_key = {org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.service.function.chain.SfcServiceFunctionKey@11658}"SfcServiceFunctionKey [_name=napt44-nj]"
+augmentation = {java.util.Collections$EmptyMap@11259} size = 0
+
+[1] = {java.util.Collections$UnmodifiableMap$UnmodifiableEntrySet$UnmodifiableEntry@11622}"InstanceIdentifier{targetType=interface org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.ServiceFunctionChains, path=[org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.ServiceFunctionChains]}" -> "Serv...
+key: org.opendaylight.yangtools.yang.binding.InstanceIdentifier = {org.opendaylight.yangtools.yang.binding.InstanceIdentifier@11623}"InstanceIdentifier{targetType=interface org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.ServiceFunctionChains, path=[org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.ServiceFunctionChains]}"
+value: org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.ServiceFunctionChainsBuilder$ServiceFunctionChainsImpl = {org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.ServiceFunctionChainsBuilder$ServiceFunctionChainsImpl@11624}"ServiceFunctionChains [_serviceFunctionChain=[ServiceFunctionChain [_name=Chain-1, _sfcServiceFunction=[SfcServiceFunction [_name=dpi-nv, _type=dpi, _key=SfcServiceFunctionKey [_name=dpi-nv], augmentation=[]], SfcServiceFunction [_name=fw-ca, _type=firew...
+_serviceFunctionChain = {java.util.ArrayList@11653} size = 2
+[0] = {org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.ServiceFunctionChainBuilder$ServiceFunctionChainImpl@11661}"ServiceFunctionChain [_name=Chain-1, _sfcServiceFunction=[SfcServiceFunction [_name=dpi-nv, _type=dpi, _key=SfcServiceFunctionKey [_name=dpi-nv], augmentation=[]], SfcServiceFunction [_name=fw-ca, _type=firewall, _key=SfcServiceFunctionKey [_name=fw-ca],...
+_name = {java.lang.String@11264}"Chain-1"
+_sfcServiceFunction = {java.util.ArrayList@11668} size = 2
+_key = {org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.ServiceFunctionChainKey@11669}"ServiceFunctionChainKey [_name=Chain-1]"
+augmentation = {java.util.Collections$EmptyMap@11259} size = 0
+[1] = {org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.ServiceFunctionChainBuilder$ServiceFunctionChainImpl@11662}"ServiceFunctionChain [_name=Chain-2, _sfcServiceFunction=[SfcServiceFunction [_name=proxy-ny, _type=proxy, _key=SfcServiceFunctionKey [_name=proxy-ny], augmentation=[]], SfcServiceFunction [_name=napt44-nj, _type=napt44, _key=SfcServiceFunctionKey [_name...
+_name = {java.lang.String@11641}"Chain-2"
+_sfcServiceFunction = {java.util.ArrayList@11665} size = 2
+_key = {org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.ServiceFunctionChainKey@11666}"ServiceFunctionChainKey [_name=Chain-2]"
+augmentation = {java.util.Collections$EmptyMap@11259} size = 0
+augmentation = {java.util.Collections$EmptyMap@11259} size = 0
+
+[2] = {java.util.Collections$UnmodifiableMap$UnmodifiableEntrySet$UnmodifiableEntry@11625}"KeyedInstanceIdentifier{targetType=interface org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.service.function.chain.SfcServiceFunction, path=[org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns...
+key: org.opendaylight.yangtools.yang.binding.KeyedInstanceIdentifier = {org.opendaylight.yangtools.yang.binding.KeyedInstanceIdentifier@11626}"KeyedInstanceIdentifier{targetType=interface org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.service.function.chain.SfcServiceFunction, path=[org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns...
+value: org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.service.function.chain.SfcServiceFunctionBuilder$SfcServiceFunctionImpl = {org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.service.function.chain.SfcServiceFunctionBuilder$SfcServiceFunctionImpl@11627}"SfcServiceFunction [_name=proxy-ny, _type=proxy, _key=SfcServiceFunctionKey [_name=proxy-ny], augmentation=[]]"
+_name = {java.lang.String@11647}"proxy-ny"
+_type = {java.lang.String@11648}"proxy"
+_key = {org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.service.function.chain.SfcServiceFunctionKey@11649}"SfcServiceFunctionKey [_name=proxy-ny]"
+augmentation = {java.util.Collections$EmptyMap@11259} size = 0
+
+[3] = {java.util.Collections$UnmodifiableMap$UnmodifiableEntrySet$UnmodifiableEntry@11628}"KeyedInstanceIdentifier{targetType=interface org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.ServiceFunctionChain, path=[org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev1407...
+key: org.opendaylight.yangtools.yang.binding.KeyedInstanceIdentifier = {org.opendaylight.yangtools.yang.binding.KeyedInstanceIdentifier@11629}"KeyedInstanceIdentifier{targetType=interface org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.ServiceFunctionChain, path=[org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev1407...
+value: org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.ServiceFunctionChainBuilder$ServiceFunctionChainImpl = {org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.ServiceFunctionChainBuilder$ServiceFunctionChainImpl@11630}"ServiceFunctionChain [_name=Chain-2, _sfcServiceFunction=[SfcServiceFunction [_name=proxy-ny, _type=proxy, _key=SfcServiceFunctionKey [_name=proxy-ny], augmentation=[]], SfcServiceFunction [_name=napt44-nj, _type=napt44, _key=SfcServiceFunctionKey [_name...
+_name = {java.lang.String@11641}"Chain-2"
+_sfcServiceFunction = {java.util.ArrayList@11642} size = 2
+_key = {org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.ServiceFunctionChainKey@11643}"ServiceFunctionChainKey [_name=Chain-2]"
+augmentation = {java.util.Collections$EmptyMap@11259} size = 0
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+[[data-from-getoriginalconfigurationdata]]
+==== Data from getOriginalConfigurationData()
+
+change.getOriginalConfigurationData() only gives the existing
+ServiceFunctionChain under the top-level container.
+
+*This is very important: It provided a top-down vertical slice of the
+tree to existing nodes.*
+
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+dataOriginalConfigurationObject = {java.util.Collections$UnmodifiableMap@11875} size = 1
+[0] = {java.util.Collections$UnmodifiableMap$UnmodifiableEntrySet$UnmodifiableEntry@11918}"InstanceIdentifier{targetType=interface org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.ServiceFunctionChains, path=[org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.ServiceFunctionChains]}" -> "Serv...
+key: org.opendaylight.yangtools.yang.binding.InstanceIdentifier = {org.opendaylight.yangtools.yang.binding.InstanceIdentifier@11880}"InstanceIdentifier{targetType=interface org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.ServiceFunctionChains, path=[org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.ServiceFunctionChains]}"
+value: org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.ServiceFunctionChainsBuilder$ServiceFunctionChainsImpl = {org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.ServiceFunctionChainsBuilder$ServiceFunctionChainsImpl@11881}"ServiceFunctionChains [_serviceFunctionChain=[ServiceFunctionChain [_name=Chain-1, _sfcServiceFunction=[SfcServiceFunction [_name=dpi-nv, _type=dpi, _key=SfcServiceFunctionKey [_name=dpi-nv], augmentation=[]], SfcServiceFunction [_name=fw-ca, _type=firew...
+_serviceFunctionChain = {java.util.ArrayList@11886} size = 1
+[0] = {org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.ServiceFunctionChainBuilder$ServiceFunctionChainImpl@11888}"ServiceFunctionChain [_name=Chain-1, _sfcServiceFunction=[SfcServiceFunction [_name=dpi-nv, _type=dpi, _key=SfcServiceFunctionKey [_name=dpi-nv], augmentation=[]], SfcServiceFunction [_name=fw-ca, _type=firewall, _key=SfcServiceFunctionKey [_name=fw-ca],...
+_name = {java.lang.String@11264}"Chain-1"
+_sfcServiceFunction = {java.util.ArrayList@11890} size = 2
+_key = {org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.ServiceFunctionChainKey@11891}"ServiceFunctionChainKey [_name=Chain-1]"
+augmentation = {java.util.Collections$EmptyMap@11259} size = 0
+augmentation = {java.util.Collections$EmptyMap@11259} size = 0
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+[[data-from-getcreatedconfigurationdata-1]]
+==== Data from getCreatedConfigurationData()
+
+*The important fact about the data returned from this API is that the
+top-level container is not present*
+
+getCreatedConfigurationData() gets three data items seen in detail below
+
+1.  [0] is a single service function
+2.  [1] is a single service function
+3.  [2] is just a single chain, i.e., an entry in the
+ServiceFunctionChain list. It is not the top-level container but
+actually the list under it even tough the DataListener is attached to
+the container level
+
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+dataCreatedConfigurationObject = {java.util.Collections$UnmodifiableMap@12036} size = 3
+[0] = {java.util.Collections$UnmodifiableMap$UnmodifiableEntrySet$UnmodifiableEntry@12040}"KeyedInstanceIdentifier{targetType=interface org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.service.function.chain.SfcServiceFunction, path=[org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns...
+key: org.opendaylight.yangtools.yang.binding.KeyedInstanceIdentifier = {org.opendaylight.yangtools.yang.binding.KeyedInstanceIdentifier@11620}"KeyedInstanceIdentifier{targetType=interface org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.service.function.chain.SfcServiceFunction, path=[org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns...
+value: org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.service.function.chain.SfcServiceFunctionBuilder$SfcServiceFunctionImpl = {org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.service.function.chain.SfcServiceFunctionBuilder$SfcServiceFunctionImpl@11621}"SfcServiceFunction [_name=napt44-nj, _type=napt44, _key=SfcServiceFunctionKey [_name=napt44-nj], augmentation=[]]"
+_name = {java.lang.String@11656}"napt44-nj"
+_type = {java.lang.String@11657}"napt44"
+_key = {org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.service.function.chain.SfcServiceFunctionKey@11658}"SfcServiceFunctionKey [_name=napt44-nj]"
+augmentation = {java.util.Collections$EmptyMap@11259} size = 0
+[1] = {java.util.Collections$UnmodifiableMap$UnmodifiableEntrySet$UnmodifiableEntry@12041}"KeyedInstanceIdentifier{targetType=interface org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.service.function.chain.SfcServiceFunction, path=[org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns...
+key: org.opendaylight.yangtools.yang.binding.KeyedInstanceIdentifier = {org.opendaylight.yangtools.yang.binding.KeyedInstanceIdentifier@11626}"KeyedInstanceIdentifier{targetType=interface org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.service.function.chain.SfcServiceFunction, path=[org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns...
+value: org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.service.function.chain.SfcServiceFunctionBuilder$SfcServiceFunctionImpl = {org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.service.function.chain.SfcServiceFunctionBuilder$SfcServiceFunctionImpl@11627}"SfcServiceFunction [_name=proxy-ny, _type=proxy, _key=SfcServiceFunctionKey [_name=proxy-ny], augmentation=[]]"
+_name = {java.lang.String@11647}"proxy-ny"
+_type = {java.lang.String@11648}"proxy"
+_key = {org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.service.function.chain.SfcServiceFunctionKey@11649}"SfcServiceFunctionKey [_name=proxy-ny]"
+augmentation = {java.util.Collections$EmptyMap@11259} size = 0
+[2] = {java.util.Collections$UnmodifiableMap$UnmodifiableEntrySet$UnmodifiableEntry@12042}"KeyedInstanceIdentifier{targetType=interface org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.ServiceFunctionChain, path=[org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev1407...
+key: org.opendaylight.yangtools.yang.binding.KeyedInstanceIdentifier = {org.opendaylight.yangtools.yang.binding.KeyedInstanceIdentifier@11629}"KeyedInstanceIdentifier{targetType=interface org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.ServiceFunctionChain, path=[org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev1407...
+value: org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.ServiceFunctionChainBuilder$ServiceFunctionChainImpl = {org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.ServiceFunctionChainBuilder$ServiceFunctionChainImpl@11630}"ServiceFunctionChain [_name=Chain-2, _sfcServiceFunction=[SfcServiceFunction [_name=proxy-ny, _type=proxy, _key=SfcServiceFunctionKey [_name=proxy-ny], augmentation=[]], SfcServiceFunction [_name=napt44-nj, _type=napt44, _key=SfcServiceFunctionKey [_name...
+_name = {java.lang.String@11641}"Chain-2"
+_sfcServiceFunction = {java.util.ArrayList@11642} size = 2
+_key = {org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.ServiceFunctionChainKey@11643}"ServiceFunctionChainKey [_name=Chain-2]"
+augmentation = {java.util.Collections$EmptyMap@11259} size = 0
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+[[deleting-of-a-single-function-chain]]
+=== Deleting of a Single Function Chain
+
+----------------------------------------------------------------------------------------------
+
+delete /config/service-function-chain:service-function-chains/service-function-chain/Chain-1/ 
+----------------------------------------------------------------------------------------------
+
+[[data-from-getupdatedconfigurationdata-3]]
+==== Data from getUpdatedConfigurationData()
+
+*Important: This API provides the present state of the datastore.
+Although the name is "updatedConfigurationData" is does not give any
+info on the ServiceFunctionChain that was deleted.*
+
+* [0] is the ServiceFunctionChains container and its existing
+configuration
+
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+dataUpdatedConfigurationObject = {java.util.Collections$UnmodifiableMap@12321} size = 1
+[0] = {java.util.Collections$UnmodifiableMap$UnmodifiableEntrySet$UnmodifiableEntry@12515}"InstanceIdentifier{targetType=interface org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.ServiceFunctionChains, path=[org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.ServiceFunctionChains]}" -> "Serv...
+key: org.opendaylight.yangtools.yang.binding.InstanceIdentifier = {org.opendaylight.yangtools.yang.binding.InstanceIdentifier@12326}"InstanceIdentifier{targetType=interface org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.ServiceFunctionChains, path=[org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.ServiceFunctionChains]}"
+value: org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.ServiceFunctionChainsBuilder$ServiceFunctionChainsImpl = {org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.ServiceFunctionChainsBuilder$ServiceFunctionChainsImpl@12327}"ServiceFunctionChains [_serviceFunctionChain=[ServiceFunctionChain [_name=Chain-2, _sfcServiceFunction=[SfcServiceFunction [_name=proxy-ny, _type=proxy, _key=SfcServiceFunctionKey [_name=proxy-ny], augmentation=[]], SfcServiceFunction [_name=napt44-nj, _...
+_serviceFunctionChain = {java.util.ArrayList@12483} size = 1
+[0] = {org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.ServiceFunctionChainBuilder$ServiceFunctionChainImpl@12485}"ServiceFunctionChain [_name=Chain-2, _sfcServiceFunction=[SfcServiceFunction [_name=proxy-ny, _type=proxy, _key=SfcServiceFunctionKey [_name=proxy-ny], augmentation=[]], SfcServiceFunction [_name=napt44-nj, _type=napt44, _key=SfcServiceFunctionKey [_name...
+_name = {java.lang.String@11641}"Chain-2"
+_sfcServiceFunction = {java.util.ArrayList@12487} size = 2
+_key = {org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.ServiceFunctionChainKey@12488}"ServiceFunctionChainKey [_name=Chain-2]"
+augmentation = {java.util.Collections$EmptyMap@11259} size = 0
+augmentation = {java.util.Collections$EmptyMap@11259} size = 0
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+[[data-from-getoriginalconfigurationdata-1]]
+==== Data from getOriginalConfigurationData()
+
+getOriginalConfigurationData() provides the state of the datastore
+before the delete operation
+
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+dataOriginalConfigurationObject = {java.util.Collections$UnmodifiableMap@12536} size = 4
+[0] = {java.util.Collections$UnmodifiableMap$UnmodifiableEntrySet$UnmodifiableEntry@12541}"KeyedInstanceIdentifier{targetType=interface org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.service.function.chain.SfcServiceFunction, path=[org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns...
+key: org.opendaylight.yangtools.yang.binding.KeyedInstanceIdentifier = {org.opendaylight.yangtools.yang.binding.KeyedInstanceIdentifier@12542}"KeyedInstanceIdentifier{targetType=interface org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.service.function.chain.SfcServiceFunction, path=[org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns...
+value: org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.service.function.chain.SfcServiceFunctionBuilder$SfcServiceFunctionImpl = {org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.service.function.chain.SfcServiceFunctionBuilder$SfcServiceFunctionImpl@12543}"SfcServiceFunction [_name=fw-ca, _type=firewall, _key=SfcServiceFunctionKey [_name=fw-ca], augmentation=[]]"
+_name = {java.lang.String@11270}"fw-ca"
+_type = {java.lang.String@11271}"firewall"
+_key = {org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.service.function.chain.SfcServiceFunctionKey@12575}"SfcServiceFunctionKey [_name=fw-ca]"
+augmentation = {java.util.Collections$EmptyMap@11259} size = 0
+
+[1] = {java.util.Collections$UnmodifiableMap$UnmodifiableEntrySet$UnmodifiableEntry@12544}"KeyedInstanceIdentifier{targetType=interface org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.service.function.chain.SfcServiceFunction, path=[org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns...
+key: org.opendaylight.yangtools.yang.binding.KeyedInstanceIdentifier = {org.opendaylight.yangtools.yang.binding.KeyedInstanceIdentifier@12545}"KeyedInstanceIdentifier{targetType=interface org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.service.function.chain.SfcServiceFunction, path=[org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns...
+value: org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.service.function.chain.SfcServiceFunctionBuilder$SfcServiceFunctionImpl = {org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.service.function.chain.SfcServiceFunctionBuilder$SfcServiceFunctionImpl@12546}"SfcServiceFunction [_name=dpi-nv, _type=dpi, _key=SfcServiceFunctionKey [_name=dpi-nv], augmentation=[]]"
+_name = {java.lang.String@11260}"dpi-nv"
+_type = {java.lang.String@11261}"dpi"
+_key = {org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.service.function.chain.SfcServiceFunctionKey@12571}"SfcServiceFunctionKey [_name=dpi-nv]"
+augmentation = {java.util.Collections$EmptyMap@11259} size = 0
+
+[2] = {java.util.Collections$UnmodifiableMap$UnmodifiableEntrySet$UnmodifiableEntry@12547}"InstanceIdentifier{targetType=interface org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.ServiceFunctionChains, path=[org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.ServiceFunctionChains]}" -> "Serv...
+key: org.opendaylight.yangtools.yang.binding.InstanceIdentifier = {org.opendaylight.yangtools.yang.binding.InstanceIdentifier@12548}"InstanceIdentifier{targetType=interface org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.ServiceFunctionChains, path=[org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.ServiceFunctionChains]}"
+value: org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.ServiceFunctionChainsBuilder$ServiceFunctionChainsImpl = {org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.ServiceFunctionChainsBuilder$ServiceFunctionChainsImpl@12549}"ServiceFunctionChains [_serviceFunctionChain=[ServiceFunctionChain [_name=Chain-1, _sfcServiceFunction=[SfcServiceFunction [_name=dpi-nv, _type=dpi, _key=SfcServiceFunctionKey [_name=dpi-nv], augmentation=[]], SfcServiceFunction [_name=fw-ca, _type=firew...
+_serviceFunctionChain = {java.util.ArrayList@12568} size = 2
+[0] = {org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.ServiceFunctionChainBuilder$ServiceFunctionChainImpl@12578}"ServiceFunctionChain [_name=Chain-1, _sfcServiceFunction=[SfcServiceFunction [_name=dpi-nv, _type=dpi, _key=SfcServiceFunctionKey [_name=dpi-nv], augmentation=[]], SfcServiceFunction [_name=fw-ca, _type=firewall, _key=SfcServiceFunctionKey [_name=fw-ca],...
+[1] = {org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.ServiceFunctionChainBuilder$ServiceFunctionChainImpl@12579}"ServiceFunctionChain [_name=Chain-2, _sfcServiceFunction=[SfcServiceFunction [_name=proxy-ny, _type=proxy, _key=SfcServiceFunctionKey [_name=proxy-ny], augmentation=[]], SfcServiceFunction [_name=napt44-nj, _type=napt44, _key=SfcServiceFunctionKey [_name...
+augmentation = {java.util.Collections$EmptyMap@11259} size = 0
+
+[3] = {java.util.Collections$UnmodifiableMap$UnmodifiableEntrySet$UnmodifiableEntry@12550}"KeyedInstanceIdentifier{targetType=interface org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.ServiceFunctionChain, path=[org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev1407...
+key: org.opendaylight.yangtools.yang.binding.KeyedInstanceIdentifier = {org.opendaylight.yangtools.yang.binding.KeyedInstanceIdentifier@12551}"KeyedInstanceIdentifier{targetType=interface org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.ServiceFunctionChain, path=[org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev1407...
+value: org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.ServiceFunctionChainBuilder$ServiceFunctionChainImpl = {org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.ServiceFunctionChainBuilder$ServiceFunctionChainImpl@12552}"ServiceFunctionChain [_name=Chain-1, _sfcServiceFunction=[SfcServiceFunction [_name=dpi-nv, _type=dpi, _key=SfcServiceFunctionKey [_name=dpi-nv], augmentation=[]], SfcServiceFunction [_name=fw-ca, _type=firewall, _key=SfcServiceFunctionKey [_name=fw-ca],...
+_name = {java.lang.String@11264}"Chain-1"
+_sfcServiceFunction = {java.util.ArrayList@12563} size = 2
+_key = {org.opendaylight.yang.gen.v1.urn.cisco.params.xml.ns.yang.sfc.sfc.rev140701.service.function.chain.grouping.ServiceFunctionChainKey@12564}"ServiceFunctionChainKey [_name=Chain-1]"
+augmentation = {java.util.Collections$EmptyMap@11259} size = 0
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+[[data-from-getcreatedconfigurationdata-2]]
+==== Data from getCreatedConfigurationData()
+
+getCreatedConfigurationData() is null since nothing was created
+
+[[problems-with-current-datachanged-apis]]
+== Problems with Current DataChanged APIs
+
+1.  The first problem is that there is no easy way to know what was
+deleted from the datastore. When a RESTconf Delete is used there is no
+API that gives you the deleted object. Remember that the
+UpdatedConfiguration() gives you the current state of the data store.
+
+[[json-in-and-out-of-md-sal-is-inconsistent]]
+== JSON in and out of MD-SAL is Inconsistent
+
+The JSON you send in and get out of MD-SAL should be consistent but
+today are not. *The Yang model is the contract, everything starts from
+the Yang model, therefore if I give the Yang model to somebody building
+a RESTserver they should have a good idea of what they will receive.*
+
+Therefore If I send the JSON below in the body of a PUT RESTconf and
+data store is populated, I expect to get the same JSON object when
+reading back from datastore and converting back to JSON.
+
+--------------------------------------------------
+
+{
+  "service-function-forwarders": {
+    "service-function-forwarder": [
+      {
+        "name": "ovs-4",
+        "path-id": 3,
+        "service-function-dictionary": [
+          {
+            "name": "fw-or",
+            "sf-data-plane-locator": {
+              "port": 5050,
+              "ip": "10.0.0.1"
+            },
+            "service-function-forwarder": "ovs-4",
+            "type": "firewall"
+          }
+        ]
+      }
+    ]
+  }
+}
+--------------------------------------------------
+
+Unfortunately what I get back is something quite different. There are
+many problems:
+
+* The yang names are mangled. Hyphens removed, case changed, others. I
+understand Java has conventions on variable names but then annotate
+variables, or provide a method that restore the proper Yang names when
+converting to JSON.
+* Certain elements that should not appear in the datastore (Yang
+constructs like Choice) find their way back to JSON in the form of full
+interface class names.
+* Revision numbers in certain elements. Yang models have revision
+numbers, a final static variable could hold the version instead of
+putting it on a JSON name or class names. *More and more I feel revision
+numbers in Yang classes and packages are a bad idea.*
+
+*After string processing* I managed to transform the JSON I originally
+get to the form below. The original is even more confusing.
+
+-----------------------------------------
+
+{
+  "name" : "ovs-4",
+  "key" : {
+    "name" : "ovs-4"
+  },
+  "transport" : null,
+  "pathId" : 3,
+  "sffDataPlaneLocator" : null,
+  "serviceFunctionDictionary" : [ {
+    "name" : "fw-or",
+    "key" : {
+      "name" : "fw-or"
+    },
+    "type" : "firewall",
+    "failmode" : null,
+    "ipMgmtAddress" : null,
+    "serviceFunctionForwarder" : "ovs-4",
+    "sfDataPlaneLocator" : {
+      "locatorType" : {
+        "port" : {
+          "value" : 5050
+        },
+        "ip" : {
+          "value" : "10.0.0.1",
+          "ipv4Address" : {
+            "value" : "10.0.0.1"
+          },
+          "ipv6Address" : null
+        }
+      }
+    }
+  } ]
+}
+-----------------------------------------
+
+I tried with both Gson (which as I understand uses reflection) and
+Jackson and both gave very similar bad results. I'm not sure there is a
+way around that unless changes are made to Yang tools.
+
+[[data-deserialization-issues-with-yang]]
+== Data Deserialization Issues with Yang
+
+During all these tests I spotted several limitations on the Yangtools
+Generated code. The limitations appears as a stack dump on the console
+after you create an element in the data store but before onDataChanged()
+is called.
+
+Actually I had to redo many SFC Yang models to try to overcome such
+limitations. These made the models worse than I would like. I do not
+have time to open a bug for each one at this point but off the top of my
+mind:
+
+1.  Any serious use of groupings makes the generated code barf when the
+data change listener is attached to a internal node such as a list.
+Groups within groups, reference to groups in containers, etc. Try
+yourself, super easy to reproduce.
+2.  Any serious use of identityrefs also makes the code barf. A classic
+case is have a base identity type, a derived reference type and many
+"registered" identities such as "Firewall", Napt44", etc. if you use the
+derived reference type as the "type" in another module the code barfs.
+
+Example of a barf:
+
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+osgi> 2014-07-08 00:57:26.309 PDT [pool-14-thread-1] WARN  o.o.y.s.b.g.i.RuntimeGeneratedMappingServiceImpl - Failed to deserialize entry (urn:cisco:params:xml:ns:yang:sfc-sfc?revision=2014-07-01)service-function-chains/(urn:cisco:params:xml:ns:yang:sfc-sfc?revision=2014-07-01)service-function-chain[{(urn:cisco:params:xml:ns:yang:sfc-sfc?revision=2014-07-01)name=Chain-1}]/(urn:cisco:params:xml:ns:yang:sfc-sfc?revision=2014-07-01)sfc-service-function[{(urn:cisco:params:xml:ns:yang:sfc-sfc?revision=2014-07-01)name=dpi-ut}]
+2014-07-08 00:57:26.318 PDT [pool-14-thread-1] WARN  o.o.c.m.s.b.i.AbstractForwardedDataBroker - Failed to transform (urn:cisco:params:xml:ns:yang:sfc-sfc?revision=2014-07-01)service-function-chains/(urn:cisco:params:xml:ns:yang:sfc-sfc?revision=2014-07-01)service-function-chain/(urn:cisco:params:xml:ns:yang:sfc-sfc?revision=2014-07-01)service-function-chain[{(urn:cisco:params:xml:ns:yang:sfc-sfc?revision=2014-07-01)name=Chain-1}]/(urn:cisco:params:xml:ns:yang:sfc-sfc?revision=2014-07-01)sfc-service-function/(urn:cisco:params:xml:ns:yang:sfc-sfc?revision=2014-07-01)sfc-service-function[{(urn:cisco:params:xml:ns:yang:sfc-sfc?revision=2014-07-01)name=dpi-ut}]=ImmutableMapEntryNode{nodeIdentifier=(urn:cisco:params:xml:ns:yang:sfc-sfc?revision=2014-07-01)sfc-service-function[{(urn:cisco:params:xml:ns:yang:sfc-sfc?revision=2014-07-01)name=dpi-ut}], value=[ImmutableLeafNode{nodeIdentifier=(urn:cisco:params:xml:ns:yang:sfc-sfc?revision=2014-07-01)type, value=dpi, attributes={}}, ImmutableLeafNode{nodeIdentifier=(urn:cisco:params:xml:ns:yang:sfc-sfc?revision=2014-07-01)name, value=dpi-ut, attributes={}}], attributes={}}, omitting it
+org.opendaylight.yangtools.yang.data.impl.codec.DeserializationException: Entry deserialization failed
+    at org.opendaylight.yangtools.sal.binding.generator.impl.RuntimeGeneratedMappingServiceImpl.fromDataDom(RuntimeGeneratedMappingServiceImpl.java:311) ~[bundlefile:na]
+    at org.opendaylight.controller.config.yang.md.sal.binding.impl.RuntimeMappingModule$RuntimeGeneratedMappingServiceProxy.fromDataDom(RuntimeMappingModule.java:151) ~[bundlefile:na]
+    at org.opendaylight.controller.md.sal.binding.impl.BindingToNormalizedNodeCodec.toBindingImpl(BindingToNormalizedNodeCodec.java:202) ~[bundlefile:na]
+    at org.opendaylight.controller.md.sal.binding.impl.BindingToNormalizedNodeCodec.toBinding(BindingToNormalizedNodeCodec.java:132) ~[bundlefile:na]
+    at org.opendaylight.controller.md.sal.binding.impl.BindingToNormalizedNodeCodec.toBinding(BindingToNormalizedNodeCodec.java:258) ~[bundlefile:na]
+    at org.opendaylight.controller.md.sal.binding.impl.AbstractForwardedDataBroker.toBinding(AbstractForwardedDataBroker.java:103) ~[bundlefile:na]
+    at org.opendaylight.controller.md.sal.binding.impl.AbstractForwardedDataBroker$TranslatedDataChangeEvent.getCreatedData(AbstractForwardedDataBroker.java:187) [bundlefile:na]
+    at org.opendaylight.controller.md.sal.binding.impl.AbstractForwardedDataBroker$TranslatedDataChangeEvent.toString(AbstractForwardedDataBroker.java:244) [bundlefile:na]
+    at java.lang.String.valueOf(String.java:2854) [na:1.7.0_51]
+    at java.lang.StringBuilder.append(StringBuilder.java:128) [na:1.7.0_51]
+    at org.opendaylight.controller.md.sal.binding.impl.LegacyDataChangeEvent$ConfigurationChangeEvent.toString(LegacyDataChangeEvent.java:201) [bundlefile:na]
+    at org.opendaylight.sfc.provider.SfcProviderSfcEntryDataListener.onDataChanged(SfcProviderSfcEntryDataListener.java:30) [bundlefile:na]
+    at org.opendaylight.controller.md.sal.binding.impl.ForwardedBackwardsCompatibleDataBroker$BackwardsCompatibleConfigurationDataChangeInvoker.onDataChanged(ForwardedBackwardsCompatibleDataBroker.java:452) [bundlefile:na]
+    at org.opendaylight.controller.md.sal.binding.impl.AbstractForwardedDataBroker$TranslatingDataChangeInvoker.onDataChanged(AbstractForwardedDataBroker.java:162) [bundlefile:na]
+    at org.opendaylight.controller.md.sal.dom.store.impl.ChangeListenerNotifyTask.run(ChangeListenerNotifyTask.java:33) [bundlefile:na]
+    at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:471) [na:1.7.0_51]
+    at java.util.concurrent.FutureTask.run(FutureTask.java:262) [na:1.7.0_51]
+    at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1145) [na:1.7.0_51]
+    at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:615) [na:1.7.0_51]
+    at java.lang.Thread.run(Thread.java:744) [na:1.7.0_51]
+Caused by: java.lang.IllegalStateException: Failed to lookup instantiated type for path SchemaPath [path=[(urn:cisco:params:xml:ns:yang:sfc-sfc?revision=2014-07-01)service-function-chains, (urn:cisco:params:xml:ns:yang:sfc-sfc?revision=2014-07-01)service-function-chain, (urn:cisco:params:xml:ns:yang:sfc-sfc?revision=2014-07-01)sfc-service-function], absolute=true]
+    at com.google.common.base.Preconditions.checkState(Preconditions.java:176) ~[bundlefile:na]
+    at org.opendaylight.yangtools.sal.binding.generator.impl.LazyGeneratedCodecRegistry.getClassForPath(LazyGeneratedCodecRegistry.java:201) ~[bundlefile:na]
+    at org.opendaylight.yangtools.sal.binding.generator.impl.InstanceIdentifierCodecImpl.deserializeNodeIdentifierWithPrecicates(InstanceIdentifierCodecImpl.java:108) ~[bundlefile:na]
+    at org.opendaylight.yangtools.sal.binding.generator.impl.InstanceIdentifierCodecImpl.deserializePathArgument(InstanceIdentifierCodecImpl.java:221) ~[bundlefile:na]
+    at org.opendaylight.yangtools.sal.binding.generator.impl.InstanceIdentifierCodecImpl.deserialize(InstanceIdentifierCodecImpl.java:69) ~[bundlefile:na]
+    at org.opendaylight.yangtools.sal.binding.generator.impl.RuntimeGeneratedMappingServiceImpl.fromDataDom(RuntimeGeneratedMappingServiceImpl.java:308) ~[bundlefile:na]
+    ... 19 common frames omitted
+2014-07-08 00:57:26.320 PDT [pool-14
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+[[data-commit-handler-issues]]
+== Data Commit Handler Issues
+
+1.  Commit Handler is called for every commit independent of attachment
+point. If I attach a Commit Handler to a Yang List in a specific model,
+I expect it to be called only for transaction at that level or lower,
+but it is called for every controller config transaction.
+2.  Even though I return a failed transaction from callback handler,
+data is still pushed to the datastore. Basically a RESTconf PUT request
+triggers the callback which returns "RpcResultBuilder. failed().build()"
+(I also tried returning null), but data is not rolled back. This does
+not agree with documentation and defeats the core value of this
+construct.
+
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+https://jenkins.opendaylight.org/controller/job/controller-merge/lastSuccessfulBuild/artifact/target/apidocs/org/opendaylight/controller/md/sal/common/api/data/DataCommitHandler.html
+
+"If error occured, the broker starts a commit rollback phase. "
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+If I change the code below to honor a failed RpcResult from Provider,
+the transaction still goes through. It seems there is no stopping
+RESTconf from failing a transaction
+
+----------------------------------------------------------------------------------------------------------------------------
+
+       return Futures.transform(dataStoreCommit, new Function<RpcResult<TransactionStatus>,RpcResult<TransactionStatus>>() {
+            @Override
+            public RpcResult<TransactionStatus> apply(final RpcResult<TransactionStatus> input) {
+                if(input.isSuccessful()) {
+                    for(DataCommitTransaction<InstanceIdentifier<? extends DataObject>, DataObject> subTx : subTrans ) {
+                        if (!subTx.finish().isSuccessful()) {  //<=== Changed Code
+                            LOG.error("Provider {} commit failed.", subTx.toString());
+                            RpcResult<TransactionStatus> rpcResult = RpcResultBuilder.<TransactionStatus>failed().build();
+                            return rpcResult;
+                        }
+                    }
+                } else {
+                    LOG.error("Tx: {} Rollback - Datastore commit failed.",tx.getIdentifier());
+                    for(DataCommitTransaction<InstanceIdentifier<? extends DataObject>, DataObject> subTx : subTrans ) {
+                        subTx.rollback();
+                    }
+                }
+                return input;
+            }
+        });
+----------------------------------------------------------------------------------------------------------------------------
+
+*It also important to point out that when I changed the code as above to
+honor the return value from provider, the initial controller
+configuration did not not go through as many errors were displayed.* .
+In other words, it seems people have been relying on this bug.

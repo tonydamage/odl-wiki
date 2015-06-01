@@ -1,0 +1,138 @@
+[[data-tree]]
+== Data Tree
+
+Data tree represents structured tree-like hierarchy of data structures.
+Structure of data tree is described by
+OpenDaylight_Controller:MD-SAL:Explained:Data Structure Definition[YANG
+models using basic building blocks] such as _list_, _leaf_ or
+_container_.
+
+Access and modifications of data tree is available via use of
+OpenDaylight Controller:MD-SAL:Explained:Messaging Patterns#Transactions[Data
+Transactions]
+
+Location of node in data tree is represented by
+link:#Instance_Identifier[Instance Identifier].
+
+[[types-of-data-trees]]
+=== Types of Data Trees
+
+* *Configuration Data Tree* - Configuration data tree represents
+intended state of system and usually is populated by consumers (users)
+of system or components (providers) in system
+* *Operational Data Tree* - Operational data tree represents export of
+state as is perceived by components in the system, and may be consumed
+by other consumers / providers as source of information for their
+actions.
+
+[[instance-identifier]]
+== Instance Identifier
+
+The Instance Identifier is a unique identifier of an element (location)
+in the yang data tree; basically it is the *path* to the node that
+uniquely identifies all the node's parent nodes. For unique
+identification of list elements it is required to specify key values as
+well.
+
+MD-SAL currently provides three different representations of Instance
+Identifier:
+
+* Binding APIs (Java generated DTOs)
+* DOM APIs
+* OpenDaylight_Controller:MD-SAL:Restconf[HTTP Restconf APIs]
+
+[[example]]
+=== Example
+
+[[example-1]]
+=== Example
+
+Consider the following simple YANG model for examples list:
+
+-----------------------------------------------
+module examples {
+    namespace &quot;urn:example:examples&quot;;
+    prefix inv;
+    revision &quot;2013-06-07&quot;;
+    container examples {
+        list example {
+            key &quot;id&quot;;
+            leaf &quot;id&quot; {
+                type &quot;string&quot;;
+            }
+        }
+    }
+}
+-----------------------------------------------
+
+And having one instance of node with name _foo_;
+
+Lets asume we want to create instance identifier for node foo, in
+following bindings/ formats:
+
+* YANG / XML / XPath version
++
+---------------------------------------
+/inv:nodes/inv:node[id=&quot;foo&quot;]
+---------------------------------------
+* Binding Independent version (yang-data-api)
++
+---------------------------------------------------------------------------------------------------------
+import org.opendaylight.yang.common.QName;
+import org.opendaylight.yang.data.api.InstanceIdentifier;
+
+QName nodes = QName.create(&quot;urn:example:examples&quot;,&quot;2013-06-07&quot;,&quot;examples&quot;);
+QName node = QName.create(&quot;urn:example:examples&quot;,&quot;2013-06-07&quot;,&quot;example&quot;);
+QName idName = QName.create(&quot;urn:example:examples&quot;,&quot;2013-06-07&quot;,&quot;id&quot;);
+InstanceIdentifier = InstanceIdentifier.builder()
+    .node(nodes)
+    .nodeWithKey(node,idName,&quot;foo&quot;)
+    .toInstance();
+---------------------------------------------------------------------------------------------------------
++
+*Note:* Last call _toInstance()_ does not return an instance of node,
+but Java version of Instance identifier which uniquely identifies node
+"foo";
+* Binding-Aware version (generated APIs)
++
+---------------------------------------------------------------------------------------------------------------------------------------------------------
+import org.opendaylight.yang.gen.urn.example.examples.rev130607.Examples;
+import org.opendaylight.yang.gen.urn.example.examples.rev130607.examples.Example;
+import org.opendaylight.yang.gen.urn.example.examples.rev130607.examples.ExampleKey;
+
+import org.opendaylight.yangtools.yang.binding.InstanceIdentifier;
+
+InstanceIdentifier&lt;Node&gt; identifier = InstanceIdentifier.builder(Examples.class).child(Example.class,new ExampleKey(&quot;foo&quot;)).toInstance();
+---------------------------------------------------------------------------------------------------------------------------------------------------------
++
+*Note:* Last call _toInstance()_ does not return an instance of node,
+but Java version of Instance identifier of Instance identifier which
+uniquely identifies node "foo";
+* *HTTP Restconf APIs*
+
+-------------------------------------------------------------------
+http://localhost:8080/restconf/config/examples:examples/example/foo
+-------------------------------------------------------------------
+
+*Note:* We assume that HTTP APIs are exposed on localhost, port 8080
+
+[[notification]]
+== Notification
+
+Notification represents event (and data associated with this event)
+which is explicitly modeled in YANG, and could be
+OpenDaylight Controller:MD-SAL:Explained:Messaging Patterns#Notifications[published
+/ received] by users of MD-SAL.
+
+Data structure of Notification is defined by
+OpenDaylight_Controller:MD-SAL:Explained:Data Structure Model[YANG
+Schema].
+
+[[rpc]]
+== RPC
+
+[[rpc-input]]
+=== RPC Input
+
+[[rpc-output]]
+=== RPC Output

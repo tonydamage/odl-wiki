@@ -1,0 +1,242 @@
+[[rest-api-recommendations-for-v2]]
+== REST API recommendations for V2
+
+[[this-document-only-applies-to-v2-of-the-existing-apis.]]
+==== This document only applies to V2 of the existing APIs.
+
+Some of the controller REST resource path hierarchies do not follow
+standard REST accepted norms. Since some of these APIs are already being
+used to develop applications, we don't have the flexibility in fixing
+them properly. This document provides general recommendations for making
+modifications to such APIs to ensure consistency. Newer modules can/may
+adopt proper REST recommendations if they are not dependent on the
+already defined resource types. The following APIs currently follow some
+of these recommendations in this document -
+
+*
+https://jenkins.opendaylight.org/controller/job/controller-merge/lastSuccessfulBuild/artifact/opendaylight/northbound/topology/target/site/wsdocs/index.html[Topology
+REST APIs]
+*
+https://jenkins.opendaylight.org/controller/job/controller-merge/lastSuccessfulBuild/artifact/opendaylight/northbound/hosttracker/target/site/wsdocs/index.html[Host
+Tracker REST APIs]
+*
+https://jenkins.opendaylight.org/controller/job/controller-merge/lastSuccessfulBuild/artifact/opendaylight/northbound/flowprogrammer/target/site/wsdocs/index.html[Flow
+Programmer REST APIs]
+*
+https://jenkins.opendaylight.org/controller/job/controller-merge/lastSuccessfulBuild/artifact/opendaylight/northbound/staticrouting/target/site/wsdocs/index.html[Static
+Routing REST APIs]
+*
+https://jenkins.opendaylight.org/controller/job/controller-merge/lastSuccessfulBuild/artifact/opendaylight/northbound/statistics/target/site/wsdocs/index.html[Statistics
+REST APIs]
+*
+https://jenkins.opendaylight.org/controller/job/controller-merge/lastSuccessfulBuild/artifact/opendaylight/northbound/subnets/target/site/wsdocs/index.html[Subnets
+REST APIs]
+*
+https://jenkins.opendaylight.org/controller/job/controller-merge/lastSuccessfulBuild/artifact/opendaylight/northbound/switchmanager/target/site/wsdocs/index.html[Switch
+Manager REST APIs]
+*
+[line-through]*https://jenkins.opendaylight.org/controller/job/controller-merge/lastSuccessfulBuild/artifact/opendaylight/northbound/usermanager/target/site/wsdocs/index.html[User
+Manager REST APIs]*
+*
+https://jenkins.opendaylight.org/controller/job/controller-merge/lastSuccessfulBuild/artifact/opendaylight/northbound/containermanager/target/site/wsdocs/index.html[Container
+Manager REST APIs]
+*
+https://jenkins.opendaylight.org/controller/job/controller-merge/lastSuccessfulBuild/artifact/opendaylight/northbound/connectionmanager/target/site/wsdocs/index.html[Connection
+Manager REST APIs]
+*
+https://jenkins.opendaylight.org/controller/job/controller-merge/lastSuccessfulBuild/artifact/opendaylight/northbound/networkconfiguration/bridgedomain/target/site/wsdocs/index.html[Network
+Configuration Bridge Domain REST APIs]
+
+[[components-of-a-nb-rest-bundle]]
+=== Components of a NB REST bundle
+
+JAX-RS root resource (a java class) annotated with @javax.ws.rs.Path
+services the requests. This is usually named as NorthBound.java
+
+* WEB-INF/web.xml - web application configuration
+
+:* Includes Jersey Servlet registration.
+
+:* The declaration of the
+org.opendaylight.controller.northbound.commons.NorthboundApplication
+
+* pom.xml
+
+:* Web-ContextPath - the context path with which the bundle will be
+registered with Tomcat. This is the name which is used to invoke the
+service over http.
+
+:* Jaxrs-Resources - The root resource classes (automatically inserted
+into MANIFEST by BND plugin)
+
+* enunciate.xml
+
+:* Defines the RestSubContext and the title for the auto generated docs.
+
+:* Dependencies of a NB REST bundle
+
+[[common-nb-services-commons.northbound-bundle]]
+=== Common NB services (commons.northbound bundle)
+
+* org.opendaylight.controller.northbound.commons.NorthboundApplication
+is the core class where most of the magic happens (Jackson JSON Provider
+registration, auto detection of JAXB types etc.). This class (or a
+subclass) should be declared as the javax.ws.rs.Application in the
+web.xml to take advantage of the common services.
+* Bundle scanner service - Bundles are scanned for JAXB & JAX-RS
+annotated types during bundle resolution. This allows us to inject these
+types into the JAXBContext without the user explicitly declaring them
+using @XmlSeeAlso annotation. The bundle scanner is leveraged in the
+NorthboundApplication class so any NB bundle extending for this
+automatically gets the services.
+
+[[creating-a-new-nb-rest-bundle]]
+=== Creating a new NB REST bundle
+
+The easiest way of introducing a new NB REST API is to copy an existing
+one and making the relevant changes as below:
+
+1.  pom.xml – update the artifact-name , Web-ContextPath and
+dependencies.
+2.  enunciate.xml – update the defaultRestSubContext and the description
+3.  src/main/java/…/*Northbound*.java – Rename/Update the request
+handler and the necessary logic as required.
+4.  src/main/test/… - Add necessary unit tests.
+5.  commons/northbound-integrationtest module - Add necessary
+integration tests.
+6.  Reference the bundle from the distribution assembly descriptor to be
+included in the distribution.
+
+[[recommendations]]
+=== Recommendations
+
+* JAX-RS root resources should be named as Northbound.java
+
+:* Eg: SubnetsNorthbound, HierarchyNorthbound.
+
+* Resource naming
+
+:* Ensure you use the same name and format if a resource is already
+being used in the existing NB REST APIs.
+
+::* Eg: @Path("/\{containerName}/subnet/\{subnetName}")
+
+::* Eg:
+@Path("/\{containerName}/node/\{nodeType}/\{nodeId}/staticFlow/\{name}")
+
+:* Ensure you qualify a resource by its type in the URI
+
+::* Eg: Use /customer/1234/order/666 instead of /customer/order/1234/666
+
+* When retrieving a listing of resources with GET ensure that we use a
+plural for the resource type being listed
+
+:* Eg: @Path("/\{containerName}/subnets")
+
+:* Eg: @Path("/\{containerName}/userLinks")
+
+* If a resource type is common, attempt to abstract it out to
+commons-northbound module for reuse.
+
+:* Eg: Specialized aggregation types (StringList, StringProperty etc.)
+
+* Creating a resource (PUT is preferred and recommended. See PUT vs POST
+discussion below)
+
+:* Use PUT (for most cases)
+
+::* If resource path of the resource to be created is already known.
+
+::* Ensure the method is idempotent (from the server state perspective).
+
+:* Use POST (for limited usecases)
+
+::* If the resource path of the resource to be created is not known
+before hand by the client.
+
+::* Ensure that the response contains a 'Location' header pointing to
+the URI of the resource(s) created by the server.
+
+:* Respond with response status 201 when the operation is successful
+(CREATED)
+
+:* In case of conflicts respond with an appropriate error message.
+
+* GET, PUT and DELETE are idempotent. Ensure you follow the rules of
+idempotency when writing the service methods.
+* The use of @QueryParams is reserved for filtering and pagination (for
+retrieve operations) and should be avoided for mutate (PUT, POST,
+DELETE) operations.
+* Avoid the use of @XmlAttribute types
+
+:* JSON handles attributes by prefixing the names with ‘@’. While
+attributes make XML less verbose, JSON interpretation can be a little
+confusing when differentiating between elements and attributes. As a
+general rule we should avoid the use of attributes.
+
+[[put-vs-post]]
+===== PUT vs POST
+
+Both PUT and POST can be used for creating and modifying resources. The
+main difference between them is that PUT is idempotent (repeating a
+request multiple times shouldn't change the state of the server). For
+the APIs which have been identified above, we are recommending using PUT
+for creating resources because looking at all the current usages, in
+most of the cases the client knows the URL to the resource being
+created. For the limited cases where the client is unsure about the
+resource path, POST should be used.
+
+[[camelcase-vs-snake_case]]
+===== CamelCase vs Snake_case
+
+Always use camelCase to represent data types in the request and response
+payloads. If a resource type is being used in a URI and it is already
+represented in a request/resource body, try to use the same
+representation.
+
+[[handling-errors]]
+=== Handling Errors
+
+* Use the proper response code when encountering errors.
+
+:* 400 level errors are appropriate in most cases involving user input.
+
+:* 500 (INTERNAL_SERVER_ERROR) should only be used in cases where we are
+unable to determine the root cause.
+
+* Use
+org.opendaylight.controller.northbound.commons.utils.NorthboundUtils to
+convert Status to a proper response messages.
+* Details on the commonly used HTTP response codes can be found at
+
+:*
+http://docs.oracle.com/javaee/6/api/javax/ws/rs/core/Response.Status.html
+
+:* http://www.w3.org/Protocols/rfc2616/rfc2616-sec10.html#sec10.2.3
+
+[[documentation]]
+=== Documentation
+
+We use enunciate to generate the REST API documentation. Enunciate works
+off the javadoc comments that the JAXB types are annotated with. Its
+important that all JAXB types hava proper javadoc comments.
+
+* Read enunciate generated docs for the REST API you are exposing. (You
+can locate the generated docs at target/site/wsdocs/index.html after
+building the module.)
+* Ensure that all the methods are properly documented with examples.
+HTTP requests can be sent out by using ‘curl’, ‘wget’ or another tool to
+get the actual HTTP headers and responses.
+* Enunciate configuration can be found in enunciate.xml
+
+[[references]]
+=== References
+
+*
+https://s3.amazonaws.com/tfpearsonecollege/bestpractices/RESTful+Best+Practices.pdf[
+RESTful Best Practices ]
+*
+http://my.safaribooksonline.com/book/web-development/web-services/9780596529260[
+RESTFul Web Services ]
+* http://restcookbook.com/[ REST cookbook ]
+

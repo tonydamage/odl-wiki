@@ -1,0 +1,321 @@
+[[introduction]]
+= Introduction
+
+Spectrometer is a fork of the OpenStack
+https://github.com/stackforge/stackalytics[Stackalytics] project. It's
+goal is to provide insight in to the contributions of the OpenDaylight
+community in a transparent fashion. Spectrometer inherits Stackalytics
+promise to provide "transparent and meaningful" statistics...
+Transparency is important so that the community can have confidence that
+all calculations are correct and fair. So "transparent" means that
+anyone can double check the methods of calculation Spectrometer uses.
+Meanwhile, results must be meaningful to be useful. "Meaningful" means
+that anyone may submit a correction that will adjust the influence of
+appropriate statistical data. For example, auto-generated code, mass
+renaming, automatic refactoring, auto-generated config files, and so on
+can artificially inflate various statistics. Spectrometer makes it
+possible to avoid these problems as they're discovered.
+
+[[description]]
+= Description
+
+Spectrometer is a service that collects and processes development
+activity data such as commits, lines of code changed, and code reviews
+and presents this in a convenient web dashboard. The Spectrometer
+dashboard makes it possible to view data by project, company,
+contributor, and other factors.
+
+The primary data sources for Stackalytics are the OpenDaylight Git
+repositories and the Gerrit review history.
+
+[[git-commits-history]]
+= Git commits history
+
+Spectrometer process three major metrics for OpenDaylight contribution:
+
+* Number of commits
+* Number of modified files
+* Number of modified lines
+
+Basic code related statistics are retrieved from the output of the
+following command:
+
+`git log --pretty="commit_id:'%H%ndate:%at%nauthor:%an%nauthor_email:%ae%nsubject:%s%nmessage:%b%n'" --shortstat -M --no-merges`
+
+The output from this command looks something like this:
+
+`commit_id:b5a416ac344160512f95751ae16e6612aefd4a57` +
+`date:1369119386` +
+`author:Akihiro MOTOKI` +
+`author_email:motoki@da.jp.nec.com` +
+`subject:Remove class-based import in the code repo` +
+message:Fixes[`message:Fixes`]` bug 1167901` +
+`This commit also removes backslashes for line break.` +
+`Change-Id: Id26fdfd2af4862652d7270aec132d40662efeb96` +
+`diff_stat:` +
+`21 files changed, 340 insertions(+), 408 deletions(-)`
+
+This commit changes 21 files and 340 + 408 = 748 LOC (Line Of Code).
+I.e. LOC is a sum of insertions and deletions.
+
+[[company-affiliation]]
+= Company affiliation
+
+Company affiliation for each commit author is determined according to
+the following rules:
+
+* First Spectrometer checks the domain of author email. If the domain is
+in the Spectrometer configuration file
+(https://github.com/dave-tucker/spectrometer/blob/master/etc/default_data.json[default_data.json]),
+then the affiliation for the commit is determined based on the email
+address.
+* If the email domain doesn't provide enough information then the commit
+is affiliated with *independent
+
+The OpenDaylight LDAP ID is used as a primary key for further author
+identification. Stackalytics stores profiles for known contributors in
+the same configuration file
+(https://github.com/dave-tucker/spectrometer/blob/master/etc/default_data.json[default_data.json]).
+This profile has a historical list of contributor affiliations. For
+example:
+
+`   {` +
+`      "user_name": "Dave Tucker",` +
+`      "ldap_id": "davetucker",` +
+`      "companies": [` +
+`        {` +
+`          "company_name": "Hewlett-Packard",` +
+`          "end_date": "2014-Apr-21"` +
+`        },` +
+`        {` +
+`          "company_name": "RedHat",` +
+`          "end_date": null` +
+`        }` +
+`      ],` +
+`      "emails": [` +
+`        "dave@dtucker.co.uk",` +
+`        "dave.j.tucker@hp.com",` +
+`        "djt@redhat.com"` +
+`      ]` +
+`   }`
+
+[[gerrit-reviews-history]]
+= Gerrit reviews history
+
+Gerrit provides a command line interface for retrieval of review source
+data. Authorized users can connect to git.opendaylight.org via ssh and
+execute the following command:
+
+`gerrit query --all-approvals --patch-sets --format JSON module branch:master limit:100`
+
+This command outputs a list of the latest reviews on the module.
+Spectrometer parses this information and stores it in run-time storage.
+The web front end pools run-time storage for any new records and changes
+in existing records, and retrieves data into memory for real-time
+processing.
+
+Spectrometer provides the following analytics for reviews:
+
+* Number of reviews
+* Statistics of positive and negative reviews
+* Ratio of positive to negative reviews.
+
+[[mailing-list-activity]]
+= Mailing list activity
+
+Spectrometer polls mailing list activity via the web-based OpenDaylight
+archives. In the Spectrometer dashboard, mailing list activity is
+presented in the same way as commits and reviews. Spectrometer searches
+the following places to choose the OpenStack module to which an email is
+related, in order:
+
+* Module name in brackets in email subject
+* Module name without brackets in email subject
+
+If none of the above locations yields a known module, the email is
+attributed to the 'unknown' module. The list of tracked web pages with
+mail archives is managed in
+https://github.com/dave-tucker/spectrometer/blob/master/etc/default_data.json[default_data.json]
+under the section marked 'mail_lists'.
+
+[[commit-metrics-corrections-and-a-common-sense-approach]]
+= Commit metrics corrections and a common sense approach
+
+LOC is an unreliable metric as it can be easily skewed by large scale
+renaming and refactoring.
+
+Spectrometer provides a framework for a community-driven correction
+process. It works as follows:
+
+Corrections are stored in the
+[https://github.com/dave-tucker/spectrometer/blob/master/etc/corrections.json[corrections.json]
+JSON file in the Spectrometer repo.
+
+These corrections look something like this:
+
+\{
+
+`  "corrections": [` +
+`      {` +
+`          "commit_id": "ee3fe4e836ca1c81e50a8324a9b5f982de4fa97f",` +
+`          "correction_comment": "Reset LOC to 0",` +
+`          "lines_added": 0,` +
+`          "lines_deleted": 0` +
+`      }` +
+`  ]`
+
+}
+
+The structure of these records is self-descriptive, and any OpenDaylight
+contributor can file a bug and provide a patchset for this file in order
+to apply a particular correction. This patchset goes through the
+standard review process and as soon as it merges into the upstream
+project, the changes are immediately visible in the Spectrometer data.
+Note that this process is driven by the community and should not be used
+for improper manipulation of statistics. Corrected commits are marked
+with comments in RED in the web dashboard and are fully transparent,
+should anyone else wish to make further challenges.
+
+This framework was designed in order to make statistical data more
+reliable and representative. The following common sense approach should
+be used:
+
+* Commits that contain auto-generated files should be adjusted in order
+to represent the amount of effort actually produced by the contributor,
+not including generated output.
+* Commits that contain the result of automatic code refactoring should
+be adjusted accordingly.
+* Commits that are the result of improperly renamed files (shell rename
+instead of git rename) should be zeroed.
+* Commits with binary and 3rd party files should adjusted accordingly.
+
+[[tracked-projects-and-classification]]
+= Tracked projects and classification
+
+Spectrometer is able to track any project that uses the standard
+OpenDaylight development infrastructure of Git and Gerrit. Stackalytics
+stores a list of projects in its main config file. Any OpenDaylight
+contributor can file a bug and provide a patchset for the addition of an
+untracked project. The repos section represents the list of tracked
+projects. It has the following format:
+
+` "repos": [` +
+`   {` +
+`     "uri": "`git://github.com/opendaylight/controller.git[`git://github.com/opendaylight/controller.git`]`",` +
+`     "module": "controller",` +
+`     "organization": "opendaylight"` +
+`   },` +
+`   {` +
+`     "uri": "`git://github.com/opendaylight/openflowplugin.git[`git://github.com/opendaylight/openflowplugin.git`]`",` +
+`     "module": "openflowplugin",` +
+`     "organization": "opendaylight"` +
+`   },` +
+`   {` +
+`     "uri": "`git://github.com/opendaylight/openflowjava.git[`git://github.com/opendaylight/openflowjava.git`]`",` +
+`     "module": "openflowjava",` +
+`     "organization": "opendaylight"` +
+`   },` +
+`   {` +
+`     "uri": "`git://github.com/opendaylight/yangtools.git[`git://github.com/opendaylight/yangtools.git`]`",` +
+`     "module": "yangtools",` +
+`     "organization": "opendaylight"` +
+`   },` +
+`   {` +
+`     "uri": "`git://github.com/opendaylight/ovsdb.git[`git://github.com/opendaylight/ovsdb.git`]`",` +
+`     "module": "ovsdb",` +
+`     "organization": "opendaylight"` +
+`   },` +
+`   {` +
+`     "uri": "`git://github.com/opendaylight/toolkit.git[`git://github.com/opendaylight/toolkit.git`]`",` +
+`     "module": "toolkit",` +
+`     "organization": "opendaylight"` +
+`   },` +
+`   {` +
+`     "uri": "`git://github.com/opendaylight/bgpcep.git[`git://github.com/opendaylight/bgpcep.git`]`",` +
+`     "module": "bgpcep",` +
+`     "organization": "opendaylight"` +
+`   },` +
+`   {` +
+`     "uri": "`git://github.com/opendaylight/lispflowmapping.git[`git://github.com/opendaylight/lispflowmapping.git`]`",` +
+`     "module": "lispflowmapping",` +
+`     "organization": "opendaylight"` +
+`   },` +
+`   {` +
+`     "uri": "`git://github.com/opendaylight/vtn.git[`git://github.com/opendaylight/vtn.git`]`",` +
+`     "module": "vtn",` +
+`     "organization": "opendaylight"` +
+`   },` +
+`   {` +
+`     "uri": "`git://github.com/opendaylight/snmp4sdn.git[`git://github.com/opendaylight/snmp4sdn.git`]`",` +
+`     "module": "snmp4sdn",` +
+`     "organization": "opendaylight"` +
+`   },` +
+`   {` +
+`     "uri": "`git://github.com/opendaylight/dlux.git[`git://github.com/opendaylight/dlux.git`]`",` +
+`     "module": "dlux",` +
+`     "organization": "opendaylight"` +
+`   },` +
+`   {` +
+`     "uri": "`git://github.com/opendaylight/integration.git[`git://github.com/opendaylight/integration.git`]`",` +
+`     "module": "integration",` +
+`     "organization": "opendaylight"` +
+`   },` +
+`   {` +
+`     "uri": "`git://github.com/opendaylight/opendove.git[`git://github.com/opendaylight/opendove.git`]`",` +
+`     "module": "opendove",` +
+`     "organization": "opendaylight"` +
+`   },` +
+`   {` +
+`     "uri": "`git://github.com/opendaylight/groupbasedpolicy.git[`git://github.com/opendaylight/groupbasedpolicy.git`]`",` +
+`     "module": "groupbasedpolicy",` +
+`     "organization": "opendaylight"` +
+`   },` +
+`   {` +
+`     "uri": "`git://github.com/opendaylight/affinity.git[`git://github.com/opendaylight/affinity.git`]`",` +
+`     "module": "affinity",` +
+`     "organization": "opendaylight"` +
+`   },` +
+`   {` +
+`     "uri": "`git://github.com/opendaylight/net-virt-platform.git[`git://github.com/opendaylight/net-virt-platform.git`]`",` +
+`     "module": "net-virt-platform",` +
+`     "organization": "opendaylight"` +
+`   },` +
+`   {` +
+`     "uri": "`git://github.com/opendaylight/defense4all.git[`git://github.com/opendaylight/defense4all.git`]`",` +
+`     "module": "defense4all",` +
+`     "organization": "opendaylight"` +
+`   },` +
+`   {` +
+`     "uri": "`git://github.com/opendaylight/defense4all.git[`git://github.com/opendaylight/defense4all.git`]`",` +
+`     "module": "defense4all",` +
+`     "organization": "opendaylight"` +
+`   }` +
+` ],`
+
+A projects status in the project lifecycle is gathered from the
+[https://github.com/dave-tucker/spectrometer/blob/master/etc/programs.yaml[programs.yaml]
+file. The groups used are as follows:
+
+* Incubated - has property incubated-since
+* Bootstrap - has property bootstrapped-since
+* Mature - has property mature-since
+* Core - has property core-since
+* Other - all other projects
+
+[[spectrometer-api]]
+= Spectrometer API
+
+Spectrometer also offers a API. Full documentation is available
+http://stackalytics.readthedocs.org/en/latest/userdoc/api_v1.0.html[here]
+
+[[release-notes]]
+= Release Notes
+
+0.1 - Initial Release
+
+[[roadmap]]
+= Roadmap
+
+* Add a "Region" view to see contributions per region and distribution
+of contributors per region
+

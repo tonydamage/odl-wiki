@@ -1,0 +1,55 @@
+[[run.sh]]
+= run.sh
+
+Main startup script for integration is in distributions/base:
+https://git.opendaylight.org/gerrit/gitweb?p=integration.git;a=blob;f=distributions/base/src/assemble/resources/run.sh;hb=HEAD
+
+[[parameter--of13]]
+== Parameter -of13
+
+This parameter is supposed to switch between (old) _openflow plugin
+OF-1.0 only_ and (new) openflow plugin _OF-1.0/1.3_. Requirements:
+
+1.  *OF-1.0 only* (default)
+* need osgi filter in order to ignore the _OF-1.0/1.3_ bundle
+* configSubsystem configuration for _OF-1.0/1.3_ must NOT be present in
+configuration/initial folder
+2.  *OF-1.0/1.3* (w/ -of13 parameter)
+* need osgi filter in order to ignore the _OF-1.0 only_ bundle
+* configSubsystem configuration for _OF-1.0/1.3_ must be present in
+configuration/initial folder
+
+[[strategy]]
+=== Strategy
+
+Config file for *OF-1.0/1.3* is copied into
+*configuration/initial.available* by maven assembly plugin. In case it
+is needed, symbolic link is created in *configuration/initial*.
+Otherwise all symbolic links are wiped out from *configuration/initial*.
+
+Also there are osgi filters causing osgi to ignore bundles which match
+the filter.
+
+[[corresponding-part-in-script]]
+=== Corresponding part in script
+
+First step is to wipe out all symbolic links from
+*configuration/initial*.
+
+`# clean available optional configurations (links)` +
+`find configuration/initial -type l -exec rm {} \;`
+
+Then the default filter is set (in order to ignore _OF-1.0/1.3_ bundles)
+
+`# OF Filter selection` +
+`OF_FILTER="org.opendaylight.(openflowplugin|openflowjava)"`
+
+In case the -of13 parameter is present, filter is changed (in order to
+ignore _OF-1.0 only_ bundles) and symbolic links are created
+
+`if (( $OF13 != 0 )); then` +
+`    OF_FILTER="org.opendaylight.controller.(thirdparty.org.openflow|protocol_plugins.openflow)"` +
+`    while read ofConfig; do` +
+`        ln -s ../initial.available/$(basename ${ofConfig}) configuration/initial/` +
+`    done < <(find configuration/initial.available -name '*openflowplugin.xml')` +
+`fi`

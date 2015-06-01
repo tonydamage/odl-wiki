@@ -1,0 +1,233 @@
+[[gerrit-setup]]
+== Gerrit Setup
+
+Code reviews are enabled through Gerrit.
+OpenDaylight Controller:Gerrit Setup[Set up Gerrit] for use.
+
+Note: You will need to perform the
+OpenDaylight Controller:Gerrit Setup[Gerrit Setup] before you can access
+git via ssh as described below.
+
+[[pull-code-via-git-cli]]
+== Pull code via git CLI
+
+Pull the code by cloning the LispFlowMapping repository.
+
+-------------------------------------------------------------------------
+git clone ssh://<username>@git.opendaylight.org:29418/lispflowmapping.git
+-------------------------------------------------------------------------
+
+(or if you just want to do an anonymous git clone, you can use:
+
+-------------------------------------------------------------------
+git clone https://git.opendaylight.org/gerrit/p/lispflowmapping.git
+-------------------------------------------------------------------
+
+)
+
+[[setup-gerrit-change-id-commit-msg-hook]]
+== Setup Gerrit Change-id Commit Msg Hook
+
+This command inserts a unique Change-Id tag in the footer of a commit
+message. This step is optional but highly recommended for tracking
+changes.
+
+----------------------------------------------------------------------------
+cd lispflowmapping
+scp -p -P 29418 <username>@git.opendaylight.org:hooks/commit-msg .git/hooks/
+chmod 755 .git/hooks/commit-msg
+----------------------------------------------------------------------------
+
+[[hack-the-code]]
+== Hack the code
+
+The following tasks are used to help you hack the code.
+
+[[build-the-code]]
+=== Build the code
+
+-----------------
+cd distribution/
+mvn clean install
+-----------------
+
+* To run without unitests you can skip building those tests running the
+following:
+
+------------------------------------
+mvn clean install -DskipTests 
+/* instead of "mvn clean install" */
+------------------------------------
+
+[[run-the-controller]]
+=== Run the controller
+
+-------------------------------------------------------------------------------
+cd target/lispflowmapping-distribution-0.1.0-SNAPSHOT-osgipackage/opendaylight/
+./run.sh
+-------------------------------------------------------------------------------
+
+And point your browser at http://localhost:8080/
+
+image:OpenDaylight - Login.jpg[OpenDaylight - Login.jpg,title="OpenDaylight - Login.jpg"]
+
+There is much much more complete documentation on running the controller
+in the OpenDaylight Controller:Installation[Installation Guide].
+
+[[setup-eclipse]]
+== Setup Eclipse
+
+---------------------------------------------------------------------------------------------------
+1. Run Eclipse (Kepler is the current version).
+2. Open Git Repository perspective.
+3. Add an existing repository, and choose the Lisp Flow Mapping repository that was pulled earlier.
+4. Import existing Maven projects, and choose the following under the lispflowmapping directory:
+    * api/pom.xl
+    * implementation/pom.xml
+---------------------------------------------------------------------------------------------------
+
+[[commit-the-code-via-git-cli]]
+== Commit the code via git CLI
+
+Note: To be accepted, all code must come with a
+http://elinux.org/Developer_Certificate_Of_Origin[developer certificate
+of origin] as expressed by having a Signed-off-by. This means that you
+are asserting that you have made the change and you understand that the
+work was done as part of an open-source license.
+
+----------------------------------------------------------------------------
+Developer's Certificate of Origin 1.1
+
+        By making a contribution to this project, I certify that:
+
+        (a) The contribution was created in whole or in part by me and I
+            have the right to submit it under the open source license
+            indicated in the file; or
+
+        (b) The contribution is based upon previous work that, to the best
+            of my knowledge, is covered under an appropriate open source
+            license and I have the right under that license to submit that
+            work with modifications, whether created in whole or in part
+            by me, under the same open source license (unless I am
+            permitted to submit under a different license), as indicated
+            in the file; or
+
+        (c) The contribution was provided directly to me by some other
+            person who certified (a), (b) or (c) and I have not modified
+            it.
+
+        (d) I understand and agree that this project and the contribution
+            are public and that a record of the contribution (including all
+            personal information I submit with it, including my sign-off) is
+            maintained indefinitely and may be redistributed consistent with
+            this project or the open source license(s) involved.
+----------------------------------------------------------------------------
+
+Mechanically you do it this way
+
+--------------------
+git commit --signoff
+--------------------
+
+You will be prompted for a commit message, and if you are fixing a
+buzilla bug, you can add that to your commit message as well and it will
+get linked from the Gerrit:
+
+-------------------------------------------------------------------
+Fix for bug 2.
+
+Signed-off-by: Ed Warnicke <eaw@cisco.com>
+
+# Please enter the commit message for your changes. Lines starting
+# with '#' will be ignored, and an empty message aborts the commit.
+# On branch master
+# Changes to be committed:
+#   (use "git reset HEAD <file>..." to unstage)
+#
+#       modified:   README
+#
+-------------------------------------------------------------------
+
+[[pull-the-code-changes-via-git-cli]]
+== Pull the code changes via git CLI
+
+Use git pull to get the latest changes from the remote repository
+
+------------------------------------
+git pull origin HEAD:refs/for/master
+------------------------------------
+
+[[push-the-code-via-git-cli]]
+== Push the code via git CLI
+
+Use git push to push your changes back to the remote repository.
+
+-------------------------------------
+git push  origin HEAD:refs/for/master
+-------------------------------------
+
+You will get a message pointing you to your gerrit request like:
+
+-----------------------------------------------------
+remote: Resolving deltas: 100% (2/2)
+remote: Processing changes: new: 1, refs: 1, done    
+remote: 
+remote: New Changes:
+remote:   http://git.opendaylight.org/gerrit/64
+remote: 
+-----------------------------------------------------
+
+[[seeing-your-change-in-gerrit]]
+== Seeing your change in Gerrit
+
+Follow the link you got above to see your commit in Gerrit:
+
+image:Gerrit Code Review.jpg[Gerrit Code Review.jpg,title="Gerrit Code Review.jpg"]
+
+Note the Jenkins Controller User has verified your code, and at the
+bottom is a link to the Jenkins build.
+
+Once your code has been reviewed and submitted by a committer it will be
+merged into the authoritative repo, which would look like this:
+
+image:Gerrit Merged.jpg[Gerrit Merged.jpg,title="Gerrit Merged.jpg"]
+
+[[what-to-do-if-your-firewall-blocks-port-29418]]
+== What to do if your Firewall blocks port 29418
+
+There have been reports that many corporate firewalls block port 29418.
+If that's the case, please follow the
+OpenDaylight Controller:Setting up HTTP in Gerrit[Setting up HTTP in
+Gerrit] instructions and use git URL:
+
+-----------------------------------------------------------------------------------
+git clone https://<your_username>@git.opendaylight.org/gerrit/p/lispflowmapping.git
+-----------------------------------------------------------------------------------
+
+You will be prompted for the password you generated in
+OpenDaylight Controller:Setting up HTTP in Gerrit[Setting up HTTP in
+Gerrit].
+
+All other instructions on this page remain unchanged :)
+
+To download pre-built images with ODP bootstraps see the following
+Github project:
+
+* https://github.com/nerdalert/OpenDaylight-Lab[Pre-Built OpenDaylight
+VM Images]
+
+Key methods for early community understanding, assistance and
+involvement:
+
+* https://lists.opendaylight.org/mailman/listinfo[Joining the ODP
+Listserv]
+
+* TSC:Main Listening to the weekly TSC meetings.
+
+* Tech Work Stream:Main[Tech Work Stream:Main] Listening to the weekly
+Technical Work Stream meeting.
+
+* There is an IRC channel #opendaylight on irc.freenode.net
+
+Category:OpenDaylight LispFlowMapping[Category:OpenDaylight
+LispFlowMapping]

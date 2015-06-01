@@ -1,0 +1,238 @@
+[[opendaylight-ovsdb-architecture]]
+= OpenDaylight OVSDB Architecture
+
+For a deep dive into the ODL OVSDB architecture please see the
+following:
+
+OVSDB Integration:Design[OVSDB Integration:Design]
+
+[[openstack-opendaylight-ovsdb-integration]]
+== OpenStack OpenDaylight OVSDB Integration
+
+https://docs.google.com/presentation/d/19ua9U6nFJSO0wtenWmJUEzUFmib8ClTkkHTgZ_BvaMk/edit#slide=id.g2961f7ff5_081[Neutron
+and ODL Interactions]
+
+The OpenStack integration architecture uses the following technologies:
+
+* RFC 7047 http://datatracker.ietf.org/doc/rfc7047/[OVSDB Open vSwitch
+Database]
+* Both OpenFlow v1.3 and v1.0
+* OpenStack Neutron ML2 Plugin
+
+[[getting-the-code]]
+= Getting the Code
+
+`export ODL_USERNAME=` +
+`git clone `ssh://[`ssh://`]`${ODL_USERNAME}@git.opendaylight.org:29418/ovsdb.git;(cd ovsdb; scp -p -P 29418 ${ODL_USERNAME}@git.opendaylight.org:hooks/commit-msg .git/hooks/;chmod 755 .git/hooks/commit-msg;git config remote.origin.push HEAD:refs/for/master)`
+
+[[opendaylight-mechanism-driver-for-openstack-neutron-ml2]]
+== OpenDaylight Mechanism Driver for Openstack Neutron ML2
+
+This code is a part of OpenStack and can be found
+https://github.com/openstack/neutron/blob/master/neutron/plugins/ml2/drivers/mechanism_odl.py[here]
+
+To make changes to this code, please read the
+https://wiki.openstack.org/wiki/NeutronDevelopment[NeutronDevelopment
+page on the OpenStack wiki]
+
+Remember to run the tests before submitting code:
+
+`tox -e py27` +
+`tox -e pep8`
+
+[[importing-the-code-in-to-eclipseintellij]]
+== Importing the Code in to Eclipse/IntelliJ
+
+Please check out either link:Eclipse Setup[Eclipse Setup] or
+OpenDaylight_Controller:Developing_With_Intellij
+
+[[avoiding-conflicting-project-names]]
+=== Avoiding conflicting project names
+
+File:OVSDB Eclipse.png[100px|framed|center]
+
+To avoid eclipse complaining about having project with a conflicting
+name in the workspace make sure to select Advanced > Name Template >
+[groupId].[artifactId] when importing the project.
+
+[[browsing-the-code]]
+== Browsing the Code
+
+The code is mirrored to https://github.com/opendaylight/ovsdb[GitHub]
+for those occasions where it's easier to read code online.
+
+[[source-code-organization]]
+== Source Code Organization
+
+The OVSDB project generates 3 x OSGi Bundles:
+
+* *org.opendaylight.ovsdb* is the OVSDB Plugin and Library
+* *org.opendaylight.ovsdb.neutron* is the OpenStack Neutron Integration
+* *org.opendaylight.ovsdb.northbound* is the Northbound API for the
+OVSDB Library
+
+These correspond to the _ovsdb_ _neutron_ and _northbound_ directories
+in the source tree.
+
+_commons_ contains the project's parent POM file for Maven which is used
+to get consistency of settings across the project.
+
+_distribution_ contains the OVSDB distribution. This is the latest
+Virtualization Edition pulled from the
+CrossProject:Integration Group[Integration project] with your local
+OVSDB artifacts added. This gives developers the ability to run the
+controller for testing.
+
+_resources_ contains useful scripts, How-To's etc...
+
+[[building-the-code]]
+== Building the code
+
+From the root of the project
+
+`mvn clean install`
+
+You may need to change your MAVEN_OPTS
+
+`export MAVEN_OPTS="-Xmx1024m -XX:MaxPermSize=512m"`
+
+[[running-the-distribution]]
+== Running the Distribution
+
+`cd distribution/opendaylight/target/distribution.ovsdb-``-SNAPSHOT-osgipackage/opendaylight/` +
+`./run.sh -debug -Xmx2048m -XX:MaxPermSize=1024m -virt ovsdb`
+
+[[testing-patches]]
+= Testing Patches
+
+While we do have CI it is not comprehensive and therefore it is
+recommended to test you patches locally before submission.
+
+[[neutron-integration]]
+== Neutron Integration
+
+To test patches to the Neutron integration you will need a
+http://devstack.org/guides/multinode-lab.html[Multi-Node Devstack Setup]
+There are sample ``local.conf`` files in the ``resources`` folder.
+
+[[open-vswitch]]
+== Open vSwitch
+
+To test patches to the library you will need a working
+http://openvswitch.org/[Open vSwitch]. Packages are available for most
+Linux distributions. If you would like to run multiple versions of Open
+vSwitch for testing you can use
+https://github.com/dave-tucker/docker-ovs[docker-ovs] to run Open
+vSwitch in http://docker.io[Docker] containers
+
+[[mininet]]
+== Mininet
+
+[Mininet http://mininet.org/] is another useful resource for testing
+patches. Mininet creates multiple Open vSwitches connected in a
+configurable topology.
+
+[[vagrant]]
+== Vagrant
+
+The Vagrantfile in the root of the OVSDB source code provides an easy
+way to create VMs to test with.
+
+[[installing-vagrant]]
+=== Installing Vagrant
+
+Please follow the instructions
+https://docs.vagrantup.com/v2/installation/[here] to install Vagrant on
+your machine
+
+[[testing-with-devstack]]
+=== Testing with Devstack
+
+First, start the controller from the OVSDB distribution as mentioned
+OVSDB:Developer_Guide#Running_the_Distribution[ here ]
+
+`vagrant up devstack-control` +
+`vagrant ssh devstack-control` +
+`cd devstack` +
+`./stack.sh`
+
+Get coffee... (a tall one, like a Latte or an Americano)
+
+`vagrant up devstack-compute` +
+`vagrant ssh devstack-compute` +
+`cd devstack` +
+`./stack.sh`
+
+Get another coffee... (something smaller this time. Espresso or
+Macchiato)
+
+Once it's finished stacking you can start testing...
+
+Maybe create a virtual machine...
+
+`nova boot --flavor m1.tiny --image $(nova image-list | grep 'cirros-0.3.1-x86_64-uec\s' | awk '{print $2}') --nic net-id=$(neutron net-list | grep private | awk '{print $2}') test`
+
+...or three...
+
+`nova boot --flavor m1.tiny --image $(nova image-list | grep 'cirros-0.3.1-x86_64-uec\s' | awk '{print $2}') --nic net-id=$(neutron net-list | grep private | awk '{print $2}') --num-instances 3 test`
+
+[[testing-with-mininet]]
+=== Testing with Mininet
+
+`vagrant up mininet` +
+`vagrant ssh mininet`
+
+You now have a Mininet install at your disposal
+
+[[cleaning-up]]
+=== Cleaning Up
+
+When you are finished
+
+`vagrant destroy`
+
+[[opendaylight-ovsdb-developer-getting-started-video-series]]
+= OpenDaylight OVSDB Developer Getting Started Video Series
+
+We created three videos to help folks bootstrap into OVSDB development.
+
+[[opendaylight-ovsdb-developer-getting-started]]
+== OpenDaylight OVSDB Developer Getting Started
+
+http://www.youtube.com/watch?v=ieB645oCIPs[OpenDaylight OVSDB Developer
+Getting Started - Start Here]
+
+[[opendaylight-ovsdb-developer-getting-started---northbound-api-usage]]
+== OpenDaylight OVSDB Developer Getting Started - Northbound API Usage
+
+http://www.youtube.com/watch?v=xgevyaQ12cg[OpenDaylight OVSDB Developer
+Getting Started - Northbound API Usage]
+
+[[opendaylight-ovsdb-developer-getting-started---java-apis]]
+== OpenDaylight OVSDB Developer Getting Started - Java APIs
+
+http://www.youtube.com/watch?v=xgevyaQ12cg[OpenDaylight OVSDB Developer
+Getting Started - Java API]
+
+[[opendaylight-ovsdb-developer-getting-started---openstack-integration-openflow-v1.0]]
+== OpenDaylight OVSDB Developer Getting Started - OpenStack Integration
+OpenFlow v1.0
+
+http://www.youtube.com/watch?v=NayuY6J-AMA[OpenDaylight OVSDB Developer
+Getting Started - OpenStack Integration OpenFlow v1.0]
+
+[[developer-tutorials]]
+= Developer Tutorials
+
+[[ovsdb-openflow-v1.3-neutron-ml2-integration]]
+== OVSDB OpenFlow v1.3 Neutron ML2 Integration
+
+* OVSDB:OVSDB_OpenStack_Guide[ Tutorial: OVSDB OpenFlow v1.3 Neutron ML2
+Integration]
+
+[[open-vswitch-database-table-explanations-and-simple-jackson-tutorial]]
+== Open vSwitch Database Table Explanations and Simple Jackson Tutorial
+
+* http://networkstatic.net/getting-started-ovsdb/[Tutorial: Open vSwitch
+Database Table Explanations and Simple Jackson Tutorial]
+

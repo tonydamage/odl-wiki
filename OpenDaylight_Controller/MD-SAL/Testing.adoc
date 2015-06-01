@@ -1,0 +1,157 @@
+[[md-sal-code-paths-and-testing-scenarios]]
+= MD-SAL Code-paths and Testing Scenarios
+
+[[client-md-sal]]
+=== Client-MD-SAL
+
+[cols=",,,,,,",options="header",]
+|=======================================================================
+|ID |Scenario |Trigger Event |Trigger Payload type |Received Event
+|Received Payload Type |Comment
+|*RPC Scenarios*
+
+|RPC-1 |RPC implementation received input, client received Error from
+MD-SAL in correct payload format. |RPC Input |DOM |Error |DOM |Comment
+
+|Binding |Binding |Comment
+
+|Restconf XML |Restconf XML |Comment
+
+|Restconf JSON |Restconf JSON |Comment
+
+|*Data Scenarios*
+
+|DATA-1 |Consumer creates transaction, invokes Commit, consumer receives
+TransactionStatus#COMMITED |WriteTransaction#commit() |DOM
+|TransactionStatus#COMMITED |DOM |Comment
+
+|Binding |Binding |Tested in sal-binding-dom-it
+
+|DATA-2 |Consumer creates transcaction, invokes Commit, consumer
+receives OptimisticLockFailedException |WriteTransaction#commit() |DOM
+|OptimisticLockFailedException |DOM |Comment
+
+|Binding |Binding |Comment
+
+|DATA-3 |Consumer creates transcaction, invokes Commit, consumer
+receives DataVerificationFailedException |WriteTransaction#commit() |DOM
+|DataVerificationFailedException |DOM |Comment
+
+|Binding |Binding |Comment
+|=======================================================================
+
+[[component-component]]
+=== Component-Component
+
+[cols=",,,,,,",options="header",]
+|=======================================================================
+|ID |Scenario |Trigger Event |Trigger Payload type |Received Event
+|Received Payload Type |Comment
+|*RPC Scenarios*
+
+|RPC-2 |User invokes RPC, implementation receives RPC input |RPC Input
+|DOM |RPC Input |DOM |Comment
+
+|DOM |Binding |Comment
+
+|Binding |DOM |Comment
+
+|Binding |Binding |Comment
+
+|RPC-3 |RPC implementation received input, client received RPC Output in
+correct payload format. |RPC Input |DOM |RPC Output |DOM |Comment
+
+|DOM |Binding |Comment
+
+|Binding |DOM |Comment
+
+|Binding |Binding |Comment
+
+|RPC-4 |RPC implementation received input, client received Error in
+correct payload format. |RPC Input |DOM |Error |DOM |Comment
+
+|DOM |Binding |Comment
+
+|Binding |DOM |Comment
+
+|Binding |Binding |Comment
+
+|*Notification Scenarios*
+
+|NOT-1 |Implementation publishes Notification , implementation receives
+Notification |Notification |DOM |Notification |DOM |Comment
+
+|DOM |Binding |Comment
+
+|Binding |DOM |Comment
+
+|Binding |Binding |Comment
+
+|*Data Scenarios*
+
+|DATA-3 |Consumer creates transaction, invokes Commit, Data Change
+Listeners received Data Change Event |WriteTransaction#commit() |DOM
+|Data Change Event |DOM |Comment
+
+|DOM |Binding |One of most complicated paths if data were not written by
+Binding-Aware component. Mostly problematic are augments and cases in
+uses statements.
+
+|Binding |DOM |Comment
+
+|Binding |Binding |Tested in sal-binding-dom-it.
+|=======================================================================
+
+[[testing-tools]]
+== Testing Tools
+
+Currently for Testing we are using several approaches which are:
+
+[[sal-test-model]]
+=== sal-test-model
+
+Set of YANG models used for testing, currently defined models are for:
+
+\1. Common list pattern with augmentations - 2 level deep lists, with
+various testing augmentation 2. Normal RPC test model 3. Routed RPC test
+model 4. Ordering test model
+
+[[md-sal-bindingdom-based-suite]]
+=== MD-SAL Binding/DOM Based suite
+
+This test tools are used for integration testing between DOM and Binding
+Data Format, tools are exported as *test-jar* for *sal-binding-broker*.
+
+* MD-SAL Test deployer - mostly for integration testing and legacy API
+support, where fully working MD-SAL is deployed
+* Set of Abstract*Test used for unit testing of MD-SAL, may be used for
+unit testing of client code
+
+:* AbstractSchemaAwareTest - test which loads yang schema from classpath
+and instantiates runtime codecs
+
+:* AbstractDataBrokerTest - test which instantiates binding broker, dom
+broker and datastore
+
+:* AbstractChangeListenerTest - variation of DataBroker test which has
+possibility for simple data change event testing
+
+[[restconf-testsuite]]
+=== Restconf Testsuite
+
+Current Restconf testing is done using JerseyTest, Mockito.
+
+Jersey tests could be combined with Abstract*Test from MD-SAL to provide
+Java-based end-to-end integration and regression testing between MD-SAL
+Binding and DOM formats to Restconf XML and JSON format.
+
+[[existing-md-sal-restconf-test-suites]]
+== Existing MD-SAL / Restconf test suites
+
+* sal-inmemory-datastore - Unit testing of inmemory datastore
+* sal-binding-broker - Unit testing of binding broker implementation,
+integration
+* sal-binding-dom-it - Regression testing using mostly legacy APIs, with
+refactoring could be updated to integratation test suite for binding to
+dom in sal-binding-dom-it using sal-test-model.
+

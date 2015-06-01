@@ -1,0 +1,124 @@
+[[maintainer]]
+== Maintainer
+
+Casper (christopher.o.shea@ericsson.com)
+
+[[follow-the-steps]]
+== Follow the steps
+
+[[prerequisites]]
+=== Prerequisites
+
+Connect to the Lab at Ericsson using access instructions
+CrossProject:Integration_Group:Test_Lab[here]
+
+[[set-up-opendaylight-controller]]
+=== Set up OpenDaylight controller
+
+Login into the controller VM (odluser/odluser1):
+
+----------------------------------------------------------------------
+[user@SDC-SSH ~]$ ssh odluser@10.125.136.38
+odluser@10.125.136.38's password: 
+Last login: Fri Oct 18 17:39:47 2013 from ec-centos.ericsson-magic.net
+----------------------------------------------------------------------
+
+Download latest controller base edition (if not there yet):
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+$ cd controller-base/
+$ wget https://jenkins.opendaylight.org/integration/job/integration-project-centralized-integration/lastSuccessfulBuild/artifact/distributions/base/target/distributions-base-0.1.2-SNAPSHOT-osgipackage.zip
+$ unzip -o distributions-base-0.1.2-SNAPSHOT-osgipackage.zip 
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Run the controller:
+
+-------------------------------------------
+$ cd ~odluser/controller-base/opendaylight/
+$ ./run.sh 
+-------------------------------------------
+
+Check controller is running:
+
+-----------------------------------------------------------------------------
+osgi> ss
+"Framework is launched."
+
+
+id      State       Bundle
+0       ACTIVE      org.eclipse.osgi_3.8.1.v20120830-144521
+1       ACTIVE      org.apache.felix.fileinstall_3.1.6
+2       ACTIVE      org.eclipse.jdt.core.compiler.batch_3.8.0.I20120518-2145
+3       ACTIVE      org.eclipse.equinox.ds_1.4.0.v20120522-1841
+4       ACTIVE      org.eclipse.equinox.util_1.0.400.v20120522-2049
+5       ACTIVE      org.eclipse.osgi.services_3.3.100.v20120522-1822
+6       ACTIVE      org.eclipse.equinox.console_1.0.0.v20120522-1841
+7       ACTIVE      slf4j.api_1.7.2
+8       ACTIVE      ch.qos.logback.classic_1.0.9
+9       ACTIVE      ch.qos.logback.core_1.0.9
+10      ACTIVE      org.opendaylight.controller.logging.bridge_0.4.1.SNAPSHOT
+11      ACTIVE      com.sun.jersey.core_1.17.0
+12      ACTIVE      com.sun.jersey.json_1.17.0
+13      ACTIVE      com.sun.jersey.jersey-server_1.17.0
+-----------------------------------------------------------------------------
+
+[[set-up-mininet]]
+=== Set up Mininet
+
+Login into the mininet VM (mininet/mininet):
+
+-----------------------------------------------------------
+[user@SDC-SSH ~]$ ssh mininet@10.125.136.39
+mininet@10.125.136.39's password: 
+Welcome to Ubuntu 13.04 (GNU/Linux 3.8.0-19-generic x86_64)
+
+ * Documentation:  https://help.ubuntu.com/
+Last login: Sun Oct 20 19:04:15 2013 from 10.126.64.44
+-----------------------------------------------------------
+
+Make sure mininet is not running as the system test suite will
+automatically start/stop mininet:
+
+------------------------------------------------------------------------------------------------------------------------------------
+mininet@mininet-vm:~\> ps -ef | grep mn
+root     15800 11466  0 01:33 pts/0    00:00:00 sudo mn --controller=remote,ip=10.125.136.52 --topo tree,2
+root     15801 15800  0 01:33 pts/0    00:00:00 /usr/bin/python /usr/local/bin/mn --controller=remote,ip=10.125.136.52 --topo tree,2
+mininet  16183 16096  0 05:05 pts/2    00:00:00 grep --color=auto mn
+
+mininet@mininet-vm:~\> sudo pkill mn
+mininet@mininet-vm:~\> ps -ef | grep mn
+mininet  16265 16096  0 05:06 pts/2    00:00:00 grep --color=auto mn
+------------------------------------------------------------------------------------------------------------------------------------
+
+Note: If you plan to test individual test files or make custom REST
+requests please start the mininet with:
+
+---------------------------------------------------------------------------------
+mininet@mininet-vm:~\> sudo mn --controller=remote,ip=10.125.136.52 --topo tree,2
+---------------------------------------------------------------------------------
+
+[[setup-test-tools]]
+=== Setup Test tools
+
+Login into Test tools VM (odluser/odluser1):
+
+----------------------------------------------------------------------
+[user@SDC-SSH ~]$ ssh odluser@10.125.136.37
+odluser@10.125.136.37's password: 
+Last login: Fri Oct 18 17:39:47 2013 from ec-centos.ericsson-magic.net
+----------------------------------------------------------------------
+
+Download latest integration code:
+
+-------------------------------------------------------------------------------------
+[odluser@odl-test-tools ~]$ rm -rf integration
+[odluser@odl-test-tools ~]$ git clone https://git.opendaylight.org/gerrit/integration
+-------------------------------------------------------------------------------------
+
+Hack the code and debug it by running system test:
+
+--------------------------------------------------------------------------------------------------------------------------------------------------
+pybot -v CONTROLLER:10.125.136.52 -v MININET:10.125.136.53 -v USER_HOME:${HOME} -v MININET_USER:mininet ${HOME}/integration/test/csit/suites/base/
+--------------------------------------------------------------------------------------------------------------------------------------------------
+
+Category:Integration Group[Category:Integration Group]

@@ -1,0 +1,229 @@
+[[public-api-openflow-protocol-api]]
+== Public API (openflow-protocol-api)
+
+Set of interfaces and builders for immutable data transfer objects
+representing Openflow Protocol structures.
+
+Transfer objects and service APIs are infered from several YANG models
+using code generator to reduce verbosity of definition and repeatibility
+of code.
+
+The following YANG modules are defined:
+
+* openflow-types - defines common Openflow specific types
+* openflow-instruction - defines base Openflow instructions
+* openflow-action - defines base Openflow actions
+* openflow-augments - defines object augmentations
+* openflow-extensible-match - defines Openflow OXM match
+* openflow-protocol - defines Openflow Protocol messages
+* system-notifications - defines system notification objects
+
+This modules also reuse types from following YANG modules:
+
+* ietf-inet-types - IP adresses, IP prefixes, IP-protocol related types
+* ietf-yang-types - Mac Address, etc.
+
+The use of predefined types is to make APIs contracts more safe, better
+readable and documented (e.g using MacAddress instead of byte array...)
+
+[[channel-pipeline-openflow-protocol-impl]]
+== Channel pipeline (openflow-protocol-impl)
+
+Creates channel processing pipeline based on configuration and support.
+
+[[switch-connection-provider]]
+=== Switch Connection Provider
+
+Implementation of connection point for other projects. Library exposes
+its functionality through this class. +
+Library can be configured, started and shutdowned here. There are also
+methods for custom (de)serializer registration.
+
+[[tcp-handler]]
+=== TCP Handler
+
+Represents single server that is handling incoming connections over TCP
+protocol. +
+TCP Handler creates a single instance of Publishing Channel Initializer
+that will initialize channels. After that it binds to configured
+InetAddress and port. When a new device connects, TCP Handler registers
+its channel and passes control to Publishing Channel Initializer.
+
+image:ChannelPipeline.png[Channel pipeline,title="Channel pipeline"]
+
+[[publishing-channel-initializer]]
+=== Publishing Channel Initializer
+
+This class is used for channel initialization / rejection and passing
+arguments. +
+After a new channel has been registered it calls Switch Connection
+Handler’s (OF Plugin) accept method to decide if the library should keep
+the newly registered channel or if the channel should be closed. If the
+channel has been accepted, Publishing Channel Initializer creates
+ConnectionAdapter instance. Finally the Publishing Channel Initializer
+creates the whole pipeline with needed handlers and notifies Switch
+Connection Handler with onConnectionReady notification. OpenFlow Plugin
+can now start sending messages downstream.
+
+[[idle-state-handler]]
+=== Idle State Handler
+
+If there are no messages received for more than time specified, this
+handler triggers idle state notification. +
+The switch idle timeout is received as a parameter from
+ConnectionConfiguration settings. Idle State Handler is inactive while
+there are messages received within the switch idle timeout. If there are
+no messages received for more than timeout specified, handler creates
+SwitchIdleEvent message and sends it upstream.
+
+[[tls-detector]]
+=== TLS Detector
+
+Detector is used for detecting message encryption. +
+The detection occurs only once for each connection – only on the first
+message received. In case messages are encrypted, TLS Detector engages
+TLS Handler into pipeline, otherwise not. +
+*NOTE:* +
+Engaging TLS Detector into pipeline is matter of ConnectionConfiguration
+(FEATURE_SUPPORT) set in SwitchConnectionProvider before server startup.
+
+[[tls-handler]]
+=== TLS Handler
+
+It encrypts and decrypts messages with configured protocol. +
+TLS Handler is represented as a Netty’s SslHandler.
+
+[[of-frame-decoder]]
+=== OF Frame Decoder
+
+Parses input stream into message frames for further processing. +
+Framing is based on Openflow header length. If received message is
+shorter than minimal length of OpenFlow message (8 bytes), OF Frame
+Decoder waits for more data. After receiving at least 8 bytes the
+decoder checks length in OpenFlow header. If there are still some bytes
+missing, the decoder waits for them. Else the OF Frame Decoder sends
+correct length message to next handler in the channel pipeline.
+
+[[of-version-detector]]
+=== OF Version Detector
+
+Detects version of used OpenFlow Protocol and discards unsupported
+version messages. +
+If the detected version is supported, OF Version Detector creates
+VersionMessageWrapper object containing the detected version and byte
+message and sends this object upstream.
+
+[[of-decoder]]
+=== OF Decoder
+
+Chooses correct deserilization factory (based on message type) and
+deserializes messages into generated DTOs. +
+OF Decoder receives VersionMessageWrapper object and passes it to
+DeserializationFactory which will return translated DTO.
+DeserializationFactory creates MessageCodeKey object with version and
+type of received message and Class of object that will be the received
+message deserialized into. This object is used as key when searching for
+appropriate decoder in DecoderTable. DecoderTable is basically a map
+storing decoders. Found decoder translates received message into DTO
+(DataTransferObject). If there was no decoder found, null is returned.
+After returning translated DTO back to OF Decoder, the decoder checks if
+it is null or not. When the DTO is null, the decoder logs this state and
+throws an Exception. Else it passes the DTO further upstream. Finally,
+the OF Decoder releases ByteBuf containing received and decoded byte
+message.
+
+[[of-encoder]]
+=== OF Encoder
+
+Chooses correct serialization factory (based on type of DTO) and
+serializes DTOs into byte messages. +
+OF Encoder does the opposite than the OF Decoder using the same
+principle. OF Encoder receives DTO, passes it for translation and if the
+result is not null, it sends translated DTO downstream as a ByteBuf.
+Searching for appropriate encoder is done via MessageTypeKey, based on
+version and class of received DTO.
+
+[[delegating-inbound-handler]]
+=== Delegating Inbound Handler
+
+Delegates received DTOs to Connection Adapter. +
+It also reacts on channelInactive and channelUnregistered events. Upon
+one of these events is triggered, DelegatingInboundHandler creates
+DisconnectEvent message and sends it upstream, notifying upper layers
+about switch disconnection.
+
+[[connection-adapter]]
+=== Connection Adapter
+
+Provides a facade on top of pipeline, which hides netty.io specifics.
+Provides a set of methods to register for incoming messages and to send
+messages to particular channel / session. +
+ConnectionAdapterImpl basically implements three interfaces (unified in
+one superinterface ConnectionFacade):
+
+* ConnectionAdapter
+* MessageConsumer
+* OpenflowProtocolService
+
+*ConnectionAdapter* interface has methods for setting up listeners
+(message, system and connection ready listener), method to check if all
+listeners are set, checking if the channel is alive and disconnect
+method. Disconnect method clears responseCache and disables consuming of
+new messages.
+
+*MessageConsumer* interface holds only one method: consume(). Consume()
+method is called from DelegatingInboundHandler. This method processes
+received DTO’s based on their type. There are three types of received
+objects:
+
+* _System notifications_ - invoke system notifications in OpenFlow
+Plugin (systemListener set). In case of DisconnectEvent message, the
+Connection Adapter clears response cache and disables consume() method
+processing,
+* _OpenFlow asynchronous messages (from switch)_ - invoke corresponding
+notifications in OpenFlow Plugin,
+* _OpenFlow symmetric messages (replies to requests)_ - create
+RpcResponseKey with XID and DTO’s class set. This RpcResponseKey is then
+used to find corresponding future object in responseCache. Future object
+is set with success flag, received message and errors (if any occurred).
+In case no corresponding future was found in responseCache, Connection
+Adapter logs warning and discards the message. Connection Adapter also
+logs warning when an unknown DTO is received.
+
+For message processing description and diagrams visit
+Openflow Protocol Library:Openflow Protocol Library's message processing[Openflow
+Protocol Library:Openflow Protocol Library's message processing]
+
+*OpenflowProtocolService* interface contains all rpc-methods for sending
+messages from upper layers (OpenFlow Plugin) downstream and responding.
+Request messages return Future filled with expected reply message,
+otherwise the expected Future is of type Void.
+
+*NOTE:* +
+MultipartRequest message is the only exception. Basically it is request
+– reply Message type, but it wouldn’t be able to process more following
+MultipartReply messages if this was implemented as rpc (only one
+Future). This is why MultipartReply is implemented as notification.
+OpenFlow Plugin takes care of correct message processing.
+
+[[spi-openflow-protocol-spi]]
+== SPI (openflow-protocol-spi)
+
+Defines interface for library's connection point for other projects.
+Library exposes its functionality through this interface.
+
+[[integration-test-openflow-protocol-it]]
+== Integration test (openflow-protocol-it)
+
+Testing communication with simple client.
+
+[[simple-clientsimple-client]]
+== Simple client(simple-client)
+
+Lightweight switch simulator - programmable with desired scenarios.
+
+[[openflow-protocol-librarymain-page]]
+= Openflow Protocol Library:Main page
+
+* Openflow Protocol Library:Main[Openflow Protocol Library:Main]
+

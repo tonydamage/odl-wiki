@@ -1,0 +1,119 @@
+This user guide describes the configuration for BGP and PCEP protocols
+using TCP MD5 authentication. *Before you continue with steps in this
+user guide, make sure BGP and/or PCEP is configured first via
+BGP LS PCEP:User Guide[User Guide]*
+
+TCP MD5 authentication is *disabled* by default. To enable it (for both
+protocols), uncomment the contents of
+https://jenkins.opendaylight.org/integration/view/Integration%20jobs/job/integration-project-centralized-integration/lastSuccessfulBuild/artifact/distributions/serviceprovider/target/distributions-serviceprovider-0.1.2-SNAPSHOT-osgipackage/opendaylight/configuration/initial/20-tcpmd5.xml[20-tcpmd5.xml]
+
+*There is no warning/error when the connection can't be established, so
+be sure to double-check your configuration and passwords.*
+
+[[bgp]]
+== BGP
+
+Precondition: make sure your
+https://jenkins.opendaylight.org/integration/view/Integration%20jobs/job/integration-project-centralized-integration/lastSuccessfulBuild/artifact/distributions/serviceprovider/target/distributions-serviceprovider-0.1.2-SNAPSHOT-osgipackage/opendaylight/configuration/initial/20-tcpmd5.xml[20-tcpmd5.xml]
+has it's content uncommented.
+
+To enable TCP MD5 for BGP protocol, you have to follow two steps.
+
+\1. In
+https://jenkins.opendaylight.org/integration/view/Integration%20jobs/job/integration-project-centralized-integration/lastSuccessfulBuild/artifact/distributions/serviceprovider/target/distributions-serviceprovider-0.1.2-SNAPSHOT-osgipackage/opendaylight/configuration/initial/31-bgp.xml[31-bgp.xml]
+uncomment the TCP MD5 section:
+
+`<!--` +
+` Uncomment this block to enable TCP MD5 Signature support` +
+`-->` +
+ +
+` ``prefix:md5-channel-factory` +
+` ``md5-client-channel-factory` +
+ +
+ +
+` ``prefix:md5-server-channel-factory` +
+` ``md5-server-channel-factory` +
+
+\2. In
+https://jenkins.opendaylight.org/integration/view/Integration%20jobs/job/integration-project-centralized-integration/lastSuccessfulBuild/artifact/distributions/serviceprovider/target/distributions-serviceprovider-0.1.2-SNAPSHOT-osgipackage/opendaylight/configuration/initial/41-bgp-example.xml[41-bgp-example.xml]
+add __ tag to _example-bgp-peer_:
+
+`<!--` +
+` For TCP-MD5 support, make sure the dispatcher associated with the rib has` +
+` "md5-channel-factory" attribute set and then add a "password" attribute here.` +
+` Note that the peer has to have the same password configured, otherwise the` +
+` connection will not be established.` +
+`-->` +
+ +
+` ``prefix:bgp-peer` +
+` ``example-bgp-peer` +
+` ``10.25.2.27` +
+` ``180` +
+` ` +
+`  ``prefix:rib` +
+`  ``example-bgp-rib` +
+` ` +
+` ` +
+`  ``prefix:bgp-table-type` +
+`  ``ipv4-unicast` +
+` ` +
+` ` +
+`  ``prefix:bgp-table-type` +
+`  ``ipv6-unicast` +
+` ` +
+` ` +
+`  ``prefix:bgp-table-type` +
+`  ``linkstate` +
+` ` +
+` `*`changeme`* +
+
+How to set a password on other BGP devices is out of the scope of this
+document.
+
+[[pcep]]
+== PCEP
+
+Precondition: make sure your
+https://jenkins.opendaylight.org/integration/view/Integration%20jobs/job/integration-project-centralized-integration/lastSuccessfulBuild/artifact/distributions/serviceprovider/target/distributions-serviceprovider-0.1.2-SNAPSHOT-osgipackage/opendaylight/configuration/initial/20-tcpmd5.xml[20-tcpmd5.xml]
+has it's content uncommented.
+
+To enable TCP MD5 for PCE protocol, you have to follow two steps.
+
+\1. In
+https://jenkins.opendaylight.org/integration/view/Integration%20jobs/job/integration-project-centralized-integration/lastSuccessfulBuild/artifact/distributions/serviceprovider/target/distributions-serviceprovider-0.1.2-SNAPSHOT-osgipackage/opendaylight/configuration/initial/32-pcep.xml[32-pcep.xml]
+uncomment the TCP MD5 section:
+
+`<!--` +
+` Uncomment this block to enable TCP MD5 Signature support` +
+`-->` +
+ +
+` ``prefix:md5-channel-factory` +
+`  ``md5-client-channel-factory` +
+ +
+ +
+` ``prefix:md5-server-channel-factory` +
+`  ``md5-server-channel-factory` +
+
+\2. In
+https://jenkins.opendaylight.org/integration/view/Integration%20jobs/job/integration-project-centralized-integration/lastSuccessfulBuild/artifact/distributions/serviceprovider/target/distributions-serviceprovider-0.1.2-SNAPSHOT-osgipackage/opendaylight/configuration/initial/39-pcep-provider.xml[39-pcep-provider.xml]
+uncomment following section:
+
+`<!--` +
+` For TCP-MD5 support make sure the dispatcher has the "md5-server-channel-factory"` +
+` attribute set and then set the appropriate client entries here. Note that if this` +
+` option is configured, the PCCs connecting here must have the same password configured,` +
+` otherwise they will not be able to connect at all.` +
+` -->` +
+` ` +
+` `
+
+192.0.2.2
+
+`  ``changeme` +
+` `
+
+change the
+
+value to the address of PCC, the one that is advertized to PCE and
+provide password matching the one set on PCC. How to set a password on
+PCC is out of the scope of this document.

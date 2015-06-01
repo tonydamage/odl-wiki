@@ -1,0 +1,205 @@
+Binding Specification v2 builds on experience we gathered with YANG code
+generation and building applications using YANG modeled entities, and is
+to address issues in design of Binding Specification v1 and improve
+usability of YANG Tools.
+
+Some of proposed changes could be done by improving current Binding
+Specification.
+
+[[general-mapping]]
+== General mapping
+
+[[conflict-between-grouping-identities-type-definitions-and-data-objects-with-same-name]]
+=== Conflict between grouping, identities, type definitions and data
+objects with same name
+
+YANG defines several separate namespaces for:
+
+* grouping
+* identities
+* type definition
+* data object
+
+Original Binding Specification unfortunately used one namespace which
+prevented possibility to define grouping and data container of same
+name.
+
+[[proposed-solution]]
+==== Proposed solution
+
+Use separate Java namespaces for grouping, identities, type definition,
+data object.
+
+[[affected-client-code]]
+==== Affected Client Code
+
+Any code using YANG modeled entities, simple reimport of Java interfaces
+will fix the change, estimated update is 1MD per application.
+
+[[simple-types-mapping]]
+== Simple types mapping
+
+[[base-yang-types]]
+=== Base YANG Types
+
+Existing mapping of base YANG types does not have intuitive mapping to
+Java for unsigned types and uses byte[] for binary type (which is
+mutable).
+
+In order to fix this we propose change of mapping for following items:
+
+[cols=",,,",options="header",]
+|=======================================================================
+|YANG Type |v1 Type |v2 Type |Comment
+|uint8 |java.lang.Short |(TBD) since guava does not have UnsignedByte
+|Original type did not capture unsigned semantics correctly, code was
+harder to read
+
+|uint16 |java.lang.Integer |(TBD) since guava does not have
+UnsignedInteger |Original type did not capture unsigned semantics
+correctly, code was harder to read
+
+|uint32 |java.lang.Long |com.google.common.primitives.UnsignedInteger
+|Original type did not capture unsigned semantics correctly, code was
+harder to read
+
+|uint64 |java.lang.BigDecimal |com.google.common.primitives.UnsignedLong
+|Original type did not capture unsigned semantics correctly, code was
+harder to read
+
+|binary |byte[] |TBD. Probably ByteBuf from io.netty.buffer |byte[] is
+by virtue mutable, which breaks immutability contract and it itself does
+not implement hashcode and equals based on value, but on identity of
+object
+|=======================================================================
+
+[[affected-client-code-1]]
+==== Affected Client Code
+
+Any code which use YANG models using unsigned types or binary, such as
+BGP-PCEP, Openflow
+
+[[static-factory-methods-for-derived-simple-types]]
+=== Static factory methods for derived simple types
+
+Types derived from simple YANG types are still immutable value objects,
+which will tend to be used in the system, it does not make sense to have
+multiple instances of logically equals Value objects.
+
+New value objects will be constructed via static factory methods, which
+may be backed by Object cache in order to decrease number of same
+objects.
+
+[[affected-client-code-2]]
+==== Affected Client Code
+
+All code constructing YANG modeled entities. Change could be backwards
+compatible by still providing existing constructors, but this
+constructors may be marked deprecated.
+
+[[complex-type-mapping]]
+== Complex type mapping
+
+Complex type mapping deals with mapping of augmentation, leaf,
+leaf-list, list, container and anyxml statements.
+
+[[anyxml-mapping]]
+=== anyxml mapping
+
+Mapping of anyxml is not simple, since it may represent:
+
+` - Free form XML` +
+` - Free form text (as seen in IETF Netconf monitoring, where it is XML and text at same time)` +
+` - YANG Modeled Entities (as seen in ietf-netconf YANG module)`
+
+TBD
+
+[[affected-client-code-3]]
+==== Affected Client Code
+
+None of existing code will be affected, since Binding Spec v1 did not
+exposed anyxml.
+
+[[list-mapping]]
+=== list mapping
+
+After analysis of specification, implementation of applications and
+MD-SAL, we found out that list keyword actually has three different
+behaviors based on combination of key and ordered-by statements.
+
+In order to correctly expose this to Binding Applications,
+representation in parent node should be extended to facilitate this
+mapping should be changed.
+
+[cols=",,,",options="header",]
+|====================================================
+|Key statement |Ordered-by |Behaviour |v2 Type
+|key is defined |system (default) |Unordered map |Map
+|key is defined |user |Ordered map |Map
+|key is not defined |-- |Collection |Iterable<>
+|====================================================
+
+[[affected-client-code-4]]
+==== Affected Client Code
+
+Any code which accessed list items directly from parent node, any code
+which constructed nodes containing lists and filled out list.
+
+[[leaf-list-mapping]]
+=== leaf-list mapping
+
+After analysis of specification, implementation of applications and
+MD-SAL, we found out that leaf-list keyword actually has two different
+behaviors based on ordered-by statements.
+
+In order to correctly expose this to Binding Applications,
+representation in parent node should be extended to facilitate this
+mapping should be changed.
+
+[cols=",,",options="header",]
+|====================================
+|Ordered-by |Behaviour |v2 Type
+|system (default) |Unordered set |Set
+|user |Ordered set |Set
+|====================================
+
+[[affected-client-code-5]]
+==== Affected Client Code
+
+Any code which accessed leaf list items directly from parent node, any
+code which constructed nodes containing leaf lists and filled out leaf
+list.
+
+[[binding-specification-specific-properties]]
+== Binding-Specification specific properties
+
+[[bug-157-binding-specification-specific-fields-conflict-with-yang-modeled-fields]]
+=== https://bugs.opendaylight.org/show_bug.cgi?id=157[Bug 157] Binding
+specification specific fields conflict with YANG modeled fields
+
+Binding-specific methods currently uses same pattern for getters and
+setters generated for YANG modeled structures, which makes impossible to
+provide getters and setters for this YANG modeled structures.
+
+Properties currently defined by YANG Binding:
+
+* key, getKey() - higher possibility of collision by YANG models
+* implementedInterface, getImplementedInterface() - low possibility of
+collision
+
+[[proposed-solution-1]]
+==== Proposed solution
+
+Solution is to not use get prefix for properties defined by Binding
+Specification, and leave it only for YANG modeled properties.
+
+[[affected-client-code-6]]
+==== Affected Client Code
+
+* Protocol libraries using getImplementedInterface() - simple rename of
+call of method to implementedInterface().
+* getKey(), setKey() - most of the existing code, creating YANG modeled
+entities, this would require change in lot of code. Changes could be
+minimized by still generating deprecated getKey(),setKey() for YANG
+entities where there is no conflict.
+

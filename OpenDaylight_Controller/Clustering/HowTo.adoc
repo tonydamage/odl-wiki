@@ -1,0 +1,51 @@
+[[startup-the-cluster]]
+== Startup the cluster
+
+In order to setup an ODP controller cluster you need to have this
+pre-requisites:
+
+1.  Have 2 or more hosting machines which can run host a controller.
+2.  Make sure the machines either virtual of physical have IP
+connectivity among them and there are no firewalls that blocks ports
+7800, 12001
+
+Once the prerequisites are met to startup the cluster we need to:
+
+1.  Elect one or more node to be a _supernode_. The clustering
+architecture of ODP is built to mimic the P2P networks and given the
+cluster nodes don't know each others ahead of time, they need to have a
+way to meet and greet the others. Those nodes that perform the meet and
+greet functionality are called the _supernodes_.
+2.  Once the supernodes are chosen make sure to start those nodes first
+by running the controller with the command line: +
+ *./run.sh -Dsupernodes=[:][:]..[:]* +
+3.  Once the supernodes are started, starts the other nodes using the
+very same command line as above.
+
+At this point the cluster will be up and running. The members of the
+cluster can come and go at anytime .. by definition, any new node can
+enter the cluster assuming at least one of the supernodes is reachable.
+The supernodes are only used during the initial phase to know with which
+nodes a controller should cluster with, after that phase the controller
+nodes would create a full mesh with the N-1 peers in the network.
+
+[[access-the-cluster-from-northbound-rest]]
+== Access the cluster from northbound REST
+
+From northbound side the cluster will be accessible via REST API's being
+REST stateless in nature each request can land in any controller in the
+cluster, in fact it's suggested to front end the cluster with an HTTP
+load balancer to spread the requests toward the cluster of controllers.
+
+[[access-the-cluster-from-southbound]]
+== Access the cluster from Southbound
+
+From southbound the network elements shall connect to the cluster using
+the IP addresses of the single controller elements in order to spread
+the load, this is particularly true for protocols like OpenFlow (the
+only protocol plugin currently integrated). So in a nutshell each
+network element needs to be somehow configured with the identity of the
+controller node to talk to. For cases like OVSDB where the controller
+cluster initiates the connection toward the network elements the spread
+of the load can actually be controlled by the controller cluster itself.
+More when this will be available

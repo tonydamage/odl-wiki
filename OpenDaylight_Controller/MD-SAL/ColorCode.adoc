@@ -1,0 +1,105 @@
+[[overview]]
+= Overview
+
+This is MD-SAL sample application for augmenting a model.
+
+Node Connectors have been augmented to have a "color" property. +
+Flows (Actions to be specific) have been augmented with a "color"
+property. +
+Colored flows will only travel along the same-colored node connectors.
+For example. flows with color "red" will only go along node connectors
+with color "red." +
+
+[[implementation-details]]
+= Implementation Details
+
+[[components]]
+== Components
+
+Insert picture... +
+*InventoryReader* provides information about the nodes and node
+connectors in the network. +
+*NodeConnectorDataChangeHandler* listens to changes to colors for
+NodeConnectors and modifies the flows when a color is added/removed. +
+*FlowReader* provides information about the flows installed on nodes. +
+*FlowDataChangeHandler* listens to changes to flows and translates
+colored flows into their respective node-connectors. +
+*FlowWriterService* adds flows to the MD-SAL data tree. +
+
+[[nodeconnectordatachangelistener]]
+== NodeConnectorDataChangeListener
+
+[cols=",",options="header",]
+|=======================================================================
+|Action |Description
+|Color Added |Search for flows of the same color. If flows exist, then
+add this node-connector to it.
+
+|Color Removed |Search for flows of the color that was removed. If flows
+exist, then remove this node-connector from it.
+
+|Color Updated |Search for flows of both colors. If flows for the old
+color exist, then remove this node-connector from it. If flows from the
+new color exist, then add this node-connector to it.
+|=======================================================================
+
+[[flowdatachangelistener]]
+== FlowDataChangeListener
+
+[cols=",",options="header",]
+|=======================================================================
+|Action |Description
+|Colored Flow Added |Search for node-connectors of the same color. If
+node-connectors exist, then create a new entry in the flow-table with
+OutputActions for these node-connectors. This 2nd flow will be called
+the "translated flow".
+
+|Colored Flow Removed |Delete the "translated flow" too.
+
+|Colored Flow Updated |Delete the "translated flow" and create a new
+"translated" flow.
+|=======================================================================
+
+[[how-to-run-colorcode]]
+= How to run ColorCode
+
+* Setup mininet
+* Copy model and impl jars to plugins directory
+* Start opendaylight using *openflowplugin* distribution (not
+controller)
+* Start mininet with a topology of your choice. For eg:
+
+::
+-------------------------------------------------------------------------------------------------
+sudo mn --controller=remote,ip=<controller_ip> --topo linear,2 --switch ovsk,protocols=OpenFlow13
+-------------------------------------------------------------------------------------------------
+
+ +
+* Add color to a node-connector
+
+------------------------------------------------------------------------------------------------------------------
+PUT http://localhost:8080/restconf/config/opendaylight-inventory:nodes/node/openflow:1/node-connector/openflow:1:1
+Content-Type: application/xml
+
+<node-connector xmlns="urn:opendaylight:inventory"> 
+<id>openflow:1:1</id> 
+<color xmlns="urn:opendaylight:color-code">red</color> 
+</node-connector> 
+------------------------------------------------------------------------------------------------------------------
+
+ +
+:Here is a curl script to do the same thing
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+curl -i -X PUT http://localhost:8080/restconf/config/opendaylight-inventory:nodes/node/openflow:1/node-connector/openflow:1:1 -H "Content-Type:application/xml" -d '<node-connector xmlns="urn:opendaylight:inventory">
+<id>openflow:1:1</id><color xmlns="urn:opendaylight:color-code">red</color></node-connector>' 
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+ +
+* Add colored flow
+
+::
+---------------------
+example restconf call
+---------------------
+

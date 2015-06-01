@@ -1,0 +1,216 @@
+This page presents how to prepare OpenDaylight project pom files for
+supporting the maven site and site:deploy targets, as well as how to set
+up the maven's site:deploy as a separate jenkins job.
+
+Note: this page doesn't discuss how to set up parameterized site:deploy,
+that is left as an exercise for a reader.
+
+[[assumptions]]
+== Assumptions
+
+1.  It is assumed that there is a single project root that all project
+bundles inherit from
+
+[[setting-up-pom-files]]
+== Setting up POM Files
+
+[[adding-site-deploy-and-javadoc-report-generation-to-parent-pom]]
+=== Adding Site Deploy and Javadoc Report Generation to parent pom
+
+* If not already defined, add the following lines to the properties
+section (where is replaced with hydrogen or master):
+
+`${nexusproxy}/sites/site/${project.groupId}/``/${project.artifactId}` +
+`1.26.2`
+
+* After the properties section, add the following so that URL generation
+is properly "relativized":
+
+`${sitedeploy}`
+
+* If not already present, add in the following repository section before
+the section:
+
+` ` +
+`     ` +
+`         ``opendaylight-release` +
+`         ``opendaylight-release` +
+`         ``${nexusproxy}/repositories/opendaylight.release/` +
+`     ` +
+`     ` +
+`         ``opendaylight-snapshot` +
+`         ``opendaylight-snapshot` +
+`         ``${nexusproxy}/repositories/opendaylight.snapshot/` +
+`     ` +
+` `
+
+* In the section, add the maven site plugin:
+
+`     ` +
+`       ``org.apache.maven.plugins` +
+`       ``maven-site-plugin` +
+`       ``3.1` +
+`       ` +
+`           ` +
+`           ` +
+`               ``org.apache.maven.wagon` +
+`               ``wagon-webdav-jackrabbit` +
+`               ``2.2` +
+`           ` +
+`           ` +
+`           ` +
+`               ``org.slf4j` +
+`               ``slf4j-api` +
+`               ``1.6.1` +
+`           ` +
+`       ` +
+`     `
+
+* After the section, add the reporting section:
+
+` ` +
+`   ` +
+`     ` +
+`       ``org.apache.maven.plugins` +
+`       ``maven-javadoc-plugin` +
+`       ` +
+`         ` +
+`           ``${sitedeploy}/api` +
+`         ` +
+`       ` +
+`     ` +
+`   ` +
+` `
+
+* In the section, add:
+
+`   ` +
+`     ``opendove-master` +
+`     ``dav:${sitedeploy}/` +
+`   `
+
+note: in the above, replace opendove-master with your particular
+project's site id (opendove uses opendove-release and opendove-master)
+and let Andy (tykeal) know your choice so he can make sure the necessary
+system support is in place
+
+[[clean-up-other-poms]]
+=== Clean Up Other Poms
+
+* Remove the nexusproxy parameter, reportistories and
+distributionManagement sections and javadoc plugin section from any
+other project poms.
+
+[[set-up-enunciate-in-poms-that-need-to-generate-rest-api-doucmentation]]
+=== Set up enunciate in Poms that need to generate REST API
+doucmentation
+
+* Add the following to the properties section
+
+`       ``1.26.2`
+
+* If not present, add the enunciate plugin to the plugins section:
+
+`           ` +
+`               ``org.codehaus.enunciate` +
+`               ``maven-enunciate-plugin` +
+`               ``${enunciate.version}` +
+`               ` +
+`                   ``enunciate.xml` +
+`               ` +
+`               ` +
+`                   ` +
+`                       ` +
+`                           ``docs` +
+`                       ` +
+`                   ` +
+`               ` +
+`           `
+
+* After the build section, add in a reporting section for the REST apis:
+
+`   ` +
+`       ` +
+`           ` +
+`               ``org.codehaus.enunciate` +
+`               ``maven-enunciate-plugin` +
+`               ``${enunciate.version}` +
+`               ` +
+`                   ``rest` +
+`                   ``rest.html` +
+`               ` +
+`           ` +
+`       ` +
+`   `
+
+[[create-enunciate.xml-file-where-needed]]
+=== Create enunciate.xml File where needed
+
+* Create a enunciate with the following contents:
+
+ +
+`  ` +
+`    ` +
+`  ` +
+`  ` +
+`    ` +
+`  ` +
+
+In the above:
+
+1.  replace the defaultRestSubcontext attribute with the proper root URI
+point for the particular project
+2.  replace the title attribute with the correct title for the
+particular project
+3.  set the includeExampleXml and includeExampleJson attributes
+correctly
+
+[[commit-to-gerrit-and-work-through-project-verify-and-merge-jobs]]
+=== Commit to gerrit and work through project verify and merge jobs
+
+* Do what the heading says
+
+[[create-jenkins-site-deploy-job]]
+== Create Jenkins Site Deploy Job
+
+* Create a new Jenkins job for the site deploy (in opendove, these jobs
+are called opendove-master-site-deploy and opendove-stable-site-deploy).
+* For description, use "Deploy site information from branch into nexus.
+
+image:DeployJenkins1.png[DeployJenkins1.png,title="DeployJenkins1.png"]
+
+* Set Discard Old Builds and use Log Rotation as the strategy and set 40
+as the number of builds to keep
+
+image:DeployJenkins2.png[DeployJenkins2.png,title="DeployJenkins2.png"]
+
+* Make sure "this build is parameterized" is unchecked, select Git
+source code management and use the git URL as Repository URL
+
+image:DeployJenkins3.png[DeployJenkins3.png,title="DeployJenkins3.png"]
+
+* Set branches to build as "origin/" and "Wipe out repository & force
+clone" as Additional Behaviours
+
+image:DeployJenkins4.png[DeployJenkins4.png,title="DeployJenkins4.png"]
+
+* Clear all Build Triggers
+
+image:DeployJenkins5.png[DeployJenkins5.png,title="DeployJenkins5.png"]
+
+* Set build to be Maven 3.0.4 with a root pom of pom.xml and the Goals
+and options to include
+
+"-Dmaven.repo.local=$WORKSPACE/.m2repo
+-Dorg.ops4j.pax.url.mvn.localRepository=$WORKSPACE/.m2repo site
+site:deploy"
+image:DeployJenkins6.png[DeployJenkins6.png,title="fig:DeployJenkins6.png"]
+
+* Include email notification in case the build fails
+
+image:DeployJenkins7.png[DeployJenkins7.png,title="DeployJenkins7.png"]
+
+* Save and manually trigger from Jenkins dashboard to test.
+* site is available at
+$\{nexusproxy}/sites/site/$\{project.groupId}//$\{project.artifactId} or
+

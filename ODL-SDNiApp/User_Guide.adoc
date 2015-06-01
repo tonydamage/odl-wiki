@@ -1,0 +1,134 @@
+[[introduction]]
+=== Introduction
+
+This user guide will help to setup the ODL-SDNi application and contains
+the examples configuration using ODL-BGPCEP.
+
+[[audience]]
+=== Audience
+
+For the purpose of connecting more than two opendaylight controllers in
+a network and sharing the topology information among them.
+
+[[how-to-run]]
+=== How to Run
+
+Download/Gerrit the following from the repository:
+
+* Opendaylight controller Base or SP edition
+
+--------------------------------------------------------------
+http://www.opendaylight.org/software/downloads 
+OR
+git clone https://git.opendaylight.org/gerrit/p/controller.git
+--------------------------------------------------------------
+
+* ODL-SDNi App
+
+---------------------------------------------------------------------
+git clone https://git.opendaylight.org/gerrit/sdninterfaceapp.git
+OR
+git clone ssh://<username>@git.opendaylight.org:29418/sdninterfaceapp
+---------------------------------------------------------------------
+
+Add ODL-SDNi App related jar files into the deployment folder of the
+Base/SP edition i.e under the directory location
+/root/controller/opendaylight/distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/plugins
+
+* Run the controller using the command ./run.sh
+
+* Run the mininet script to create the network topology in controller.
+
+* ODL-SDNi Rest APIs URL with the result.
+
+URL: http://localhost:8080/controller/nb/v2/sdni/default/topology
+
+----------------------------------------------------------------------------------------------------------------------------------
+Result: {"link":["(OF|3@OF|00:00:00:00:00:00:00:01->OF|1@OF|00:00:00:00:00:00:00:02)",
+"(OF|1@OF|00:00:00:00:00:00:00:03->OF|2@OF|00:00:00:00:00:00:00:02)",
+"(OF|1@OF|00:00:00:00:00:00:00:04->OF|2@OF|00:00:00:00:00:00:00:03)",
+"(OF|2@OF|00:00:00:00:00:00:00:02->OF|1@OF|00:00:00:00:00:00:00:03)",
+"(OF|4@OF|00:00:00:00:00:00:00:01->OF|3@OF|00:00:00:00:00:00:00:03)",
+"(OF|1@OF|00:00:00:00:00:00:00:02->OF|3@OF|00:00:00:00:00:00:00:01)",
+"(OF|3@OF|00:00:00:00:00:00:00:03->OF|4@OF|00:00:00:00:00:00:00:01)"],
+"bandwidth":["10Gbps","10Gbps","10Gbps","10Gbps","10Gbps","10Gbps","10Gbps"],
+"latency":[],"macAddressList":["00:00:00:00:00:01","00:00:00:00:00:02","00:00:00:00:00:03"],"ipAddressList":["10.0.0.1"],
+"controller":["10.132.35.14"],"node":["00:00:00:00:00:00:00:01","00:00:00:00:00:00:00:02","00:00:00:00:00:00:00:03"],"host":["1"]}
+----------------------------------------------------------------------------------------------------------------------------------
+
+URL:
+http://localhost:8080/controller/nb/v2/sdni/default/property/bandwidth/5
+
+---------------------------------------------------------------------------------------------------------------------------
+This call will update the link bandwidth in the topology with value 5Gbps.Note it is being used mostly for testing purpose.
+---------------------------------------------------------------------------------------------------------------------------
+
+[[components]]
+=== Components
+
+SDNiAggregator(controller), SDNiWrapper(bgpcep) and SDNi REST
+API(controller) are the three components in ODL-SDNi App
+
+* SDNiAggregator: Connects with switch, topology, hosttracker managers
+of controller to get the topology and other related data.
+* SDNiWrapper: This component uses the SDNi RestAPI and gathers the
+information required to be shared among controllers.
+* SDNi Rest API: It is a part of controller northbound, which gives the
+required information by quering SDNiAggregator
+
+[[configuration]]
+=== Configuration
+
+* Initial Setup
+
+Refer this link for inital setup of opendaylight controller
+https://wiki.opendaylight.org/view/OpenDaylight_Controller:Pulling,Hacking,_and_Pushing_the_Code_from_the_CLI.
+
+* ODL-SDNi App Deployment
+
+`   Copy the following jar files from ODL-SDNi app into /root/controller/opendaylight/distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/plugins directory of opendaylight. `
+
+---------------------------------------------------------------------
+org.opendaylight.controller.sdni.northbound-0.4.2-SNAPSHOT.jar
+org.opendaylight.controller.sdniaggregator-0.5.2-SNAPSHOT.jar
+org.opendaylight.bgpcep.bgp-linkstate-0.3.1-20140601.230629-192.jar
+org.opendaylight.bgpcep.bgp-sdniwrapper-0.3.1-20140601.230629-192.jar
+---------------------------------------------------------------------
+
+* Controller setup
+
+`   For more than one controller (with the same ODL-SDNi App setup), use the clustering  command to run it.Refer the following link `
+
+https://wiki.opendaylight.org/view/OpenDaylight_Controller:Clustering:HowTo
+
+-----------------------------------------
+./run.sh -Dsupernodes=10.0.0.1[:10.0.0.2]
+-----------------------------------------
+
+Topology can be created in all the connected controllers using mininet.
+Ping can be used to test the connectivity of the controllers. BGP
+session will get established between the connected controllers and
+update message will be exchanged periodically along with the SDNi
+data.Work is going on to get the session established.
+
+[[troubleshooting]]
+=== TroubleShooting
+
+To work with multiple controllers, change some of the configuration in
+config.ini file. For example change the listening port of one controller
+to 6653 and other controller to 6663 in
+/root/controller/opendaylight/distribution/opendaylight/target/distribution.opendaylight-osgipackage/opendaylight/configuration/config.ini
+(i.e of.listenPort=6653)
+
+-------------------------------------------------------------------------------
+Open Flow related system parameters 
+TCP port on which the controller is listening (default 6633) of.listenPort=6653
+-------------------------------------------------------------------------------
+
+[[related-documents]]
+=== Related Documents
+
+1.  https://wiki.opendaylight.org/view/Project_Proposals:ODL-SDNi_App
+2. 
+http://www.tcs.com/SiteCollectionDocuments/White%20Papers/Inter-SDN-Controller-Communication-Border-Gateway-Protocol-0314-1.pdf
+

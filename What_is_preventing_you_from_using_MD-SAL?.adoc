@@ -1,0 +1,193 @@
+[[overview]]
+= Overview
+
+The following is a compilation of items discussed on the e-mail thread
+in response to the question "What is preventing you from using MD-SAL?"
+If you have follow up comments, please edit this document and place your
+comments along with your name in square brackets: i.e.
+
+[Devin] This is a comment
+
+Thank you!
+
+[[stability]]
+= Stability
+
+[[with-the-first-release-there-were-a-number-of-bugs-that-existed-in-md-sal-proper.]]
+=== With the first release there were a number of bugs that existed in
+MD-SAL proper.
+
+* Proposal: Implement more JUnit tests / do not allow code to be merged
+without unit testing
+
+[[holes-in-implementation-incomplete-implementations-leads-to-confusion-on-expected-behavior-vs-missing-behavior]]
+=== Holes in Implementation – incomplete implementations leads to
+confusion on expected behavior vs missing behavior
+
+* Proposal: Identify and prioritize filling missing holes
+
+[[consistency]]
+= Consistency
+
+[[multiple-ways-to-do-a-task-clarification-needed]]
+=== Multiple ways to do a task – [Clarification Needed]
+
+* Binding Aware vs Binding Indentpendent?
+
+:*Just class naming? Or don’t like the two code paths?
+
+* Attributes vs RPC vs Notifications
+* OSGi Services vs (MD-SAL ??) Config System
+
+:*Proposal: expose all MD-SAL services via OSGI services so we are not
+forced to use two different methods.
+
+[[developer-usability]]
+= Developer Usability
+
+[[confusion-with-generated-classes-duplicate-names-differingonly-by-package-leads-to-confusion.]]
+=== Confusion with generated classes – duplicate names differingonly by
+package leads to confusion.
+
+* InstanceIdentifier – we have a BA and BI version..
+
+:*Proposal: Rename InstanceIdentifier to be BAInstanceIdentifier and
+BIInstanceIdentifier
+
+* Node: we have xml, json, odl inventory… lots of nodes already exist –
+can we rename it.
+
+:*Proposal: Rename MD-SAL Node (I think we mean
+OpendaylightInventory-Node?) to be something other than “Node” which is
+a very common, and overloaded term.
+
+* Proposal [General] – Can we somehow try and make class names unique,
+but meaningful, during code generation?
+
+[[difficulty-in-traversing-the-dom-building-instance-identifiers.-everyone-uses-helper-classes]]
+=== Difficulty in traversing the DOM (building instance identifiers).
+Everyone uses helper classes
+
+* Proposal: Merge the simplified API of building the instance
+identifiers into the builder…???
+
+[[confusion-on-purpose-of-many-md-sal-classes]]
+=== Confusion on purpose of many MD-SAL classes
+
+* Proposal: Add at a minimum one or two meaningful sentences to every
+class explaining its purpose.
+* Proposal: Break apart nested classes etc until one or two sentences is
+enough!
+
+[[too-much-yang-while-yang-is-a-good-tool-i-think-its-dependencies-should-be-contained-as-part-of-a-component-tool-chain..]]
+=== Too much Yang: While Yang is a good tool I think its dependencies
+should be contained as part of a component tool chain..
+
+* Proposal: I would prefer to see a generic approach to plugins
+(northbound, southbound or otherwise) and have yang be a way to
+translate to that specific format instead of seeing yang crawl in a core
+dependency for all the rest of the platform / system.
+
+[[md-sal-is-a-large-framework-with-a-lot-of-dependencies.]]
+=== MD-SAL is a “Large” framework with a lot of dependencies.
+
+* Proposal: Decompose MD-SAL into smaller pieces, preferably a layered
+architecture which allows consumers to enage with MD-SAL and different
+levels.
+
+[[unit-test-mocks-module-loading]]
+=== Unit Test Mocks & Module Loading
+
+* Provide examples and describe how it’s done in the existing
+components; also, document how it plug into the module lifecycle (exists
+in emails, need better documentation). Initial proposal here:
+OpenDaylight_Controller:Config:UnitTesting
+
+[[debugability]]
+= Debugability
+
+[[runtime-generated-code-makes-debugging-md-sal-code-fairly-complicated-and-unpredictable.]]
+=== Runtime generated code makes debugging MD-SAL code fairly
+complicated and unpredictable.
+
+* Proposal: Limit or remove the run-time code generation
+* Proposal: (Already implemented) Generate the runtime generated code
+and save the source to a file so it can be examined manually.
+
+[[missing-features]]
+= Missing Features
+
+[[controller-is-ready-status.]]
+=== “Controller is Ready” status.
+
+* As a north bound application developer, I need to know when the
+controller is ready to accept all requests from NB / SB interfaces, so I
+can be sure requests from my system will be processed correctly (and not
+fail due to a resource that is missing).
+
+:* NOTE: This problem is solved for RESTConf by making it register for
+YANG convergence events and have it reload its cache based on these
+events. However, from the controller, it is impossible to say when the
+controller is really ready.
+
+[[component-lifecycle]]
+=== Component Lifecycle
+
+* Need to add the ‘Run’ phase to the lifecycle, and document the whole
+lifecycle (AI: Robert, ETA: ???)
+
+[[configuration-shim]]
+=== Configuration Shim
+
+* Create a configuration shim (a subsystem) that will allow to create
+module wiring configurations from Java annotations and make wiring
+configs much easier for Java developers. initial proposal by Raghu Bhat
+is here: OpenDaylight_Controller:Config:JavaShim' Robert or Tomas
+Olvecky has an AI to figure out how to map the shim onto the existing
+config subsystem and to investigate what simplifications are possible in
+the current config subsystem for Helium)
+
+[[clustering-services-hydrogen-release-was-missing-md-sal-clustering.]]
+=== Clustering Services: Hydrogen release was missing MD-SAL clustering.
+
+* Proposal: (Already is in progress with Akka experiements etc)Make this
+a priority to implement sooner rather than later.
+
+[[performance]]
+= Performance
+
+[[hashtable-datastore-implementation-appears-to-slow-exponentially]]
+=== Hashtable DataStore Implementation appears to slow exponentially
+
+* Proposal: (Already in progress) Implement a TreeDataStore (some
+concerns remain)
+
+[[converting-bindingaware-commits-into-binding-independent-commits-adds-debugging-complexity-as-well-as-introducing-overhead-5-8.]]
+=== Converting BindingAware commits into Binding Independent commits
+adds debugging complexity, as well as introducing overhead (~5-8%).
+
+* Proposal: Consider different code paths for BA/ BI service to maintain
+performance?
+
+[[process-size-not-sure-if-it-is-md-sal-specifically-causing-this-but-odl-is-a-large-process-which-consumes-a-large-number-of-resources.]]
+=== Process Size: Not sure if it is MD-SAL specifically causing this,
+but ODL is a large process which consumes a large number of resources.
+
+* Proposal: Split the controller up into multiple smaller processes.
+
+[[documentation]]
+= Documentation
+
+* Toaster code should show proper error handling (Bug 1112)
+* AI Tony sync up with Devin about proper Netconf error handling
+* Document how to use the Data Store API properly (read/modify write w.
+error handling/retry cycle) Bug 1111
+* Describe RPC Error handling Bug 1118
+
+[[fix-error-handling]]
+= Fix Error Handling
+
+* Promote DS Data pre-condition fail exceptions into the public DS API -
+Bug 1106;
+
+`* Fix RPC error handling - bugs 1117`

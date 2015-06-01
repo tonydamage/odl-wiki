@@ -1,0 +1,388 @@
+[[maintainer]]
+== Maintainer
+
+Baohua Yang (baohyang@cn.ibm.com) and Denghui Huang
+(huangdenghui@gmail.com)
+
+[[introduction]]
+== Introduction
+
+The library is designed for the robot framework to implement flexible
+and readable test case. The design is following google's
+http://robotframework.googlecode.com/hg/doc/userguide/RobotFrameworkUserGuide.html#creating-test-libraries[recommendation]
+style.
+
+You can try the latest code from the
+https://github.com/yeasy/robot_tool[Github] or the stable code from the
+https://git.opendaylight.org/gerrit/#/admin/projects/integration[integration
+git repo].
+
+During developing this tool, we find and fix
+https://bugs.opendaylight.org/show_bug.cgi?id=153[bug 153].
+
+[[get-code]]
+== Get Code
+
+-------------------------------------------------
+git clone https://github.com/yeasy/robot_tool.git
+-------------------------------------------------
+
+The stable version can be pulled by
+
+-----------------------------------------------------------
+ git clone https://git.opendaylight.org/gerrit/integration 
+-----------------------------------------------------------
+
+[[usage]]
+== Usage
+
+[[prerequisites]]
+=== Prerequisites
+
+* Python 2.6/2.7
+
+--------------------------
+aptitude install python2.7
+--------------------------
+
+*
+https://wiki.opendaylight.org/view/GettingStarted:Developer_Main[OpenDaylight
+Controller]
+
+Download and build OpenDaylight Controller
+
+-----------------------------------------------------------------
+   git clone https://git.opendaylight.org/gerrit/p/controller.git
+   cd controller/opendaylight/distribution/opendaylight
+   mvn clean install -DskipTests -Dmaven.compile.fork=true -U
+-----------------------------------------------------------------
+
+* http://mininet.org/walkthrough[Mininet]
+
+------------------------
+aptitude install mininet
+------------------------
+
+* http://robotframework.org[Robotframework]
+
+--------------------------
+pip install robotframework
+--------------------------
+
+[[run-test]]
+=== Run Test
+
+* Start the
+https://wiki.opendaylight.org/view/GettingStarted:Developer_Main[OpenDaylight
+Controller]
+
+-----------------------------------------------------------------------------------------
+  cd controller/target/distribution.opendaylight-0.1.0-SNAPSHOT-osgipackage/opendaylight/
+  ./run.sh
+-----------------------------------------------------------------------------------------
+
+* Start mininet, and make sure mininet has all switches connected to the
+controller, for example,
+
+---------------------------------------------------------------
+sudo mn --controller=remote,ip=your_controller_ip --topo tree,2
+---------------------------------------------------------------
+
+* Go to the suites directory, executing the suite such as
+
+--------------------------------------------------------------------------------------
+pybot  -v CONTROLLER:127.0.0.1 base                  #Run all tests in the base suite 
+OR
+pybot -v CONTROLLER:127.0.0.1 arp_handler.txt     #Test the arp handler module.
+--------------------------------------------------------------------------------------
+
+[[code-structure]]
+== Code Structure
+
+`   robot_tool` +
+`   \---------suites       # all robot test suites` +
+`   |              \-----base                # all test suites for the base edition` +
+`   |              |` +
+`   |              \-----service_provider    # all test suites for the service provider edition` +
+`   |              |` +
+`   |              \-----virtualization      # all test suites for the service provider edition` +
+`   |` +
+`   \---------libraries    # all keywords` +
+`   |` +
+`   \---------resources    # resources related files` +
+`   |` +
+`   \---------variables    # all variables`
+
+[[hack-code]]
+== Hack Code
+
+[[create-and-import-library]]
+=== Create and Import Library
+
+The robotframework supports both Python and Java based library. Here we
+take the Python code for example.
+
+The library can be either a normal module or a class (Commonly a *.py
+file). You can add the _Library your_library_file_ command into the _***
+Settings ***_ part to import a library. Notice the elements (variable,
+keyword, etc) separator in robot script is tab (or four spaces), instead
+of space. Space is only used inside the name of the same element.
+
+[[add-keyword]]
+=== Add Keyword
+
+In case of a module, a keyword will be created for each top-level
+function in the module. In case of a class, a keyword will be created
+for each public method of the class.
+
+Keyword name will be mapped to the function name (case insensitively and
+underscores removed), and the keywords will have same arguments as the
+functions. For example, if you define a function in the library as
+
+------------------------------------------------
+def print_hello_world(param1,param2):
+    """
+    Just print out the first hello to the world.
+    """
+    print "Hello world",param1,param2
+------------------------------------------------
+
+Then after import the library, you can use the keyword in the robot
+framework as
+
+--------------------------------------------
+$param1    Hi
+$param2    Again
+Print Hello World     ${param1}    ${param2}
+--------------------------------------------
+
+[[example-case]]
+=== Example Case
+
+Some useful basic functions are defined in _libraries/Common.py_
+library. You can see the code to find a _collection_should_contain_
+function (check if a collection should contain every given member) like
+
+--------------------------------------------------------
+import collections
+def collection_should_contain(collection, *members):
+    """
+    Fail if not every members is in the collection.
+    """
+    if not isinstance(collection, collections.Iterable):
+        return False
+    for m in members:
+        if m not in collection:
+            return False
+    else:
+        return True
+--------------------------------------------------------
+
+Then we can use the keyword _Collection Should Contain_ after importing
+the library as `Library ../../libraries/Common.py`. For example, in the
+switch_manager.txt robot script.
+
+------------------------------------------------------
+Collection Should Contain    ${nodes}    ${topo_nodes}
+------------------------------------------------------
+
+[[keyword-list]]
+=== Keyword List
+
+Keyword can be utilized in the robot scripts as functions.
+
+* Collection Should Contain
+
+`Name: Collection Should Contain` +
+`Source: Common ` +
+`Arguments: [ collection | *members ]` +
+`Fail if not every members is in the collection.`
+
+* Combine Strings
+
+`Name: Combine Strings` +
+`Source: Common ` +
+`Arguments: [ *strings ]` +
+`Combines the given \`strings\` together and returns the result. The given strings are not altered by this keyword.`
+
+* Create Session
+
+`Name: Create Session` +
+`Source: RequestsLibrary ` +
+`Arguments: [ alias | url | headers={} | cookies=None | auth=None | timeout=None | proxies=None | verify=False ]` +
+`Create Session: create a HTTP session to a server ` +
+`\`url\` Base url of the server ` +
+`\`alias\` Robot Framework alias to identify the session`
+
+* Delete
+
+`Name: Delete` +
+`Source: RequestsLibrary ` +
+`Arguments: [ alias | uri | data=() | headers=None ]` +
+`Send a DELETE request on the session object found using the given \`alias\` ` +
+`\`alias\` that will be used to identify the Session object in the cache ` +
+`\`uri\` to send the DELETE request to ` +
+`\`headers\` a dictionary of headers to use with the request`
+
+* Delete All Sessions
+
+`Name: Delete All Sessions` +
+`Source: RequestsLibrary ` +
+`Arguments: [ ]` +
+`Removes all the session objects`
+
+* Get
+
+`Name: Get` +
+`Source: RequestsLibrary ` +
+`Arguments: [ alias | uri | headers=None ]` +
+`Send a GET request on the session object found using the given \`alias\` ` +
+`\`alias\` that will be used to identify the Session object in the cache ` +
+`\`uri\` to send the GET request to ` +
+`\`headers\` a dictionary of headers to use with the request`
+
+* Head
+
+`Name: Head` +
+`Source: RequestsLibrary ` +
+`Arguments: [ alias | uri | headers=None ]` +
+`Send a HEAD request on the session object found using the given \`alias\` ` +
+`\`alias\` that will be used to identify the Session object in the cache ` +
+`\`uri\` to send the HEAD request to ` +
+`\`headers\` a dictionary of headers to use with the request`
+
+* Post
+
+`Name: Post` +
+`Source: RequestsLibrary ` +
+`Arguments: [ alias | uri | data={} | headers=None | files={} ]` +
+`Send a POST request on the session object found using the given \`alias\` ` +
+`\`alias\` that will be used to identify the Session object in the cache ` +
+`\`uri\` to send the GET request to ` +
+`\`data\` a dictionary of key-value pairs that will be urlencoded and sent as POST data or binary data that is sent as the raw body content ` +
+`\`headers\` a dictionary of headers to use with the request ` +
+`\`files\` a dictionary of file names containing file data to POST to the server`
+
+* Put
+
+`Name: Put` +
+`Source: RequestsLibrary ` +
+`Arguments: [ alias | uri | data=None | headers=None ]` +
+`Send a PUT request on the session object found using the given \`alias\` ` +
+`\`alias\` that will be used to identify the Session object in the cache ` +
+`\`uri\` to send the PUT request to ` +
+`\`headers\` a dictionary of headers to use with the request`
+
+* To Json
+
+`Name: To Json` +
+`Source: RequestsLibrary ` +
+`Arguments: [ content ]` +
+`Convert a string to a JSON object ` +
+`\`content\` String content to convert into JSON`
+
+* Extract All Nodes
+
+`Name: Extract All Nodes` +
+`Source: SwitchManager ` +
+`Arguments: [ content ]` +
+`Return all nodes.`
+
+[[learning-more]]
+=== Learning More
+
+Would like to suggest to read the
+http://code.google.com/p/robotframework/wiki/PythonTutorial[Python
+Tutorial for robotframework] and the
+http://code.google.com/p/robotframework/wiki/UserGuide[Robot Framework
+User Guide].
+
+[[debug]]
+== Debug
+
+Since CSIT tool is based on the
+http://http://robotframework.org/[robotframeowork], debugging CSIT is
+really flexible.
+
+[[diagnosis-based-on-output-files]]
+=== Diagnosis based on output files
+
+image:log_html.png[log.html example,title="fig:log.html example"]
+image:log_html.png[report.html example,title="fig:report.html example"]
+
+After running test suites, typically robot will generate several output
+files.
+
+By default these are output.xml, report.html and log.html. Those files
+include many useful information of the test execution, and they can also
+be combined and otherwise post-processed with Rebot.
+
+The output.xml file contains all the test execution results in machine
+readable XML format, and the log.html and the report.html are generated
+based on it.
+
+The log.html file contains details about the test execution in HTML
+format, which has hierarchical structure to show the results of test
+suite, test case and the key word. Log file is needed nearly every time
+when test results are to be investigated in detail. Even though log
+files also have statistics, report file is better for getting an
+higher-level overview.
+
+The command line option --log (-l) determines where log files are
+created. Unless the special value NONE is used, log files are always
+created and their default name is log.html.
+
+The report.html contains an overview of the test execution results in
+HTML format. It has statistics based on tags and executed test suites,
+as well as a list of all executed test cases. When both report and log
+are generated, the report has links to the log file for easy navigation
+to more detailed information. It is easy to see the overall test
+execution status from report, because its background color is green, if
+all critical tests pass, and bright red otherwise.
+
+The command line option --report (-r) determines where report files are
+created. Similarly as log files, reports are always created unless NONE
+is used as a value, and their default name is report.html.
+
+If no outputs are needed, they should all be explicitly disabled using
+--output NONE --report NONE --log NONE.
+
+[[debug-the-code]]
+=== Debug the code
+
+[[development-plan]]
+== Development Plan
+
+[[code-architecture-discussion]]
+=== Code architecture discussion
+
+Done.
+
+[[base-edition-test-suites]]
+=== Base edition test suites
+
+Basically Done.
+
+[[accept-controller-ip-parameters]]
+=== Accept controller IP parameters
+
+Done.
+
+[[operate-the-outside-mininet-environment]]
+=== Operate the outside mininet environment
+
+Done.
+
+[[support-topology-parameters]]
+=== Support topology parameters
+
+TODO.
+
+[[reference]]
+== Reference
+
+1. 
+http://robotframework.googlecode.com/hg/doc/userguide/RobotFrameworkUserGuide.html
+
+Category:Integration Group:CSIT Test Tools[Category:Integration
+Group:CSIT Test Tools]

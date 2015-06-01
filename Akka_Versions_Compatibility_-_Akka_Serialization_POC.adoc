@@ -1,0 +1,265 @@
+[[scala-compilerakka-versions-compatibility-tests]]
+== Scala Compiler/Akka Versions Compatibility Tests
+
+[[scenario-1]]
+== Scenario 1:
+
+We want to find out if the client running compiled with different
+version of Scala-compiler (lower version) can communicate with Server
+compiled with different version of the Scala-Compiler (higher version)
+using '''Java Serialization '''
+
+[[test-setup]]
+=== Test Setup:
+
+We utilize the POC code we did and can be found in
+https://git.opendaylight.org/gerrit/#/c/7427/3. This code has a client
+as a separate maven project scala-client. It has server has a separate
+maven project scala-server. We run the client/server(s) locally on
+laptop
+
+*Steps :*
+
+\0. Get the https://git.opendaylight.org/gerrit/#/c/7427/3 patch
+
+\1. In terminal, using the run-client.sh in scripts directory - run the
+client
+
+\2. In terminal, using the run-server1.sh in scripts directory - run the
+server
+
+\3. Enter 1 as in the client terminal to send messages - check the
+server1 has received the messages
+
+\4. Change the scala-server/pom.xml to use a newer scala-library version
+(e.g. 2.11.1) and run the run-server2.sh script
+
+*Expected Result:*
+
+\5. Once server2 comes up it should be able to receive the messages
+
+'''Actual Result: '''
+
+We get exception Exception in thread "main"
+java.lang.NoClassDefFoundError:
+scala/collection/GenTraversableOnce$class .. Googling found that this is
+happenning due to Akka .jars are based off scala compiler 2.10.x --
+hence the exception -- Please refer
+https://groups.google.com/forum/#!msg/scala-user/TeEDQE3MsUY/kn-F_NUdswUJ
+
+Changed the akka .jars to 2.11.x version and maven-scala-plugin
+settings. Then the build was successful but when server2 was launched
+the following exception occurred.
+
+'''''
+
+Exception in thread "main" java.lang.ExceptionInInitializerError
+
+--------------------------------------------------------
+at org.opendaylight.controller.Server.main(Server.scala)
+--------------------------------------------------------
+
+Caused by: akka.ConfigurationException: Akka JAR version [2.3.2] does
+not match the provided config version [2.3.3]
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+at akka.actor.ActorSystem$Settings.&lt;init&gt;(ActorSystem.scala:209)
+at akka.actor.ActorSystemImpl.&lt;init&gt;(ActorSystem.scala:504)
+at akka.actor.ActorSystem$.apply(ActorSystem.scala:141)
+at akka.actor.ActorSystem$.apply(ActorSystem.scala:108)
+at org.opendaylight.controller.Server$.&lt;init&gt;(Server.scala:7)
+at org.opendaylight.controller.Server$.&lt;clinit&gt;(Server.scala)
+... 1 more
+---
+
+For the above I had ensure that the scala-clustering-service and scala-messages projects were also using the new Scala Compiler and Akka Version 
+after that server 2 came up
+ 1. It couldn&#39;t recover existing messages in Journal (which were sent earlier when it was using older scala complier/akka version)
+ 2. When journal was cleaned up and server 2 restarted -- It was not able to de-seraialize the exception is 
+
+ [05/30/2014 18:06:00.078] [opendaylight-akka.remote.default-remote-dispatcher-6] [Remoting] org.opendaylight.controller.Replicated; local class incompatible: stream classdesc serialVersionUID = -3040333517591097431, local class serialVersionUID = 3002230599308549169
+java.io.InvalidClassException: org.opendaylight.controller.Replicated; local class incompatible: stream classdesc serialVersionUID = -3040333517591097431, local class serialVersionUID = 3002230599308549169
+    at java.io.ObjectStreamClass.initNonProxy(ObjectStreamClass.java:604)
+    at java.io.ObjectInputStream.readNonProxyDesc(ObjectInputStream.java:1620)
+    at java.io.ObjectInputStream.readClassDesc(ObjectInputStream.java:1515)
+    at java.io.ObjectInputStream.readOrdinaryObject(ObjectInputStream.java:1769)
+    at java.io.ObjectInputStream.readObject0(ObjectInputStream.java:1348)
+    at java.io.ObjectInputStream.readObject(ObjectInputStream.java:370)
+    at akka.serialization.JavaSerializer$$anonfun$1.apply(Serializer.scala:136)
+    at scala.util.DynamicVariable.withValue(DynamicVariable.scala:58)
+    at akka.serialization.JavaSerializer.fromBinary(Serializer.scala:136)
+    at akka.serialization.Serialization$$anonfun$deserialize$1.apply(Serialization.scala:104)
+    at scala.util.Try$.apply(Try.scala:191)
+    at akka.serialization.Serialization.deserialize(Serialization.scala:98)
+    at akka.persistence.serialization.MessageSerializer.payload(MessageSerializer.scala:176)
+    at akka.persistence.serialization.MessageSerializer.akka$persistence$serialization$MessageSerializer$$persistent(MessageSerializer.scala:160)
+    at akka.persistence.serialization.MessageSerializer.fromBinary(MessageSerializer.scala:65)
+    at akka.persistence.serialization.MessageSerializer.fromBinary(MessageSerializer.scala:25)
+    at akka.serialization.Serialization$$anonfun$deserialize$1.apply(Serialization.scala:104)
+    at scala.util.Try$.apply(Try.scala:191)
+    at akka.serialization.Serialization.deserialize(Serialization.scala:98)
+    at akka.remote.serialization.MessageContainerSerializer.fromBinary(MessageContainerSerializer.scala:61)
+    at akka.serialization.Serialization$$anonfun$deserialize$1.apply(Serialization.scala:104)
+    at scala.util.Try$.apply(Try.scala:191)
+    at akka.serialization.Serialization.deserialize(Serialization.scala:98)
+    at akka.remote.MessageSerializer$.deserialize(MessageSerializer.scala:23)
+    at akka.remote.DefaultMessageDispatcher.payload$lzycompute$1(Endpoint.scala:58)
+    at akka.remote.DefaultMessageDispatcher.payload$1(Endpoint.scala:58)
+    at akka.remote.DefaultMessageDispatcher.dispatch(Endpoint.scala:76)
+    at akka.remote.EndpointReader$$anonfun$receive$2.applyOrElse(Endpoint.scala:937)
+    at akka.actor.Actor$class.aroundReceive(Actor.scala:465)
+    at akka.remote.EndpointActor.aroundReceive(Endpoint.scala:415)
+    at akka.actor.ActorCell.receiveMessage(ActorCell.scala:516)
+    at akka.actor.ActorCell.invoke(ActorCell.scala:487)
+    at akka.dispatch.Mailbox.processMailbox(Mailbox.scala:238)
+    at akka.dispatch.Mailbox.run(Mailbox.scala:220)
+    at akka.dispatch.ForkJoinExecutorConfigurator$AkkaForkJoinTask.exec(AbstractDispatcher.scala:393)
+    at scala.concurrent.forkjoin.ForkJoinTask.doExec(ForkJoinTask.java:260)
+    at scala.concurrent.forkjoin.ForkJoinPool$WorkQueue.runTask(ForkJoinPool.java:1339)
+    at scala.concurrent.forkjoin.ForkJoinPool.runWorker(ForkJoinPool.java:1979)
+    at scala.concurrent.forkjoin.ForkJoinWorkerThread.run(ForkJoinWorkerThread.java:107)
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+[[conclusion]]
+== Conclusion
+
+* The message exchanged fail as the serialVersionID generated by default
+doesn't match -- hence messages should be compiled with same scala
+compiler/akka version
+* We cannot upgrade to new version of scala-compiler till there is a
+compatible version from Akka side
+
+[[scenario-2]]
+== Scenario 2:
+
+`   We want to find out if the client running compiled with different version of Scala-compiler (lower version) can communicate with Server compiled with different version of the Scala-Compiler (higher version) using '''ProtocolBuffer Serialization ''' ` +
+`     `
+
+[[test-setup-1]]
+== Test Setup:
+
+`   We have localNodeApp that sents a String message and an Object representing the message that is generated using protocol buffer compiler. Both are sent to RemoteNodeApp that is running in a Akka Microkernel (aka container for actors in a separate JVM)  ` +
+`      '''Case 1: ''' ` +
+`   Both LocalNodeApp and RemoteNodeApp are build with same ScalaVersion (10.0.4) and Akka Binaries off this version (e.g. akka-actor_2.10.4 version 2.3.2) . The Objects based on ProtoBuf are generate using the definition in .proto file and compiling with 2.5.0 of proto compiler. ` +
+`     ` +
+`   2. The .proto file looks like  ` +
+`   --------------------    ` +
+`       package org.opendaylight.controller.mdsal; ` +
+`         ` +
+`       option java_package = "org.opendaylight.controller.mdsal"; ` +
+`       option java_outer_classname = "Messages"; ` +
+`         ` +
+`       message PostBox { ` +
+`         required string name = 1; ` +
+`         required string id = 2; ` +
+`         ` +
+`         enum FromType { ` +
+`           LOCAL = 0; ` +
+`           CITY = 1; ` +
+`           COUNTRY = 2; ` +
+`         } ` +
+`         ` +
+`         message Mail { ` +
+`           required string zipcode = 1; ` +
+`           optional FromType  type= 2 [default = LOCAL] ; ` +
+`         ` +
+`         } ` +
+`         ` +
+`         repeated Mail mail = 4; ` +
+`         ` +
+`         required string age = 5; ` +
+`         ` +
+`       } ` +
+`         ` +
+`       message PostOffice { ` +
+`           required string version = 1; ` +
+`           repeated PostBox box = 2; ` +
+`       }  ` +
+`     ` +
+`   ------------ ` +
+`     ` +
+`   3. When .proto file is run with Proto compiler it will generated the sources - in our case in java .. We are using the maven-ant-plugin to get this done as shown below  ` +
+`      ` +
+`                   <plugin> ` +
+`                       <artifactId>maven-antrun-plugin</artifactId> ` +
+`                       <executions> ` +
+`                           <execution> ` +
+`                               <id>compile-protoc</id> ` +
+`                               <phase>generate-sources</phase> ` +
+`                               <configuration> ` +
+`                                   <tasks> ` +
+`                                       <mkdir dir="src/main/java" /> ` +
+`                                       <path id="proto.path"> ` +
+`                                           <fileset dir="src/main/resources"> ` +
+`                                               <include name="**/*.proto" /> ` +
+`                                           </fileset> ` +
+`                                       </path> ` +
+`                                       <pathconvert pathsep=" " property="proto.files" refid="proto.path" /> ` +
+`                                       <exec executable="protoc" failonerror="true"> ` +
+`                                           <arg value="--java_out=src/main/java" /> ` +
+`                                           <arg value="-I${project.basedir}/src/main/resources" /> ` +
+`                                           <arg line="${proto.files}" /> ` +
+`                                       </exec> ` +
+`                                   </tasks>com.google.protobuf.GeneratedMessage ` +
+`                               </configuration> ` +
+`                               <goals> ` +
+`                                   <goal>run</goal> ` +
+`                               </goals> ` +
+`                           </execution> ` +
+`                       </executions> ` +
+`                   </plugin>  ` +
+`   4.  The generate java source contains all message specified objects in .proto as Classes (and  builders) that are derived from  ` +
+`   com.google.protobuf.GeneratedMessage a requirement for protocol serialization to work properly  ` +
+`     ` +
+`   5. I have put all messages in a separate maven module name messages that is compiled with protocolbufjava 2.5.0  ` +
+`     ` +
+`   6. LocalNodeApp sends a PostOffice object to RemoteNodeApp and RemoteNodeApp is able to receive the same. ` +
+`     ` +
+`      `*`Case` `2:`*` ` +
+`    LocalNodeApp is build with ScalaVersion (10.0.4) and Akka Binaries off this version (e.g. akka-actor_2.10.4 version 2.3.2) . The RemoteNodeApp is build with ScalaVersion (11.2.1) and Akka Binaries off this  scala version (e.g. akka-actor_2.11.1 version 2.3.3). The Message objects are not changed are still generated with proto compiler 2.5.0 ` +
+`     ` +
+`   Result:  ` +
+`   LocalNodeApp sends a PostOffice Object to RemoteNodeApp and RemoteNodeApp is able to receive the same with out issues.  ` +
+`     ` +
+`     `
+
+[[conclusion-1]]
+== Conclusion:
+
+` '''1. '''Protobuf based Serialization seems the way we should be generating all Akka Messages, to not be concerned about change in Akka and Scala versions. Note: the protocol buff messages should be generated with same protobuffer compiler version. Which I think should be reasonable compromise.  ` +
+`      '''2. ''' protobuf compiler needs to be build -- yes it is a C/C++ i.e native based. Instructions are there and we need to build the same i.e. since we will be generating messages off .proto files -- we need the proto compiler built once on the Build machine. I have found maven plugin to integrate the same to autogenerate the Message Java classes  ` +
+`      '''3.  '''I think using protobuff will address the performance issue -- as it was built to address the Java Serialization issue.  ` +
+`     ` +
+`   4. Regarding versioning of messages -- two options  ` +
+`                             1. using the Optional qualifier for the new fields added in the new version message Or ` +
+`                             2. Creating a total new message e.g. PostOffice2 and in code handling both PostOffice and PostOffice2.  ` +
+`     ` +
+`      `*`Source` `(Draft` `mode` `-` `Raghu,Moiz,Abhishek)` `has`
+`been` `changed`*` ` +
+`   `https://git.opendayylight.org/gerrit/#/c/8053/[`https://git.opendayylight.org/gerrit/#/c/8053/`]` ` +
+`      `*`How` `to` `run` `?`*` ` +
+`     ` +
+`   1. You need to download Akka 2.3.3 version compatible with Scala 2.10 -- `http://downloads.typesafe.com/akka/akka-2.3.3_2.10.zip?_ga=1.91786322.970877591.1402943620[`http://downloads.typesafe.com/akka/akka-2.3.3_2.10.zip?_ga=1.91786322.970877591.1402943620`]` -- once unzipped. You can use the Microkernel - a container for Actors ` +
+`     ` +
+`   2. Download the source ` +
+`     ` +
+`   3. Build protobuf messages using akka-serialization-poc/messages/buildmessagesv1.sh ` +
+`     ` +
+`   4. Build client version 1 by running the localnodeapp/buildclientv1.sh ` +
+`     ` +
+`   5. Build server version 1 by running the remotenodeapp/buildserverv1.sh ` +
+`     ` +
+`   6.Copy the message*.jar from akka-serialization-poc/messages/target and remote*all-inone-*.jar  in  akka-serialization-poc/remotenodeapp/target/  to the akka installation (of step 1) akka-2.3.3/deploy folder ` +
+`     ` +
+`   7. start the RemoteNodeApp going to akka-2.3.3/bin folder and running the .`*`/akka`
+`org.akka.essentials.remotenode.RemoteNodeApplication`*` ` +
+`     ` +
+`   8. start the LocalNodeApp by going to the localnodeapp/target directory and running the command`_`'`
+`java` `-cp` `.:LocalNodeApp-0.0.1-SNAPSHOT-allinone.jar`
+`org.akka.essentials.localnode.LocalNodeApplication`_`' ` +
+`     ` +
+`   9. Result you should see the message exchange between client and server. ` +
+`     ` +
+`   10. Stop the remote server. ` +
+`     ` +
+`   11. Do step 3 with buildmessagesv2.sh, Do step 5 with buildremoteserver2.sh , Do Step 6 - 9 .. This will be running an old client with   Server/Messages built with newer version of  Akka/Scala.`

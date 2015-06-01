@@ -1,0 +1,538 @@
+[[how-to-use-restconf]]
+= How to use Restconf
+
+[[known-issues]]
+== Known Issues
+
+There are several known issues that have come to light recently.
+
+* restconf/modules throws an exception and returns with an internal
+server error. See https://bugs.opendaylight.org/show_bug.cgi?id=735[Bug
+735]
+* restconf/streams throws an exception and returns with an internal
+server error. Seehttps://bugs.opendaylight.org/show_bug.cgi?id=566[Bug
+566]
+* Successful POST to restconf/config returns no content and results in
+an exception on the OSGi command line.
+
+:*This is an issue where the code which looks up the model is failing to
+find some of the generate YANG class files and thus results in a null
+pointer exception. A bug has not been filed yet.
+
+* A Successful DELETE to restconf/config/ results in no return content
+and an exception on the OSGI command line.
+
+:*This is an issue where the code which looks up the model is failing to
+find some of the generated YANG class files and thus results in a null
+pointer exception. A bug has not been filed yet.
+
+* Getting an exception return (500 error) when trying to make an RPC
+which has no inputs.
+
+:*This is a known issue. If you have content-type defined when you make
+an RPC call which has no input then you will be directed to a java
+method which expects non-null/empty input and thus fails accordingly.
+Removing the content-type header results in the rest call getting routed
+to a different java method which expects an empty body and thus there is
+success.
+
+* My cancel-toast method in the MD-SAL toaster example is still failing
+with an exception
+
+:*This is a bug in either the toaster or MD-SAL core code. Essentially
+the cancel-toaster call returns a null future object, which the rpc
+caller chokes on (i.e. doesn't null check). While the simple fix is to
+change the toaster to return a non-null future, we should consider
+enhancing the RPC caller to gracefully handle null futures. No bug has
+been filed on this yet.
+
+* All of my query parameters appear to be ignored
+
+:*It does not look like support for query parameters has been
+implemented.
+
+[[operations]]
+== Operations
+
+[[overview-before-operations]]
+==== Overview before operations
+
+Restconf allows access to datastores locating in controller. There are
+two datastores:
+
+* *Config* – contains data inserted via controller
+* *Operational* – contains other data
+
+ +
+; Each request must start with URI */restconf*
+
+Restconf listens on port *8080* for *HTTP* requests::
+
+ +
+Restconf supports *OPTIONS, GET, PUT, POST, DELETE* operations. Request
+and response *data can be in XML or JSON* format. XML has structure
+according to yang by http://tools.ietf.org/html/rfc6020[XML-YANG] and
+JSON by
+http://tools.ietf.org/html/draft-lhotka-netmod-yang-json-02[JSON-YANG].
+Data in request must have correctly set “*Content-Type*” field in http
+header with allowed value of media type and media type of requested data
+has to be set in “*Accept*” field. Media types for each resource can be
+got by calling OPTIONS operation. +
+Most of the Restconf endpoints path uses
+OpenDaylight Controller:MD-SAL:Concepts#Instance_Identifier[Instance
+Identifier]. We will use `<identifier>` in explanation of operations. +
+: `<identifier>`
+
+::* must start with *`<moduleName>`:`<nodeName>`* where *`<moduleName>`*
+is a name of module and *`<nodeName>`* is a name of node in the module.
+It is sufficient use just *`<nodeName>`* after
+*`<moduleName>`:`<nodeName>`*. Each *`<nodeName>`* has to be separated
+by */*
+
+::* *`<nodeName>`* can represent data node which is list or container
+yang build-in type. If data node is list there must be defined keys of
+the list behind the data node name e.g.
+*`<nodeName>/<valueOfKey1>/<valueOfKey2>`*
+
+::* Format *`<moduleName>`:`<nodeName>`* has to be used in this case as
+well:
+
+::
+  ;;
+    Module A has node A1. Module B augments node A1 by adding node X.
+    Module C augments node A1 by adding node X. Then for clarification
+    there has to be known which node X is thought (e.g. C:X).
+    +
+    For more details about encoding please see:
+    http://tools.ietf.org/html/draft-bierman-netconf-restconf-02#section-5.3.1[Restconf
+    02 - Encoding YANG Instance Identifiers in the Request URI]
+  +
+  *Mount point*
+  +
+  :* Node can be behind mount point. In this case URI has to be in
+  format *`<identifier>`/yang-ext:mount/`<identifier>`*. The first
+  *`<identifier>`* is path to a mount point and the second
+  *`<identifier>`* is path to a node behind the mount point. URI can end
+  in mount point itself by using *`<identifier>`/yang-ext:mount*
+
+ +
+ +
+
+[[options-restconf]]
+==== OPTIONS /restconf
+
+:* returns XML description of resources with required request and
+response media types in Web Application Description Language (WADL) +
+==== GET /restconf/config/`<identifier>` ====
+
+:* returns a data node from Config datastore
+
+:* `<identifier>` points to a data node which should be retrieved +
+==== GET /restconf/operational/`<identifier>` ====
+
+:* returns value of data node from Operational datastore
+
+:* `<identifier>` points to a data node which should be retrieved +
+==== PUT /restconf/config/`<identifier>` ====
+
+:* updates or creates data in Config datastore and returns state about
+success
+
+:* `<identifier>` points to a data node which should be stored
+
+::
+  Example:
+
+--------------------------------------------------------------
+PUT http://<controllerIP>:8080/restconf/config/module1:foo/bar
+Content-Type: applicaton/xml
+<bar>
+  …
+</bar>
+--------------------------------------------------------------
+
+::
+  Example with mount point:
+
+-----------------------------------------------------------------------------------------------
+PUT http://<controllerIP>:8080/restconf/config/module1:foo1/foo2/yang-ext:mount/module2:foo/bar
+Content-Type: applicaton/xml
+<bar>
+  …
+</bar>
+-----------------------------------------------------------------------------------------------
+
+ +
+==== POST /restconf/config ====
+
+* Creates the data if it does not exist.
+
+For example:
+
+----------------------------------------------------------
+POST URL: http://localhost:8080/restconf/config/
+content-type: application/yang.data+json
+JSON payload:
+
+   {
+     "toaster:toaster" :
+     {
+       "toaster:toasterManufacturer" : "General Electric",
+       "toaster:toasterModelNumber" : "123",
+       "toaster:toasterStatus" : "up"
+     }
+  }
+----------------------------------------------------------
+
+[[post-restconfconfigidentifier]]
+==== POST /restconf/config/`<identifier>`
+
+:* creates data if they do not exist in Config datastore and returns
+state about success
+
+:* `<identifier>` points to a data node where data should be stored
+
+:* root element of data must have namespace (data are in XML) or module
+name (data are in JSON)
+
+::
+  Example:
+
+-----------------------------------------------------------
+POST http://<controllerIP>:8080/restconf/config/module1:foo
+Content-Type: applicaton/xml/
+<bar xmlns=“module1namespace”>
+  …
+</bar>
+-----------------------------------------------------------
+
+::
+  Example with mount point:
+
+---------------------------------------------------------------------------------------
+http://<controllerIP>:8080/restconf/config/module1:foo1/foo2/yang-ext:mount/module2:foo
+Content-Type: applicaton/xml
+<bar xmlns=“module2namespace”>
+  …
+</bar>
+---------------------------------------------------------------------------------------
+
+ +
+
+[[post-restconfoperationsmodulenamerpcname]]
+==== POST /restconf/operations/`<moduleName>`:`<rpcName>`
+
+:* invokes RPC
+
+:* `<moduleName>`:`<rpcName>` - `<moduleName>` is name of module and
+`<rpcName>` is name of RPC in this module
+
+:* Root element of data sent to RPC must have name “input”
+
+:* Result can be status code or retrieved data having root element
+“output”
+
+::
+  Example:
+
+------------------------------------------------------------------
+POST http://<controllerIP>:8080/restconf/operations/module1:fooRpc
+Content-Type: applicaton/xml
+Accept: applicaton/xml
+<input>
+  …
+</input>
+
+Answer from server could be:
+<output>
+  …
+</output>
+------------------------------------------------------------------
+
+::
+  An example using a JSON payload:
+
+-----------------------------------------------------------------
+POST http://localhost:8080/restconf/operations/toaster:make-toast
+Content-Type: application/yang.data+json
+{
+  "input" :
+  {
+     "toaster:toasterDoneness" : "10",
+     "toaster:toasterToastType":"wheat-bread" 
+  }
+}
+-----------------------------------------------------------------
+
+_Note: Even though this is a default for the toasterToastType value in
+the yang, you still need to define it, likely due to a bug_ +
+
+[[delete-restconfconfig]]
+==== DELETE /restconf/config/
+
+:* removes data node in the Config datastore and returns state about
+success
+
+:* `<identifier>` points to a data node which should be removed +
+ +
+For further information read
+http://tools.ietf.org/html/draft-bierman-netconf-restconf-02[RESTCONF
+RFC]
+
+[[how-it-works]]
+= How it works
+
+Restconf uses these base classes:
+
+* *InstanceIdentifier* represents path in data tree.
+* *ConsumerSession* is used for invoking RPCs.
+* *DataBrokerService* offers manipulation with transactions and reading
+data from datastores.
+* *SchemaContext* holds information about yang modules.
+* *MountService* returns MountInstance based on InstanceIdentifier
+pointing to a mount point.
+* *MountInstace* contains SchemaContext behind mount point.
+* *DataSchemaNode* is information about schema node.
+* *SimpleNode* has name as schema node and contains value representing
+data node value
+* *CompositeNode* can contains CompositeNode-s and SimpleNode-s
+
+ +
+==== GET in action ==== The first picture shows GET operation with URI
+restconf/config/M:N where M is module name and N is node name. +
+image:Get.png[GET operation with URI restconf/config/M:N where M is
+module name and N is node
+name.,title="fig:GET operation with URI restconf/config/M:N where M is module name and N is node name."] +
+# Requested URI is translated into InstanceIdentifier which points to
+data node. During this translations DataSchemaNode conform to the data
+node is obtained. If data node is behind mount point the MountInstance
+is obtained as well.
+
+1.  Restconf asks for value of data node from DataBrokerService based on
+InstanceIdentifier.
+2.  DataBrokerService returns CompositeNode as data.
+3.  StructuredDataToXmlProvider or StructuredDataToJsonProvider is
+called based on Accept field from http request. These two providers can
+transform CompositeNode regarding to DataSchemaNode to XML or JSON
+document.
+4.  XML or JSON is returned as answer on the client's request.
+
+ +
+
+[[put-in-action]]
+==== PUT in action
+
+The second picture shows PUT operation with URI restconf/config/M:N
+where M is module name and N is node name. Data are sent in request
+either in XML or JSON format. image:Put.png[PUT operation with URI
+restconf/config/M:N where M is module name and N is node name. Data are
+sent in request either in XML or JSON
+format.,title="fig:PUT operation with URI restconf/config/M:N where M is module name and N is node name. Data are sent in request either in XML or JSON format."]
+
+1.  Input data are sent to JsonToCompositeNodeProvider or
+XmlToCompositeNodeProvider. Correct provider is selected based on
+Content-Type field from http request. These two providers can transform
+input data to CompositeNode. However this CompositeNode does not contain
+enough information for transaction.
+2.  Requested URI is translated into InstanceIdentifier which points to
+data node. During this translations is obtained DataSchemaNode conform
+to the data node. If data node is behind mount point the MountInstance
+is obtained as well.
+3.  CompositeNode can be normalized by adding additional information
+from DataSchemaNode.
+4.  Restconf begins transaction and puts CompositeNode with
+InstanceIdentifier into it. Response on client's request is status code
+which depends on result from transaction.
+
+ +
+ +
+= Something from real world = *1. Create new flow on switch _openflow:1_
+in _table 2_*
+
+* HTTP request
+
+--------------------------------------------------------------------------------------------------
+Operation: POST
+URI: http://192.168.11.1:8080/restconf/config/opendaylight-inventory:nodes/node/openflow:1/table/2
+Content-Type: application/xml
+--------------------------------------------------------------------------------------------------
+
+code,xml--------------------------------------------------------
+code,xml
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<flow 
+    xmlns="urn:opendaylight:flow:inventory">
+    <strict>false</strict>
+    <instructions>
+        <instruction>
+            <order>1</order>
+            <apply-actions>
+                <action>
+                  <order>1</order>
+                    <flood-all-action/>
+                </action>
+            </apply-actions>
+        </instruction>
+    </instructions>
+    <table_id>2</table_id>
+    <id>111</id>
+    <cookie_mask>10</cookie_mask>
+    <out_port>10</out_port>
+    <installHw>false</installHw>
+    <out_group>2</out_group>
+    <match>
+        <ethernet-match>
+            <ethernet-type>
+                <type>2048</type>
+            </ethernet-type>
+        </ethernet-match>
+        <ipv4-destination>10.0.0.1/24</ipv4-destination>
+    </match>
+    <hard-timeout>0</hard-timeout>
+    <cookie>10</cookie>
+    <idle-timeout>0</idle-timeout>
+    <flow-name>FooXf22</flow-name>
+    <priority>2</priority>
+    <barrier>false</barrier>
+</flow>
+--------------------------------------------------------
+
+ +
+* HTTP response
+
+----------------------
+Status: 204 No Content
+----------------------
+
+ +
+*2. Change _strict_ to _true_ in previous flow*
+
+* HTTP request
+
+-----------------------------------------------------------------------------------------------------------
+Operation: PUT
+URI: http://192.168.11.1:8080/restconf/config/opendaylight-inventory:nodes/node/openflow:1/table/2/flow/111
+Content-Type: application/xml
+-----------------------------------------------------------------------------------------------------------
+
+code,xml--------------------------------------------------------
+code,xml
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<flow 
+    xmlns="urn:opendaylight:flow:inventory">
+    <strict>true</strict>
+    <instructions>
+        <instruction>
+            <order>1</order>
+            <apply-actions>
+                <action>
+                  <order>1</order>
+                    <flood-all-action/>
+                </action>
+            </apply-actions>
+        </instruction>
+    </instructions>
+    <table_id>2</table_id>
+    <id>111</id>
+    <cookie_mask>10</cookie_mask>
+    <out_port>10</out_port>
+    <installHw>false</installHw>
+    <out_group>2</out_group>
+    <match>
+        <ethernet-match>
+            <ethernet-type>
+                <type>2048</type>
+            </ethernet-type>
+        </ethernet-match>
+        <ipv4-destination>10.0.0.1/24</ipv4-destination>
+    </match>
+    <hard-timeout>0</hard-timeout>
+    <cookie>10</cookie>
+    <idle-timeout>0</idle-timeout>
+    <flow-name>FooXf22</flow-name>
+    <priority>2</priority>
+    <barrier>false</barrier>
+</flow>
+--------------------------------------------------------
+
+ +
+* HTTP response
+
+--------------
+Status: 200 OK
+--------------
+
+ +
+*3. Show flow - check that _strict_ is _true_*
+
+* HTTP request
+
+-----------------------------------------------------------------------------------------------------------
+Operation: GET
+URI: http://192.168.11.1:8080/restconf/config/opendaylight-inventory:nodes/node/openflow:1/table/2/flow/111
+Accept: application/xml
+-----------------------------------------------------------------------------------------------------------
+
+ +
+* HTTP response
+
+--------------
+Status: 200 OK
+--------------
+
+code,xml--------------------------------------------------------
+code,xml
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<flow 
+    xmlns="urn:opendaylight:flow:inventory">
+    <strict>true</strict>
+    <instructions>
+        <instruction>
+            <order>1</order>
+            <apply-actions>
+                <action>
+                  <order>1</order>
+                    <flood-all-action/>
+                </action>
+            </apply-actions>
+        </instruction>
+    </instructions>
+    <table_id>2</table_id>
+    <id>111</id>
+    <cookie_mask>10</cookie_mask>
+    <out_port>10</out_port>
+    <installHw>false</installHw>
+    <out_group>2</out_group>
+    <match>
+        <ethernet-match>
+            <ethernet-type>
+                <type>2048</type>
+            </ethernet-type>
+        </ethernet-match>
+        <ipv4-destination>10.0.0.1/24</ipv4-destination>
+    </match>
+    <hard-timeout>0</hard-timeout>
+    <cookie>10</cookie>
+    <idle-timeout>0</idle-timeout>
+    <flow-name>FooXf22</flow-name>
+    <priority>2</priority>
+    <barrier>false</barrier>
+</flow>
+--------------------------------------------------------
+
+ +
+*4. Delete created flow*
+
+* HTTP request
+
+-----------------------------------------------------------------------------------------------------------
+Operation: DELETE
+URI: http://192.168.11.1:8080/restconf/config/opendaylight-inventory:nodes/node/openflow:1/table/2/flow/111
+-----------------------------------------------------------------------------------------------------------
+
+ +
+* HTTP response
+
+--------------
+Status: 200 OK
+--------------

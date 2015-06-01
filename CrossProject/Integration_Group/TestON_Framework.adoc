@@ -1,0 +1,200 @@
+[[maintainers]]
+== Maintainers
+
+Chandan (chandan@paxterrasolutions.com)
+
+Gopan Govindan (gopan.govindan@paxterrasolutions.com)
+
+Raghu Varma (raghuvarma@paxterrasolutions.com )
+
+Sudheer (sudheer@paxterrasolutions.com)
+
+Swaraj Vinjapuri (swarajv@outlook.com)
+
+[[introduction]]
+== Introduction
+
+TestON is an end to end automation framework for testing the
+Openflow/SDN components. Run across various components in an OpenFlow
+topology. This solution aims to provide an automation framework, that is
+not just exhaustive in coverage, but also makes it easy to debug and
+author scripts. It allows for authoring scripts in OpenSpeak (plain
+English) format and can be run standalone from the command line
+
+Checkhttps://github.com/Paxterra/TestON/tree/TestON-2.0.0/Documentation[1]
+TestON documentation at Github for more information TestON Documentation
+
+[[teston-source-code]]
+== TestON Source Code
+
+Download TestON framework form github.To Download use below mentioned
+link. https://github.com/Paxterra/TestON/tree/TestON-2.0.0[2]
+
+[[teston-driver-design]]
+== TestON Driver Design
+
+Component drivers are the most important part of the TestON framework.
+they make the framework actually do some useful work. Essentially, a
+component driver is a class that has at least the following methods/APIs
+defined in it.
+
+connect : This is the method that sets up the connection to the
+component and creates required log files, etc. For CLI components, this
+is a wrapper around the standard pexpect library. For API components, it
+is an empty class template. This class will be redefined to load
+required libraries in the actual API component. For UI components, it
+will be an empty class template that will be redefined to connect using
+the appropriate GUI library.
+
+disconnect - Self explanatory
+
+exec : This is the smallest possible action in the TestON framework on a
+component. It performs a specified action on the component and waits for
+a response. For CLI drivers, this is a command to be executed on the CLI
+shell and the response is the output of the command. For API components,
+it is an API to be called with specific arguments on a library and the
+response is the return value of the API. For GUI components, it will be
+a GUI action like click, double click, etc and the response is an
+expected change in the UI.
+
+log : This is a simple log API that provides the ability to log a
+message to the component's session log file. It takes two arguments -
+ther level of the log message and the message.
+
+Besides these basic methods, each driver can add APIs of its own that
+will be available in the test script. The idea is to use the exec API as
+a building block and build higher and higer wrapper APIs. E.g., A
+configure_ip_address API can internally use multiple exec APIs to
+configure an IP address on an interface, verify if the IP address is
+configured and ping that IP address to achieve its end goal.
+
+[[teston-test-scripts]]
+== TestON Test Scripts
+
+In TestON frame work each test must be composed of 3 files as mentioned
+below(Name should be same for all files in the test folder as for
+testname).
+
+* testname.ospk
+* testname.params
+* testname.topo
+
+OpenSpeak formated script is translated to python script in the course
+of test execution in TestON Frame work. The basic Openspeak script for
+opendaylight test is as shown below
+
+* Odl.ospk
+
+CASE 1:
+
+`    NAME "Get list of containers"` +
+`    STEP "Getting list of containers"` +
+`    # ODL1 is the instance for Opendaylight driver` +
+`    STORE ON ODL1 DO list_containers IN result` +
+`    ASSERT result EQUALS 200 ONPASS "Getting containers list" ONFAIL "Not getting any containers list"`
+
+CASE 2:
+
+`    NAME "Remove existing containers"` +
+`    STEP "Removing container"` +
+`    STORE ON ODL1 DO remove_container USING CONTAINER AS 'cont1' IN result` +
+`    ASSERT result EQUALS 204 ONPASS "Container removed successfully" ONFAIL "Container not removed"`
+
+CASE 3:
+
+`    NAME "Create a container"` +
+`    STEP "Creating a new container"` +
+`    STORE ON ODL1 DO create_container USING CONTAINER AS 'cont1',INPUT AS {"container" : "cont1","nodeConnectors" : ["OF|1@OF|00:00:00:00:00:00:00:01","OF|2@OF|00:00:00:00:00:00:00:02"],"staticVlan" : "1"} IN result` +
+`    ASSERT result EQUALS 201 ONPASS "Container getting added" ONFAIL "Container not added"`
+
+CASE 4:
+
+`    NAME "Get container flows"` +
+`    STEP "Getting container flows"` +
+`    STORE ON ODL1 DO flow_stats USING CONTAINER AS 'cont1' IN result ` +
+`    ASSERT result EQUALS 200 ONPASS "Container flows getting" ONFAIL "Container flows not getting"`
+
+TestOn driver Script will access the python file(derived from the Test
+Description Language[OpenSpeak]) for execution of test. The drivers
+would call the functions specified in the python file. The derived
+python script for the above ospk script is as follows -
+
+* Odl.py
+
+class Odl :
+
+`   def __init__(self) :` +
+`       self.default = ''`
+
+`   def CASE1(self,main) :` +
+`       main.case("Get list of containers")` +
+`       main.step("Getting list of containers")` +
+`       result = main.ODL1.list_containers()` +
+`       utilities.assert_equals(expect=200,actual=result,onpass="Getting containers list",onfail="Not getting any containers list")`
+
+`   def CASE2(self,main) :` +
+`       main.case("Remove existing containers")` +
+`       main.step("Removing container")` +
+`       result = main.ODL1.remove_container(CONTAINER='cont1')` +
+`       utilities.assert_equals(expect=204,actual=result,onpass="Container removed successfully",onfail="Container not removed")`
+
+`   def CASE3(self,main) :` +
+`       main.case("Create a container")` +
+`       main.step("Creating a new container")` +
+`       result = main.ODL1.create_container(CONTAINER='cont1',INPUT={"container" : "cont1","nodeConnectors" : ["OF|1@OF|00:00:00:00:00:00:00:01","OF|2@OF|00:00:00:00:00:00:00:02"],"staticVlan" : "1"})` +
+`       utilities.assert_equals(expect=201,actual=result,onpass="Container getting added",onfail="Container not added")` +
+`   ` +
+`   def CASE4(self,main) :` +
+`       main.case("Get container flows")` +
+`       main.step("Getting container flows")` +
+`       result  = main.ODL1.flow_stats(CONTAINER='cont1')` +
+`       utilities.assert_equals(expect=200,actual=result,onpass="Container flows getting",onfail="Container flows not getting")` +
+`   ` +
+`   def CASE5(self,main) :` +
+`       main.case("Get topology")` +
+`       main.step("Getting topology ")` +
+`       result = main.ODL1.get_topology(CONTAINER='default')` +
+`       utilities.assert_equals(expect=200,actual=result,onpass="Topology getting successfully",onfail="Topology not getting successfully")`
+
+TestON framework makes use of params file to execute the custom test
+cases as per test requirement. The basic params file for Opendaylight
+test is as mentioned below -
+
+* Odl.params
+
+`   ``[1,2,3,4]`` `
+
+Topology file plays the key role by defining the components for a test
+in TestON framework. The basic topology file for Opendaylight test is as
+mentioned below
+
+* Odl.topo
+
+`   ` +
+`       ` +
+`           ``"mininet host ip address"` +
+`           ``"minine host username"` +
+`           ``"minine host password"` +
+`           ``MininetCliDriver` +
+`           ` +
+`               # Specify the Option for mininet` +
+`               ``tree` +
+`               ``2` +
+`               ``127.0.0.1` +
+`               ``remote` +
+`               ``6633` +
+`            ``   ` +
+`       ``        ` +
+`       ` +
+`           ``"Opendaylight controller host ip address"` +
+`           ``"Opendaylight controller host username"` +
+`           ``"Opendaylight controller host password" ` +
+`           `` OdlDriver ` +
+`           `` 1 ` +
+`           ` +
+`               ` +
+`           ` +
+`       ` +
+`   `
+
+Category:Integration Group[Category:Integration Group]

@@ -1,0 +1,67 @@
+[[requirements]]
+= Requirements
+
+* OpenDaylight_OpenFlow_Plugin::End_to_End_Inventory[End to End
+Inventory]
+
+[[strategy]]
+= Strategy
+
+Current way to flush a flow to switch looks like this:
+
+1.  create MD-SAL modeled flow and commit it into dataStore using two
+phase commit (probably it might be later done through REST)
+2.  FRM gets notified and invokes corresponding rpc (addFlow) on
+particular service provider (if suitable provider for given node
+registered)
+3.  the provider (plugin in this case) transforms MD-SAL modeled flow
+into OF-API modeled flow
+4.  OF-API modeled flow is then flushed into OFLibrary
+5.  OFLibrary encodes flow into particular version of wire protocol and
+sends it to particular switch
+6.  check on mininet side if flow is set
+
+[[adding-flow-to-of-switch]]
+= Adding flow to OF-switch
+
+Currently for this purpose there is project test-provider (under
+openflowplugin). There are several command providers and the one
+handling flows is *OpenflowpluginTestCommandProvider*. Methods, which
+can be use as *commands in OSFI-console* have prefix '_'.
+
+[[flow-types]]
+== Flow types
+
+* *f1*
+** match = L3-match (ipv4 destination = 10.0.0.1/24) + ethernet-match
+(etherType = 0x0800)
+** instruction = decrement nw ttl
+* *f2*
+** match = L3-match (ipv4 source = 10.0.0.1/24) + ethernet-match
+(etherType = 0x0800)
+** instruction = drop
+* *f3*
+** match = ethernet-match (source MAC address = 0:0:0:0:0:1)
+** instruction = drop
+
+[[usage]]
+=== Usage
+
+`addMDFlow `` `
+
+[[example]]
+=== Example
+
+Setup flow of type f1 at node with id=openflow:1
+
+`addMDFlow openflow:1 f1`
+
+[[removing-flow-from-of-switch]]
+= Removing flow from OF-switch
+
+TBD
+
+[[modifying-flow-on-of-switch]]
+= Modifying flow on OF-switch
+
+TBD

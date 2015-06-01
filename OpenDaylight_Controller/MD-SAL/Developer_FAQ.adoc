@@ -1,0 +1,80 @@
+[[generic-questions]]
+== Generic Questions
+
+[[what-is-xtend]]
+=== What is Xtend?
+
+http://eclipse.org/xtend[Xtend] is Java based language which allows for
+more expresive code, but still during compile phase the xtend compilrer
+generates Java code so there is no performance hit and it has full
+compatibility with Java.
+
+Xtend is very useful if you need to generate a lot of code, do the
+templates or write code in more readable form, without very verbose
+syntax.
+
+[[what-is-the-package-info.java-file-for]]
+=== What is the package-info.java file for?
+
+The file package-info.java allows to write Javadoc for whole package. It
+is replacement of package-info.html.
+
+[[md-sal]]
+== MD-SAL
+
+[[what-kind-of-broker-is-the-request-routing-broker]]
+=== What kind of broker is the request routing broker ?
+
+Request Routing Broker is one, which request messages to services based
+on contents of request – in case of the Controller and Flow Services
+this is node (switch) on which you want to manipulate flows.
+
+See OpenDaylight Controller:MD-SAL:RPC Service Types[RPC Service Types]
+for more details.
+
+[[could-be-a-provider-a-consumer-of-some-other-service]]
+=== Could be a provider a consumer of some other service?
+
+Yes, In that case both are considered and implemented as Providers
+(provider has always access to consumer APIs), ProviderContext is
+extension of ConsumerContext.
+
+[[are-we-required-to-subclass-md-sal-activators]]
+=== Are we required to subclass MD-SAL Activators?
+
+_________________________________________________________________________________________________________________________________________________________________________________________________________________________________
+Consumer and Producers – Do we need subclass
+AbstractBindingAwareConsumer AbstractBindingAwareProducer which are the
+bundle Activators. we usually have 1 Activator for each bundle , how to
+accomadate 2 activators in a bundle.
+_________________________________________________________________________________________________________________________________________________________________________________________________________________________________
+
+MD-SAL does not require you to subclass AbstractBindingAwareConsumer or
+AbstractBindingAwareProducer. You could use your own Activator and
+implement only interface BindingAwareProvider or BindingAwareConsumer,
+and then register instance of that service to Binding Aware Broker.
+
+---------------------------------------------------------------------------------------------------------------------
+@Override
+public final void start(BundleContext context) throws Exception {
+        ServiceReference&lt;BindingAwareBroker&gt; brokerRef = context.getServiceReference(BindingAwareBroker.class);
+        BindingAwareBroker broker = context.getService(brokerRef);
+        broker.registerProvider(this, context);
+}
+---------------------------------------------------------------------------------------------------------------------
+
+Other way how to obtain instance of MD-SAL is use configurable wiring
+via Config subsystem.
+
+If a plugin needs to be a provider and a consumer (Plugin A provides a
+notification consumed by plugin B and causes plugin B to generate a
+notification that is consumed by plugin C), then the plugin can extend
+the AbstractBindingAwareProvider. This is the easiest way to implement
+the functionality of a provider and a consumer in a single plugin. The
+ProviderContext extends the ConsumerContext and hence all the
+functionality provided by the ConsumerContext to the
+AbstractBindingAwareConsumer is also provided by the ProviderContext to
+AbstractBindingAwareProvider. Using the AbstractBindingAwareProvider
+gives you additional capability to modify datastores and generate
+notifications which is not available for the
+AbstractBindingAwareConsumer.

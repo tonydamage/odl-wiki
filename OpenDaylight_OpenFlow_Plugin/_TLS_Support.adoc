@@ -1,0 +1,310 @@
+[[known-issues]]
+=== Known Issues
+
+[[ckr_domain_params_invalid-exception]]
+==== CKR_DOMAIN_PARAMS_INVALID exception
+
+I used this as a lead to a workaround:
+https://bugzilla.redhat.com/show_bug.cgi?id=1022017 +
+ On your controller host:
+
+--------------------------------------------------------------------------------------
+cd /usr/lib/jvm
+find .  -name java.security -print
+sudo vi {whatever the path is on your system}/java.security
+
+# search for "pkcs11" and
+# find a like:
+
+"security.provider.10=sun.security.pkcs11.SunPKCS11 ${java.home}/lib/security/nss.cfg"
+
+# and comment it out:
+
+#security.provider.10=sun.security.pkcs11.SunPKCS11 ${java.home}/lib/security/nss.cfg
+--------------------------------------------------------------------------------------
+
+[[overview]]
+== Overview
+
+A secure controller network will require that both the switches &
+controllers authenticate to avoid a rogue switch on the controller or a
+rogue controller driving a switch.
+
+Achieving secure connections between ODL controller and Openflow
+switches requires management of a PKI ( Private Key Infrastructure ).
+Openssl provides the tools for this. (If you are planning a production
+deployment and don't have expertise in TLS PKI, here is a great tutorial
+which takes you from basic to advanced PKI management:
+https://media.readthedocs.org/pdf/pki-tutorial/latest/pki-tutorial.pdf[pki-tutorial.pdf]
+)
+
+To get started hacking today with mininet, here we setup a basic PKI and
+create the necessary certificates to test the controller's openflow
+plugin with ovs mininet. Note that I based this on the following link:
+https://github.com/mininet/mininet/wiki/SSL-on-Open-vSwitch-and-ovs-controller[SSL-on-Open-vSwitch-and-ovs-controller].
+
+[[create-sign-privatepublic-key-certificates]]
+== Create & Sign private/public key certificates
+
+A self-signed "root" CA is created easily with existing mininet tools
+which leverage openssl, and so will be the starting point for this
+process. To be secure, the private keys must be protected, while the
+public key can be freely shared. Because we're using the mininet host
+also as the CA signing host, the controllers private key exists there,
+but in production, the key generation for the controller would be
+isolated from the switches, and only the public controller key would be
+shared with the switches.
+
+[[ovs-pki-command-to-generate-key-pem-files]]
+==== ovs-pki command to generate key pem files
+
+On the mininet host, verify that it's PKI is initialized:
+
+---------------------------------------------------
+ls /var/lib/openvswitch/pki/controllerca/cacert.pem
+---------------------------------------------------
+
+If not found, "ovs-pki init" will need to be run as per man pages.
+
+Now run the ovs-pki to create both sets of keys, a controller set and
+switch set.
+
+------------------------------------
+cd /etc/openvswitch
+sudo ovs-pki req+sign sc switch
+sudo ovs-pki req+sign ctl controller
+------------------------------------
+
+This should have generated six ".pem" files, of which we'll use four. A
+private key for each side, signed by the unofficial root certificate in
+/var/lib/openvswitch/pki/. A public certificate for each side. There are
+also the two request certificates sc-req.pem & ctl-req.pem which were
+used to generate the signed certificates.
+
+--------------------------------------------------------------------------------------
+$ ls /etc/openvswitch
+conf.db ctl-cert.pem ctl-privkey.pem ctl-req.pem sc-cert.pem sc-privkey.pem sc-req.pem
+system-id.conf
+--------------------------------------------------------------------------------------
+
+[[intermediate-pkcs12-controller-keystore-to-be-loaded-into-java-keystores]]
+==== Intermediate PKCS12 controller keystore ( to be loaded into java
+keystores )
+
+Next we'll use openssl to create a keystore in PKCS12 format containing
+the controller's private and public keys. We'll then import into a JKS
+format keystore for the ODL controller. Note that it may be possible to
+use the PKCS12 keystore directly, but I haven't yet tested this.
+
+----------------------------------------------------------------------------
+sudo openssl pkcs12 -export -in ctl-cert.pem -inkey ctl-privkey.pem \
+-out ctl.p12 -name odlserver \
+-CAfile /var/lib/openvswitch/pki/controllerca/cacert.pem -caname root -chain
+
+You'll be prompted for a password, use "opendaylight"
+
+Enter Export Password:
+Verifying - Enter Export Password:
+----------------------------------------------------------------------------
+
+[[create-controller-keystore-ctl.jks-from-ctl.p12]]
+==== Create Controller keystore ( ctl.jks ) from ctl.p12
+
+Copy two files, ctl.p12 & sc-cert.pem from the mininet host to the ODL
+host in any work directory. Import the PKCS12 format store into the JKS
+store consumable by ODL:
+
+-----------------------------
+sftp mininet@mininetipaddress
+mininet
+sftp get ctl.p12 sc-cert.pem
+quit
+-----------------------------
+
+Find keytool in a jdk bin directory and add it to your path for
+convenience in the future steps. Mine happens to be at
+/usr/java/jdk1.7.0_51/bin/keytool.
+
+-------------------------------------------------------------------------------------
+keytool -importkeystore \
+        -deststorepass opendaylight -destkeypass opendaylight -destkeystore ctl.jks \
+        -srckeystore ctl.p12 -srcstoretype PKCS12 -srcstorepass opendaylight \
+        -alias odlserver
+-------------------------------------------------------------------------------------
+
+[[store-the-switchs-public-key-in-a-truststore-truststore.jks]]
+==== Store the switch's public key in a "truststore" ( truststore.jks)
+
+--------------------------------------------------------------------------------------
+keytool -importcert -file sc-cert.pem -keystore truststore.jks -storepass opendaylight
+
+# when prompted "Trust this certificate? [no]:" enter  "yes"
+# Certificate was added to keystore
+--------------------------------------------------------------------------------------
+
+Finally copy these two keystores to the ssl configuration directory.
+
+------------------------------------------------------
+mkdir ODLINSTALL/configuration/ssl
+cp ctl.jks truststore.jks ODLINSTALL/configuration/ssl
+------------------------------------------------------
+
+[[configure-odls-openflow-plugin]]
+== Configure ODL's openflow plugin
+
+Note that turning on TLS means only TLS connections are supported ...
+the connection is "secure."
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------
+cd configuration/initial
+vi configuration/initial/42-openflowplugin.xml
+# add the <tls> blocks as shown to each of the existing OF-switch-connection-provider modules
+
+        <!-- default OF-switch-connection-provider (port 6633) -->
+        <module>
+          <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:openflow:switch:connection:provider:impl">prefix:openflow-switch-connection-provider-impl</type>
+          <name>openflow-switch-connection-provider-default-impl</name>
+          <port>6633</port>
+          <switch-idle-timeout>15000</switch-idle-timeout>
+          <tls>
+            <keystore>configuration/ssl/ctl.jks</keystore>
+            <keystore-type>JKS</keystore-type>
+            <keystore-path-type>PATH</keystore-path-type>
+            <keystore-password>opendaylight</keystore-password>
+            <truststore>configuration/ssl/truststore.jks</truststore>
+            <truststore-type>JKS</truststore-type>
+            <truststore-path-type>PATH</truststore-path-type>
+            <truststore-password>opendaylight</truststore-password>
+            <certificate-password>opendaylight</certificate-password>
+          </tls>
+
+        </module>
+        <!-- default OF-switch-connection-provider (port 6653) -->
+        <module>
+          <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:openflow:switch:connection:provider:impl">prefix:openflow-switch-connection-provider-impl</type>
+          <name>openflow-switch-connection-provider-legacy-impl</name>
+          <port>6653</port>
+          <switch-idle-timeout>15000</switch-idle-timeout>
+          <tls>
+            <keystore>configuration/ssl/ctl.jks</keystore>
+            <keystore-type>JKS</keystore-type>
+            <keystore-path-type>PATH</keystore-path-type>
+            <keystore-password>opendaylight</keystore-password>
+            <truststore>configuration/ssl/truststore.jks</truststore>
+            <truststore-type>JKS</truststore-type>
+            <truststore-path-type>PATH</truststore-path-type>
+            <truststore-password>opendaylight</truststore-password>
+            <certificate-password>opendaylight</certificate-password>
+          </tls>
+
+        </module>
+------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+[[exemplary-configuration]]
+==== Exemplary configuration
+
+There is already exemplary code in
+configuration/initial/42-openflowplugin.xml file and also exemplary keys
+stored in openflowjava (src/main/resources). This exemplary code is
+commented, so the default is to use unsecured communication.
+
+If you want to try TLS secured communication with your device, you need
+to do following steps:
+
+* uncomment code in tags
+* find exemplary-* files in openflowjava/src/main/resources
+* copy exemplary-switch-privkey.pem, exemplary-switch-cert.pem and
+exemplary-cacert.pem files into your device
+* configure your device with provided keys (in case of openvswitch
+please see "Configure openvswitch SSL" part below)
+* start communication
+
+Now you should be able to communicate over TLS.
+
+[[configure-openvswitch-ssl]]
+== Configure openvswitch SSL
+
+[[set-ovs-ssl-options]]
+==== set ovs ssl options
+
+----------------------------------------------------
+sudo ovs-vsctl set-ssl \
+    /etc/openvswitch/sc-privkey.pem \
+    /etc/openvswitch/sc-cert.pem \
+    /var/lib/openvswitch/pki/controllerca/cacert.pem
+----------------------------------------------------
+
+[[start-a-mininet-with-ssl-connections-to-the-odl-controller]]
+==== Start a mininet with SSL connections to the ODL controller
+
+open a file "`ssl_switch_tests.py`"
+
+-----------------------------------------------------------------------------
+#!/usr/bin/python
+from mininet.net import Mininet
+from mininet.node import Controller, RemoteController
+from mininet.cli import CLI
+from mininet.log import setLogLevel, info
+
+def emptyNet():
+    net = Mininet( controller=RemoteController )
+    net.addController( 'c0' )
+    h1 = net.addHost( 'h1' )
+    h2 = net.addHost( 'h2' )
+    s1 = net.addSwitch( 's1' )
+    net.addLink( h1, s1 )
+    net.addLink( h2, s1 )
+
+    net.start()
+    s1.cmd('ovs-vsctl set-controller s1 ssl:YOURODLCONTROLLERIPADDRESS:6633')
+
+    CLI( net )
+    net.stop()
+
+if __name__ == '__main__':
+    setLogLevel( 'info' )
+    emptyNet()
+-----------------------------------------------------------------------------
+
+Start mininet :
+
+---------------------------
+chmod +x ssl_switch_test.py
+sudo ./ssl_switch_test.py
+---------------------------
+
+[[example-hardware-switch-configuration]]
+== Example Hardware Switch Configuration
+
+Brocade MLX
+
+After setting up a tftp server, copy sc-cert.pem and sc-privkey.pem into
+the proper upload location: In this example, there is a tftp server
+running on the controller host "10.0.0.1"
+
+----------------------------------------------------------------------------------------------
+telnet@NetIron MLX-4 Router#enable
+<enter config password>
+telnet@NetIron MLX-4 Router(config)#copy tftp flash 10.0.0.1 sc-cert.pem client-certificate
+telnet@NetIron MLX-4 Router(config)#copy tftp flash 10.0.0.1 sc-privkey.pem client-private-key
+telnet@NetIron MLX-4 Router(config)#openflow controller ip-address 10.0.0.1
+----------------------------------------------------------------------------------------------
+
+[[debugging]]
+== Debugging
+
+[[mininet-debugging]]
+==== mininet debugging
+
+You'll see connection entries in the ovswitchd log file:
+
+-----------------------------------------------
+sudo tail /var/log/openvswitch/ovs-vswitchd.log
+-----------------------------------------------
+
+[[odl-controller-debugging]]
+==== ODL controller debugging
+
+----------------------------------------
+./run.sh -Djavax.net.debug=ssl,handshake
+----------------------------------------

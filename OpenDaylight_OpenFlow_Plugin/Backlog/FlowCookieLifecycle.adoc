@@ -1,0 +1,49 @@
+[[flow-cookie-usage]]
+= Flow cookie usage
+
+Cookie value is ignored by switch and can be used by controller to
+identify flow. Switch identifies flow by tableId, priority and match.
+
+* flow statistics (flow statistic response contains flow cookie)
+* flow management (in dataStore there is id, name and cookie)
+
+[[flow-management]]
+= Flow management
+
+Flow can be added, removed or updated by:
+
+* changing data in config context of dataStore (= managed by *FRM*)
+* invoking corresponding action programmatically (= managed by
+application)
+* invoking corresponding action via restconf (= managed by application)
+
+Flows managed by application should be ignored by FRM.
+
+[[frm-management]]
+== FRM management
+
+FRM is invoked through dataChange notification after new flow is written
+into config context of dataStore. So in case the device is available,
+FRM does following:
+
+* check the mapping in order to find flow cookie (sent to device
+previously)
+* if not found we have *new flow*
+** ignore cookie value in config if any
+** generate unique cookie for the flow
+** store generated cookie in mapping
+** invoke flow service provider rpc (OFPlugin) using generated cookie
+* if found we have *existing flow* - update (or remove)
+** invoke corresponding rpc
+
+Mapping will be stored in operational context (under
+table/cookieMapping)
+
+[[flow-cookie-mapping]]
+== Flow cookie mapping
+
+Mapping is needed while creating, updating and deleting of flow - having
+flowId the cookie on device can be found.
+
+In case of statistics there is flow cookie from device available and
+corresponding flowId could be found.

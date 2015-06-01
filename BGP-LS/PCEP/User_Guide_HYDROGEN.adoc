@@ -1,0 +1,127 @@
+[[bgp]]
+=== BGP
+
+OpenDaylight SP edition comes pre-configured with baseline BGP
+configuration. You can find it in the opendaylight/configuration/initial
+directory and it consists of two files:
+
+*
+https://jenkins.opendaylight.org/integration/view/Integration%20jobs/job/integration-project-centralized-integration/lastSuccessfulBuild/artifact/distributions/serviceprovider/target/distributions-serviceprovider-0.1.1-SNAPSHOT-osgipackage/opendaylight/configuration/initial/31-bgp.xml[31-bgp.xml],
+which defines the basic parser and RIB support. Unless you need to add a
+new AFI/SAFI, you should keep this file as is
+*
+https://jenkins.opendaylight.org/integration/view/Integration%20jobs/job/integration-project-centralized-integration/lastSuccessfulBuild/artifact/distributions/serviceprovider/target/distributions-serviceprovider-0.1.1-SNAPSHOT-osgipackage/opendaylight/configuration/initial/41-bgp-example.xml[41-bgp-example.xml],
+which contains a sample configuration which needs to be customized to
+your deployment.
+
+*Currently the configuration for BGP peer is ignored in the
+configuration, to prevent the client from starting with default
+configuration. Therefore the first step is to uncomment ALL the
+commented parts in this file.*
+
+[[adjust-values-for-initial-bgp-open-message]]
+==== Adjust values for initial BGP Open message
+
+ +
+`   ``prefix:bgp-proposal-impl` +
+`   ``example-bgp-proposal` +
+`   ``64496``        // Our AS number, we'll advertize it to the peer` +
+`   ``192.0.2.2``          // Our BGP identifier, we'll advertize it to the peer` +
+
+`prefix:rib-impl` +
+`example-bgp-rib` +
+`example-bgp-rib` +
+`64496``             // Our AS number, we use this in best path selection` +
+`192.0.2.2``             // Our BGP identifier, we use this in best path selection`
+
+[[specify-ip-address-of-your-bgp-speaker]]
+==== Specify IP address of your BGP speaker
+
+ +
+`   ``prefix:bgp-impl` +
+`   ``example-bgp-peer` +
+`   ` +
+`       ``prefix:bgp-dispatcher` +
+`       ``global-bgp-dispatcher` +
+`   ` +
+`   ` +
+`       ``prefix:bgp-proposal` +
+`       ``example-bgp-proposal` +
+`   ` +
+`   ``route-reflector.example.org``        // IP address or hostname of the speaker` +
+ +
+
+You can also add more BGP peers by copying above module and register it:
+
+ +
+`   ``prefix:listener` +
+`   ``new-bgp-peer` +
+
+[[configure-connection-attributes-all-in-milliseconds]]
+==== Configure connection attributes (all in milliseconds)
+
+ +
+`   ``prefix:timed-reconnect-strategy` +
+`   ``example-reconnect-strategy` +
+`   ``1000``             // Minimum sleep time in between reconnect tries` +
+`   ``180000``           // Maximum sleep time in between reconnect tries` +
+`   ``2.00``       // Power factor of the sleep time between reconnect tries` +
+`   ``5000``       // How long we should wait for the TCP connect attempt, overrides default connection timeout dictated by TCP retransmits` +
+`   ` +
+`       ``netty:netty-event-executor` +
+`       ``global-event-executor` +
+`   ` +
+
+[[pcep]]
+=== PCEP
+
+OpenDaylight SP edition comes pre-configured with baseline PCEP
+configuration. You can find it in
+opendaylight/configuration/initial/32-pcep.xml. The default shipped
+configuration will start a PCE server on port 4189.
+
+[[configure-draft-versions]]
+==== Configure draft versions
+
+There are already two extensions for PCEP: +
+*http://tools.ietf.org/html/draft-ietf-pce-stateful-pce[draft-ietf-pce-stateful-pce]*
+- in versions 02 and 07 +
+*http://tools.ietf.org/html/draft-ietf-pce-pce-initiated-lsp[draft-ietf-pce-pce-initiated-lsp]*
+- versions crabbe-initiated-00 and ietf-initiated-00 +
+ Note, that they extend each other, so it is vital to load the
+extensions with compatible versions. In this case crabbe-initiated-00 is
+compatible with stateful-02 and ietf-initiated-00 is compatible with
+stateful-07. Default configuration is to use newest versions of the
+drafts. If you want to use older version, switch commented code to
+ignore stateful-7 and ietf-initiated-00 versions. +
+
+ +
+`   ``prefix:pcep-parser-ietf-stateful07` +
+`   ``pcep-parser-ietf-stateful07` +
+ +
+ +
+`   ``prefix:pcep-parser-ietf-initiated00` +
+`   ``pcep-parser-ietf-initiated00` +
+ +
+`<!--module>` +
+`    <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:pcep:impl">prefix:pcep-parser-ietf-stateful02</type>` +
+`    <name>pcep-parser-ietf-stateful02</name>` +
+` </module>` +
+` <module>` +
+`    <type xmlns:prefix="urn:opendaylight:params:xml:ns:yang:controller:pcep:impl">prefix:pcep-parser-crabbe-initiated00</type>` +
+`    <name>pcep-parser-crabbe-initiated00</name>` +
+` </module-->`
+
+[[mailing-lists]]
+== Mailing Lists
+
+If you have any questions, feel free to write to one of our mailing
+lists:
+
+*
+https://lists.opendaylight.org/mailman/listinfo/bgpcep-announce[bgpcep-announce],
+a low-volume list for announcements
+*
+https://lists.opendaylight.org/mailman/listinfo/bgpcep-users[bgpcep-users],
+the general user support list
+

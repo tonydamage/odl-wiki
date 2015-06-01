@@ -1,0 +1,173 @@
+[[overview]]
+= Overview
+
+There are 2 kinds of messaging exchange pattern supported by MD-SAL
+
+1.  Request/Reply
+2.  Publish/Subscribe
+
+Request/Reply pattern is implemented by rpc module. Publish/Subscribe
+functionality is provided by notification module. The implementation
+details are provided on this page:
+OpenDaylight_Controller:MD-SAL:Explained:Messaging_Patterns
+
+This wiki only focuses on Publish/Subscribe implementation. Pre-helium
+implementation assumes a single vm deployment of controller. The message
+exchange happens only within a VM in memory. The requirement for helium
+is to enable these notifications across nodes in the cluster.
+
+There are 2 kinds of Publish/Subscribe notifications:
+
+1.  Data Change events
+2.  Yang notifications
+
+In both cases, the notifications are broadcasted to all "listeners".
+
+[[requirement]]
+= Requirement
+
+A lot has been discussed on the thread
+https://lists.opendaylight.org/pipermail/controller-dev/2014-July/005923.html[here]
+
+* We should be able to publish notifications to any subscriber in the
+cluster.
+
+* Subscribers should be able to specify delivery policy
+** 1 of N - Deliver the notification to any one of N instances of
+application running in the cluster
+** N of N - Broadcase
+** Local only - The events generated on the same node as the application
+instance
+** Load Balance - Round robin, least loaded etc
+** Content Based or any other application specified custom logic
+
+* Publisher should be able to attach properties to the message
+** Message priority
+** Delivery guarantee ?
+
+* Ability to plug-in external systems such as AMQP based systems ? Not
+sure if this is a requirement but was discussed on the mailing thread.
+
+[[proposal]]
+= Proposal
+
+Based on the requirement, a change in API has been proposed.
+
+`
+  '''Yang notification'''
+  publish(Notification notification, ''MessageProperties props'');
+  registerNotificationListener(org.opendaylight.yangtools.yang.binding.NotificationListener.NotificationListener listener, ''Selector selector'');
+  registerNotificationListener(Class notificationType, org.opendaylight.controller.sal.binding.api.NotificationListener listener, ''Selector selector'');
+
+  '''Data change notification'''
+  registerDataChangeListener(LogicalDatastoreType store, P path, L listener, DataChangeScope triggeringScope, "Selector selector");
+
+`
+
+`
+ public interface MessageProperties{
+  public Priority priority();
+  ...[add more properties]
+ }
+`
+
+`
+ public enum Priority { HIGH, NORMAL, LOW};
+`
+
+`
+ public interface Selector {
+  public List<InstanceLocator> select(Notification event, List<InstanceLocator> instances);
+ }
+`
+
+`'Selector"` and `"MessageProperties"` are new additions.
+
+Now the question is about the behavior of current APIs without
+`'Selector"` and `"MessageProperties"`. As far as message priority goes,
+its easy, we assign `normal`. The tricky one is deliver policy. Should
+the message be delivered to all instances of the application in the
+cluster or just one? While there is no consensus on this yet, the
+proposal is:
+
+`* Data change notifications are delivered only to subscribers on shard manager` +
+`* Yang notifications are only delivered to subscribers local to the node where notification was generated` +
+`* For message deliver, at this time we only intend to support `*`at-once`*` semantics`
+
+[[design]]
+= Design
+
+[[components]]
+== Components
+
+Clustering solutions is based on Akka. For clustering of notifications,
+we'll use Akka's Actor system. We'll have following components in the
+system:
+
+image:DistributedNotifications.png[DistributedNotifications.png,title="fig:DistributedNotifications.png"] +
+*NotificationProviderService* - MD-SAL interface that notification
+broker must implement.
+
+*NotificationBrokerImpl* - Implementation of
+NotificationProviderService. It maintains local state of subscriptions.
+It uses `DistributedPubSubProxy` to publish events or send subscription
+information that needs to be shared cluster wide.
+
+*DistributedPubSubProxy* - An interface to define contract for
+distributed pub/sub.
+
+*AkkaPubSubBrokerProxy* - Implementation of `DistributedPubSubProxy`
+interface. It uses Akka's Actor System to exchange messages across nodes
+in the cluster.
+
+*AmqpPubSubProxy* - While we dont intend to build this, any 3rd party
+system can be plugged in by implementing `DistributedPubSubProxy`.
+
+*AkkaPubSubActor* - Its the main class that does the work of messaging
+across nodes.
+
+* It uses `GlobalSubscriptionRegistry` to route published messages or
+add/update/delete subscriptions.
+* It uses `MessageDispatcher` to send messages to another node.
+`MessageDispatchers` are a bunch of actors sharing a common mailbox.
+* It uses
+http://doc.akka.io/docs/akka/snapshot/scala/mailboxes.html[priority
+mailbox] to prioritize event processing.
+
+*GlobalSubscriptionRegistry* - Global state used by AkkaPubSubBroker. To
+globally share the state across nodes in the cluster,
+SubscriptionRegistry will use gossip protocol following eventually
+consistent model. +
+Every node in the cluster will keep a "bucket" in the registry where it
+and only it will be responsible to update. The buckets will be versioned
+and hold subscription information.
+
+*MessageDispatchers* - These are actors that are responsible for
+serializing and transmitting data to other nodes in the cluster. They
+use a separate execution context (i.e thread pool) than
+`AkkaPubSubActor`. This is to ensure serialization and message dispatch
+processing time does not come in the way of `AkkaPubSubActor`. +
+`MessageDispatchers` create a `MessageEnvelope` that contains
+`Notification` and a list of subscribers to deliver the notification to.
+There's one envelop created per node. +
+`MessageDispatchers` could be
+
+* a simple (`'''SimpleMessageDispatcher'''`) or
+* reliable (`'''ReliableMessageDispatcher'''`) -
+`ReliableMessageDispatchers` may implement
+http://doc.akka.io/docs/akka/current/contrib/reliable-proxy.html[reliable
+proxy pattern], store-and-forward or any other mechanism to ensure the
+level of guarantee needed.
+
+*MessageEnvelope* - Contains the notification and a list of subscriber
+to whom this notification needs to be delivered.
+
+[[subscription-flow]]
+== Subscription Flow
+
+image:Subscription.png[Subscription.png,title="Subscription.png"]
+
+[[publish-notification-flow]]
+== Publish Notification Flow
+
+image:Publishflow.png[Publishflow.png,title="Publishflow.png"]

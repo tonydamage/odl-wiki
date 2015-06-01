@@ -1,0 +1,81 @@
+[[rpc-routing]]
+== Rpc Routing
+
+[[rpc-requester]]
+=== Rpc Requester
+
+1.  Broker asks 0mq router to invoke rpc on remote vm
+2.  0mq router looks up routing table to find location of service
+3.  If a remote location is NOT found, send exception (or RpcResult)
+back to broker
+4.  If remote location is found, create a callable task and give it to
+the executor pool.
+1.  The callable tasks needs to establish a connection with the remote
+location and send the rpc request. The socket connection must be closed
+in this thread.
+1.  Optimization - Maintain a socket connection pool, 1 connection per
+host. The trick with this optimization is thread-safety. 0mq sockets are
+not thread-safe. Sockets should only be used and closed in the thread
+that created it. Check how to connect one client (REQ) socket to
+multiple servers (REP) sockets. Or use ROUTER sockets instead.
+2.  The callable task will block the thread and wait for the response to
+come back.
+1.  Optimization - Invoke RPC in a non-blocking way.
+3.  The callable task will deserialize the response and create a
+RpcResult object
+4.  The callable task will handle zmq errors and create a RpcResult
+object
+5.  The callable task will return a Future.
+6.  Handle thread-kill situations and create a RpcResult object
+5.  Return a Future back to broker
+
+[[reconnect-and-retries]]
+==== Reconnect and Retries
+
+* In case of network failure, the "client" component will try to
+reconnect. During the reconnect, it will mark the 0mq router as
+"unavailable".
+* In the case when server dies, the "client" component will retry the
+message for a configured number of times after which it will mark the
+server as "unreachable".
+
+[[provider]]
+=== Provider
+
+1.  0mq router receives a rpc request
+2.  0mq router deserializes the request. In case of exception, create a
+message with error and reply back.
+3.  0mq router creates a RpcRequest and asks the broker to execute. In
+case of exception, create a message with error and reply back.
+1.  Optimization - call the broker non-blockingly
+4.  0mq router serializes the response.
+
+[[rpc-routing-flow]]
+=== Rpc Routing Flow
+
+image:Rpc.jpg[Rpc.jpg,title="Rpc.jpg"]
+
+[[notifications]]
+== Notifications
+
+[[announcement-flow]]
+=== Announcement Flow
+
+_This flow is deprecated. We will be externalizing the routing table
+state in external store (eg: Infinispan)_
+image:Announce.jpg[Announcement Flow,title="fig:Announcement Flow"]
+
+TBD: Rpc unregistration. Add to 0mq service shutdown.
+
+[[serialization]]
+== Serialization
+
+[[messaging-protocol]]
+== Messaging Protocol
+
+* Heart beating
+
+[[security]]
+== Security
+
+TBD Refer to http://rfc.zeromq.org/spec:23

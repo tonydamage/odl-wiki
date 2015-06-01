@@ -1,0 +1,199 @@
+This page summarizes how data from BGP and PCEP can be viewed through
+RESTCONF. Currently it is the only way to view the data.
+
+Basic URL for both protocols is
+
+_http://localhost:8080/restconf/operational/network-topology:network-topology/_
+
+If BGP-LS and PCEP are configured properly, it should display output
+similar to this one:
+
+ +
+` ` +
+`  ``pcep-topology` +
+`  ` +
+`   ` +
+`  ` +
+` ` +
+` ` +
+`  ``true` +
+`  ``example-ipv4-topology` +
+`  ` +
+` ` +
+` ` +
+`  ``true` +
+`  ``example-linkstate-topology` +
+`  ` +
+` ` +
+
+[[bgp-ls]]
+== BGP-LS
+
+BGP data as were sent from BGP speaker are listed in three topologies
+(if all three are configured):
+
+*example-linkstate-topology* - displays links and nodes advertised
+through linkstate Update messages
+
+_http://localhost:8080/restconf/operational/network-topology:network-topology/topology/example-linkstate-topology_
+
+*example-ipv4-topology* - display Ipv4 adresses of nodes in the topology
+
+_http://localhost:8080/restconf/operational/network-topology:network-topology/topology/example-ipv4-topology_
+
+Another view of BGP data is through *BGP local RIB*, located here:
+
+_http://localhost:8080/restconf/operational/bgp-rib:bgp-rib/rib/example-bgp-rib/loc-rib/_
+
+This is how the output looks like, when address families for IPv4 and
+Linkstate were configured:
+
+ +
+` ` +
+`  ``true` +
+`  ``bgp-ls:linkstate-subsequent-address-family` +
+`  ``bgp-ls:linkstate-address-family` +
+` ` +
+` ` +
+`  ``true` +
+`  ``bgp-t:unicast-subsequent-address-family` +
+`  ``bgp-t:ipv4-address-family` +
+` ` +
+
+You can see details for each AFI by expanding the RESTCONF link:
+
+Linkstate :
+_http://localhost:8080/restconf/operational/bgp-rib:bgp-rib/rib/example-bgp-rib/loc-rib/tables/bgp-types:ipv4-address-family/bgp-types:unicast-subsequent-address-family/ipv4-routes_
+
+IPv4 :
+_http://localhost:8080/restconf/operational/bgp-rib:bgp-rib/rib/example-bgp-rib/loc-rib/tables/bgp-linkstate:linkstate-address-family/bgp-linkstate:linkstate-subsequent-address-family/linkstate-routes_
+
+[[pcep]]
+== PCEP
+
+PCEP data is displayed only through one URL that is accessible from the
+base network-topology URL:
+
+_http://localhost:8080/restconf/operational/network-topology:network-topology/topology/pcep-topology_
+
+Note that the output changes slightly when using different versions of
+stateful draft.
+
+[[draft-stateful-v02]]
+=== draft-stateful-v02
+
+Each PCC will be displayed as a node:
+
+ +
+` ` +
+`  ``42.42.42.42` +
+`  ``synchronized` +
+`  ` +
+`   ` +
+`    ``false` +
+`    ``true` +
+`    ``true` +
+`   ` +
+`  ` +
+` ` +
+` ``pcc://42.42.42.42` +
+
+If some tunnels are configured on the network, they would be displayed
+on the same page, within a node that initiated the tunnel:
+
+ +
+` ` +
+`  ``synchronized` +
+`  ` +
+`   ` +
+`    ``false` +
+`    ``true` +
+`    ``true` +
+`   ` +
+`  ` +
+`  ` +
+`   ``update-tunel` +
+`   ` +
+`    ``true` +
+`    ``false` +
+`    ``false` +
+`    ``50` +
+`    ``false` +
+`    ``false` +
+`    ``false` +
+`    ` +
+`     ` +
+`      ``dXBkYXRlLXR1bmVs` +
+`     ` +
+`    ` +
+`   ` +
+`  ` +
+`  ``39.39.39.39` +
+` ` +
+` ``pcc://39.39.39.39` +
+
+Note that, __ tag displays tunnel name in Base64 encoding.
+
+[[draft-stateful-v07]]
+=== draft-stateful-v07
+
+Each PCC will be displayed as a node:
+
+ +
+` ` +
+`  ``42.42.42.42` +
+`  ``synchronized` +
+`  ` +
+`   ` +
+`    ``true` +
+`    ``true` +
+`   ` +
+`  ` +
+` ` +
+` ``pcc://42.42.42.42` +
+
+If some tunnels are configured on the network, they would be displayed
+on the same page, within a node that initiated the tunnel:
+
+ +
+` ` +
+`  ``synchronized` +
+`  ` +
+`   ` +
+`    ``true` +
+`    ``true` +
+`   ` +
+`  ` +
+`  ` +
+`   ``foo` +
+`   ` +
+`    ``down` +
+`    ``false` +
+`    ``false` +
+`    ``1` +
+`    ``false` +
+`    ``true` +
+`    ``false` +
+`    ``true` +
+`    ``false` +
+`    ` +
+`     ` +
+`      ` +
+`       ``43.43.43.43` +
+`       ``0.0.0.0` +
+`       ``0.0.0.0` +
+`      ` +
+`      ``0` +
+`      ``0` +
+`     ` +
+`     ` +
+`      ``Zm9v` +
+`     ` +
+`    ` +
+`   ` +
+`  ` +
+`  ``43.43.43.43` +
+` ` +
+` ``pcc://43.43.43.43` +
+
+Note that, __ tag displays tunnel name in Base64 encoding.

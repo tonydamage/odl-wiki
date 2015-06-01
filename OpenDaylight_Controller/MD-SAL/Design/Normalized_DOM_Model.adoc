@@ -1,0 +1,146 @@
+The new normalized model for data will not be based on the serialization
+format (as defined in the YANG specification and used by
+_sal-broker-impl 1.0_), but will rather represent the actual concepts
+behind the YANG Specification.
+
+Normalized DOM Model brings more direct mapping between YANG Model, DOM
+representation of data and Binding Aware generated DTOs.
+
+[[overview]]
+== Overview
+
+[[node-types]]
+=== Node Types
+
+* *NormalizedNode* - Base type representing a node in a tree structure;
+all nodes are derived from it, it contains a leaf identifier and a
+value.
+** *DataContainerNode* - Node which contains multiple leafs; it does not
+have a direct representation in the YANG syntax.
+*** *ContainerNode* - Node, which represents a leaf which can occur only
+once per parent node; it contains multiple child leaves and maps to the
+_container_ statement in YANG.
+*** *MapEntryNode* - Node which represents a leaf, which can occur
+multiple times; a leave is uniquely identified by the value of its key.
+A MapEntryNode may contain multiple child leaves. MapEntryNode maps to
+the instance of _list_ in YANG.
+*** *UnkeyedListEntryNode* - Node which represents a leaf, which can
+occur multiple times; a leave is uniquely identified by the value of its
+key. A MapEntryNode may contain multiple child leaves. MapEntryNode maps
+to the instance of _list_ in YANG.
+*** *ChoiceNode* - Node which represents a leaf, which occurs mostly
+once per parent node, but possible values could have different types.
+Maps to _choice_ statement. Types maps to the _case_ statements for that
+_choice_.
+*** *AugmentationNode* - Node which represents a leaf, which occurs
+mostly once per parent node.
+** *LeafNode* - Node which represents a leaf, which occurs mostly once
+per parent node. Contains simple value.
+** *LeafSetEntryNode* - Node which represents a leaf, which type could
+occurs multiple times per parent node. Maps to to the instances of
+_leaf-list_ in YANG.
+** *LeafSetNode* - Special node, which can occur only once per parent
+node; its leaves are LeafSetEntryNode nodes of specified type. Maps into
+the _leaf-list_ in YANG.
+** *MapNode* - Special node, which can occur only once per parent node;
+its leaves are MapEntryNode nodes.
+*** *OrderedMapNode* - Special node, which can occur only once per
+parent node; its leaves are MapEntryNode nodes.
+** *UnkeyedListNode* - Special node, which can occur only once per
+parent node; its leaves are MapEntryNode nodes.
+
+The original model also did not provide a tie-in between the
+InstanceIdentifier and the Data Store. This omission has been fixed in
+this proposal by defining a relationship between path arguments in
+InstanceIdentifier and data tree nodes.
+
+[[tree-grammar]]
+=== Tree Grammar
+
+The grammar for the data objects structure is as follows:
+
+` InstanceIdentifier = PathArgument*` +
+` PathArgument = NodeIdentifier|NodeIdentifierWithPredicates|NodeIdentifierWithValue|AugmentationIdentifier` +
+` ` +
+` TreeRoot = DataContainerNode` +
+` DataContainerNode = (LeafNode|ChoiceNode|AugmentationNode|MapNode|LeafSetNode)*` +
+` ContainerDataNode = NodeIdentifier DataContainerNode` +
+ +
+` LeafNode = NodeIdentifier SimpleValue` +
+` AugmentationNode = AugmentationIdentifier DataContainerNode` +
+` MapNode = MapEntryNode*` +
+` MapEntryNode = NodeIdentifierWithPredicates DataContainerNode` +
+` ` +
+` /* Special nodes */` +
+` LeafSetNode = LeafSetEntryNode*` +
+` ChoiceNode = NodeIdentifier DataContainerNode` +
+` LeafSetEntryNode = NodeIdentifierWithValue SimpleValue`
+
+The resulting organization of the data tree is:
+
+* (DataContainerNode)
+** (0..n) LeafNode
+** (0..n) LeafSetNode
+*** (0..n) LeafSetEntryNode
+** (0..n) ContainerNode
+*** (Same as DataContainerNode)
+** (0..n) ContainerNode
+*** (Same as DataContainerNode)
+** (0..n) MapNode
+*** (0..n) MapEntryNode
+**** (Same as DataContainerNode)
+** (0..n) AugmentationNode
+*** (Same as DataContainerNode)
+
+Code for the proposed APIs is in:
+http://git.opendaylight.org/gerrit/5441
+
+[[mapping-between-yang-statements-schema-data-and-binding-interfaces]]
+== Mapping between YANG statements, schema, data and Binding interfaces
+
+[cols=",,,,",options="header",]
+|=======================================================================
+|YANG concept |yang.schema interface |yang.data.api Node |Binding Aware
+interfaces (v1) |Notes
+|Leaf
+|https://jenkins.opendaylight.org/yangtools/job/yangtools-merge/lastSuccessfulBuild/artifact/yang/yang-model-api/target/apidocs/org/opendaylight/yangtools/yang/model/api/LeafSchemaNode.html[LeafSchemaNode]
+|LeafNode |property of type T |T is type / class for simple value used
+in leaf
+
+|Leaf List
+|https://jenkins.opendaylight.org/yangtools/job/yangtools-merge/lastSuccessfulBuild/artifact/yang/yang-model-api/target/apidocs/org/opendaylight/yangtools/yang/model/api/LeafListNode.html[LeafListSchemaNode]
+|LeafSetNode |property of type List |T is type / class for simple value
+used in leaf list
+
+|Container
+|https://jenkins.opendaylight.org/yangtools/job/yangtools-merge/lastSuccessfulBuild/artifact/yang/yang-model-api/target/apidocs/org/opendaylight/yangtools/yang/model/api/ContainerSchemaNode.html[ContainerSchemaNode]
+|ContainerNode |DataContainer, DataObject
+
+|List
+|https://jenkins.opendaylight.org/yangtools/job/yangtools-merge/lastSuccessfulBuild/artifact/yang/yang-model-api/target/apidocs/org/opendaylight/yangtools/yang/model/api/ListSchemaNode.html[ListSchemaNode]
+|| MapEntryNode || DataContainer, DataObject, Identifiable || _K_ is a
+class representing key
+
+|Choice
+|https://jenkins.opendaylight.org/yangtools/job/yangtools-merge/lastSuccessfulBuild/artifact/yang/yang-model-api/target/apidocs/org/opendaylight/yangtools/yang/model/api/ChoiceNode.html[ChoiceNode]
+|| ChoiceNode |DataContainer
+
+|Case
+|https://jenkins.opendaylight.org/yangtools/job/yangtools-merge/lastSuccessfulBuild/artifact/yang/yang-model-api/target/apidocs/org/opendaylight/yangtools/yang/model/api/ChoiceCaseNode.html[ChoiceCaseNode]
+|| ChoiceNode || DataContainer, DataObject
+
+|Augmentation (container,list)
+|https://jenkins.opendaylight.org/yangtools/job/yangtools-merge/lastSuccessfulBuild/artifact/yang/yang-model-api/target/apidocs/org/opendaylight/yangtools/yang/model/api/AugmentationSchema.html[AugmentationSchema]
+|| AugmentationNode || DataContainer, Augmentation || _T_ is class
+representing augmentation target
+
+|Augmentation (choice)
+||https://jenkins.opendaylight.org/yangtools/job/yangtools-merge/lastSuccessfulBuild/artifact/yang/yang-model-api/target/apidocs/org/opendaylight/yangtools/yang/model/api/AugmentationSchema.html[AugmentationSchema]
+|| ChoiceNode || _C_, DataContainer, DataObject || C is interface
+representing choice, this type of augmenatation adds new cases to choice
+
+|Notification
+|https://jenkins.opendaylight.org/yangtools/job/yangtools-merge/lastSuccessfulBuild/artifact/yang/yang-model-api/target/apidocs/org/opendaylight/yangtools/yang/model/api/NotificationDefinition.html[NotificationDefinition]
+|| ContainerNode || DataContainer
+|=======================================================================
+

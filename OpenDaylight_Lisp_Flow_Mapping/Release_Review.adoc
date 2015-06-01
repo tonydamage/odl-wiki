@@ -1,0 +1,127 @@
+[cols="^",]
+|=======================================================================
+|*Guide Contents*
+
+|OpenDaylight_Lisp_Flow_Mapping:Architecture[Architecture Overview] +
+OpenDaylight_Lisp_Flow_Mapping:Java_API[Java API] +
+OpenDaylight_Lisp_Flow_Mapping:REST_API[REST API] +
+OpenDaylight_Lisp_Flow_Mapping:SimultaneousReleasePlan2013[Release
+Plan] +
+OpenDaylight_Lisp_Flow_Mapping:ReleasePlan2013_Detailed[Detailed Release
+Plan (2013)] +
+OpenDaylight_Lisp_Flow_Mapping:Hacking_Code_From_CLI[Hacking the Code
+From CLI] +
+OpenDaylight_Lisp_Flow_Mapping:Main[Back to LISP Flow Mapping Main]
+|=======================================================================
+
+[[lisp-flow-mapping]]
+== LISP Flow Mapping
+
+[[features]]
+== Features
+
+* First release of Lisp Flow Mapping
+* LISP Map Server with flat key-value mappings
+** Support for basic mappings including multiple RLOCs per EID,
+priority, and weight
+** Support for storing IPv4, IPv6, MAC, Distinguished Name, Segment ID,
+Traffic Engineering with Path Specification, AS Number, Application
+Specific Data
+** Support for Source/Destination 2-Tuple Lookups
+* LISP Map Resolver
+* Northbound (application facing) REST API for Map Server and Map
+Resolver to add/retrieve EID-RLOC (e.g. : virtual IP address to physical
+IP address) mappings
+* Southbound (device facing) LISP API for Map Server and Map Resolver to
+register/request EID-RLOC mappings via LISP protocol
+
+[[non-code-aspects-user-docs-examples-tutorials-articles]]
+== Non-Code Aspects (user docs, examples, tutorials, articles)
+
+* OpenDaylight_Lisp_Flow_Mapping:Architecture[Architecture Overview]
+* OpenDaylight_Lisp_Flow_Mapping:User_Guide_for_Hydrogen[User Guide for
+Hydrogen]
+* OpenDaylight_Lisp_Flow_Mapping:Developer_Guide_for_Hydrogen[Developer
+Guide for Hydrogen]
+
+[[architectural-issues]]
+== Architectural Issues
+
+An overview of the architecture including API documentation is posted at
+the OpenDaylight_Lisp_Flow_Mapping:Architecture[Architecture Overview]
+page.
+
+* Mappings registered via southbound LISP protocol and via northbound
+REST API for the same EID (EID prefix) are not differentiable, and will
+overwrite each other. Later versions may provide support for
+differentiating with priority to allow for non-overwrite option.
+
+[[security-issues]]
+== Security Issues
+
+LISP southbound plugin follows LISP RFC6830 security guidelines. A
+key/password is associated with every EID prefix which is used to create
+a MAC (Message Authentication Code) of the UDP LISP control messages for
+authentication and integrity protection of the UDP messages. This is
+implemented as specified in the LISP RFC6830. On the Northbound API, the
+key is passed via JSON and is tested for equality against the stored key
+for the EID prefix being registered. No MAC of the REST request is
+created.
+
+[[quality-assurance-test-coverage-etc]]
+== Quality Assurance (test coverage, etc)
+
+* Unit Tests: Several unit tests are implemented and passed for the
+following modules: Implementation, Southbound, Northbound. Coverage is
+more extensive on the Implementation and Southbound modules.
+* Integration Tests: About 30 integration tests have been implemented
+and passed ( 6 tests for northbound API and rest for implementation and
+southbound). Coverage is more extensive on simple AFIs compared to more
+complex LCAF types.
+
+[[end-of-life-apifeatures-eoled-in-release]]
+== End-of-life (API/Features EOLed in Release)
+
+This is the first release of LISP Flow Mapping.
+
+[[bugzilla-summary-of-bug-situation]]
+== Bugzilla (summary of bug situation)
+
+No outstanding feature bugs as of now. 2 outstanding design bugs likely
+to be targeted for next release.
+
+[[standards-summary-of-standard-compliance]]
+== Standards (summary of standard compliance)
+
+The LISP implementation module and southbound plugin conforms to the
+IETF RFC6830 and RFC6833, with the following exceptions:
+
+* In Map-Register message, P bit is stored but Mapping Service always
+acts as proxy, and does not forward Map-Requests.
+* In Map-Request message, M bit(Map-Reply Record exist in the
+MapRequest) is processed but any mapping data at the bottom of a
+Map-Request are discarded.
+
+***** David/Gal is this correct, has it been tested or should we say
+avoid setting this bit to 1??*
+
+* LISP LCAFs are limited to only up to one level of recursion. For
+instance in the case of a traffic engineering policy every hop can only
+be a generic AFI address (IPv4, IPv6, MAC, Dist. Name, AS Number), and
+can not include combinations such as Segment ID, or list.
+
+From the list of AFI and LCAFs available in LISP the following are
+supported in this release:
+
+* Supported AFIs: IPV4, IPV6, MAC, Distinguished Name, AS Number, LCAF.
+* Supported LCAFs: List (type=1), SegmentId (type=2), Convey application
+data (type=4), Traffic Engineering (type=10), source/dest (type=12).
+
+No standards exist for the LISP Mapping System northbound API as of this
+date.
+
+[[schedule-initial-schedule-and-changes-over-the-release-cycle]]
+== Schedule (initial schedule and changes over the release cycle)
+
+All features planned for this release cycle were met. Schedule of next
+release cycle is in the works.

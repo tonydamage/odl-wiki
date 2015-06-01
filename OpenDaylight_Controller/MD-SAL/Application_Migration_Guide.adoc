@@ -1,0 +1,171 @@
+[[conceptual-changes]]
+= Conceptual Changes
+
+The Model-Driven SAL (MD-SAL) is model-agnostic. it can support any
+device and/or service models and is not limited to flow-capable device
+and service models only, as it is the case with the existing API-Driven
+SAL (AD-SAL).
+
+A key new concept introduced by the MD-SAL is the mapping of generated
+service APIs to interfaces generated for YANG RPCs and Notifications.
+
+[[service-interface]]
+== Service Interface
+
+Service interfaces are generated from RPC definitions in YANG models.
+They represent functionality provided by implementations of that model.
+
+Each generated method returns a _java.concurrent.Future_ object
+containing an _RpcResult_ object.
+
+[[listener-interface]]
+== Listener Interface
+
+Listener interfaces are provided by the MD-SAL. They are used by
+applications that wish to receive Notifications (events) or RPC
+callbacks defined in YANG models and provided by implementations.
+
+[[migrating-plugins-and-applications-from-the-ad-sal]]
+= Migrating Plugins and Applications from the AD-SAL
+
+[[models-that-replicate-the-ad-sal-functionality]]
+== Models that Replicate the AD-SAL Functionality
+
+The functionality of the existing AD-SAL is provided via models and
+their respective generated APIs in the following artifacts:
+
+* '''model-inventory '''- maven artifact containing the inventory model
+- model of nodes and node connectors
+* '''model-flow-base '''- maven artifact containing the base flow types
+- model of flows, groups, matches and actions
+* '''model-flow-service '''- maven artifact containing the flow service
+model
+* *model-flow-statistics* - maven artifact containing the flow
+statistics model
+
+[[model-inventory]]
+=== model-inventory
+
+The inventory model defines base concepts, such as:
+
+* *Node* - Represents the Network Node (Element) with attributes
+* *NodeRef* - reference to a Network Node. Designed to be used to
+reference a node without exposing its internal structures. Semantically
+similar to the Node class in the AD-SAL.
+* *NodeConnector* - Represents the Node Connector (e.g. interface or
+port) and its attributes.
+* *NodeConnectorRef* - reference to a Node Connector. Designed to be
+used to reference a Node Connector, without exposing its internal
+structures. Semantically similar to the NodeConnector class in the
+AD-SAL.
+
+[[model-flow-base]]
+=== model-flow-base
+
+Defines base concepts related to the flow-capable devices such as:
+
+* '''Flow '''- Base flow definition
+* *Match* - Aggragate Match structure containing fields for base match
+types, separated by layer information
+** *EthernetMatch* - Layer2 match, similar to NW_SRC and NW_DST match
+fields
+** *VlanMatch* -
+** *Layer3Match* - Layer 3 match, could be Ipv4Match, Ipv6Match or
+ArpMatch
+** *Layer4Match* - Layer 4 match, could be TcpMatch, UdpMatch or
+SctpMatch
+* *Action* and subactions
+* *Group*
+
+[[model-flow-service]]
+=== model-flow-service
+
+Defines service interfaces, events and listener interfaces which are to
+be consumed by applications using MD-SAL and flow-capable nodes.
+
+* '''SalFlowService '''- interface used to set up a flow, update a flow,
+or delete a flow on a node
+* '''SalFlowListener '''- listener interface which can be implemented by
+applications to receive flow change events
+
+Additional models are contributed on daily basis
+
+[[md-sal-approach-to-services]]
+== MD-SAL Approach to Services
+
+The existing AD-SAL services usually provides both *asynchronous* and
+*synchronous* versions of the same API method. in the MD-SAL, Service
+model APIs only provide asynchronous APIs, but they return a
+'java.concurrent.Future' object, which allows a caller to block until
+the call is processed and a result object is available. With this
+approach the MD-SAL does not preclude synchronous applications, but it
+promotes the asynchronous approach to application design. Moreover, the
+same API definition can be used for both approaches.
+
+[[application-initialization]]
+=== Application Initialization
+
+In principle, the initialization of applications is the same as for the
+existing AD-SAL: client applications have to subclass the
+*AbstractBindingAwareConsumer* Activator, which takes care of the basic
+initialization. Applications are required to implement the
+_onSessionInitialized_ method which is used by the activation procedure
+to pass the *ConsumerContext*. Application implementations also need to
+be specified as bundle activators in their respective bundle manifests.
+
+`     @Override` +
+`     public void onSessionInitialized(ConsumerContext session) {` +
+`         this.session = session;          ` +
+`     }`
+
+[[consumercontext]]
+=== ConsumerContext
+
+*ConsumerContext* is an interface for interactions between applications
+and the MD-SAL. The most frequently used functionality of the
+*ConsumerContext* API is to request SAL Services, such as the
+*NotificationService* or MD-SAL implementations of modeled services,
+such as *SALFlowService*.
+
+[[notification-example]]
+=== Notification Example
+
+'The _NotificationService_' API provides functionality to register
+listeners for any notification type provided by any plugin registered
+with the MD-SAL.
+
+`     @Override` +
+`     public void onSessionInitialized(ConsumerContext session) {` +
+`         this.session = session;` +
+`         NotificationService notificationService = session.getSALService(NotificationService.class);` +
+`         notificationService.addNotificationListener(FlowAdded.class, new NotificationListener``() {` +
+`             @Override` +
+`             public void onNotification(FlowAdded notification) {` +
+`                 log.info("FlowAdded: {} ",notification.getCookie());` +
+`             }` +
+`         });` +
+`     }`
+
+[[salflowservice-example]]
+=== SalFlowService Example
+
+`    public void addFlows() throws Exception {` +
+`         SalFlowService flowProgrammer = session.getRpcService(SalFlowService.class); // gets a MD-SAL implementation of SALFlowService ` +
+`         AddFlowInput flow = generateFlow(); // generates flow` +
+`         Future``> resultFuture = flowProgrammer.addFlow(flow); // we invokes addFlow operation` +
+`         RpcResult`` result = resultFuture.get(); // We block until the processing of addFlow is done and result is provided` +
+`         log.info("Result status: {}", result.isSuccessful() );` +
+`    }`
+
+[[a-complete-service-example]]
+= A Complete Service Example
+
+We provided a simple complete example of a model, a service provider
+(toaster) and a service consumer in the toaster sample. It provides the
+model of a programmable toaster, a sample consumer application that uses
+MD-SAL APIs, a sample southbound plugin (a service provider) that
+implements toaster, and a unit test suite.
+
+The toaster example is in *controller.git* repository under
+*opendaylight/md-sal/samples*, you can view it
+https://git.opendaylight.org/gerrit/gitweb?p=controller.git;a=tree;f=opendaylight/md-sal/samples;hb=HEAD[here].

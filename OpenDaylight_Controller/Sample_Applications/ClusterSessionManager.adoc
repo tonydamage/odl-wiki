@@ -1,0 +1,64 @@
+[[introduction]]
+== Introduction
+
+Open Daylight has a Web bundle to see access nodes, topologies etc. It
+works fine if we have a single controller instance. This web bundle use
+Tomcat Realm based authentication. Once the user is authenticated,
+authenticated session information is kept inside tomcat memory. This
+model works fine as long as we have only one controller instance. but as
+soon as we start having a cluster of controllers and we want to access
+UI for cluster environment, the described model will not work, because a
+request from browser can go to any instance of controller. If user got
+authenticated on instance 1, then session information will be available
+on instance 1, but as soon as the next request reach any other instance,
+it will not process, because for those instances, user is not
+authenticated. In open daylight UI, most of the requests are ajax based,
+so the whole application becomes inaccessible as soon we have more than
+one instance.
+
+[[cluster-session-manager]]
+== Cluster Session Manager
+
+To rectify the above mentioned problem, we thought of keeping the
+session data at one centralized location, which should be accessible by
+all the controller instances. Open Daylight already use Infinispan in
+cluster mode to share data across multiple controller nodes, thus we
+decided to use Infinispan to persist out authenticated session.
+
+We created a ClusterSessionManager class, which extends an abstract
+class ManagerBase provided by Apache tomcat. In our SessionManager, we
+initialize an instance of ClusterSessionService class, which is
+implemented by ClusterSessionServiceimpl.java. We used the interface
+based model for Service, to make sure that, if in future, we think of
+replacing infinispan with say memcache, it will be just a change of
+implementation class. ClusterSessionService implementation does not work
+till it gets access to the Clustering Service provided by open daylight.
+Clustering Service gives us access to the infinispan, where we create
+session cache to persist session data. All basic CRUD operations are
+supported in ClusterSessionService. We have to add our own
+ClusterSession object also, which extends tomcat's StandardSession. We
+have to add this to make sure, for any setter call, we are updating data
+in infinispan also.
+
+Infinispan in Open daylight works in cluster mode, where if we make an
+update in one controller, it gets replicated to rest of the controller
+in both sync and async manner. To make sure syncing of session data
+happens in correct manner, we need to perfrom serialization and
+deserialization of all the objects that we are trying to persist in
+infinispan. We added a ClusterSessionUtil class to perform all of
+serialization and deserialization of objects, thus making it work in
+infinispan cluster environment.
+
+[[how-to-use]]
+== How To Use
+
+\1. Build the Cluster session OSGi bundle under sample project and copy
+it into your controller distribution’s plugin folder. 2. Change
+context.xml under configuration directory of your distribution like
+mentioned below -
+
+` ` +
+`   ` +
+` `
+
+\3. Restart the controller.
